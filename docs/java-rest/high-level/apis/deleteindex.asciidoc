@@ -1,10 +1,10 @@
-[[java-rest-high-document-delete-index]]
+[[java-rest-high-delete-index]]
 === Delete Index API
 
-[[java-rest-high-document-delete-index-request]]
+[[java-rest-high-delete-index-request]]
 ==== Delete Index Request
 
-A `DeleteIndexRequest` requires an 'index' argument:
+A `DeleteIndexRequest` requires an `index` argument:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -36,7 +36,7 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-index-reque
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
-[[java-rest-high-document-delete-index-sync]]
+[[java-rest-high-delete-index-sync]]
 ==== Synchronous Execution
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -44,7 +44,7 @@ how wildcard expressions are expanded
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-index-execute]
 --------------------------------------------------
 
-[[java-rest-high-document-delete-index-async]]
+[[java-rest-high-delete-index-async]]
 ==== Asynchronous Execution
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -55,7 +55,7 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-index-execu
 provided as an argument
 <2> Called in case of failure. The raised exception is provided as an argument
 
-[[java-rest-high-document-delete-index-response]]
+[[java-rest-high-delete-index-response]]
 ==== Delete Response
 
 The returned `DeleteResponse` allows to retrieve information about the executed
@@ -67,9 +67,6 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-index-respo
 --------------------------------------------------
 
 If the index was not found, an `ElasticsearchException` will be thrown:
-
-If there is a version conflict, an `ElasticsearchException` will
-be thrown:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

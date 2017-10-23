@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -36,7 +37,23 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * A response for a create index action.
  */
-public class CreateIndexResponse extends AcknowledgedResponse {
+public class CreateIndexResponse extends AcknowledgedResponse implements ToXContentObject {
+
+    private static final String SHARDS_ACKNOWLEDGED = "shards_acknowledged";
+    private static final String INDEX = "index";
+
+    private static final ParseField SHARDS_ACKNOWLEDGED_PARSER = new ParseField(SHARDS_ACKNOWLEDGED);
+    private static final ParseField INDEX_PARSER = new ParseField(INDEX);
+
+    private static final ConstructingObjectParser<CreateIndexResponse, Void> PARSER = new ConstructingObjectParser<>("create_index",
+        true, args -> new CreateIndexResponse((boolean) args[0], (boolean) args[1], (String) args[2]));
+
+    static {
+        declareAcknowledgedField(PARSER);
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SHARDS_ACKNOWLEDGED_PARSER,
+            ObjectParser.ValueType.BOOLEAN);
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), INDEX_PARSER, ObjectParser.ValueType.STRING);
+    }
 
     private boolean shardsAcked;
     private String index;
@@ -85,24 +102,20 @@ public class CreateIndexResponse extends AcknowledgedResponse {
     }
 
     public void addCustomFields(XContentBuilder builder) throws IOException {
-        builder.field("shards_acknowledged", isShardsAcked());
-        builder.field("index", index());
+        builder.field(SHARDS_ACKNOWLEDGED, isShardsAcked());
+        builder.field(INDEX, index());
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        addAcknowledgedField(builder);
+        addCustomFields(builder);
+        builder.endObject();
+        return builder;
     }
 
     public static CreateIndexResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
-    }
-
-    private static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
-    private static final ParseField INDEX = new ParseField("index");
-
-    private static final ConstructingObjectParser<CreateIndexResponse, Void> PARSER = new ConstructingObjectParser<>("create_index",
-        true, a -> new CreateIndexResponse((boolean) a[0], (boolean) a[1], (String) a[2]));
-
-    static {
-        declareAcknowledgedField(PARSER);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SHARDS_ACKNOWLEDGED,
-            ObjectParser.ValueType.BOOLEAN);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), INDEX, ObjectParser.ValueType.STRING);
     }
 }

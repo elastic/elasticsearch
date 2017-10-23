@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +32,13 @@ import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class DeleteIndexResponseTests extends ESTestCase {
 
-    public void testFromXContent() throws IOException {
+    public void testToXContent() {
+        DeleteIndexResponse response = new DeleteIndexResponse(true);
+        String output = Strings.toString(response);
+        assertEquals("{\"acknowledged\":true}", output);
+    }
+
+    public void testToAndFromXContent() throws IOException {
         doFromXContentTestWithRandomFields(false);
     }
 
@@ -47,14 +52,12 @@ public class DeleteIndexResponseTests extends ESTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
+
+        final DeleteIndexResponse deleteIndexResponse = createTestItem();
+
         boolean humanReadable = randomBoolean();
         final XContentType xContentType = randomFrom(XContentType.values());
-
-        final Tuple<XContentBuilder, DeleteIndexResponse> tuple = randomDeleteIndexResponse(xContentType, humanReadable);
-        XContentBuilder deleteIndexResponseXContent = tuple.v1();
-        DeleteIndexResponse expectedDeleteIndexResponse = tuple.v2();
-
-        BytesReference originalBytes = deleteIndexResponseXContent.bytes();
+        BytesReference originalBytes = toShuffledXContent(deleteIndexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         BytesReference mutated;
         if (addRandomFields) {
@@ -68,28 +71,15 @@ public class DeleteIndexResponseTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        assertEquals(expectedDeleteIndexResponse.isAcknowledged(), parsedDeleteIndexResponse.isAcknowledged());
+        assertEquals(deleteIndexResponse.isAcknowledged(), parsedDeleteIndexResponse.isAcknowledged());
     }
 
     /**
-     * Returns a tuple of an {@link XContentBuilder} and a {@link DeleteIndexResponse}.
-     * <p>
-     * The left element is the actual {@link XContentBuilder} to serialize while the right element is the
-     * expected {@link DeleteIndexResponse} after parsing.
+     * Returns a random {@link DeleteIndexResponse}.
      */
-    public static Tuple<XContentBuilder, DeleteIndexResponse> randomDeleteIndexResponse(
-        XContentType xContentType, boolean humanReadable) throws IOException {
-
+    private static DeleteIndexResponse createTestItem() throws IOException {
         boolean acknowledged = randomBoolean();
 
-        XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-        builder.humanReadable(humanReadable);
-        builder.startObject();
-        builder.field("acknowledged", acknowledged);
-        builder.endObject();
-
-        DeleteIndexResponse expected = new DeleteIndexResponse(acknowledged);
-
-        return Tuple.tuple(builder, expected);
+        return new DeleteIndexResponse(acknowledged);
     }
 }

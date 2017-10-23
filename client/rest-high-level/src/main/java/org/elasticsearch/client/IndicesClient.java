@@ -30,9 +30,9 @@ import java.util.Collections;
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
  *
- * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/5.6/indices.html">Indices API on elastic.co</a>
+ * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
  */
-public class IndicesClient {
+public final class IndicesClient {
     private final RestHighLevelClient restHighLevelClient;
 
     public IndicesClient(RestHighLevelClient restHighLevelClient) {
@@ -40,7 +40,7 @@ public class IndicesClient {
     }
 
     /**
-     * Deletes an index using the Delete Index api
+     * Deletes an index using the Delete Index API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">
      * Delete Index API on elastic.co</a>
@@ -51,7 +51,7 @@ public class IndicesClient {
     }
 
     /**
-     * Asynchronously deletes an index using the Delete Index api
+     * Asynchronously deletes an index using the Delete Index API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">
      * Delete Index API on elastic.co</a>

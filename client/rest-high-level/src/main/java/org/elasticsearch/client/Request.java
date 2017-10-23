@@ -125,7 +125,7 @@ public final class Request {
     }
 
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
-        String endpoint = endpoint(deleteIndexRequest.indices(), "");
+        String endpoint = endpoint(deleteIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
 
         Params parameters = Params.builder();
         parameters.withTimeout(deleteIndexRequest.timeout());
@@ -388,10 +388,6 @@ public final class Request {
 
     static String endpoint(String[] indices, String[] types, String endpoint) {
         return endpoint(String.join(",", indices), String.join(",", types), endpoint);
-    }
-
-    static String endpoint(String[] indices, String endpoint) {
-        return endpoint(String.join(",", indices), endpoint);
     }
 
     /**

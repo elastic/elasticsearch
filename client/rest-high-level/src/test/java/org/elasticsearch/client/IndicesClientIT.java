@@ -54,14 +54,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    private void createIndex(String index) throws IOException {
-        Response response = client().performRequest("PUT", "/" + index);
+    private static void createIndex(String index) throws IOException {
+        Response response = client().performRequest("PUT", index);
 
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    private boolean indexExists(String index) throws IOException {
-        Response response = client().performRequest("HEAD", "/" + index);
+    private static boolean indexExists(String index) throws IOException {
+        Response response = client().performRequest("HEAD", index);
 
         return response.getStatusLine().getStatusCode() == 200;
     }

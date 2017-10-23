@@ -87,19 +87,19 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId(), shardIt.getClusterAlias(),
-            shardIt.getOriginalIndices());
+                shardIt.getOriginalIndices());
         onShardFailure(shardIndex, shardTarget, e);
 
         if (totalOps.incrementAndGet() == expectedTotalOps) {
             if (logger.isDebugEnabled()) {
                 if (e != null && !TransportActions.isShardNotAvailableException(e)) {
                     logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "{}: Failed to execute [{}]",
-                            shard != null ? shard.shortSummary() :
-                                shardIt.shardId(),
-                            request),
-                        e);
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                    "{}: Failed to execute [{}]",
+                                    shard != null ? shard.shortSummary() :
+                                            shardIt.shardId(),
+                                    request),
+                            e);
                 } else if (logger.isTraceEnabled()) {
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
@@ -110,12 +110,12 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             final boolean lastShard = nextShard == null;
             // trace log this exception
             logger.trace(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "{}: Failed to execute [{}] lastShard [{}]",
-                    shard != null ? shard.shortSummary() : shardIt.shardId(),
-                    request,
-                    lastShard),
-                e);
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                            "{}: Failed to execute [{}] lastShard [{}]",
+                            shard != null ? shard.shortSummary() : shardIt.shardId(),
+                            request,
+                            lastShard),
+                    e);
             if (!lastShard) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
             } else {
@@ -124,13 +124,13 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                 if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
                     if (e != null && !TransportActions.isShardNotAvailableException(e)) {
                         logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "{}: Failed to execute [{}] lastShard [{}]",
-                                shard != null ? shard.shortSummary() :
-                                    shardIt.shardId(),
-                                request,
-                                lastShard),
-                            e);
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                        "{}: Failed to execute [{}] lastShard [{}]",
+                                        shard != null ? shard.shortSummary() :
+                                                shardIt.shardId(),
+                                        request,
+                                        lastShard),
+                                e);
                     }
                 }
             }
@@ -158,16 +158,13 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     private void maybeExecuteNext() {
-        // we have to keep looping until we run out of shards or find another shard to execute this phase on
-        int index;
-        while ((index = shardExecutionIndex.getAndIncrement()) < shardsIts.size()) {
+        final int index = shardExecutionIndex.getAndIncrement();
+        if (index < shardsIts.size()) {
             final SearchShardIterator shardRoutings = shardsIts.get(index);
-            if (!shardRoutings.skip()) {
-                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
-                break;
-            }
+            performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
         }
     }
+
 
     private void maybeFork(final Thread thread, final Runnable runnable) {
         if (thread == Thread.currentThread()) {

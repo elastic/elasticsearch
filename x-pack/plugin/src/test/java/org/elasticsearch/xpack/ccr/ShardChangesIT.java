@@ -25,20 +25,30 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
+import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, transportClientRatio = 0)
 public class ShardChangesIT extends ESIntegTestCase {
@@ -131,6 +141,86 @@ public class ShardChangesIT extends ESIntegTestCase {
         operation = (Translog.Index) response.getOperations().get(2);
         assertThat(operation.seqNo(), equalTo(5L));
         assertThat(operation.id(), equalTo("5"));
+    }
+
+
+    public void testFollowIndex() throws Exception {
+        final int numberOfPrimaryShards = randomIntBetween(1, 3);
+
+        assertAcked(client().admin().indices().prepareCreate("index1")
+                .setSettings(Settings.builder().put("index.number_of_shards", numberOfPrimaryShards)));
+        assertAcked(client().admin().indices().prepareCreate("index2")
+                .setSettings(Settings.builder().put("index.number_of_shards", numberOfPrimaryShards)));
+        ensureGreen("index1", "index2");
+
+        FollowExistingIndexAction.Request followRequest = new FollowExistingIndexAction.Request();
+        followRequest.setLeaderIndex("index1");
+        followRequest.setFollowIndex("index2");
+        client().execute(FollowExistingIndexAction.INSTANCE, followRequest).get();
+
+        int numDocs = randomIntBetween(2, 64);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+        }
+
+        final Map<ShardId, Long> numDocsPerShard = new HashMap<>();
+        ShardStats[] shardStats = client().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+        for (ShardStats shardStat : shardStats) {
+            if (shardStat.getShardRouting().primary()) {
+                long value = shardStat.getStats().getIndexing().getTotal().getIndexCount() - 1;
+                numDocsPerShard.put(shardStat.getShardRouting().shardId(), value);
+            }
+        }
+
+        assertBusy(() -> {
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            assertThat(tasks.tasks().size(), equalTo(numberOfPrimaryShards));
+
+            for (PersistentTasksCustomMetaData.PersistentTask<?> task : tasks.tasks()) {
+                ShardFollowTask shardFollowTask = (ShardFollowTask) task.getParams();
+                ShardFollowTask.Status status = (ShardFollowTask.Status) task.getStatus();
+                assertThat(status, notNullValue());
+                assertThat(status.getProcessedGlobalCheckpoint(), equalTo(numDocsPerShard.get(shardFollowTask.getLeaderShardId())));
+            }
+        });
+
+        numDocs = randomIntBetween(2, 64);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
+        }
+
+        numDocsPerShard.clear();
+        shardStats = client().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+        for (ShardStats shardStat : shardStats) {
+            if (shardStat.getShardRouting().primary()) {
+                long value = shardStat.getStats().getIndexing().getTotal().getIndexCount() - 1;
+                numDocsPerShard.put(shardStat.getShardRouting().shardId(), value);
+            }
+        }
+
+        assertBusy(() -> {
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            assertThat(tasks.tasks().size(), equalTo(numberOfPrimaryShards));
+
+            for (PersistentTasksCustomMetaData.PersistentTask<?> task : tasks.tasks()) {
+                ShardFollowTask shardFollowTask = (ShardFollowTask) task.getParams();
+                ShardFollowTask.Status status = (ShardFollowTask.Status) task.getStatus();
+                assertThat(status, notNullValue());
+                assertThat(status.getProcessedGlobalCheckpoint(), equalTo(numDocsPerShard.get(shardFollowTask.getLeaderShardId())));
+            }
+        });
+
+        UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
+        unfollowRequest.setFollowIndex("index2");
+        client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).get();
+
+        assertBusy(() -> {
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            assertThat(tasks.tasks().size(), equalTo(0));
+        });
     }
 
 }

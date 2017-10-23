@@ -19,10 +19,10 @@
   - is_false: nodes.$master.jvm
   - is_true:  nodes.$master.discovery
   - is_true:  nodes.$master.discovery.cluster_state_queue
-  - is_true:  nodes.$master.discovery.published_cluster_states_received
-  - gte: { nodes.$master.discovery.published_cluster_states_received.full_cluster_states: 0 }
-  - gte: { nodes.$master.discovery.published_cluster_states_received.incompatible_cluster_state_diffs: 0 }
-  - gte: { nodes.$master.discovery.published_cluster_states_received.compatible_cluster_state_diffs: 0 }
+  - is_true:  nodes.$master.discovery.published_cluster_states
+  - gte: { nodes.$master.discovery.published_cluster_states.full_states: 0 }
+  - gte: { nodes.$master.discovery.published_cluster_states.incompatible_diffs: 0 }
+  - gte: { nodes.$master.discovery.published_cluster_states.compatible_diffs: 0 }
   - is_true:  nodes.$master.roles
 
   - do:
@@ -35,8 +35,8 @@
   - is_false: nodes.$master.jvm
   - is_true:  nodes.$master.discovery
   - is_true:  nodes.$master.discovery.cluster_state_queue
-  - is_true:  nodes.$master.discovery.published_cluster_states_received
-  - gte: { nodes.$master.discovery.published_cluster_states_received.full_cluster_states: 0 }
-  - gte: { nodes.$master.discovery.published_cluster_states_received.incompatible_cluster_state_diffs: 0 }
-  - gte: { nodes.$master.discovery.published_cluster_states_received.compatible_cluster_state_diffs: 0 }
+  - is_true:  nodes.$master.discovery.published_cluster_states
+  - gte: { nodes.$master.discovery.published_cluster_states.full_states: 0 }
+  - gte: { nodes.$master.discovery.published_cluster_states.incompatible_diffs: 0 }
+  - gte: { nodes.$master.discovery.published_cluster_states.compatible_diffs: 0 }
   - is_false:  nodes.$master.roles

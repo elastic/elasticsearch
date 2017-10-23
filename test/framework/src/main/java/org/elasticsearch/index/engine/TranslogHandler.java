@@ -38,11 +38,12 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 public class TranslogHandler implements EngineConfig.TranslogRecoveryRunner {
@@ -59,9 +60,10 @@ public class TranslogHandler implements EngineConfig.TranslogRecoveryRunner {
 
     public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings) {
         NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, Collections.emptyMap(), Collections.emptyMap());
-        SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-        MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+        IndexAnalyzers indexAnalyzers =
+                new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, emptyMap(), emptyMap());
+        SimilarityService similarityService = new SimilarityService(indexSettings, null, emptyMap());
+        MapperRegistry mapperRegistry = new IndicesModule(emptyList()).getMapperRegistry();
         mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                 () -> null);
     }

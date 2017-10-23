@@ -195,9 +195,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final ShardRouting shard) {
         /*
          * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
-         * same thread (because we never went async, or the same thread was selected from the thread pool). If we continue on the same
-         * thread in the case that we never went async and this happens repeatedly we will end up recursing deeply and could stack overflow.
-         * To prevent this, we fork if we are called back on the same thread that execution started on.
+         * same thread (because we never went async, or the same thread was selected from the thread pool) or a different thread. If we
+         * continue on the same thread in the case that we never went async and this happens repeatedly we will end up recursing deeply and
+         * could stack overflow. To prevent this, we fork if we are called back on the same thread that execution started on and otherwise
+         * we can continue (cf. InitialSearchPhase#maybeFork).
          */
         final Thread thread = Thread.currentThread();
         if (shard == null) {

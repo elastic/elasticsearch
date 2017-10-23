@@ -38,27 +38,22 @@ public class LegacyGeoPlugin extends Plugin implements MapperPlugin, SearchPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
-        } else {
-            return Collections.emptyMap();
-        }
+     // No leniency needed since the transport client does not register mappers
+        return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
     }
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            return Collections.singletonList(
-                    new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
-        } else {
-            return Collections.emptyList();
-        }
+        // No leniency needed since the transport client does not register queries
+        return Collections.singletonList(
+                new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
+            // We need this leniency for the transport client
             ShapeBuilders.register(namedWriteables);
         }
         return namedWriteables;

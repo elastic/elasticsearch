@@ -206,7 +206,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final OriginalIndices originalIndices = new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed());
         final GroupShardsIterator<SearchShardIterator> shardsIter =
                 SearchAsyncActionTests.getShardsIter("idx", originalIndices, 4096, randomBoolean(), primaryNode, replicaNode);
-        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
         final CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
                 logger,
                 searchTransportService,
@@ -241,7 +241,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                             final SearchShardIterator shardIt,
                             final ShardRouting shard,
                             final SearchActionListener<SearchPhaseResult> listener) {
-                        listener.onResponse(new SearchPhaseResult() {});
+                        if (randomBoolean()) {
+                            listener.onResponse(new SearchPhaseResult() {});
+                        } else {
+                            listener.onFailure(new Exception("failure"));
+                        }
                     }
                 });
 

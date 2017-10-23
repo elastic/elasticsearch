@@ -109,7 +109,7 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         }
 
         if (references.getFirst().length() == 0) {
-            references.removeFirst();
+            references.removeFirst().close();
         }
 
         this.writeIndex = Math.max(0, writeIndex - bytesDropped);

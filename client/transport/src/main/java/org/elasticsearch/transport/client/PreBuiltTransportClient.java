@@ -45,8 +45,11 @@ import java.util.concurrent.TimeUnit;
  * {@link MustachePlugin},
  * {@link ParentJoinPlugin}
  * plugins for the client. These plugins are all the required modules for Elasticsearch.
+ *
+ * @deprecated the transport client is deprecated in favour of the high-level REST client
  */
 @SuppressWarnings({"unchecked","varargs"})
+@Deprecated
 public class PreBuiltTransportClient extends TransportClient {
 
     static {

@@ -19,7 +19,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
@@ -58,7 +57,7 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
         fieldType.setName("field_name");
 
-        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings settings = settings(Version.CURRENT).build();
         IndexSettings indexSettings = new IndexSettings(
                 new IndexMetaData.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(), settings);
         MapperService mapperService = mock(MapperService.class);
@@ -70,7 +69,8 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
                 indexSettings, null, null, mapperService, null, null, null, null, null, null, () -> 0L, null);
         fieldNamesFieldType.setEnabled(true);
         Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
-        assertEquals(new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name"))), termQuery);
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
+        assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");
         fieldNamesFieldType.setEnabled(false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> fieldNamesFieldType.termQuery("field_name", null));
         assertEquals("Cannot run [exists] queries if the [_field_names] field is disabled", e.getMessage());

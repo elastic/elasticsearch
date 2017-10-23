@@ -26,6 +26,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -70,6 +71,25 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
             assertThat(matchNoDocsQuery.toString(null), containsString("Missing types in \"exists\" query."));
+        } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
+            if (fields.size() == 1) {
+                assertThat(query, instanceOf(ConstantScoreQuery.class));
+                ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
+                String field = fields.iterator().next();
+                assertThat(constantScoreQuery.getQuery(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) constantScoreQuery.getQuery();
+                assertEquals(field, termQuery.getTerm().text());
+            } else {
+                assertThat(query, instanceOf(ConstantScoreQuery.class));
+                ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
+                assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
+                BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();
+                assertThat(booleanQuery.clauses().size(), equalTo(mappedFields.size()));
+                for (int i = 0; i < mappedFields.size(); i++) {
+                    BooleanClause booleanClause = booleanQuery.clauses().get(i);
+                    assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                }
+            }
         } else if (fields.size() == 1 && mappedFields.size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;

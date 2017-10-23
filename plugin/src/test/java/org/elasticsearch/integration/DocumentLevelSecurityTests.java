@@ -941,7 +941,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getSourceAsString(),
-                equalTo("{\"nested_field\":{\"field2\":\"value2\"}}"));
+                equalTo("{\"field2\":\"value2\"}"));
     }
 
 }

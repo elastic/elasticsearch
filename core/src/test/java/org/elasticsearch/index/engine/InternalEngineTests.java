@@ -113,6 +113,7 @@ import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -343,14 +344,15 @@ public class InternalEngineTests extends ESTestCase {
         return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null);
     }
 
-    protected InternalEngine createEngine(Store store, Path translogPath,
-                                          InternalEngine.SeqNoServiceSupplier sequenceNumbersServiceSupplier) throws IOException {
+    protected InternalEngine createEngine(Store store,
+                                          Path translogPath,
+                                          BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier) throws IOException {
         return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null, sequenceNumbersServiceSupplier);
     }
 
     protected InternalEngine createEngine(Store store,
                                           Path translogPath,
-                                          InternalEngine.SeqNoServiceSupplier sequenceNumbersServiceSupplier,
+                                          BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier,
                                           ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation) throws IOException {
         return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null, sequenceNumbersServiceSupplier, seqNoForOperation, null);
     }
@@ -371,7 +373,7 @@ public class InternalEngineTests extends ESTestCase {
         Path translogPath,
         MergePolicy mergePolicy,
         @Nullable IndexWriterFactory indexWriterFactory,
-        @Nullable InternalEngine.SeqNoServiceSupplier sequenceNumbersServiceSupplier) throws IOException {
+        @Nullable BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier) throws IOException {
         return createEngine(indexSettings, store, translogPath, mergePolicy, indexWriterFactory, sequenceNumbersServiceSupplier, null, null);
     }
 
@@ -381,7 +383,7 @@ public class InternalEngineTests extends ESTestCase {
             Path translogPath,
             MergePolicy mergePolicy,
             @Nullable IndexWriterFactory indexWriterFactory,
-            @Nullable InternalEngine.SeqNoServiceSupplier sequenceNumbersServiceSupplier,
+            @Nullable BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier,
             @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation) throws IOException {
         return createEngine(indexSettings, store, translogPath, mergePolicy, indexWriterFactory, sequenceNumbersServiceSupplier, seqNoForOperation, null);
     }
@@ -392,7 +394,7 @@ public class InternalEngineTests extends ESTestCase {
         Path translogPath,
         MergePolicy mergePolicy,
         @Nullable IndexWriterFactory indexWriterFactory,
-        @Nullable InternalEngine.SeqNoServiceSupplier sequenceNumbersServiceSupplier,
+        @Nullable BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier,
         @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
         @Nullable Sort indexSort) throws IOException {
         EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, null, indexSort);
@@ -410,7 +412,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public static InternalEngine createInternalEngine(@Nullable final IndexWriterFactory indexWriterFactory,
-                                                      @Nullable final InternalEngine.SeqNoServiceSupplier sequenceNumbersServiceSupplier,
+                                                      @Nullable final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> sequenceNumbersServiceSupplier,
                                                       @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
                                                       final EngineConfig config) {
         if (sequenceNumbersServiceSupplier == null) {
@@ -3945,7 +3947,7 @@ public class InternalEngineTests extends ESTestCase {
         final int localCheckpoint = randomIntBetween(0, maxSeqNo);
         final int globalCheckpoint = randomIntBetween(0, localCheckpoint);
         try {
-            final InternalEngine.SeqNoServiceSupplier supplier = (engineConfig, ignored) -> new SequenceNumbersService(
+            final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> supplier = (engineConfig, ignored) -> new SequenceNumbersService(
                     engineConfig.getShardId(),
                     engineConfig.getAllocationId(),
                     engineConfig.getIndexSettings(),
@@ -4090,7 +4092,7 @@ public class InternalEngineTests extends ESTestCase {
         InternalEngine actualEngine = null;
         try {
             final Set<Long> completedSeqNos = new HashSet<>();
-            final InternalEngine.SeqNoServiceSupplier supplier = (engineConfig, seqNoStats) -> new SequenceNumbersService(
+            final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> supplier = (engineConfig, seqNoStats) -> new SequenceNumbersService(
                     engineConfig.getShardId(),
                     engineConfig.getAllocationId(),
                     engineConfig.getIndexSettings(),
@@ -4275,7 +4277,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testSeqNoGenerator() throws IOException {
         engine.close();
         final long seqNo = randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Integer.MAX_VALUE);
-        final InternalEngine.SeqNoServiceSupplier seqNoService = (config, seqNoStats) -> new SequenceNumbersService(
+        final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> seqNoService = (config, seqNoStats) -> new SequenceNumbersService(
                 config.getShardId(),
                 config.getAllocationId(),
                 config.getIndexSettings(),

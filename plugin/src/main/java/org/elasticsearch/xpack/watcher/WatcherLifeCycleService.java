@@ -21,6 +21,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.upgrade.Upgrade;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
+import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
@@ -73,6 +74,13 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         // otherwise Watcher would start upon the next cluster state update while the user instructed Watcher to not run
         if (!manual && watcherMetaData != null && watcherMetaData.manuallyStopped()) {
             logger.debug("not starting watcher. watcher was stopped manually and therefore cannot be auto-started");
+            return;
+        }
+
+        // ensure that templates are existing before starting watcher
+        // the watcher index template registry is independent from watcher being started or stopped
+        if (WatcherIndexTemplateRegistry.validate(state) == false) {
+            logger.debug("not starting watcher, watcher templates are missing in the cluster state");
             return;
         }
 

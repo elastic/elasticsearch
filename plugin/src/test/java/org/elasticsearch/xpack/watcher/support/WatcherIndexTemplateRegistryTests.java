@@ -13,13 +13,13 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -36,6 +36,7 @@ import java.util.List;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
@@ -51,8 +52,6 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
     @Before
     public void createRegistryAndClient() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
-
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
@@ -106,6 +105,25 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
                 WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME));
         registry.clusterChanged(newEvent);
         verify(client, times(4)).execute(anyObject(), argumentCaptor.capture(), anyObject());
+    }
+
+    public void testThatTemplatesExist() {
+        assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(".watch-history")), is(false));
+        assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(".watch-history", ".triggered_watches", ".watches")),
+                is(false));
+        assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME,
+                ".triggered_watches", ".watches")), is(true));
+        assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME,
+                ".triggered_watches", ".watches", "whatever", "else")), is(true));
+    }
+
+    private ClusterState createClusterState(String ... existingTemplates) {
+        MetaData.Builder metaDataBuilder = MetaData.builder();
+        for (String templateName : existingTemplates) {
+            metaDataBuilder.put(IndexTemplateMetaData.builder(templateName));
+        }
+
+        return ClusterState.builder(new ClusterName("foo")).metaData(metaDataBuilder.build()).build();
     }
 
     private static class TestPutIndexTemplateResponse extends PutIndexTemplateResponse {

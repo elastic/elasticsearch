@@ -53,7 +53,7 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING =
             Setting.memorySizeSetting("indices.queries.cache.size", "10%", Property.NodeScope);
     public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING =
-            Setting.intSetting("indices.queries.cache.count", 10000, 1, Property.NodeScope);
+            Setting.intSetting("indices.queries.cache.count", 1000, 1, Property.NodeScope);
     // enables caching on all segments instead of only the larger ones, for testing only
     public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING =
             Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);

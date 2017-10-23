@@ -26,6 +26,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -444,8 +445,24 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
         public void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
                 try {
-                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false,
-                        lifecycle.stopped());
+                    if (lifecycle.stopped()) {
+                        /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
+                         * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
+                         * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
+                         * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
+                         * in a way that clients close connection which is how it should be*/
+
+                        Arrays.stream(channels).forEach(c -> {
+                            try {
+                                c.setSoLinger(0);
+                            } catch (IOException e) {
+                                logger.warn(new ParameterizedMessage("unexpected exception when setting SO_LINGER on channel {}", c), e);
+                            }
+                        });
+                    }
+
+                    boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), block);
                 } finally {
                     transportService.onConnectionClosed(this);
                 }
@@ -577,7 +594,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
                 final AtomicBoolean runOnce = new AtomicBoolean(false);
                 final AtomicReference<NodeChannels> connectionRef = new AtomicReference<>();
                 Consumer<Channel> onClose = c -> {
-                    assert isOpen(c) == false : "channel is still open when onClose is called";
+                    assert c.isOpen() == false : "channel is still open when onClose is called";
                     try {
                         onChannelClosed(c);
                     } finally {
@@ -604,7 +621,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
                 nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
                 transportService.onConnectionOpened(nodeChannels);
                 connectionRef.set(nodeChannels);
-                if (Arrays.stream(nodeChannels.channels).allMatch(this::isOpen) == false) {
+                if (Arrays.stream(nodeChannels.channels).allMatch(NewTcpChannel::isOpen) == false) {
                     throw new ConnectTransportException(node, "a channel closed while connecting");
                 }
                 success = true;
@@ -646,12 +663,8 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
      * Disconnects from a node if a channel is found as part of that nodes channels.
      */
     protected final void closeChannelWhileHandlingExceptions(final Channel channel) {
-        if (isOpen(channel)) {
-            try {
-                closeChannels(Collections.singletonList(channel), false, false);
-            } catch (IOException e) {
-                logger.warn("failed to close channel", e);
-            }
+        if (channel.isOpen()) {
+            channel.closeAsync();
         }
     }
 
@@ -848,7 +861,9 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
     // not perfect, but PortsRange should take care of any port range validation, not a regex
     private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 
-    /** parse a hostname+port range spec into its equivalent addresses */
+    /**
+     * parse a hostname+port range spec into its equivalent addresses
+     */
     static TransportAddress[] parse(String hostPortString, String defaultPortRange, int perAddressLimit) throws UnknownHostException {
         Objects.requireNonNull(hostPortString);
         String host;
@@ -910,7 +925,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
                 // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
                     try {
-                        closeChannels(entry.getValue(), true, false);
+                        closeServerChannels(entry.getKey(), entry.getValue());
                     } catch (Exception e) {
                         logger.warn(new ParameterizedMessage("Error closing serverChannel for profile [{}]", entry.getKey()), e);
                     }
@@ -975,26 +990,24 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
             closeChannelWhileHandlingExceptions(channel);
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
-            if (isOpen(channel)) {
+            if (channel.isOpen()) {
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
                 final SendMetricListener<Channel> closeChannel = new SendMetricListener<Channel>(message.length()) {
                     @Override
                     protected void innerInnerOnResponse(Channel channel) {
-                        try {
-                            closeChannels(Collections.singletonList(channel), false, false);
-                        } catch (IOException e1) {
-                            logger.debug("failed to close httpOnTransport channel", e1);
-                        }
+                        channel.closeAsync().addListener(ActionListener.wrap((c) -> {
+                            },
+                            e -> logger.debug("failed to close httpOnTransport channel", e)));
                     }
 
                     @Override
                     protected void innerOnFailure(Exception e) {
-                        try {
-                            closeChannels(Collections.singletonList(channel), false, false);
-                        } catch (IOException e1) {
-                            e.addSuppressed(e1);
-                            logger.debug("failed to close httpOnTransport channel", e1);
-                        }
+                        channel.closeAsync().addListener(ActionListener.wrap((c) -> {
+                            },
+                            e1 -> {
+                                e.addSuppressed(e1);
+                                logger.debug("failed to close httpOnTransport channel", e);
+                            }));
                     }
                 };
                 internalSendMessage(channel, message, closeChannel);
@@ -1025,18 +1038,61 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
      * closed before the method returns. This should never be called with blocking set to true from a
      * network thread.
      *
-     * @param channels the channels to close
-     * @param blocking whether the channels should be closed synchronously
-     * @param doNotLinger whether we abort the connection on RST instead of FIN
+     * @param channels    the channels to close
+     * @param blocking    whether the channels should be closed synchronously
      */
-    protected abstract void closeChannels(List<Channel> channels, boolean blocking, boolean doNotLinger) throws IOException;
+    public void closeChannels(List<Channel> channels, boolean blocking) throws IOException {
+        ArrayList<ListenableActionFuture<Channel>> futures = new ArrayList<>(channels.size());
+        for (final Channel channel : channels) {
+            if (channel != null && channel.isOpen()) {
+                ListenableActionFuture<Channel> f = channel.closeAsync();
+                f.addListener(ActionListener.wrap(c -> {},
+                    e -> logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), e)));
+                futures.add(f);
+            }
+        }
+
+        if (blocking == false) {
+            return;
+        }
+
+        blockOnFutures(futures);
+    }
+
+    public void closeServerChannels(String profile, List<Channel> channels) throws IOException {
+        ArrayList<ListenableActionFuture<Channel>> futures = new ArrayList<>(channels.size());
+        for (final Channel channel : channels) {
+            if (channel != null && channel.isOpen()) {
+                ListenableActionFuture<Channel> f = channel.closeAsync();
+                f.addListener(ActionListener.wrap(c -> {},
+                    e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)));
+                futures.add(f);
+            }
+        }
+
+        blockOnFutures(futures);
+    }
+
+    private void blockOnFutures(ArrayList<ListenableActionFuture<Channel>> futures) {
+        for (ListenableActionFuture<Channel> future : futures) {
+            try {
+                future.get();
+            } catch (ExecutionException e) {
+                // Ignore as we already attached a listener to log
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Future got interrupted", e);
+            }
+        }
+    }
 
     /**
      * Sends message to channel. The listener's onResponse method will be called when the send is complete unless an exception
      * is thrown during the send. If an exception is thrown, the listener's onException method will be called.
-     * @param channel the destination channel
+     *
+     * @param channel   the destination channel
      * @param reference the byte reference for the message
-     * @param listener the listener to call when the operation has completed
+     * @param listener  the listener to call when the operation has completed
      */
     protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener);
 
@@ -1056,7 +1112,8 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
     /**
      * Called to tear down internal resources
      */
-    protected void stopInternal() {}
+    protected void stopInternal() {
+    }
 
     public boolean canCompress(TransportRequest request) {
         return compress && (!(request instanceof BytesTransportRequest));
@@ -1122,10 +1179,10 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
      * Sends back an error response to the caller via the given channel
      *
      * @param nodeVersion the caller node version
-     * @param channel the channel to send the response to
-     * @param error the error to return
-     * @param requestId the request ID this response replies to
-     * @param action the action this response replies to
+     * @param channel     the channel to send the response to
+     * @param error       the error to return
+     * @param requestId   the request ID this response replies to
+     * @param action      the action this response replies to
      */
     public void sendErrorResponse(Version nodeVersion, Channel channel, final Exception error, final long requestId,
                                   final String action) throws IOException {
@@ -1158,7 +1215,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
     }
 
     private void sendResponse(Version nodeVersion, Channel channel, final TransportResponse response, final long requestId,
-        final String action, TransportResponseOptions options, byte status) throws IOException {
+                              final String action, TransportResponseOptions options, byte status) throws IOException {
         if (compress) {
             options = TransportResponseOptions.builder(options).withCompress(true).build();
         }
@@ -1236,10 +1293,10 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
      * Validates the first N bytes of the message header and returns <code>false</code> if the message is
      * a ping message and has no payload ie. isn't a real user level message.
      *
-     * @throws IllegalStateException if the message is too short, less than the header or less that the header plus the message size
+     * @throws IllegalStateException    if the message is too short, less than the header or less that the header plus the message size
      * @throws HttpOnTransportException if the message has no valid header and appears to be a HTTP message
      * @throws IllegalArgumentException if the message is greater that the maximum allowed frame size. This is dependent on the available
-     * memory.
+     *                                  memory.
      */
     public static boolean validateMessageHeader(BytesReference buffer) throws IOException {
         final int sizeHeaderLength = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
@@ -1250,23 +1307,23 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
         if (buffer.get(offset) != 'E' || buffer.get(offset + 1) != 'S') {
             // special handling for what is probably HTTP
             if (bufferStartsWith(buffer, offset, "GET ") ||
-                    bufferStartsWith(buffer, offset, "POST ") ||
-                    bufferStartsWith(buffer, offset, "PUT ") ||
-                    bufferStartsWith(buffer, offset, "HEAD ") ||
-                    bufferStartsWith(buffer, offset, "DELETE ") ||
-                    bufferStartsWith(buffer, offset, "OPTIONS ") ||
-                    bufferStartsWith(buffer, offset, "PATCH ") ||
-                    bufferStartsWith(buffer, offset, "TRACE ")) {
+                bufferStartsWith(buffer, offset, "POST ") ||
+                bufferStartsWith(buffer, offset, "PUT ") ||
+                bufferStartsWith(buffer, offset, "HEAD ") ||
+                bufferStartsWith(buffer, offset, "DELETE ") ||
+                bufferStartsWith(buffer, offset, "OPTIONS ") ||
+                bufferStartsWith(buffer, offset, "PATCH ") ||
+                bufferStartsWith(buffer, offset, "TRACE ")) {
 
                 throw new HttpOnTransportException("This is not a HTTP port");
             }
 
             // we have 6 readable bytes, show 4 (should be enough)
             throw new StreamCorruptedException("invalid internal transport message format, got ("
-                    + Integer.toHexString(buffer.get(offset) & 0xFF) + ","
-                    + Integer.toHexString(buffer.get(offset + 1) & 0xFF) + ","
-                    + Integer.toHexString(buffer.get(offset + 2) & 0xFF) + ","
-                    + Integer.toHexString(buffer.get(offset + 3) & 0xFF) + ")");
+                + Integer.toHexString(buffer.get(offset) & 0xFF) + ","
+                + Integer.toHexString(buffer.get(offset + 1) & 0xFF) + ","
+                + Integer.toHexString(buffer.get(offset + 2) & 0xFF) + ","
+                + Integer.toHexString(buffer.get(offset + 3) & 0xFF) + ")");
         }
 
         final int dataLen;
@@ -1325,8 +1382,6 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
             super(in);
         }
     }
-
-    protected abstract boolean isOpen(Channel channel);
 
     /**
      * This method handles the message receive part for both request and responses
@@ -1414,7 +1469,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
         final Version compatibilityVersion = isHandshake ? currentVersion.minimumCompatibilityVersion() : currentVersion;
         if (version.isCompatible(compatibilityVersion) == false) {
             final Version minCompatibilityVersion = isHandshake ? compatibilityVersion : compatibilityVersion.minimumCompatibilityVersion();
-            String msg = "Received " + (isHandshake? "handshake " : "") + "message from unsupported version: [";
+            String msg = "Received " + (isHandshake ? "handshake " : "") + "message from unsupported version: [";
             throw new IllegalStateException(msg + version + "] minimal compatible version is: [" + minCompatibilityVersion + "]");
         }
     }
@@ -1570,7 +1625,8 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
             this.version = version;
         }
 
-        private VersionHandshakeResponse() {}
+        private VersionHandshakeResponse() {
+        }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
@@ -1595,7 +1651,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
         pendingHandshakes.put(requestId, handler);
         boolean success = false;
         try {
-            if (isOpen(channel) == false) {
+            if (channel.isOpen() == false) {
                 // we have to protect us here since sendRequestToChannel won't barf if the channel is closed.
                 // it's weird but to change it will cause a lot of impact on the exception handling code all over the codebase.
                 // yet, if we don't check the state here we might have registered a pending handshake handler but the close

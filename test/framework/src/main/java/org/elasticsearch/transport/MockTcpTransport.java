@@ -22,6 +22,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -179,34 +180,32 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected List<Future<MockChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile connectionProfile,
+    protected List<Future<MockChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
                                                          Consumer<MockChannel> onChannelClose) throws IOException {
-//        final MockChannel[] mockChannels = new MockChannel[1];
-//        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
-//        boolean success = false;
-//        final MockSocket socket = new MockSocket();
-//        try {
-//            final InetSocketAddress address = node.getAddress().address();
-//            // we just use a single connections
-//            configureSocket(socket);
-//            final TimeValue connectTimeout = profile.getConnectTimeout();
-//            try {
-//                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
-//            } catch (SocketTimeoutException ex) {
-//                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
-//            }
-//            MockChannel channel = new MockChannel(socket, address, "none", onChannelClose);
-//            channel.loopRead(executor);
-//            mockChannels[0] = channel;
-//            success = true;
-//        } finally {
-//            if (success == false) {
-//                IOUtils.close(nodeChannels, socket);
-//            }
-//        }
-//
-//        return nodeChannels;
-        return null;
+        PlainActionFuture<MockChannel> future = new PlainActionFuture<>();
+        final MockSocket socket = new MockSocket();
+        boolean success = false;
+        try {
+            final InetSocketAddress address = node.getAddress().address();
+            // we just use a single connections
+            configureSocket(socket);
+            final TimeValue connectTimeout = profile.getConnectTimeout();
+            try {
+                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
+            } catch (SocketTimeoutException ex) {
+                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
+            }
+            MockChannel channel = new MockChannel(socket, address, "none", onChannelClose);
+            future.onResponse(channel);
+            channel.loopRead(executor);
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.close(socket);
+            }
+        }
+
+        return Collections.singletonList(future);
     }
 
 
@@ -225,11 +224,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected boolean isOpen(MockChannel mockChannel) {
-        return mockChannel.isOpen.get();
-    }
-
-    @Override
     protected void sendMessage(MockChannel mockChannel, BytesReference reference, ActionListener<MockChannel> listener) {
         try {
             synchronized (mockChannel) {
@@ -243,25 +237,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             listener.onFailure(e);
             onException(mockChannel, e);
         }
-    }
-
-    @Override
-    protected void closeChannels(List<MockChannel> channels, boolean blocking, boolean doNotLinger) throws IOException {
-        if (doNotLinger) {
-            for (MockChannel channel : channels) {
-                if (channel.activeChannel != null) {
-                    /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
-                     * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
-                     * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
-                     * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
-                     * in a way that clients close connection which is how it should be*/
-                    if (channel.isOpen.get()) {
-                        channel.activeChannel.setSoLinger(true, 0);
-                    }
-                }
-            }
-        }
-        IOUtils.close(channels);
     }
 
     @Override

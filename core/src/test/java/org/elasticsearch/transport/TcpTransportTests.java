@@ -195,11 +195,6 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void closeChannels(List channel, boolean blocking, boolean doNotLinger) throws IOException {
-
-                }
-
-                @Override
                 protected void sendMessage(FakeChannel o, BytesReference reference, ActionListener listener) {
                     try {
                         StreamInput streamIn = reference.streamInput();
@@ -229,13 +224,8 @@ public class TcpTransportTests extends ESTestCase {
 
                 @Override
                 protected List<Future<FakeChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
-                                                                     Consumer onChannelClose) throws IOException {
+                                                                     Consumer onChannelClose) {
                     return new ArrayList<>();
-                }
-
-                @Override
-                protected boolean isOpen(FakeChannel o) {
-                    return false;
                 }
 
                 @Override

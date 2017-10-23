@@ -91,7 +91,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         final Netty4Transport t = (Netty4Transport) transport;
         @SuppressWarnings("unchecked")
         final TcpTransport<NewNettyChannel>.NodeChannels channels = (TcpTransport<NewNettyChannel>.NodeChannels) connection;
-        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, false);
+        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {
@@ -100,7 +100,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                     emptyMap(), emptySet(),Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
-            assertThat(e.getMessage(), containsString("connect_timeout"));
+            assertThat(e.getMessage(), containsString("connect_exception"));
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
         }
     }

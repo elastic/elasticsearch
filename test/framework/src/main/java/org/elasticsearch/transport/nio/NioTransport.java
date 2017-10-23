@@ -100,48 +100,6 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected void closeChannels(List<NioChannel> channels, boolean blocking, boolean doNotLinger) throws IOException {
-        if (doNotLinger) {
-            for (NioChannel channel : channels) {
-                /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
-                 * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
-                 * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
-                 * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
-                 * in a way that clients close connection which is how it should be*/
-                if (channel.isOpen() && channel.getRawChannel().supportedOptions().contains(StandardSocketOptions.SO_LINGER)) {
-                    channel.setSoLinger(0);
-                }
-            }
-        }
-        ArrayList<CloseFuture> futures = new ArrayList<>(channels.size());
-        for (final NioChannel channel : channels) {
-            if (channel != null && channel.isOpen()) {
-                // We do not need to wait for the close operation to complete. If the close operation fails due
-                // to an IOException, the selector's handler will log the exception. Additionally, in the case
-                // of transport shutdown, where we do want to ensure that all channels are finished closing, the
-                // NioShutdown class will block on close.
-                futures.add(channel.closeAsync());
-            }
-        }
-
-        if (blocking == false) {
-            return;
-        }
-
-        IOException closingExceptions = null;
-        for (CloseFuture future : futures) {
-            try {
-                future.awaitClose();
-            } catch (Exception e) {
-                closingExceptions = addClosingException(closingExceptions, e);
-            }
-        }
-        if (closingExceptions != null) {
-            throw closingExceptions;
-        }
-    }
-
-    @Override
     protected void sendMessage(NioChannel channel, BytesReference reference, ActionListener<NioChannel> listener) {
         if (channel instanceof NioSocketChannel) {
             NioSocketChannel nioSocketChannel = (NioSocketChannel) channel;
@@ -160,11 +118,6 @@ public class NioTransport extends TcpTransport<NioChannel> {
             throw new ElasticsearchException("client is shutdown");
         }
         return futures;
-    }
-
-    @Override
-    protected boolean isOpen(NioChannel channel) {
-        return channel.isOpen();
     }
 
     @Override

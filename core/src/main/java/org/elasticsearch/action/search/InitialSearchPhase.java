@@ -251,7 +251,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         } else if (xTotalOps > expectedTotalOps) {
             throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected ["
                 + expectedTotalOps + "]");
-        } else if (!shardsIt.skip()) {
+        } else if (shardsIt.skip() == false) {
             maybeExecuteNext();
         }
     }

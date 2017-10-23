@@ -220,7 +220,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 0,
                 null,
-                (iter) -> new InitialSearchPhase<SearchPhaseResult>("test", null, iter, logger, 25, executor) {
+                (iter) -> new InitialSearchPhase<SearchPhaseResult>("test", null, iter, logger, randomIntBetween(1, 32), executor) {
                     @Override
                     void onPhaseDone() {
                         latch.countDown();

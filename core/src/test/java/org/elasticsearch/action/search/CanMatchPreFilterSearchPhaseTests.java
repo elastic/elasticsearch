@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
-
     public void testFilterShards() throws InterruptedException {
 
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(),

@@ -109,7 +109,7 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
             super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         }
 
-        protected String handleRequest(Channel channel, String profileName,
+        protected String handleRequest(NewNettyChannel channel, String profileName,
                                        StreamInput stream, long requestId, int messageLengthBytes, Version version,
                                        InetSocketAddress remoteAddress, byte status) throws IOException {
             String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,

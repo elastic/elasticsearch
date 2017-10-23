@@ -26,7 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class ConnectFuture extends BaseFuture<NioSocketChannel> {
+public class ConnectFuture extends BaseFuture<NioChannel> {
 
     public boolean awaitConnectionComplete(long timeout, TimeUnit unit) throws InterruptedException {
         try {
@@ -76,7 +76,7 @@ public class ConnectFuture extends BaseFuture<NioSocketChannel> {
         setException(e);
     }
 
-    private NioSocketChannel getChannel() {
+    private NioChannel getChannel() {
         if (isDone()) {
             try {
                 // Get should always return without blocking as we already checked 'isDone'

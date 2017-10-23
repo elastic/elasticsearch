@@ -94,7 +94,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -117,7 +120,7 @@ import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseC
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent implements Transport {
+public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> extends AbstractLifecycleComponent implements Transport {
 
     public static final String TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX = "transport_server_worker";
     public static final String TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX = "transport_client_boss";
@@ -178,7 +181,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     public static final Setting.AffixSetting<List<String>> PUBLISH_HOST_PROFILE = affixKeySetting("transport.profiles.", "publish_host",
         key -> listSetting(key, PUBLISH_HOST, Function.identity(), Setting.Property.NodeScope));
     public static final Setting.AffixSetting<String> PORT_PROFILE = affixKeySetting("transport.profiles.", "port",
-        key -> new Setting(key, PORT, Function.identity(), Setting.Property.NodeScope));
+        key -> new Setting<>(key, PORT, Function.identity(), Setting.Property.NodeScope));
     public static final Setting.AffixSetting<Integer> PUBLISH_PORT_PROFILE = affixKeySetting("transport.profiles.", "publish_port",
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
 
@@ -347,7 +350,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
                         @Override
                         protected void innerOnFailure(Exception e) {
-                            if (isOpen(channel)) {
+                            if (channel.isOpen()) {
                                 logger.debug(
                                     (Supplier<?>) () -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
                                 failedPings.inc();
@@ -588,7 +591,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         }
                     }
                 };
-                nodeChannels = connectToChannels(node, connectionProfile, onClose);
+
+                nodeChannels = finishConnection(node, initiateChannels(node, connectionProfile, onClose), connectionProfile);
+
                 final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
                 final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
                     defaultConnectionProfile.getConnectTimeout() :
@@ -1045,9 +1050,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * @return the channels
      * @throws IOException if an I/O exception occurs while opening channels
      */
-    protected abstract NodeChannels connectToChannels(DiscoveryNode node,
-                                                      ConnectionProfile connectionProfile,
-                                                      Consumer<Channel> onChannelClose) throws IOException;
+    protected abstract List<Future<Channel>> initiateChannels(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                                              Consumer<Channel> onChannelClose) throws IOException;
 
     /**
      * Called to tear down internal resources
@@ -1146,7 +1150,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     /**
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse} objects back to the caller.
      *
-     * @see #sendErrorResponse(Version, Object, Exception, long, String) for sending back errors to the caller
+     * @see #sendErrorResponse(Version, Channel, Exception, long, String) for sending back errors to the caller
      */
     public void sendResponse(Version nodeVersion, Channel channel, final TransportResponse response, final long requestId,
                              final String action, TransportResponseOptions options) throws IOException {
@@ -1779,4 +1783,51 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private NodeChannels finishConnection(DiscoveryNode discoveryNode, List<Future<Channel>> pendingChannels,
+                                          ConnectionProfile connectionProfile) {
+        Exception ex = null;
+        boolean allConnected = true;
+        TimeValue connectTimeout = getConnectTimeout(connectionProfile);
+
+        Channel[] channels = (Channel[]) new NewTcpChannel[pendingChannels.size()];
+
+        for (int i = 0; i < pendingChannels.size(); ++i) {
+            try {
+                Future<Channel> connectFuture = pendingChannels.get(i);
+                channels[i] = connectFuture.get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                allConnected = false;
+                break;
+            } catch (InterruptedException e) {
+                allConnected = false;
+                ex = e;
+                break;
+            } catch (ExecutionException e) {
+                allConnected = false;
+                ex = (Exception) e.getCause();
+                break;
+            }
+        }
+
+        if (allConnected == false) {
+            if (ex == null) {
+                throw new ConnectTransportException(discoveryNode, "connect_timeout[" + connectTimeout + "]");
+            } else {
+                throw new ConnectTransportException(discoveryNode, "connect_exception", ex);
+            }
+        }
+
+        return new NodeChannels(discoveryNode, channels, connectionProfile);
+    }
+
+    private TimeValue getConnectTimeout(ConnectionProfile connectionProfile) {
+        TimeValue connectTimeout = connectionProfile.getConnectTimeout();
+        TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
+        if (connectTimeout != null && connectTimeout.equals(defaultConnectTimeout) == false) {
+            return connectTimeout;
+        } else {
+            return defaultConnectTimeout;
+        }
+    }
 }

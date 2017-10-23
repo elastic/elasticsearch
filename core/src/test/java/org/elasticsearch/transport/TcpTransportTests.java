@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -37,7 +38,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -178,15 +181,16 @@ public class TcpTransportTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
         AtomicReference<IOException> exceptionReference = new AtomicReference<>();
         try {
-            TcpTransport transport = new TcpTransport("test", Settings.builder().put("transport.tcp.compress", compressed).build(),
-                threadPool, new BigArrays(Settings.EMPTY, null), null, null, null) {
+            TcpTransport<FakeChannel> transport = new TcpTransport<FakeChannel>(
+                "test", Settings.builder().put("transport.tcp.compress", compressed).build(), threadPool,
+                new BigArrays(Settings.EMPTY, null), null, null, null) {
                 @Override
-                protected InetSocketAddress getLocalAddress(Object o) {
+                protected InetSocketAddress getLocalAddress(FakeChannel o) {
                     return null;
                 }
 
                 @Override
-                protected Object bind(String name, InetSocketAddress address) throws IOException {
+                protected FakeChannel bind(String name, InetSocketAddress address) throws IOException {
                     return null;
                 }
 
@@ -196,7 +200,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void sendMessage(Object o, BytesReference reference, ActionListener listener) {
+                protected void sendMessage(FakeChannel o, BytesReference reference, ActionListener listener) {
                     try {
                         StreamInput streamIn = reference.streamInput();
                         streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
@@ -224,13 +228,13 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected NodeChannels connectToChannels(
-                        DiscoveryNode node, ConnectionProfile profile, Consumer onChannelClose) throws IOException {
-                    return new NodeChannels(node, new Object[profile.getNumConnections()], profile);
+                protected List<Future<FakeChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
+                                                                     Consumer onChannelClose) throws IOException {
+                    return new ArrayList<>();
                 }
 
                 @Override
-                protected boolean isOpen(Object o) {
+                protected boolean isOpen(FakeChannel o) {
                     return false;
                 }
 
@@ -241,7 +245,7 @@ public class TcpTransportTests extends ESTestCase {
 
                 @Override
                 public NodeChannels getConnection(DiscoveryNode node) {
-                    return new NodeChannels(node, new Object[MockTcpTransport.LIGHT_PROFILE.getNumConnections()],
+                    return new NodeChannels(node, new FakeChannel[MockTcpTransport.LIGHT_PROFILE.getNumConnections()],
                         MockTcpTransport.LIGHT_PROFILE);
                 }
             };
@@ -252,6 +256,28 @@ public class TcpTransportTests extends ESTestCase {
             assertNull("IOException while sending message.", exceptionReference.get());
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    private static final class FakeChannel implements NewTcpChannel<FakeChannel> {
+
+        @Override
+        public ListenableActionFuture<FakeChannel> closeAsync() {
+            return null;
+        }
+
+        @Override
+        public ListenableActionFuture<FakeChannel> getCloseFuture() {
+            return null;
+        }
+
+        @Override
+        public void setSoLinger(int value) throws IOException {
+        }
+
+        @Override
+        public boolean isOpen() {
+            return false;
         }
     }
 

@@ -17,35 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio.channel;
+package org.elasticsearch.transport;
 
-import org.elasticsearch.transport.NewTcpChannel;
-import org.elasticsearch.transport.nio.ESSelector;
+import org.elasticsearch.action.ListenableActionFuture;
 
-import java.net.InetSocketAddress;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.NetworkChannel;
-import java.nio.channels.SelectionKey;
+import java.io.IOException;
 
-public interface NioChannel extends NewTcpChannel<NioChannel> {
+public interface NewTcpChannel<C extends NewTcpChannel<C>> {
 
-    String CLIENT = "client-socket";
+    ListenableActionFuture<C> closeAsync();
 
-    InetSocketAddress getLocalAddress();
+    ListenableActionFuture<C> getCloseFuture();
 
-    String getProfile();
+    void setSoLinger(int value) throws IOException;
 
-    CloseFuture closeAsync();
+    boolean isOpen();
 
-    void closeFromSelector();
-
-    void register() throws ClosedChannelException;
-
-    ESSelector getSelector();
-
-    SelectionKey getSelectionKey();
-
-    CloseFuture getCloseFuture();
-
-    NetworkChannel getRawChannel();
 }

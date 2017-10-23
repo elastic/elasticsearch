@@ -34,12 +34,14 @@ import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,14 +67,18 @@ import org.elasticsearch.transport.TransportRequestOptions;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.StandardSocketOptions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -85,7 +91,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * longer. Med is for the typical search / single doc index. And High for things like cluster state. Ping is reserved for
  * sending out ping requests to other nodes.
  */
-public class Netty4Transport extends TcpTransport<Channel> {
+public class Netty4Transport extends TcpTransport<NewNettyChannel> {
 
     static {
         Netty4Utils.setup();
@@ -97,7 +103,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
             (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope);
 
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-            "transport.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
+        "transport.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN =
         byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX =
@@ -116,7 +122,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
 
     public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                          NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
+                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("netty", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.workerCount = WORKER_COUNT.get(settings);
@@ -239,10 +245,13 @@ public class Netty4Transport extends TcpTransport<Channel> {
         return new ClientChannelInitializer();
     }
 
+    static final AttributeKey<NewNettyChannel> CHANNEL_KEY = AttributeKey.newInstance("es-channel");
+
     protected final void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
         final Throwable t = unwrapped != null ? unwrapped : cause;
-        onException(ctx.channel(), t instanceof Exception ? (Exception) t : new ElasticsearchException(t));
+        Channel channel = ctx.channel();
+        onException(channel.attr(CHANNEL_KEY).get(), t instanceof Exception ? (Exception) t : new ElasticsearchException(t));
     }
 
     @Override
@@ -252,70 +261,66 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile, Consumer<Channel> onChannelClose) {
-        final Channel[] channels = new Channel[profile.getNumConnections()];
-        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
-        boolean success = false;
-        try {
-            final TimeValue connectTimeout;
-            final Bootstrap bootstrap;
-            final TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
-            if (profile.getConnectTimeout() != null && profile.getConnectTimeout().equals(defaultConnectTimeout) == false) {
-                bootstrap = this.bootstrap.clone(this.bootstrap.config().group());
-                bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(profile.getConnectTimeout().millis()));
-                connectTimeout = profile.getConnectTimeout();
-            } else {
-                connectTimeout = defaultConnectTimeout;
-                bootstrap = this.bootstrap;
-            }
-            final ArrayList<ChannelFuture> connections = new ArrayList<>(channels.length);
-            final InetSocketAddress address = node.getAddress().address();
-            for (int i = 0; i < channels.length; i++) {
-                connections.add(bootstrap.connect(address));
-            }
-            final Iterator<ChannelFuture> iterator = connections.iterator();
-            final ChannelFutureListener closeListener = future -> onChannelClose.accept(future.channel());
-            try {
-                for (int i = 0; i < channels.length; i++) {
-                    assert iterator.hasNext();
-                    ChannelFuture future = iterator.next();
-                    future.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                    if (!future.isSuccess()) {
-                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.cause());
-                    }
-                    channels[i] = future.channel();
-                    channels[i].closeFuture().addListener(closeListener);
-                }
-                assert iterator.hasNext() == false : "not all created connection have been consumed";
-            } catch (final RuntimeException e) {
-                for (final ChannelFuture future : Collections.unmodifiableList(connections)) {
-                    FutureUtils.cancel(future);
-                    if (future.channel() != null && future.channel().isOpen()) {
-                        try {
-                            future.channel().close();
-                        } catch (Exception inner) {
-                            e.addSuppressed(inner);
-                        }
-                    }
-                }
-                throw e;
-            }
-            success = true;
-        } finally {
-            if (success == false) {
-                try {
-                    nodeChannels.close();
-                } catch (IOException e) {
-                    logger.trace("exception while closing channels", e);
-                }
-            }
+    protected List<java.util.concurrent.Future<NewNettyChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
+                                                                                  Consumer<NewNettyChannel> onChannelClose) {
+        final Bootstrap bootstrap;
+        final TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
+        if (profile.getConnectTimeout() != null && profile.getConnectTimeout().equals(defaultConnectTimeout) == false) {
+            bootstrap = this.bootstrap.clone(this.bootstrap.config().group());
+//            bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(profile.getConnectTimeout().millis()));
+        } else {
+            bootstrap = this.bootstrap;
         }
-        return nodeChannels;
+        int connectionCount = profile.getNumConnections();
+        final ArrayList<java.util.concurrent.Future<NewNettyChannel>> pendingConnections = new ArrayList<>(connectionCount);
+
+        final InetSocketAddress address = node.getAddress().address();
+        for (int i = 0; i < connectionCount; i++) {
+            ChannelFuture channelFuture = bootstrap.connect(address);
+            pendingConnections.add(new java.util.concurrent.Future<NewNettyChannel>() {
+                @Override
+                public boolean cancel(boolean mayInterruptIfRunning) {
+                    return channelFuture.cancel(mayInterruptIfRunning);
+                }
+
+                @Override
+                public boolean isCancelled() {
+                    return channelFuture.isCancelled();
+                }
+
+                @Override
+                public boolean isDone() {
+                    return channelFuture.isDone();
+                }
+
+                @Override
+                public NewNettyChannel get() throws InterruptedException, ExecutionException {
+                    channelFuture.get();
+                    Channel channel = channelFuture.channel();
+                    NewNettyChannel nettyChannel = new NewNettyChannel(channel);
+                    channel.attr(CHANNEL_KEY).set(nettyChannel);
+                    channelFuture.channel().closeFuture().addListener(f -> onChannelClose.accept(nettyChannel));
+                    return nettyChannel;
+                }
+
+                @Override
+                public NewNettyChannel get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException,
+                    TimeoutException {
+                    channelFuture.get(timeout, unit);
+                    Channel channel = channelFuture.channel();
+                    NewNettyChannel nettyChannel = new NewNettyChannel(channel);
+                    channel.attr(CHANNEL_KEY).set(nettyChannel);
+                    channelFuture.channel().closeFuture().addListener(f -> onChannelClose.accept(nettyChannel));
+                    return nettyChannel;
+                }
+            });
+        }
+        return pendingConnections;
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener) {
-        final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
+    protected void sendMessage(NewNettyChannel channel, BytesReference reference, ActionListener<NewNettyChannel> listener) {
+        final ChannelFuture future = channel.getLowLevelChannel().writeAndFlush(Netty4Utils.toByteBuf(reference));
         future.addListener(f -> {
             if (f.isSuccess()) {
                 listener.onResponse(channel);
@@ -331,43 +336,67 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void closeChannels(final List<Channel> channels, boolean blocking, boolean doNotLinger) throws IOException {
+    protected void closeChannels(final List<NewNettyChannel> channels, boolean blocking, boolean doNotLinger) throws IOException {
         if (doNotLinger) {
-            for (Channel channel : channels) {
+            for (NewNettyChannel channel : channels) {
                 /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
                  * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
                  * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
                  * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
                  * in a way that clients close connection which is how it should be*/
                 if (channel.isOpen()) {
-                    channel.config().setOption(ChannelOption.SO_LINGER, 0);
+                    channel.setSoLinger(0);
                 }
             }
         }
-        if (blocking) {
-            Netty4Utils.closeChannels(channels);
-        } else {
-            for (Channel channel : channels) {
-                if (channel != null && channel.isOpen()) {
-                    ChannelFuture closeFuture = channel.close();
-                    closeFuture.addListener((f) -> {
-                        if (f.isSuccess() == false) {
-                            logger.warn("failed to close channel", f.cause());
-                        }
-                    });
-                }
+        ArrayList<ListenableActionFuture<NewNettyChannel>> futures = new ArrayList<>(channels.size());
+        for (final NewNettyChannel channel : channels) {
+            if (channel != null && channel.isOpen()) {
+                // We do not need to wait for the close operation to complete. If the close operation fails due
+                // to an IOException, the selector's handler will log the exception. Additionally, in the case
+                // of transport shutdown, where we do want to ensure that all channels are finished closing, the
+                // NioShutdown class will block on close.
+                futures.add(channel.closeAsync());
             }
+        }
+
+        if (blocking == false) {
+            return;
+        }
+
+        IOException closingExceptions = null;
+        for (ListenableActionFuture<NewNettyChannel> future : futures) {
+            try {
+                future.get();
+            } catch (ExecutionException e) {
+                if (closingExceptions == null) {
+                    closingExceptions = new IOException();
+                }
+                closingExceptions.addSuppressed(e.getCause());
+            } catch (InterruptedException e) {
+                if (closingExceptions == null) {
+                    closingExceptions = new IOException();
+                }
+                closingExceptions.addSuppressed(e.getCause());
+                Thread.currentThread().interrupt();
+            }
+        }
+        if (closingExceptions != null) {
+            throw closingExceptions;
         }
     }
 
     @Override
-    protected InetSocketAddress getLocalAddress(Channel channel) {
-        return (InetSocketAddress) channel.localAddress();
+    protected InetSocketAddress getLocalAddress(NewNettyChannel channel) {
+        return (InetSocketAddress) channel.getLowLevelChannel().localAddress();
     }
 
     @Override
-    protected Channel bind(String name, InetSocketAddress address) {
-        return serverBootstraps.get(name).bind(address).syncUninterruptibly().channel();
+    protected NewNettyChannel bind(String name, InetSocketAddress address) {
+        Channel channel = serverBootstraps.get(name).bind(address).syncUninterruptibly().channel();
+        NewNettyChannel esChannel = new NewNettyChannel(channel);
+        channel.attr(CHANNEL_KEY).set(esChannel);
+        return esChannel;
     }
 
     ScheduledPing getPing() {
@@ -375,7 +404,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected boolean isOpen(Channel channel) {
+    protected boolean isOpen(NewNettyChannel channel) {
         return channel.isOpen();
     }
 
@@ -420,7 +449,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
             Netty4Utils.maybeDie(cause);
             super.exceptionCaught(ctx, cause);
         }
-
     }
 
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
@@ -433,6 +461,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            ch.attr(CHANNEL_KEY).set(new NewNettyChannel(ch));
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
@@ -444,7 +473,5 @@ public class Netty4Transport extends TcpTransport<Channel> {
             Netty4Utils.maybeDie(cause);
             super.exceptionCaught(ctx, cause);
         }
-
     }
-
 }

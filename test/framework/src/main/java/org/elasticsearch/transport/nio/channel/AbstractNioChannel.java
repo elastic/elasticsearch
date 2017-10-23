@@ -19,10 +19,13 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.transport.NewTcpChannel;
 import org.elasticsearch.transport.nio.ESSelector;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;
@@ -144,11 +147,6 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     @Override
-    public CloseFuture getCloseFuture() {
-        return closeFuture;
-    }
-
-    @Override
     public S getRawChannel() {
         return socketChannel;
     }
@@ -161,5 +159,15 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     // Package visibility for testing
     void closeRawChannel() throws IOException {
         socketChannel.close();
+    }
+
+    @Override
+    public CloseFuture getCloseFuture() {
+        return closeFuture;
+    }
+
+    @Override
+    public void setSoLinger(int value) throws IOException {
+        socketChannel.setOption(StandardSocketOptions.SO_LINGER, value);
     }
 }

@@ -47,6 +47,7 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -108,7 +109,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
                  * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
                  * in a way that clients close connection which is how it should be*/
                 if (channel.isOpen() && channel.getRawChannel().supportedOptions().contains(StandardSocketOptions.SO_LINGER)) {
-                    channel.getRawChannel().setOption(StandardSocketOptions.SO_LINGER, 0);
+                    channel.setSoLinger(0);
                 }
             }
         }
@@ -151,15 +152,14 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile, Consumer<NioChannel> onChannelClose)
-        throws IOException {
-        NioSocketChannel[] channels = new NioSocketChannel[profile.getNumConnections()];
+    protected List<Future<NioChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
+                                                        Consumer<NioChannel> onChannelClose) throws IOException {
         ClientChannelCloseListener closeListener = new ClientChannelCloseListener(onChannelClose);
-        boolean connected = client.connectToChannels(node, channels, profile.getConnectTimeout(), closeListener);
-        if (connected == false) {
+        List<Future<NioChannel>> futures = client.initiateConnections(node, profile.getNumConnections(), closeListener);
+        if (futures == null) {
             throw new ElasticsearchException("client is shutdown");
         }
-        return new NodeChannels(node, channels, profile);
+        return futures;
     }
 
     @Override
@@ -244,7 +244,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
     private NioClient createClient() {
         Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
         ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), tcpReadHandler);
-        return new NioClient(logger, openChannels, selectorSupplier, defaultConnectionProfile.getConnectTimeout(), channelFactory);
+        return new NioClient(openChannels, selectorSupplier, channelFactory);
     }
 
     private IOException addClosingException(IOException closingExceptions, Exception e) {

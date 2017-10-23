@@ -21,6 +21,8 @@ package org.elasticsearch.transport;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -59,6 +61,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -176,34 +179,34 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node,
-                                             ConnectionProfile profile,
-                                             Consumer<MockChannel> onChannelClose) throws IOException {
-        final MockChannel[] mockChannels = new MockChannel[1];
-        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
-        boolean success = false;
-        final MockSocket socket = new MockSocket();
-        try {
-            final InetSocketAddress address = node.getAddress().address();
-            // we just use a single connections
-            configureSocket(socket);
-            final TimeValue connectTimeout = profile.getConnectTimeout();
-            try {
-                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
-            } catch (SocketTimeoutException ex) {
-                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
-            }
-            MockChannel channel = new MockChannel(socket, address, "none", onChannelClose);
-            channel.loopRead(executor);
-            mockChannels[0] = channel;
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.close(nodeChannels, socket);
-            }
-        }
-
-        return nodeChannels;
+    protected List<Future<MockChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                                         Consumer<MockChannel> onChannelClose) throws IOException {
+//        final MockChannel[] mockChannels = new MockChannel[1];
+//        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
+//        boolean success = false;
+//        final MockSocket socket = new MockSocket();
+//        try {
+//            final InetSocketAddress address = node.getAddress().address();
+//            // we just use a single connections
+//            configureSocket(socket);
+//            final TimeValue connectTimeout = profile.getConnectTimeout();
+//            try {
+//                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
+//            } catch (SocketTimeoutException ex) {
+//                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
+//            }
+//            MockChannel channel = new MockChannel(socket, address, "none", onChannelClose);
+//            channel.loopRead(executor);
+//            mockChannels[0] = channel;
+//            success = true;
+//        } finally {
+//            if (success == false) {
+//                IOUtils.close(nodeChannels, socket);
+//            }
+//        }
+//
+//        return nodeChannels;
+        return null;
     }
 
 
@@ -266,7 +269,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         return 1;
     }
 
-    public final class MockChannel implements Closeable {
+    public final class MockChannel implements Closeable, NewTcpChannel<MockChannel> {
         private final AtomicBoolean isOpen = new AtomicBoolean(true);
         private final InetSocketAddress localAddress;
         private final ServerSocket serverSocket;
@@ -275,6 +278,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
         private final Closeable onClose;
+        private final PlainListenableActionFuture<MockChannel> closeFuture = PlainListenableActionFuture.newListenableFuture();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -393,6 +397,35 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 ", localAddress=" + localAddress +
                 ", isServerSocket=" + (serverSocket != null) +
                 '}';
+        }
+
+        @Override
+        public ListenableActionFuture<MockChannel> closeAsync() {
+            try {
+                close();
+                closeFuture.onResponse(this);
+            } catch (IOException e) {
+                closeFuture.onFailure(e);
+            }
+            return closeFuture;
+        }
+
+        @Override
+        public ListenableActionFuture<MockChannel> getCloseFuture() {
+            return closeFuture;
+        }
+
+        @Override
+        public void setSoLinger(int value) throws IOException {
+            if (activeChannel != null) {
+                activeChannel.setSoLinger(true, value);
+            }
+
+        }
+
+        @Override
+        public boolean isOpen() {
+            return isOpen.get();
         }
     }
 

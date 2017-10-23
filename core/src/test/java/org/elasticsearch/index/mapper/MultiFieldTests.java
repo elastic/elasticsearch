@@ -35,7 +35,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -155,8 +157,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     // can to unnecessary re-syncing of the mappings between the local instance and cluster state
     public void testMultiFieldsInConsistentOrder() throws Exception {
         String[] multiFieldNames = new String[randomIntBetween(2, 10)];
+        Set<String> seenFields = new HashSet<>();
         for (int i = 0; i < multiFieldNames.length; i++) {
-            multiFieldNames[i] = randomAlphaOfLength(4);
+            multiFieldNames[i] = randomValueOtherThanMany(s -> !seenFields.add(s), () -> randomAlphaOfLength(4));
         }
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")

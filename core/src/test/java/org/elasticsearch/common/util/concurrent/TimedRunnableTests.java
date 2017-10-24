@@ -30,7 +30,6 @@ import static org.hamcrest.Matchers.equalTo;
 public final class TimedRunnableTests extends ESTestCase {
 
     public void testTimedRunnableDelegatesToAbstractRunnable() {
-
         final boolean isForceExecution = randomBoolean();
         final AtomicBoolean onAfter = new AtomicBoolean();
         final AtomicReference<Exception> onRejection = new AtomicReference<>();

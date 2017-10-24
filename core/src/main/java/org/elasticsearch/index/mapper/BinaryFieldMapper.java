@@ -179,6 +179,9 @@ public class BinaryFieldMapper extends FieldMapper {
                 field.add(value);
             }
         } else {
+            // Only add an entry to the field names field if the field is stored
+            // but has no doc values so exists query will work on a field with
+            // no doc values
             createFieldNamesField(context, fields);
         }
 

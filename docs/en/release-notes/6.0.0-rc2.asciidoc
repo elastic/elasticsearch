@@ -1,0 +1,84 @@
+[role="xpack"]
+[[xes-6.0.0-rc2]]
+== {es} {xpack} 6.0.0-rc2 Release Notes
+
+To be determined.
+
+////
+[[xes-enhancement-6.0.0-rc2]]
+[float]
+=== Enhancements
+////
+////
+Machine Learning::
+* [ML] Prevent ML node attributes being set directly
+// https://github.com/elastic/x-pack-elasticsearch/pull/2725[#2725] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2649[#2649])
+* [ML] Allow dynamic updates to the xpack.ml.max_model_memory_limit setting
+// https://github.com/elastic/x-pack-elasticsearch/pull/2503[#2503] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2462[#2462])
+* [ML] Add setting for job max model memory limit
+// https://github.com/elastic/x-pack-elasticsearch/pull/2460[#2460]
+* Assorted improvements to modelling long periodic components
+// https://github.com/elastic/machine-learning-cpp/pull/298[#298] (issue: https://github.com/elastic/machine-learning-cpp/issues/272[#272])
+////
+////
+Monitoring::
+* [Monitoring] Cleaner Service should be able to cleanup .watcher-history*
+// https://github.com/elastic/x-pack-elasticsearch/pull/2696[#2696] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1337[#1337])
+* [Monitoring] Clean .watcher-history-* indices by default in 6.0+ [OPEN]
+// https://github.com/elastic/x-pack-elasticsearch/pull/2720[#2720] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1337[#1337])
+* [Monitoring] Remove MonitoringSettings
+// https://github.com/elastic/x-pack-elasticsearch/pull/2596[#2596]
+////
+////
+Security::
+* [Security] Improve error messages in setup-passwords
+// https://github.com/elastic/x-pack-elasticsearch/pull/2724[#2724]
+* Add transport ssl enabled value back to security usage
+// https://github.com/elastic/x-pack-elasticsearch/pull/2695[#2695]
+////
+////
+Watcher::
+* Watcher: Ensure all templates exist before starting watcher
+// https://github.com/elastic/x-pack-elasticsearch/pull/2765[#2765] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2761[#2761])
+////
+////
+[[xes-bug-6.0.0-rc2]]
+[float]
+=== Bug fixes
+////
+////
+Machine Learning::
+* Fix a potential memory access issue
+// https://github.com/elastic/machine-learning-cpp/pull/347[#347] (issue: https://github.com/elastic/machine-learning-cpp/issues/344[#344])
+* Prevent models for different partition field values being combined
+// https://github.com/elastic/machine-learning-cpp/pull/323[#323]
+* [ML][DOCS] Fix bucket_span type in results resources
+// https://github.com/elastic/x-pack-elasticsearch/pull/2714[#2714]
+* [ML] snapshot_id is required when reverting a model snapshot
+// https://github.com/elastic/x-pack-elasticsearch/pull/2641[#2641]
+* [ML] Tolerate a body without timestamp for get_buckets with a timestamp
+// https://github.com/elastic/x-pack-elasticsearch/pull/2640[#2640] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2515[#2515])
+* [ML] Fix close job when the process has not launched yet
+// https://github.com/elastic/x-pack-elasticsearch/pull/2616[#2616] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/1270[#1270], https://github.com/elastic/x-pack-elasticsearch/issues/2360[#2360])
+////
+////
+Security::
+* [Security] BulkShardRequest may have multiple indices [OPEN]
+// https://github.com/elastic/x-pack-elasticsearch/pull/2742[#2742] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2741[#2741])
+* Security: do not fail request for roles when security index is out date [OPEN]
+// https://github.com/elastic/x-pack-elasticsearch/pull/2717[#2717] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2686[#2686])
+* Allow PkiRealm to use truststore.password setting
+// https://github.com/elastic/x-pack-elasticsearch/pull/2727[#2727] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2487[#2487])
+* Always allow access to a rootdoc's nested documents if access to rootdoc is allowed
+// https://github.com/elastic/x-pack-elasticsearch/pull/2723[#2723] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2665[#2665])
+* [Security] Support "type" field in role-mappings
+// https://github.com/elastic/x-pack-elasticsearch/pull/2681[#2681] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2678[#2678])
+* Fix LDAP Authc connections deadlock
+// https://github.com/elastic/x-pack-elasticsearch/pull/2587[#2587] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2570[#2570])
+////
+////
+See also:
+
+* <<release-notes-6.0.0-rc2,{es} 6.0.0-rc2 Release Notes>>
+* {logstash-ref}/xls-6.0.0-rc2.html[Logstash {xpack} 6.0.0-rc2 Release Notes]
+////

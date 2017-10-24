@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -22,6 +23,7 @@ public class NodePersistentTasksExecutor {
     }
 
     public <Params extends PersistentTaskParams> void executeTask(@Nullable Params params,
+                                                                  @Nullable Task.Status status,
                                                                   AllocatedPersistentTask task,
                                                                   PersistentTasksExecutor<Params> executor) {
         threadPool.executor(executor.getExecutor()).execute(new AbstractRunnable() {
@@ -34,7 +36,7 @@ public class NodePersistentTasksExecutor {
             @Override
             protected void doRun() throws Exception {
                 try {
-                    executor.nodeOperation(task, params);
+                    executor.nodeOperation(task, params, status);
                 } catch (Exception ex) {
                     task.markAsFailed(ex);
                 }

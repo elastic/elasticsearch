@@ -160,7 +160,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                     task.getPersistentTaskId(), task.getAllocationId());
             try {
                 runningTasks.put(taskInProgress.getAllocationId(), task);
-                nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), task, executor);
+                nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), taskInProgress.getStatus(), task, executor);
             } catch (Exception e) {
                 // Submit task failure
                 task.markAsFailed(e);

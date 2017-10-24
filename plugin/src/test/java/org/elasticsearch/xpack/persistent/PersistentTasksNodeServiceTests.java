@@ -35,12 +35,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class PersistentTasksNodeServiceTests extends ESTestCase {
@@ -153,6 +155,41 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     }
 
+    public void testParamsStatusAndNodeTaskAreDelegated() throws Exception {
+        PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
+        @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
+        when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
+        when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
+        TaskId parentId = new TaskId("cluster", 1);
+        AllocatedPersistentTask nodeTask = new TestPersistentTasksPlugin.TestTask(0, "persistent", "test", "", parentId);
+        when(action.createTask(anyLong(), anyString(), anyString(), eq(parentId), any())).thenReturn(nodeTask);
+        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Collections.singletonList(action));
+
+        MockExecutor executor = new MockExecutor();
+        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(Settings.EMPTY, persistentTasksService,
+                registry, new TaskManager(Settings.EMPTY), executor);
+
+        ClusterState state = createInitialClusterState(1, Settings.EMPTY);
+
+        Task.Status status = new TestPersistentTasksPlugin.Status("_test_phase");
+        PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
+        String taskId = UUIDs.base64UUID();
+        TestParams taskParams = new TestParams("other_0");
+        tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, taskParams,
+                new Assignment("this_node", "test assignment on other node"));
+        tasks.updateTaskStatus(taskId, status);
+        MetaData.Builder metaData = MetaData.builder(state.metaData());
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build());
+        ClusterState newClusterState = ClusterState.builder(state).metaData(metaData).build();
+
+        coordinator.clusterChanged(new ClusterChangedEvent("test", newClusterState, state));
+
+        assertThat(executor.size(), equalTo(1));
+        assertThat(executor.get(0).params, sameInstance(taskParams));
+        assertThat(executor.get(0).status, sameInstance(status));
+        assertThat(executor.get(0).task, sameInstance(nodeTask));
+    }
+
     public void testTaskCancellation() {
         AtomicLong capturedTaskId = new AtomicLong();
         AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
@@ -257,11 +294,13 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     private class Execution {
         private final PersistentTaskParams params;
         private final AllocatedPersistentTask task;
+        private final Task.Status status;
         private final PersistentTasksExecutor<?> holder;
 
-        Execution(PersistentTaskParams params, AllocatedPersistentTask task, PersistentTasksExecutor<?> holder) {
+        Execution(PersistentTaskParams params, AllocatedPersistentTask task, Task.Status status, PersistentTasksExecutor<?> holder) {
             this.params = params;
             this.task = task;
+            this.status = status;
             this.holder = holder;
         }
     }
@@ -274,9 +313,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         }
 
         @Override
-        public <Params extends PersistentTaskParams> void executeTask(Params params, AllocatedPersistentTask task,
+        public <Params extends PersistentTaskParams> void executeTask(Params params,
+                                                                      Task.Status status,
+                                                                      AllocatedPersistentTask task,
                                                                       PersistentTasksExecutor<Params> executor) {
-            executions.add(new Execution(params, task, executor));
+            executions.add(new Execution(params, task, status, executor));
         }
 
         public Execution get(int i) {

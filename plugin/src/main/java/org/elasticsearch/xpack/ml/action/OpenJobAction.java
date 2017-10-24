@@ -607,7 +607,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask task, JobParams params) {
+        protected void nodeOperation(AllocatedPersistentTask task, JobParams params, Task.Status status) {
             JobTask jobTask = (JobTask) task;
             jobTask.autodetectProcessManager = autodetectProcessManager;
             autodetectProcessManager.openJob(jobTask, e2 -> {

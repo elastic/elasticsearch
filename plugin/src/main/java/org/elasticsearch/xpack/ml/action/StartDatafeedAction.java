@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -545,7 +546,7 @@ public class StartDatafeedAction
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask allocatedPersistentTask, DatafeedParams params) {
+        protected void nodeOperation(AllocatedPersistentTask allocatedPersistentTask, DatafeedParams params, Task.Status status) {
             DatafeedTask datafeedTask = (DatafeedTask) allocatedPersistentTask;
             datafeedTask.datafeedManager = datafeedManager;
             datafeedManager.run(datafeedTask,

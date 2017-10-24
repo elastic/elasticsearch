@@ -353,7 +353,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
                     }
                 },
                 (e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
-                        command.toString(), executor), e));
+                        command, executor), e));
     }
 
     public Runnable preserveContext(Runnable command) {

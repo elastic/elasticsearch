@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TimedRunnableTests extends ESTestCase {
+public final class TimedRunnableTests extends ESTestCase {
 
     public void testTimedRunnableDelegatesToAbstractRunnable() {
 
@@ -49,12 +49,12 @@ public class TimedRunnableTests extends ESTestCase {
             }
 
             @Override
-            public void onRejection(Exception e) {
+            public void onRejection(final Exception e) {
                 onRejection.set(e);
             }
 
             @Override
-            public void onFailure(Exception e) {
+            public void onFailure(final Exception e) {
                 onFailure.set(e);
             }
 
@@ -97,7 +97,7 @@ public class TimedRunnableTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Exception e) {
+            public void onFailure(final Exception e) {
                 onFailure.set(e);
             }
 

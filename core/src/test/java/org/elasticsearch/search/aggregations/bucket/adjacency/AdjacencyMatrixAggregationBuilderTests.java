@@ -67,19 +67,17 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
             filters.put("filter" + i, queryBuilder);
         }
         AdjacencyMatrixAggregationBuilder builder = new AdjacencyMatrixAggregationBuilder("dummy", filters);
-        try {
-            builder.doBuild(context, null, new AggregatorFactories.Builder());
-            fail();
-        } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), equalTo("Number of filters is too large, must be less than or equal to: [2] but was [3]."
-                + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
-                + "] index level setting."));
-        }
+        IllegalArgumentException ex
+            = expectThrows(IllegalArgumentException.class, () -> builder.doBuild(context, null, new AggregatorFactories.Builder()));
+        assertThat(ex.getMessage(), equalTo("Number of filters is too large, must be less than or equal to: [2] but was [3]."
+            + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
+            + "] index level setting."));
+
         // filter size not grater than max size should return an instance of AdjacencyMatrixAggregatorFactory
         Map<String, QueryBuilder> emptyFilters = Collections.emptyMap();
 
-        builder = new AdjacencyMatrixAggregationBuilder("dummy", emptyFilters);
-        AggregatorFactory<?> factory = builder.doBuild(context, null, new AggregatorFactories.Builder());
+        AdjacencyMatrixAggregationBuilder aggregationBuilder = new AdjacencyMatrixAggregationBuilder("dummy", emptyFilters);
+        AggregatorFactory<?> factory = aggregationBuilder.doBuild(context, null, new AggregatorFactories.Builder());
         assertThat(factory instanceof AdjacencyMatrixAggregatorFactory, is(true));
         assertThat(factory.name(), equalTo("dummy"));
     }

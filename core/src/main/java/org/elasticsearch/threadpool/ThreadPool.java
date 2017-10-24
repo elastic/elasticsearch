@@ -715,18 +715,18 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
      * Returns <code>true</code> if the given pool was terminated successfully. If the termination timed out,
      * the service is <code>null</code> this method will return <code>false</code>.
      */
-    public static boolean terminate(ThreadPool threadPool, long timeout, TimeUnit timeUnit) {
-        if (threadPool != null) {
+    public static boolean terminate(ThreadPool pool, long timeout, TimeUnit timeUnit) {
+        if (pool != null) {
             try {
-                threadPool.shutdown();
-                if (awaitTermination(threadPool, timeout, timeUnit)) {
+                pool.shutdown();
+                if (awaitTermination(pool, timeout, timeUnit)) {
                     return true;
                 }
                 // last resort
-                threadPool.shutdownNow();
-                return awaitTermination(threadPool, timeout, timeUnit);
+                pool.shutdownNow();
+                return awaitTermination(pool, timeout, timeUnit);
             } finally {
-                IOUtils.closeWhileHandlingException(threadPool);
+                IOUtils.closeWhileHandlingException(pool);
             }
         }
         return false;

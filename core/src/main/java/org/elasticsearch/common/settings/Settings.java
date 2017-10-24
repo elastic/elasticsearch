@@ -1071,7 +1071,8 @@ public final class Settings implements ToXContentFragment {
             Map<String, Object> settingsMap = new HashMap<>(settings.settings);
             processLegacyLists(settingsMap);
             map.putAll(settingsMap);
-            if (copySecureSettings && settings.getSecureSettings() != null) {
+            if (copySecureSettings && settings.getSecureSettings() != null
+                    && settings.getSecureSettings().getSettingNames().isEmpty() == false) {
                 setSecureSettings(settings.getSecureSettings());
             }
             return this;

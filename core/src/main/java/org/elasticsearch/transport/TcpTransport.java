@@ -399,16 +399,16 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
 
     public final class NodeChannels implements Connection {
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
-        private final Channel[] channels;
+        private final ArrayList<Channel> channels;
         private final DiscoveryNode node;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Version version;
 
-        public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile) {
+        public NodeChannels(DiscoveryNode node, ArrayList<Channel> channels, ConnectionProfile connectionProfile) {
             this.node = node;
             this.channels = channels;
-            assert channels.length == connectionProfile.getNumConnections() : "expected channels size to be == "
-                + connectionProfile.getNumConnections() + " but was: [" + channels.length + "]";
+            assert channels.size() == connectionProfile.getNumConnections() : "expected channels size to be == "
+                + connectionProfile.getNumConnections() + " but was: [" + channels.size() + "]";
             typeMapping = new EnumMap<>(TransportRequestOptions.Type.class);
             for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
                 for (TransportRequestOptions.Type type : handle.getTypes())
@@ -430,7 +430,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
         }
 
         public List<Channel> getChannels() {
-            return Arrays.asList(channels);
+            return new ArrayList<>(channels);
         }
 
         public Channel channel(TransportRequestOptions.Type type) {
@@ -452,7 +452,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
                          * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
                          * in a way that clients close connection which is how it should be*/
 
-                        Arrays.stream(channels).forEach(c -> {
+                        channels.forEach(c -> {
                             try {
                                 c.setSoLinger(0);
                             } catch (IOException e) {
@@ -462,7 +462,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
                     }
 
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
-                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), block);
+                    closeChannels(channels.stream().filter(Objects::nonNull).collect(Collectors.toList()), block);
                 } finally {
                     transportService.onConnectionClosed(this);
                 }
@@ -621,7 +621,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
                 nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
                 transportService.onConnectionOpened(nodeChannels);
                 connectionRef.set(nodeChannels);
-                if (Arrays.stream(nodeChannels.channels).allMatch(NewTcpChannel::isOpen) == false) {
+                if (nodeChannels.channels.stream().allMatch(NewTcpChannel::isOpen) == false) {
                     throw new ConnectTransportException(node, "a channel closed while connecting");
                 }
                 success = true;
@@ -1839,6 +1839,10 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
         }
     }
 
+    protected NodeChannels createNodeChannels(DiscoveryNode node, ArrayList<Channel> channels, ConnectionProfile connectionProfile) {
+        return new NodeChannels(node, channels, connectionProfile);
+    }
+
     @SuppressWarnings("unchecked")
     private NodeChannels finishConnection(DiscoveryNode discoveryNode, List<Future<Channel>> pendingChannels,
                                           ConnectionProfile connectionProfile) {
@@ -1846,12 +1850,12 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
         boolean allConnected = true;
         TimeValue connectTimeout = getConnectTimeout(connectionProfile);
 
-        Channel[] channels = (Channel[]) new NewTcpChannel[pendingChannels.size()];
+        ArrayList<Channel> channels = new ArrayList<>(pendingChannels.size());
 
         for (int i = 0; i < pendingChannels.size(); ++i) {
             try {
                 Future<Channel> connectFuture = pendingChannels.get(i);
-                channels[i] = connectFuture.get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
+                channels.add(connectFuture.get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS));
             } catch (TimeoutException e) {
                 allConnected = false;
                 break;
@@ -1874,7 +1878,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
             }
         }
 
-        return new NodeChannels(discoveryNode, channels, connectionProfile);
+        return createNodeChannels(discoveryNode, channels, connectionProfile);
     }
 
     private TimeValue getConnectTimeout(ConnectionProfile connectionProfile) {

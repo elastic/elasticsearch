@@ -217,6 +217,18 @@ public final class ConnectionProfile {
         }
 
         /**
+         * Returns one of the channels out configured for this handle. The channel is selected in a round-robin
+         * fashion.
+         */
+        <T> T getChannel(ArrayList<T> channels) {
+            if (length == 0) {
+                throw new IllegalStateException("can't select channel size is 0 for types: " + types);
+            }
+            assert channels.size() >= offset + length : "illegal size: " + channels.size() + " expected >= " + (offset + length);
+            return channels.get(offset + Math.floorMod(counter.incrementAndGet(), length));
+        }
+
+        /**
          * Returns all types for this handle
          */
         Set<TransportRequestOptions.Type> getTypes() {

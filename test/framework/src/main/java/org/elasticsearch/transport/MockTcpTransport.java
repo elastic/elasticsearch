@@ -53,6 +53,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -208,7 +209,10 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         return Collections.singletonList(future);
     }
 
-
+    @Override
+    protected NodeChannels createNodeChannels(DiscoveryNode node, ArrayList<MockChannel> channels, ConnectionProfile connectionProfile) {
+        return new NodeChannels(node, channels, LIGHT_PROFILE); // we always use light for the mock transport
+    }
 
     private void configureSocket(Socket socket) throws SocketException {
         socket.setTcpNoDelay(TCP_NO_DELAY.get(settings));

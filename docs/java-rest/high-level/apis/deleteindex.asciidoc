@@ -19,8 +19,8 @@ The following arguments can optionally be provided:
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-index-request-timeout]
 --------------------------------------------------
-<1> Timeout to wait for primary shard to become available as a `TimeValue`
-<2> Timeout to wait for primary shard to become available as a `String`
+<1> Timeout to wait for the all the nodes to acknowledge the index deletion as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the index deletion as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -56,15 +56,16 @@ provided as an argument
 <2> Called in case of failure. The raised exception is provided as an argument
 
 [[java-rest-high-delete-index-response]]
-==== Delete Response
+==== Delete Index Response
 
-The returned `DeleteResponse` allows to retrieve information about the executed
+The returned `DeleteIndexResponse` allows to retrieve information about the executed
  operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-index-response]
 --------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request or not
 
 If the index was not found, an `ElasticsearchException` will be thrown:
 

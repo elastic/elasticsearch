@@ -1,5 +1,5 @@
-include::_index.asciidoc[]
 include::deleteindex.asciidoc[]
+include::_index.asciidoc[]
 include::get.asciidoc[]
 include::delete.asciidoc[]
 include::update.asciidoc[]

@@ -67,7 +67,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(deleteIndexResponse.isAcknowledged());
 
             // tag::delete-index-response
-            boolean acknowledged = deleteIndexResponse.isAcknowledged();
+            boolean acknowledged = deleteIndexResponse.isAcknowledged(); // <1>
             // end::delete-index-response
 
             // tag::delete-index-execute-async

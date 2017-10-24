@@ -269,8 +269,6 @@ public class RequestTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
-
-
     public void testIndex() throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
         String type = randomAlphaOfLengthBetween(3, 10);

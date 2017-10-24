@@ -65,9 +65,11 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("published_cluster_states");
-        builder.field("full_states", fullClusterStateReceivedCount);
-        builder.field("incompatible_diffs", incompatibleClusterStateDiffReceivedCount);
-        builder.field("compatible_diffs", compatibleClusterStateDiffReceivedCount);
+        {
+            builder.field("full_states", fullClusterStateReceivedCount);
+            builder.field("incompatible_diffs", incompatibleClusterStateDiffReceivedCount);
+            builder.field("compatible_diffs", compatibleClusterStateDiffReceivedCount);
+        }
         builder.endObject();
         return builder;
     }

@@ -80,5 +80,8 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     public PendingClusterStateStats getQueueStats() {
         return queueStats;
     }
-    public PublishClusterStateStats getPublishStats() { return publishStats; }
+
+    public PublishClusterStateStats getPublishStats() {
+        return publishStats;
+    }
 }

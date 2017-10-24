@@ -21,6 +21,7 @@ package org.elasticsearch.common;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Encapsulates an accumulation of validation errors
@@ -59,12 +60,6 @@ public class ValidationException extends IllegalArgumentException {
 
     @Override
     public final String getMessage() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Validation Failed: ");
-        int index = 0;
-        for (String error : validationErrors) {
-            sb.append(++index).append(": ").append(error).append(";");
-        }
-        return sb.toString();
+        return "Validation Failed: " + validationErrors.stream().collect(Collectors.joining("; "));
     }
 }

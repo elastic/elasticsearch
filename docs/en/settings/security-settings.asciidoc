@@ -12,6 +12,11 @@ and perform message authentication,
 level security>>, <<realm-settings, configure realms>>,
 and  <<ssl-tls-settings, encrypt communications with SSL>>.
 
+All of these settings can be added to the `elasticsearch.yml` configuration file,
+with the exception of the secure settings, which you add to the {es} keystore.
+For more information about creating and updating the {es} keystore, see
+<<secure-settings>>.
+
 [float]
 [[general-security-settings]]
 ==== General Security Settings
@@ -23,6 +28,7 @@ affects all {kib} instances that connect to this {es} instance; you do not
 need to disable {security} in those `kibana.yml` files. For more information
 about disabling {security} in specific {kib} instances, see
 {kibana-ref}/security-settings-kb.html[{kib} Security Settings].
+
 
 [float]
 [[password-security-settings]]
@@ -289,8 +295,11 @@ Defaults to `5s` (5 seconds ).
 Path to a PEM encoded file containing the private key.
 
 `ssl.key_passphrase`::
-The passphrase that will be used to decrypt the private key. This value is
+The passphrase that is used to decrypt the private key. This value is
 optional as the key may not be encrypted.
+
+`ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
+The passphrase that is used to decrypt the private key.
 
 `ssl.certificate`::
 Path to a PEM encoded file containing the certificate (or certificate chain)
@@ -310,19 +319,28 @@ Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
 `ssl.keystore.password`::
 The password to the keystore.
 
+`ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
+The password to the keystore.
+
 `ssl.keystore.key_password`::
+The password for the key in the keystore. Defaults to the keystore password.
+
+`ssl.keystore.secure_key_password`::
 The password for the key in the keystore. Defaults to the keystore password.
 
 `ssl.truststore.path`::
 The path to the Java Keystore file that contains the certificates to trust.
 `ssl.certificate_authorities` and `ssl.truststore.path` may not be used at the same time.
 
+`ssl.truststore.password`::
+The password to the truststore.
+
+`ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
+The password to the truststore.
+
 `ssl.truststore.type`::
 The format of the keystore file. Should be either `jks` to use the Java
 Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
-
-`ssl.truststore.password`::
-The password to the truststore.
 
 `ssl.verification_mode`::
 Indicates the type of verification when using `ldaps` to protect against man
@@ -478,19 +496,35 @@ The LDAP Server enforced timeout period for an LDAP search.
 An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
-`ssl.key`::
-Path to the PEM encoded file containing the private key.
-
-`ssl.key_passphrase`::
-The passphrase that will be used to decrypt the private key. This value is
-optional as the key may not be encrypted.
-
 `ssl.certificate`::
 Path to a PEM encoded file containing the certificate (or certificate chain)
 that will be presented to clients when they connect.
 
 `ssl.certificate_authorities`::
 List of paths to PEM encoded certificate files that should be trusted.
+
+`ssl.key`::
+Path to the PEM encoded file containing the private key.
+
+`ssl.key_passphrase`::
+The passphrase that is used to decrypt the private key. This value is
+optional as the key might not be encrypted.
+
+`ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
+The passphrase that is used to decrypt the private key. This value is
+optional as the key might not be encrypted.
+
+`ssl.keystore.key_password`::
+The password for the key in the keystore. Defaults to the keystore password.
+
+`ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
+The password for the key in the keystore. Defaults to the keystore password.
+
+`ssl.keystore.password`::
+The password to the keystore.
+
+`ssl.secure_keystore.password` (<<secure-settings,Secure>>)::
+The password to the keystore.
 
 `ssl.keystore.path`::
 The path to the Java Keystore file that contains a private key and certificate.
@@ -499,11 +533,11 @@ The path to the Java Keystore file that contains a private key and certificate.
 The format of the keystore file. Should be either `jks` to use the Java
 Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
 
-`ssl.keystore.password`::
-The password to the keystore.
+`ssl.truststore.password`::
+The password to the truststore.
 
-`ssl.keystore.key_password`::
-The password for the key in the keystore. Defaults to the keystore password.
+`ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
+The password to the truststore.
 
 `ssl.truststore.path`::
 The path to the Java Keystore file that contains the certificates to trust.
@@ -511,9 +545,6 @@ The path to the Java Keystore file that contains the certificates to trust.
 `ssl.truststore.type`::
 The format of the truststore file. Should be either `jks` to use the Java
 Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
-
-`ssl.truststore.password`::
-The password to the truststore.
 
 `ssl.verification_mode`::
 Indicates the type of verification when using `ldaps` to protect against man
@@ -524,7 +555,7 @@ and `full`. Defaults to the value of `xpack.ssl.verification_mode`.
 Supported protocols with versions. Defaults to the value of
 `xpack.ssl.supported_protocols`.
 
-`ssl.cipher_suites`
+`ssl.cipher_suites`::
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. Defaults to the value of
 `xpack.ssl.cipher_suites`.
@@ -558,16 +589,19 @@ user's certificate as trusted. Defaults to the trusted certificates configured f
 See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm documentation for more information.
 This setting may not be used with `truststore.path`.
 
-`truststore.path`::
-The path of a truststore to use. Defaults to the trusted certificates configured for SSL.
-See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm documentation for more information.
-This setting may not be used with `certificate_authorities`.
+`truststore.algorithm`::
+Algorithm for the truststore. Defaults to `SunX509`.
 
 `truststore.password`::
 The password for the truststore. Must be provided if `truststore.path` is set.
 
-`truststore.algorithm`::
-Algorithm for the truststore. Defaults to `SunX509`.
+`truststore.secure_password` (<<secure-settings,Secure>>)::
+The password for the truststore.
+
+`truststore.path`::
+The path of a truststore to use. Defaults to the trusted certificates configured for SSL.
+See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm documentation for more information.
+This setting may not be used with `certificate_authorities`.
 
 `files.role_mapping`::
 Specifies the {xpack-ref}/security-files.html[location] of the
@@ -599,7 +633,7 @@ Defaults to `required`.
 Controls the verification of certificates. Valid values are `none`,
 `certificate`, and `full`. Defaults to `full`.
 
-`xpack.ssl.cipher_suites`
+`xpack.ssl.cipher_suites`::
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. Defaults to `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
 `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
@@ -628,8 +662,12 @@ When using PEM encoded files, use the following settings:
 Path to the PEM encoded file containing the private key.
 
 `xpack.ssl.key_passphrase`::
-The passphrase that will be used to decrypt the private key. This value is
-optional as the key may not be encrypted.
+The passphrase that is used to decrypt the private key. This value is
+optional as the key might not be encrypted.
+
+`xpack.ssl.secure_key_passphrase` ({<<secure-settings,Secure>>)::
+The passphrase that is used to decrypt the private key. This value is
+optional as the key might not be encrypted.
 
 `xpack.ssl.certificate`::
 Path to a PEM encoded file containing the certificate (or certificate chain)
@@ -650,14 +688,23 @@ Path to the keystore that holds the private key and certificate.
 `xpack.ssl.keystore.password`::
 Password to the keystore.
 
+`xpack.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
+Password to the keystore.
+
 `xpack.ssl.keystore.key_password`::
 Password for the private key in the keystore. Defaults to the
 same value as `xpack.ssl.keystore.password`.
+
+`xpack.ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
+Password for the private key in the keystore.
 
 `xpack.ssl.truststore.path`::
 Path to the truststore file.
 
 `xpack.ssl.truststore.password`::
+Password to the truststore.
+
+`xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
 
 [float]
@@ -676,9 +723,15 @@ Set this to `PKCS12`.
 `xpack.ssl.keystore.password`::
 Password to the PKCS#12 file.
 
+`xpack.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
+Password to the PKCS#12 file.
+
 `xpack.ssl.keystore.key_password`::
 Password for the private key in the PKCS12 file.
 Defaults to the same value as `xpack.ssl.keystore.password`.
+
+`xpack.ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
+Password for the private key in the PKCS12 file.
 
 `xpack.ssl.truststore.path`::
 Path to the truststore file.
@@ -687,6 +740,9 @@ Path to the truststore file.
 Set this to `PKCS12`.
 
 `xpack.ssl.truststore.password`::
+Password to the truststore.
+
+`xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
 
 [[http-tls-ssl-settings]]

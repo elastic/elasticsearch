@@ -63,8 +63,12 @@ When using PEM encoded files, use the following settings:
 Path to a PEM encoded file containing the private key.
 
 +{ssl-prefix}.ssl.key_passphrase+::
-The passphrase that will be used to decrypt the private key. This value is
-optional as the key may not be encrypted.
+The passphrase that is used to decrypt the private key. This value is optional
+as the key might not be encrypted.
+
++{ssl-prefix}.ssl.secure_key_passphrase+ (<<secure-settings,Secure>>)::
+The passphrase that is used to decrypt the private key. This value is optional
+as the key might not be encrypted.
 
 +{ssl-prefix}.ssl.certificate+::
 Path to a PEM encoded file containing the certificate (or certificate chain)
@@ -84,14 +88,23 @@ Path to the keystore that holds the private key and certificate.
 +{ssl-prefix}.ssl.keystore.password+::
 Password to the keystore.
 
++{ssl-prefix}.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
+Password to the keystore.
+
 +{ssl-prefix}.ssl.keystore.key_password+::
 Password for the private key in the keystore. Defaults to the
 same value as +{ssl-prefix}.ssl.keystore.password+.
+
++{ssl-prefix}.ssl.keystore.secure_key_password+ (<<secure-settings,Secure>>)::
+Password for the private key in the keystore.
 
 +{ssl-prefix}.ssl.truststore.path+::
 Path to the truststore file.
 
 +{ssl-prefix}.ssl.truststore.password+::
+Password to the truststore.
+
++{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
 Password to the truststore.
 
 ===== PKCS#12 Files
@@ -110,9 +123,15 @@ Set this to `PKCS12` to indicate that the keystore is a PKCS#12 file.
 +{ssl-prefix}.ssl.keystore.password+::
 Password to the PKCS#12 file.
 
++{ssl-prefix}.ssl.keystore.secure_password+ (<<secure-settings,Secure>>)::
+Password to the PKCS#12 file.
+
 +{ssl-prefix}.ssl.keystore.key_password+::
 Password for the private key stored in the PKCS#12 file.
 Defaults to the same value as +{ssl-prefix}.ssl.keystore.password+.
+
++{ssl-prefix}.ssl.keystore.secure_key_password+ (<<secure-settings,Secure>>)::
+Password for the private key stored in the PKCS#12 file.
 
 +{ssl-prefix}.ssl.truststore.path+::
 Path to the PKCS#12 file that holds the certificates to be trusted.
@@ -121,4 +140,7 @@ Path to the PKCS#12 file that holds the certificates to be trusted.
 Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
 
 +{ssl-prefix}.ssl.truststore.password+::
+Password to the PKCS#12 file.
+
++{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
 Password to the PKCS#12 file.

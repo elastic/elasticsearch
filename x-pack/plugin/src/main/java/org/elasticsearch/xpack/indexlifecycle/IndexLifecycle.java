@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -12,11 +14,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -27,6 +34,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.InternalClient;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,15 +43,26 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class IndexLifecycle implements ActionPlugin {
-
+    private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
     public static final String NAME = "index_lifecycle";
     public static final String BASE_PATH = "/_xpack/index_lifecycle/";
     public static final String THREAD_POOL_NAME = NAME;
+    private final SetOnce<IndexLifecycleInitialisationService> indexLifecycleInitialisationService = new SetOnce<>();
     private Settings settings;
     private boolean enabled;
     private boolean transportClientMode;
     private boolean tribeNode;
     private boolean tribeNodeClient;
+
+    public static final Setting LIFECYCLE_TIMESERIES_SETTING = Setting.groupSetting("index.lifecycle.timeseries.", (settings) -> {
+        ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN").error("validating setting internally");
+        if (settings.size() == 0) {
+            return;
+        }
+        if (settings.size() != 2 && (settings.get("new") == null || settings.get("delete") == null)) {
+            throw new IllegalArgumentException("you have invalid lifecycle settings, cmon!");
+        }
+    }, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
@@ -64,11 +83,22 @@ public class IndexLifecycle implements ActionPlugin {
 
         return modules;
     }
-    
 
+    public void onIndexModule(IndexModule indexModule) {
+        ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN").error("onIndexModule");
+        Index index = indexModule.getIndex();
+        indexModule.addSettingsUpdateConsumer(LIFECYCLE_TIMESERIES_SETTING,
+            (Settings s) -> indexLifecycleInitialisationService.get().setLifecycleSettings(index, s));
+        indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
+    }
 
-    public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, ThreadPool threadPool) {
-        return Collections.singletonList(new IndexLifecycleInitialisationService(settings, clusterService));
+    public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, Clock clock) {
+        indexLifecycleInitialisationService.set(new IndexLifecycleInitialisationService(settings, internalClient, clusterService, clock));
+        return Collections.singletonList(indexLifecycleInitialisationService.get());
+    }
+
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(LIFECYCLE_TIMESERIES_SETTING);
     }
 
     @Override
@@ -81,11 +111,7 @@ public class IndexLifecycle implements ActionPlugin {
         }
 
         return Arrays.asList(
-//                new RestRollupSearchAction(settings, restController),
-//                new RestPutRollupJobAction(settings, restController),
-//                new RestStartRollupJobAction(settings, restController),
-//                new RestStopRollupJobAction(settings, restController),
-//                new RestDeleteRollupJobAction(settings, restController)
+//                new RestLifecycleStatusAction(settings, restController)
         );
 
     }
@@ -96,11 +122,7 @@ public class IndexLifecycle implements ActionPlugin {
             return Collections.emptyList();
         }
         return Arrays.asList(
-//                new ActionHandler<>(RollupSearchAction.INSTANCE, RollupSearchAction.TransportAction.class),
-//                new ActionHandler<>(PutRollupJobAction.INSTANCE, PutRollupJobAction.TransportAction.class),
-//                new ActionHandler<>(StartRollupJobAction.INSTANCE, StartRollupJobAction.TransportAction.class),
-//                new ActionHandler<>(StopRollupJobAction.INSTANCE, StopRollupJobAction.TransportAction.class),
-//                new ActionHandler<>(DeleteRollupJobAction.INSTANCE, DeleteRollupJobAction.TransportAction.class)
+//                new ActionHandler<>(LifecycleStatusAction.INSTANCE, LifecycleStatusAction.TransportAction.class)
         );
     }
 

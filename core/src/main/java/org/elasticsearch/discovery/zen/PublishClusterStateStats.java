@@ -74,11 +74,11 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public long getFullClusterStateReceivedCount() { return fullClusterStateReceivedCount; }
+    long getFullClusterStateReceivedCount() { return fullClusterStateReceivedCount; }
 
-    public long getIncompatibleClusterStateDiffReceivedCount() { return incompatibleClusterStateDiffReceivedCount; }
+    long getIncompatibleClusterStateDiffReceivedCount() { return incompatibleClusterStateDiffReceivedCount; }
 
-    public long getCompatibleClusterStateDiffReceivedCount() { return compatibleClusterStateDiffReceivedCount; }
+    long getCompatibleClusterStateDiffReceivedCount() { return compatibleClusterStateDiffReceivedCount; }
 
     @Override
     public String toString() {

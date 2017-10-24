@@ -827,7 +827,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     Settings customAuditIndexSettings(Settings nodeSettings) {
         Settings newSettings = Settings.builder()
-                .put(INDEX_SETTINGS.get(nodeSettings))
+                .put(INDEX_SETTINGS.get(nodeSettings), false)
                 .build();
         if (newSettings.names().isEmpty()) {
             return Settings.EMPTY;

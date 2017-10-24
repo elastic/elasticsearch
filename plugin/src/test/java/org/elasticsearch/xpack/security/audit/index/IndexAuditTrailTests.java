@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
@@ -275,11 +277,11 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         return remoteIndexing ? remoteCluster.client() : client();
     }
 
-    private void initialize() throws IOException, InterruptedException {
+    private void initialize() throws Exception {
         initialize(null, null);
     }
 
-    private void initialize(String[] includes, String[] excludes) throws IOException, InterruptedException {
+    private void initialize(String[] includes, String[] excludes) throws Exception {
         rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);
         numReplicas = numberOfReplicas();
         numShards = numberOfShards();
@@ -288,8 +290,18 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         if (remoteIndexing) {
             builder.put(remoteSettings);
         }
+        builder.put(settings(rollover, includes, excludes));
+        // IndexAuditTrail should ignore secure settings
+        // they are merged on the master node creating the audit index
+        if (randomBoolean()) {
+            MockSecureSettings ignored = new MockSecureSettings();
+            if (randomBoolean()) {
+                ignored.setString(KeyStoreWrapper.SEED_SETTING.getKey(), "non-empty-secure-settings");
+            }
+            builder.setSecureSettings(ignored);
+        }
+        Settings settings = builder.build();
 
-        Settings settings = builder.put(settings(rollover, includes, excludes)).build();
         logger.info("--> settings: [{}]", settings);
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(localNode.getHostAddress()).thenReturn(remoteAddress.getAddress());

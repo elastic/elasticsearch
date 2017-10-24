@@ -873,7 +873,13 @@ public class InstallPluginCommandTests extends ESTestCase {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-" + Version.CURRENT + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(UserException.class, () ->
-                assertInstallPluginFromUrl("analysis-icu", "analysis-icu", url, null, ".sha512", checksumAndString(digest, "  repository-s3-" + Version.CURRENT + ".zip")));
+                assertInstallPluginFromUrl(
+                        "analysis-icu",
+                        "analysis-icu",
+                        url,
+                        null,
+                        ".sha512",
+                        checksumAndString(digest, "  repository-s3-" + Version.CURRENT + ".zip")));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertThat(e, hasToString(matches("checksum file at \\[.*\\] is not for this plugin")));
     }

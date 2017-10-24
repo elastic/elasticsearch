@@ -1160,7 +1160,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "test", "test");
         try (Engine.GetResult ignored = shard.get(new Engine.Get(true, "test", "test",
                 new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
-            assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 1));
+            assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount));
         }
         closeShards(shard);
     }

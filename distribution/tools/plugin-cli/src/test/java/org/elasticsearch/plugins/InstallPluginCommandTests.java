@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
@@ -954,7 +955,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     private Function<byte[], String> checksumAndFilename(final MessageDigest digest, final String url) throws MalformedURLException {
-        final String[] segments = new URL(url).getPath().split("/");
+        final String[] segments = URI.create(url).getPath().split("/");
         return checksumAndString(digest, "  " + segments[segments.length - 1]);
     }
 

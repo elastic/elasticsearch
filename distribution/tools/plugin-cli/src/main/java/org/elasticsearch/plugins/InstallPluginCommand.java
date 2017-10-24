@@ -43,6 +43,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLDecoder;
@@ -405,7 +406,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                     throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
                 }
                 expectedChecksum = fields[0];
-                final String[] segments = new URL(urlString).getPath().split("/");
+                final String[] segments = URI.create(urlString).getPath().split("/");
                 final String expectedFile = segments[segments.length - 1];
                 if (fields[1].equals(expectedFile) == false) {
                     final String message = String.format(

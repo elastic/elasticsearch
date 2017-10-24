@@ -80,7 +80,7 @@ final class PSubDefCall extends AExpression {
             arguments.set(argument, expression.cast(locals));
         }
 
-        actual = expected == null || explicit ? Definition.DEF_TYPE : expected;
+        actual = expected == null || explicit ? locals.getDefinition().DefType : expected;
     }
 
     @Override
@@ -90,7 +90,7 @@ final class PSubDefCall extends AExpression {
         List<Type> parameterTypes = new ArrayList<>();
 
         // first parameter is the receiver, we never know its type: always Object
-        parameterTypes.add(Definition.DEF_TYPE.type);
+        parameterTypes.add(org.objectweb.asm.Type.getType(Object.class));
 
         // append each argument
         for (AExpression argument : arguments) {

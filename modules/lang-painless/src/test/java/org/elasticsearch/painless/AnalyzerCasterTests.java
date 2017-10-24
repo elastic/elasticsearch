@@ -23,13 +23,6 @@ import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.painless.Definition.BYTE_TYPE;
-import static org.elasticsearch.painless.Definition.DOUBLE_TYPE;
-import static org.elasticsearch.painless.Definition.FLOAT_TYPE;
-import static org.elasticsearch.painless.Definition.INT_TYPE;
-import static org.elasticsearch.painless.Definition.LONG_TYPE;
-import static org.elasticsearch.painless.Definition.SHORT_TYPE;
-
 public class AnalyzerCasterTests extends ESTestCase {
 
     private static void assertCast(Type actual, Type expected, boolean mustBeExplicit) {
@@ -37,68 +30,68 @@ public class AnalyzerCasterTests extends ESTestCase {
 
         if (actual.equals(expected)) {
             assertFalse(mustBeExplicit);
-            assertNull(AnalyzerCaster.getLegalCast(location, actual, expected, false, false));
-            assertNull(AnalyzerCaster.getLegalCast(location, actual, expected, true, false));
+            assertNull(Definition.DEFINITION.caster.getLegalCast(location, actual, expected, false, false));
+            assertNull(Definition.DEFINITION.caster.getLegalCast(location, actual, expected, true, false));
             return;
         }
 
-        Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, true, false);
+        Cast cast = Definition.DEFINITION.caster.getLegalCast(location, actual, expected, true, false);
         assertEquals(actual, cast.from);
         assertEquals(expected, cast.to);
 
         if (mustBeExplicit) {
             ClassCastException error = expectThrows(ClassCastException.class,
-                    () -> AnalyzerCaster.getLegalCast(location, actual, expected, false, false));
+                    () -> Definition.DEFINITION.caster.getLegalCast(location, actual, expected, false, false));
             assertTrue(error.getMessage().startsWith("Cannot cast"));
         } else {
-            cast = AnalyzerCaster.getLegalCast(location, actual, expected, false, false);
+            cast = Definition.DEFINITION.caster.getLegalCast(location, actual, expected, false, false);
             assertEquals(actual, cast.from);
             assertEquals(expected, cast.to);
         }
     }
 
     public void testNumericCasts() {
-        assertCast(BYTE_TYPE, BYTE_TYPE, false);
-        assertCast(BYTE_TYPE, SHORT_TYPE, false);
-        assertCast(BYTE_TYPE, INT_TYPE, false);
-        assertCast(BYTE_TYPE, LONG_TYPE, false);
-        assertCast(BYTE_TYPE, FLOAT_TYPE, false);
-        assertCast(BYTE_TYPE, DOUBLE_TYPE, false);
+        assertCast(Definition.DEFINITION.byteType, Definition.DEFINITION.byteType, false);
+        assertCast(Definition.DEFINITION.byteType, Definition.DEFINITION.shortType, false);
+        assertCast(Definition.DEFINITION.byteType, Definition.DEFINITION.intType, false);
+        assertCast(Definition.DEFINITION.byteType, Definition.DEFINITION.longType, false);
+        assertCast(Definition.DEFINITION.byteType, Definition.DEFINITION.floatType, false);
+        assertCast(Definition.DEFINITION.byteType, Definition.DEFINITION.doubleType, false);
 
-        assertCast(SHORT_TYPE, BYTE_TYPE, true);
-        assertCast(SHORT_TYPE, SHORT_TYPE, false);
-        assertCast(SHORT_TYPE, INT_TYPE, false);
-        assertCast(SHORT_TYPE, LONG_TYPE, false);
-        assertCast(SHORT_TYPE, FLOAT_TYPE, false);
-        assertCast(SHORT_TYPE, DOUBLE_TYPE, false);
+        assertCast(Definition.DEFINITION.shortType, Definition.DEFINITION.byteType, true);
+        assertCast(Definition.DEFINITION.shortType, Definition.DEFINITION.shortType, false);
+        assertCast(Definition.DEFINITION.shortType, Definition.DEFINITION.intType, false);
+        assertCast(Definition.DEFINITION.shortType, Definition.DEFINITION.longType, false);
+        assertCast(Definition.DEFINITION.shortType, Definition.DEFINITION.floatType, false);
+        assertCast(Definition.DEFINITION.shortType, Definition.DEFINITION.doubleType, false);
 
-        assertCast(INT_TYPE, BYTE_TYPE, true);
-        assertCast(INT_TYPE, SHORT_TYPE, true);
-        assertCast(INT_TYPE, INT_TYPE, false);
-        assertCast(INT_TYPE, LONG_TYPE, false);
-        assertCast(INT_TYPE, FLOAT_TYPE, false);
-        assertCast(INT_TYPE, DOUBLE_TYPE, false);
+        assertCast(Definition.DEFINITION.intType, Definition.DEFINITION.byteType, true);
+        assertCast(Definition.DEFINITION.intType, Definition.DEFINITION.shortType, true);
+        assertCast(Definition.DEFINITION.intType, Definition.DEFINITION.intType, false);
+        assertCast(Definition.DEFINITION.intType, Definition.DEFINITION.longType, false);
+        assertCast(Definition.DEFINITION.intType, Definition.DEFINITION.floatType, false);
+        assertCast(Definition.DEFINITION.intType, Definition.DEFINITION.doubleType, false);
 
-        assertCast(LONG_TYPE, BYTE_TYPE, true);
-        assertCast(LONG_TYPE, SHORT_TYPE, true);
-        assertCast(LONG_TYPE, INT_TYPE, true);
-        assertCast(LONG_TYPE, LONG_TYPE, false);
-        assertCast(LONG_TYPE, FLOAT_TYPE, false);
-        assertCast(LONG_TYPE, DOUBLE_TYPE, false);
+        assertCast(Definition.DEFINITION.longType, Definition.DEFINITION.byteType, true);
+        assertCast(Definition.DEFINITION.longType, Definition.DEFINITION.shortType, true);
+        assertCast(Definition.DEFINITION.longType, Definition.DEFINITION.intType, true);
+        assertCast(Definition.DEFINITION.longType, Definition.DEFINITION.longType, false);
+        assertCast(Definition.DEFINITION.longType, Definition.DEFINITION.floatType, false);
+        assertCast(Definition.DEFINITION.longType, Definition.DEFINITION.doubleType, false);
 
-        assertCast(FLOAT_TYPE, BYTE_TYPE, true);
-        assertCast(FLOAT_TYPE, SHORT_TYPE, true);
-        assertCast(FLOAT_TYPE, INT_TYPE, true);
-        assertCast(FLOAT_TYPE, LONG_TYPE, true);
-        assertCast(FLOAT_TYPE, FLOAT_TYPE, false);
-        assertCast(FLOAT_TYPE, DOUBLE_TYPE, false);
+        assertCast(Definition.DEFINITION.floatType, Definition.DEFINITION.byteType, true);
+        assertCast(Definition.DEFINITION.floatType, Definition.DEFINITION.shortType, true);
+        assertCast(Definition.DEFINITION.floatType, Definition.DEFINITION.intType, true);
+        assertCast(Definition.DEFINITION.floatType, Definition.DEFINITION.longType, true);
+        assertCast(Definition.DEFINITION.floatType, Definition.DEFINITION.floatType, false);
+        assertCast(Definition.DEFINITION.floatType, Definition.DEFINITION.doubleType, false);
 
-        assertCast(DOUBLE_TYPE, BYTE_TYPE, true);
-        assertCast(DOUBLE_TYPE, SHORT_TYPE, true);
-        assertCast(DOUBLE_TYPE, INT_TYPE, true);
-        assertCast(DOUBLE_TYPE, LONG_TYPE, true);
-        assertCast(DOUBLE_TYPE, FLOAT_TYPE, true);
-        assertCast(DOUBLE_TYPE, DOUBLE_TYPE, false);
+        assertCast(Definition.DEFINITION.doubleType, Definition.DEFINITION.byteType, true);
+        assertCast(Definition.DEFINITION.doubleType, Definition.DEFINITION.shortType, true);
+        assertCast(Definition.DEFINITION.doubleType, Definition.DEFINITION.intType, true);
+        assertCast(Definition.DEFINITION.doubleType, Definition.DEFINITION.longType, true);
+        assertCast(Definition.DEFINITION.doubleType, Definition.DEFINITION.floatType, true);
+        assertCast(Definition.DEFINITION.doubleType, Definition.DEFINITION.doubleType, false);
     }
 
 }

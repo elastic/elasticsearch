@@ -53,7 +53,7 @@ final class PSubDefArray extends AStoreable {
         index.expected = index.actual;
         index = index.cast(locals);
 
-        actual = expected == null || explicit ? Definition.DEF_TYPE : expected;
+        actual = expected == null || explicit ? locals.getDefinition().DefType : expected;
     }
 
     @Override
@@ -83,7 +83,7 @@ final class PSubDefArray extends AStoreable {
         writer.dup();                                                                     // def, def
         index.write(writer, globals);                                                     // def, def, unnormalized_index
         org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(
-                index.actual.type, Definition.DEF_TYPE.type, index.actual.type);
+                index.actual.type, org.objectweb.asm.Type.getType(Object.class), index.actual.type);
         writer.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE); // def, normalized_index
     }
 
@@ -92,7 +92,7 @@ final class PSubDefArray extends AStoreable {
         writer.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(actual.type, Definition.DEF_TYPE.type, index.actual.type);
+            org.objectweb.asm.Type.getMethodType(actual.type, org.objectweb.asm.Type.getType(Object.class), index.actual.type);
         writer.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
@@ -101,7 +101,8 @@ final class PSubDefArray extends AStoreable {
         writer.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, actual.type);
+            org.objectweb.asm.Type.getMethodType(
+                org.objectweb.asm.Type.getType(void.class), org.objectweb.asm.Type.getType(Object.class), index.actual.type, actual.type);
         writer.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 

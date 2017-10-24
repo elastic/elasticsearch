@@ -919,11 +919,11 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private static <T> void setRandomIndicesOptions(Function<IndicesOptions, T> setter, Supplier<IndicesOptions> getter,
-                                                    Map<String, String> expectedParams) {
+    private static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
+                                                Map<String, String> expectedParams) {
 
         if (randomBoolean()) {
-            setter.apply(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+            setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean()));
         }
         expectedParams.put("ignore_unavailable", Boolean.toString(getter.get().ignoreUnavailable()));

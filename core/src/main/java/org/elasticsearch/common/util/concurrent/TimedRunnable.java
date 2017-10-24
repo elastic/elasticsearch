@@ -29,7 +29,7 @@ class TimedRunnable extends AbstractRunnable {
     private long startTimeNanos;
     private long finishTimeNanos = -1;
 
-    TimedRunnable(Runnable original) {
+    TimedRunnable(final Runnable original) {
         this.original = original;
         this.creationTimeNanos = System.nanoTime();
     }
@@ -45,7 +45,7 @@ class TimedRunnable extends AbstractRunnable {
     }
 
     @Override
-    public void onRejection(Exception e) {
+    public void onRejection(final Exception e) {
         if (original instanceof AbstractRunnable) {
             ((AbstractRunnable) original).onRejection(e);
         }
@@ -59,7 +59,7 @@ class TimedRunnable extends AbstractRunnable {
     }
 
     @Override
-    public void onFailure(Exception e) {
+    public void onFailure(final Exception e) {
         if (original instanceof AbstractRunnable) {
             ((AbstractRunnable) original).onFailure(e);
         }

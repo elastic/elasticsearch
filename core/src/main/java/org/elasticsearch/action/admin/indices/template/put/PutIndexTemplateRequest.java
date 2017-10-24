@@ -104,7 +104,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             validationException = addValidationError("name is missing", validationException);
         }
         if (indexPatterns == null || indexPatterns.size() == 0) {
-            validationException = addValidationError("pattern is missing", validationException);
+            validationException = addValidationError("index_patterns is missing", validationException);
         }
         return validationException;
     }

@@ -60,7 +60,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
             // buffer, or in the cumulative buffer, which is cleaned each time so it could be bigger than the actual size
             BytesReference reference = Netty4Utils.toBytesReference(buffer, remainingMessageSize);
-            Attribute<NewNettyChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
+            Attribute<NettyTcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
             transport.messageReceived(reference, channelAttribute.get(), profileName, remoteAddress, remainingMessageSize);
         } finally {
             // Set the expected position of the buffer, no matter what happened

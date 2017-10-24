@@ -60,7 +60,7 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
         final MockTcpTransport t = (MockTcpTransport) transport;
         @SuppressWarnings("unchecked") final TcpTransport<MockTcpTransport.MockChannel>.NodeChannels channels =
                 (TcpTransport<MockTcpTransport.MockChannel>.NodeChannels) connection;
-        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
+        TcpChannelUtils.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, logger);
     }
 
 }

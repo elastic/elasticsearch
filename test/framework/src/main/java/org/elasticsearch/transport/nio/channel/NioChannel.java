@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.transport.NewTcpChannel;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.ESSelector;
 
 import java.net.InetSocketAddress;
@@ -27,7 +27,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectionKey;
 
-public interface NioChannel extends NewTcpChannel<NioChannel> {
+public interface NioChannel extends TcpChannel<NioChannel> {
 
     String CLIENT = "client-socket";
 

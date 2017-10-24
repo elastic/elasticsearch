@@ -121,7 +121,7 @@ import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseC
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> extends AbstractLifecycleComponent implements Transport {
+public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends AbstractLifecycleComponent implements Transport {
 
     public static final String TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX = "transport_server_worker";
     public static final String TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX = "transport_client_boss";
@@ -446,11 +446,13 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
             if (closed.compareAndSet(false, true)) {
                 try {
                     if (lifecycle.stopped()) {
-                        /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
-                         * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
-                         * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
-                         * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
-                         * in a way that clients close connection which is how it should be*/
+                        /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't
+                         * have a gazillion connections sitting in TIME_WAIT to free up resources quickly.
+                         * This is really the only part where we close the connection from the server side
+                         * otherwise the client (node) initiates the TCP closing sequence which doesn't cause
+                         * these issues. Setting this by default from the beginning can have unexpected
+                         * side-effects an should be avoided, our protocol is designed in a way that clients
+                         * close connection which is how it should be*/
 
                         channels.forEach(c -> {
                             try {
@@ -462,7 +464,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
                     }
 
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
-                    closeChannels(channels.stream().filter(Objects::nonNull).collect(Collectors.toList()), block);
+                    TcpChannelUtils.closeChannels(channels.stream().filter(Objects::nonNull).collect(Collectors.toList()), block, logger);
                 } finally {
                     transportService.onConnectionClosed(this);
                 }
@@ -621,7 +623,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
                 nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
                 transportService.onConnectionOpened(nodeChannels);
                 connectionRef.set(nodeChannels);
-                if (nodeChannels.channels.stream().allMatch(NewTcpChannel::isOpen) == false) {
+                if (nodeChannels.channels.stream().allMatch(TcpChannel::isOpen) == false) {
                     throw new ConnectTransportException(node, "a channel closed while connecting");
                 }
                 success = true;
@@ -925,7 +927,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
                 // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
                     try {
-                        closeServerChannels(entry.getKey(), entry.getValue());
+                        TcpChannelUtils.closeServerChannels(entry.getKey(), entry.getValue(), logger);
                     } catch (Exception e) {
                         logger.warn(new ParameterizedMessage("Error closing serverChannel for profile [{}]", entry.getKey()), e);
                     }
@@ -1034,59 +1036,6 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
     protected abstract Channel bind(String name, InetSocketAddress address) throws IOException;
 
     /**
-     * Closes all channels in this list. If the blocking boolean is set to true, the channels must be
-     * closed before the method returns. This should never be called with blocking set to true from a
-     * network thread.
-     *
-     * @param channels    the channels to close
-     * @param blocking    whether the channels should be closed synchronously
-     */
-    public void closeChannels(List<Channel> channels, boolean blocking) throws IOException {
-        ArrayList<ListenableActionFuture<Channel>> futures = new ArrayList<>(channels.size());
-        for (final Channel channel : channels) {
-            if (channel != null && channel.isOpen()) {
-                ListenableActionFuture<Channel> f = channel.closeAsync();
-                f.addListener(ActionListener.wrap(c -> {},
-                    e -> logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), e)));
-                futures.add(f);
-            }
-        }
-
-        if (blocking == false) {
-            return;
-        }
-
-        blockOnFutures(futures);
-    }
-
-    public void closeServerChannels(String profile, List<Channel> channels) throws IOException {
-        ArrayList<ListenableActionFuture<Channel>> futures = new ArrayList<>(channels.size());
-        for (final Channel channel : channels) {
-            if (channel != null && channel.isOpen()) {
-                ListenableActionFuture<Channel> f = channel.closeAsync();
-                f.addListener(ActionListener.wrap(c -> {},
-                    e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)));
-                futures.add(f);
-            }
-        }
-
-        blockOnFutures(futures);
-    }
-
-    private void blockOnFutures(ArrayList<ListenableActionFuture<Channel>> futures) {
-        for (ListenableActionFuture<Channel> future : futures) {
-            try {
-                future.get();
-            } catch (ExecutionException e) {
-                // Ignore as we already attached a listener to log
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("Future got interrupted", e);
-            }
-        }
-    }
-
-    /**
      * Sends message to channel. The listener's onResponse method will be called when the send is complete unless an exception
      * is thrown during the send. If an exception is thrown, the listener's onException method will be called.
      *
@@ -1106,8 +1055,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
      * @return the channels
      * @throws IOException if an I/O exception occurs while opening channels
      */
-    protected abstract List<Future<Channel>> initiateChannels(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                                              Consumer<Channel> onChannelClose) throws IOException;
+    protected abstract List<Future<Channel>> initiateChannels(DiscoveryNode node, ConnectionProfile connectionProfile, Consumer<Channel> onChannelClose) throws IOException;
 
     /**
      * Called to tear down internal resources
@@ -1207,7 +1155,7 @@ public abstract class TcpTransport<Channel extends NewTcpChannel<Channel>> exten
     /**
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse} objects back to the caller.
      *
-     * @see #sendErrorResponse(Version, Channel, Exception, long, String) for sending back errors to the caller
+     * @see #sendErrorResponse(Version, TcpChannel, Exception, long, String) for sending back errors to the caller
      */
     public void sendResponse(Version nodeVersion, Channel channel, final TransportResponse response, final long requestId,
                              final String action, TransportResponseOptions options) throws IOException {

@@ -23,7 +23,7 @@ import org.elasticsearch.action.ListenableActionFuture;
 
 import java.io.IOException;
 
-public interface NewTcpChannel<C extends NewTcpChannel<C>> {
+public interface TcpChannel<C extends TcpChannel<C>> {
 
     ListenableActionFuture<C> closeAsync();
 

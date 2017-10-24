@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public final class TcpTransportChannel<Channel extends NewTcpChannel<Channel>> implements TransportChannel {
+public final class TcpTransportChannel<Channel extends TcpChannel<Channel>> implements TransportChannel {
     private final TcpTransport<Channel> transport;
     protected final Version version;
     protected final String action;

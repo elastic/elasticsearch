@@ -40,7 +40,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,7 +60,6 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
@@ -83,7 +81,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * longer. Med is for the typical search / single doc index. And High for things like cluster state. Ping is reserved for
  * sending out ping requests to other nodes.
  */
-public class Netty4Transport extends TcpTransport<NewNettyChannel> {
+public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
 
     static {
         Netty4Utils.setup();
@@ -237,7 +235,7 @@ public class Netty4Transport extends TcpTransport<NewNettyChannel> {
         return new ClientChannelInitializer();
     }
 
-    static final AttributeKey<NewNettyChannel> CHANNEL_KEY = AttributeKey.newInstance("es-channel");
+    static final AttributeKey<NettyTcpChannel> CHANNEL_KEY = AttributeKey.newInstance("es-channel");
 
     protected final void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
@@ -253,15 +251,15 @@ public class Netty4Transport extends TcpTransport<NewNettyChannel> {
     }
 
     @Override
-    protected List<java.util.concurrent.Future<NewNettyChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
-                                                                                  Consumer<NewNettyChannel> onChannelClose) {
+    protected List<java.util.concurrent.Future<NettyTcpChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
+                                                                                  Consumer<NettyTcpChannel> onChannelClose) {
         int connectionCount = profile.getNumConnections();
-        final ArrayList<java.util.concurrent.Future<NewNettyChannel>> pendingConnections = new ArrayList<>(connectionCount);
+        final ArrayList<java.util.concurrent.Future<NettyTcpChannel>> pendingConnections = new ArrayList<>(connectionCount);
 
         final InetSocketAddress address = node.getAddress().address();
         for (int i = 0; i < connectionCount; i++) {
             ChannelFuture channelFuture = bootstrap.connect(address);
-            pendingConnections.add(new java.util.concurrent.Future<NewNettyChannel>() {
+            pendingConnections.add(new java.util.concurrent.Future<NettyTcpChannel>() {
                 @Override
                 public boolean cancel(boolean mayInterruptIfRunning) {
                     return channelFuture.cancel(mayInterruptIfRunning);
@@ -278,21 +276,21 @@ public class Netty4Transport extends TcpTransport<NewNettyChannel> {
                 }
 
                 @Override
-                public NewNettyChannel get() throws InterruptedException, ExecutionException {
+                public NettyTcpChannel get() throws InterruptedException, ExecutionException {
                     channelFuture.get();
                     Channel channel = channelFuture.channel();
-                    NewNettyChannel nettyChannel = new NewNettyChannel(channel);
+                    NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
                     channel.attr(CHANNEL_KEY).set(nettyChannel);
                     channelFuture.channel().closeFuture().addListener(f -> onChannelClose.accept(nettyChannel));
                     return nettyChannel;
                 }
 
                 @Override
-                public NewNettyChannel get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException,
+                public NettyTcpChannel get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException,
                     TimeoutException {
                     channelFuture.get(timeout, unit);
                     Channel channel = channelFuture.channel();
-                    NewNettyChannel nettyChannel = new NewNettyChannel(channel);
+                    NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
                     channel.attr(CHANNEL_KEY).set(nettyChannel);
                     channelFuture.channel().closeFuture().addListener(f -> onChannelClose.accept(nettyChannel));
                     return nettyChannel;
@@ -303,7 +301,7 @@ public class Netty4Transport extends TcpTransport<NewNettyChannel> {
     }
 
     @Override
-    protected void sendMessage(NewNettyChannel channel, BytesReference reference, ActionListener<NewNettyChannel> listener) {
+    protected void sendMessage(NettyTcpChannel channel, BytesReference reference, ActionListener<NettyTcpChannel> listener) {
         final ChannelFuture future = channel.getLowLevelChannel().writeAndFlush(Netty4Utils.toByteBuf(reference));
         future.addListener(f -> {
             if (f.isSuccess()) {
@@ -320,14 +318,14 @@ public class Netty4Transport extends TcpTransport<NewNettyChannel> {
     }
 
     @Override
-    protected InetSocketAddress getLocalAddress(NewNettyChannel channel) {
+    protected InetSocketAddress getLocalAddress(NettyTcpChannel channel) {
         return (InetSocketAddress) channel.getLowLevelChannel().localAddress();
     }
 
     @Override
-    protected NewNettyChannel bind(String name, InetSocketAddress address) {
+    protected NettyTcpChannel bind(String name, InetSocketAddress address) {
         Channel channel = serverBootstraps.get(name).bind(address).syncUninterruptibly().channel();
-        NewNettyChannel esChannel = new NewNettyChannel(channel);
+        NettyTcpChannel esChannel = new NettyTcpChannel(channel);
         channel.attr(CHANNEL_KEY).set(esChannel);
         return esChannel;
     }
@@ -389,7 +387,7 @@ public class Netty4Transport extends TcpTransport<NewNettyChannel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            ch.attr(CHANNEL_KEY).set(new NewNettyChannel(ch));
+            ch.attr(CHANNEL_KEY).set(new NettyTcpChannel(ch));
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());

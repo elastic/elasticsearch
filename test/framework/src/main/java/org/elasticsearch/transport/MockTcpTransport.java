@@ -248,7 +248,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         return 1;
     }
 
-    public final class MockChannel implements Closeable, NewTcpChannel<MockChannel> {
+    public final class MockChannel implements Closeable, TcpChannel<MockChannel> {
         private final AtomicBoolean isOpen = new AtomicBoolean(true);
         private final InetSocketAddress localAddress;
         private final ServerSocket serverSocket;

@@ -4,14 +4,14 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
-import org.elasticsearch.transport.NewTcpChannel;
+import org.elasticsearch.transport.TcpChannel;
 
-public class NewNettyChannel implements NewTcpChannel<NewNettyChannel> {
+public class NettyTcpChannel implements TcpChannel<NettyTcpChannel> {
 
     private final Channel channel;
-    private final PlainListenableActionFuture<NewNettyChannel> future = PlainListenableActionFuture.newListenableFuture();
+    private final PlainListenableActionFuture<NettyTcpChannel> future = PlainListenableActionFuture.newListenableFuture();
 
-    NewNettyChannel(Channel channel) {
+    NettyTcpChannel(Channel channel) {
         this.channel = channel;
         this.channel.closeFuture().addListener(f -> {
             if (f.isSuccess()) {
@@ -33,13 +33,13 @@ public class NewNettyChannel implements NewTcpChannel<NewNettyChannel> {
     }
 
     @Override
-    public ListenableActionFuture<NewNettyChannel> closeAsync() {
+    public ListenableActionFuture<NettyTcpChannel> closeAsync() {
         channel.close();
         return future;
     }
 
     @Override
-    public ListenableActionFuture<NewNettyChannel> getCloseFuture() {
+    public ListenableActionFuture<NettyTcpChannel> getCloseFuture() {
         return future;
     }
 

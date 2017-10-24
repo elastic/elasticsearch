@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.netty4;
 
-import io.netty.channel.Channel;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpChannelUtils;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -58,7 +58,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
-            protected Version executeHandshake(DiscoveryNode node, NewNettyChannel channel, TimeValue timeout) throws IOException,
+            protected Version executeHandshake(DiscoveryNode node, NettyTcpChannel channel, TimeValue timeout) throws IOException,
                 InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, channel, timeout);
@@ -90,8 +90,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
         final Netty4Transport t = (Netty4Transport) transport;
         @SuppressWarnings("unchecked")
-        final TcpTransport<NewNettyChannel>.NodeChannels channels = (TcpTransport<NewNettyChannel>.NodeChannels) connection;
-        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
+        final TcpTransport<NettyTcpChannel>.NodeChannels channels = (TcpTransport<NettyTcpChannel>.NodeChannels) connection;
+        TcpChannelUtils.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, logger);
     }
 
     public void testConnectException() throws UnknownHostException {

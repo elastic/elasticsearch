@@ -235,7 +235,7 @@ public class TcpTransportTests extends ESTestCase {
 
                 @Override
                 public NodeChannels getConnection(DiscoveryNode node) {
-                    return new NodeChannels(node, new FakeChannel[MockTcpTransport.LIGHT_PROFILE.getNumConnections()],
+                    return new NodeChannels(node, new ArrayList<>(MockTcpTransport.LIGHT_PROFILE.getNumConnections()),
                         MockTcpTransport.LIGHT_PROFILE);
                 }
             };
@@ -249,7 +249,7 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    private static final class FakeChannel implements NewTcpChannel<FakeChannel> {
+    private static final class FakeChannel implements TcpChannel<FakeChannel> {
 
         @Override
         public ListenableActionFuture<FakeChannel> closeAsync() {

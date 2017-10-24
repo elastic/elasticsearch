@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.transport.NewTcpChannel;
 import org.elasticsearch.transport.nio.ESSelector;
 
 import java.io.IOException;

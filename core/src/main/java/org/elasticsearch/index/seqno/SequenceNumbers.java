@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.index.engine.InternalEngine;
+
 import java.util.Map;
 
 /**
@@ -54,6 +56,7 @@ public class SequenceNumbers {
         final Iterable<Map.Entry<String, String>> commitData) {
         long maxSeqNo = NO_OPS_PERFORMED;
         long localCheckpoint = NO_OPS_PERFORMED;
+        String historyUUID = null;
 
         for (final Map.Entry<String, String> entry : commitData) {
             final String key = entry.getKey();
@@ -63,10 +66,12 @@ public class SequenceNumbers {
             } else if (key.equals(SequenceNumbers.MAX_SEQ_NO)) {
                 assert maxSeqNo == NO_OPS_PERFORMED : maxSeqNo;
                 maxSeqNo = Long.parseLong(entry.getValue());
+            } else if (key.equals(InternalEngine.HISTORY_UUID_KEY)) {
+                historyUUID = entry.getValue();
             }
         }
 
-        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
+        return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint, historyUUID);
     }
 
     /**

@@ -111,10 +111,11 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     /**
      * The current sequence number stats.
      *
+     * @param historyUUID The history uuid from the engine to include in the stats
      * @return stats encapsulating the maximum sequence number, the local checkpoint and the global checkpoint
      */
-    public SeqNoStats stats() {
-        return localCheckpointTracker.getStats(getGlobalCheckpoint());
+    public SeqNoStats stats(String historyUUID) {
+        return localCheckpointTracker.getStats(getGlobalCheckpoint(), historyUUID);
     }
 
     /**

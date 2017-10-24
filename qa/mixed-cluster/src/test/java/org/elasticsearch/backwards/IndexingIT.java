@@ -286,10 +286,11 @@ public class IndexingIT extends ESRestTestCase {
             final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
             final Node node = nodes.getSafe(nodeId);
             final SeqNoStats seqNoStats;
+            String historyUUID = ObjectPath.evaluate(shard, "seq_no.history_uuid");
             Integer maxSeqNo = ObjectPath.evaluate(shard, "seq_no.max_seq_no");
             Integer localCheckpoint = ObjectPath.evaluate(shard, "seq_no.local_checkpoint");
             Integer globalCheckpoint = ObjectPath.evaluate(shard, "seq_no.global_checkpoint");
-            seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
+            seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint, historyUUID);
             shards.add(new Shard(node, primary, seqNoStats));
         }
         return shards;

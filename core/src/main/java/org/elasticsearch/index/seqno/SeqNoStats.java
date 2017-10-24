@@ -33,12 +33,14 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
     private static final String MAX_SEQ_NO = "max_seq_no";
     private static final String LOCAL_CHECKPOINT = "local_checkpoint";
     private static final String GLOBAL_CHECKPOINT = "global_checkpoint";
+    private static final String HISTORY_UUID = "history_uuid";
 
     private final long maxSeqNo;
     private final long localCheckpoint;
     private final long globalCheckpoint;
+    private final String historyUUID;
 
-    public SeqNoStats(long maxSeqNo, long localCheckpoint, long globalCheckpoint) {
+    public SeqNoStats(long maxSeqNo, long localCheckpoint, long globalCheckpoint, String historyUUID) {
         assert localCheckpoint <= maxSeqNo:
             "local checkpoint [" + localCheckpoint + "] is above maximum seq no [" + maxSeqNo + "]";
         // note that the global checkpoint can be higher from both maxSeqNo and localCheckpoint
@@ -46,10 +48,12 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
         this.maxSeqNo = maxSeqNo;
         this.localCheckpoint = localCheckpoint;
         this.globalCheckpoint = globalCheckpoint;
+        this.historyUUID = historyUUID;
     }
 
     public SeqNoStats(StreamInput in) throws IOException {
-        this(in.readZLong(), in.readZLong(), in.readZLong());
+        // TODO: bwc versioning:
+        this(in.readZLong(), in.readZLong(), in.readZLong(), in.readString());
     }
 
     /** the maximum sequence number seen so far */
@@ -66,11 +70,17 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
         return globalCheckpoint;
     }
 
+    public String getHistoryUUID() {
+        return historyUUID;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeZLong(maxSeqNo);
         out.writeZLong(localCheckpoint);
         out.writeZLong(globalCheckpoint);
+        // TODO: bwc versioning:
+        out.writeString(historyUUID);
     }
 
     @Override
@@ -79,6 +89,9 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
         builder.field(MAX_SEQ_NO, maxSeqNo);
         builder.field(LOCAL_CHECKPOINT, localCheckpoint);
         builder.field(GLOBAL_CHECKPOINT, globalCheckpoint);
+        if (historyUUID != null) {
+            builder.field(HISTORY_UUID, historyUUID);
+        }
         builder.endObject();
         return builder;
     }
@@ -89,6 +102,7 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
             "maxSeqNo=" + maxSeqNo +
             ", localCheckpoint=" + localCheckpoint +
             ", globalCheckpoint=" + globalCheckpoint +
+            ", historyUUID=" + historyUUID +
             '}';
     }
 

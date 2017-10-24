@@ -222,8 +222,13 @@ public final class ShardPath {
                         .sorted((p1, p2) -> {
                                 int cmp = Long.compare(pathToShardCount.getOrDefault(p1, 0L), pathToShardCount.getOrDefault(p2, 0L));
                                 if (cmp == 0) {
-                                    // if the number of shards is equal, tie-break with the usable bytes
-                                    cmp = pathsToSpace.get(p2).compareTo(pathsToSpace.get(p1));
+                                    // if the number of shards is equal, tie-break with the number of total shards
+                                    cmp = Integer.compare(dataPathToShardCount.getOrDefault(p1.path, 0),
+                                            dataPathToShardCount.getOrDefault(p2.path, 0));
+                                    if (cmp == 0) {
+                                        // if the number of shards is equal, tie-break with the usable bytes
+                                        cmp = pathsToSpace.get(p2).compareTo(pathsToSpace.get(p1));
+                                    }
                                 }
                                 return cmp;
                             })

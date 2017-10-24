@@ -18,7 +18,7 @@ PUT /_cluster/settings
 --------------------------------------------------
 // CONSOLE
 
-=== Scroll search will response `bad request` if request is invalid
+=== `_search/scroll` returns `400` for invalid requests
 
-Scroll search will return `illegal_argument_exception` and `400` status instead of 
-`query_phase_execution_exception` if failed to validate search request.
+The `/_search/scroll` endpoint returns `400 - Bad request` when the request invalid, while it would previously 
+return `500 - Internal Server Error` in such case.

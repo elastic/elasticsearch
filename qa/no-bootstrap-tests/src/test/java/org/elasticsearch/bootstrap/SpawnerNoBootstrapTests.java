@@ -192,7 +192,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 equalTo("plugin [test_plugin] does not have permission to fork native controller"));
     }
 
-    public void testSpawnerHandlingofDesktopServicesStoreFiles() throws IOException {
+    public void testSpawnerHandlingOfDesktopServicesStoreFiles() throws IOException {
         final Path esHome = createTempDir().resolve("home");
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString()).build();
 

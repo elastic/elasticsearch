@@ -29,13 +29,10 @@ Monitoring::
 * [Monitoring] Remove MonitoringSettings
 // https://github.com/elastic/x-pack-elasticsearch/pull/2596[#2596]
 ////
-////
+
 Security::
-* [Security] Improve error messages in setup-passwords
+* Improved the error messages that are returned by the `setup-passwords` command.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2724[#2724]
-* Add transport ssl enabled value back to security usage
-// https://github.com/elastic/x-pack-elasticsearch/pull/2695[#2695]
-////
 ////
 Watcher::
 * Watcher: Ensure all templates exist before starting watcher
@@ -57,21 +54,22 @@ partition field values.
 * Cleaned up the job closure process for situations where the job was still in
 the process of opening.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2616[#2616] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/1270[#1270], https://github.com/elastic/x-pack-elasticsearch/issues/2360[#2360])
-////
+
 Security::
-* [Security] BulkShardRequest may have multiple indices [OPEN]
-// https://github.com/elastic/x-pack-elasticsearch/pull/2742[#2742] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2741[#2741])
-* Security: do not fail request for roles when security index is out date [OPEN]
-// https://github.com/elastic/x-pack-elasticsearch/pull/2717[#2717] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2686[#2686])
-* Allow PkiRealm to use truststore.password setting
+* Enabled PKI realms to obtain the password for the truststore from either the
+`truststore.secure_password` or the `truststore.password` setting. For more
+information, see <<ref-pki-settings>>.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2727[#2727] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2487[#2487])
-* Always allow access to a rootdoc's nested documents if access to rootdoc is allowed
+* Fixed document level security such that if your role has authority to access a
+root document, you also have access to its nested documents.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2723[#2723] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2665[#2665])
-* [Security] Support "type" field in role-mappings
+// * [Security] Support "type" field in role-mappings
+// OMIT: First fixed in 5.6.3
 // https://github.com/elastic/x-pack-elasticsearch/pull/2681[#2681] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2678[#2678])
-* Fix LDAP Authc connections deadlock
+* Fixed an issue that caused LDAP authentication requests to be slow and
+to require multiple binds when authenticating in user search mode.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2587[#2587] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2570[#2570])
-////
+
 ////
 See also:
 

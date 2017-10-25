@@ -412,8 +412,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     @Override
     public DiscoveryStats stats() {
-        PendingClusterStateStats queueStats = pendingStatesQueue.stats();
-        return new DiscoveryStats(queueStats);
+        return new DiscoveryStats(pendingStatesQueue.stats(), publishClusterState.stats());
     }
 
     public DiscoverySettings getDiscoverySettings() {

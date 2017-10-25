@@ -590,22 +590,21 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
         try {
             ensureOpen();
             try {
-                IOException connectionException = null;
+                Exception connectionException = null;
                 int numConnections = connectionProfile.getNumConnections();
                 List<Tuple<Channel, Future<Channel>>> pendingChannels = new ArrayList<>(numConnections);
                 for (int i = 0; i < numConnections; ++i) {
                     try {
-                        pendingChannels.add(initiateChannel(node, connectionProfile.getConnectTimeout()));
+                        Tuple<Channel, Future<Channel>> pending = initiateChannel(node, connectionProfile.getConnectTimeout());
+                        pendingChannels.add(pending);
                     } catch (Exception e) {
-                        if (connectionException == null) {
-                            connectionException = new IOException("error opening connections");
-                        }
-                        connectionException.addSuppressed(e);
+                        connectionException = e;
+                        break;
                     }
                 }
 
                 if (connectionException != null) {
-                    List<Channel> toClose = pendingChannels.stream().map(Tuple::v1).filter(Objects::nonNull).collect(Collectors.toList());
+                    List<Channel> toClose = pendingChannels.stream().map(Tuple::v1).collect(Collectors.toList());
                     TcpChannelUtils.closeChannels(toClose, false, logger);
                     throw connectionException;
                 }

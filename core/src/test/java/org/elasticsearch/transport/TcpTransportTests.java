@@ -225,7 +225,8 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected Tuple<FakeChannel, Future<FakeChannel>> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException {
+                protected Tuple<FakeChannel, Future<FakeChannel>> initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
+                    throws IOException {
                     return null;
                 }
 

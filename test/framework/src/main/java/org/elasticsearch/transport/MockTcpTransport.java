@@ -400,7 +400,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
         @Override
         public void setSoLinger(int value) throws IOException {
-            if (activeChannel != null) {
+            if (activeChannel != null && activeChannel.isClosed() == false) {
                 activeChannel.setSoLinger(true, value);
             }
 

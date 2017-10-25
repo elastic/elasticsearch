@@ -161,20 +161,19 @@ public class RetryTests extends ESIntegTestCase {
                         .put("index.routing.allocation.include.color", "blue")
                         .build();
 
-        final Client nodeClient = client(node);
         final Client masterClient = internalCluster().masterClient();
-        nodeClient.admin().indices().prepareCreate("source").setSettings(indexSettings).execute().actionGet();
+        masterClient.admin().indices().prepareCreate("source").setSettings(indexSettings).execute().actionGet();
         ensureGreen("source");
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
-        BulkRequestBuilder bulk = nodeClient.prepareBulk();
+        BulkRequestBuilder bulk = masterClient.prepareBulk();
         for (int i = 0; i < DOC_COUNT; i++) {
-            bulk.add(nodeClient.prepareIndex("source", "test").setSource("foo", "bar " + i));
+            bulk.add(masterClient.prepareIndex("source", "test").setSource("foo", "bar " + i));
         }
 
-        Retry retry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.exponentialBackoff(), nodeClient.threadPool());
-        BulkResponse initialBulkResponse = retry.withBackoff(client(node)::bulk, bulk.request(), nodeClient.settings()).actionGet();
+        Retry retry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.exponentialBackoff(), masterClient.threadPool());
+        BulkResponse initialBulkResponse = retry.withBackoff(masterClient::bulk, bulk.request(), masterClient.settings()).actionGet();
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
-        nodeClient.admin().indices().prepareRefresh("source").get();
+        masterClient.admin().indices().prepareRefresh("source").get();
 
         logger.info("Blocking search");
         CyclicBarrier initialSearchBlock = blockExecutor(ThreadPool.Names.SEARCH, node);
@@ -188,24 +187,24 @@ public class RetryTests extends ESIntegTestCase {
 
         try {
             logger.info("Waiting for search rejections on the initial search");
-            assertBusy(() -> assertThat(taskStatus(nodeClient, action).getSearchRetries(), greaterThan(0L)));
+            assertBusy(() -> assertThat(taskStatus(masterClient, action).getSearchRetries(), greaterThan(0L)));
 
             logger.info("Blocking bulk and unblocking search so we start to get bulk rejections");
             CyclicBarrier bulkBlock = blockExecutor(ThreadPool.Names.BULK, node);
             initialSearchBlock.await();
 
             logger.info("Waiting for bulk rejections");
-            assertBusy(() -> assertThat(taskStatus(nodeClient, action).getBulkRetries(), greaterThan(0L)));
+            assertBusy(() -> assertThat(taskStatus(masterClient, action).getBulkRetries(), greaterThan(0L)));
 
             // Keep a copy of the current number of search rejections so we can assert that we get more when we block the scroll
-            long initialSearchRejections = taskStatus(nodeClient, action).getSearchRetries();
+            long initialSearchRejections = taskStatus(masterClient, action).getSearchRetries();
 
             logger.info("Blocking search and unblocking bulk so we should get search rejections for the scroll");
             CyclicBarrier scrollBlock = blockExecutor(ThreadPool.Names.SEARCH, node);
             bulkBlock.await();
 
             logger.info("Waiting for search rejections for the scroll");
-            assertBusy(() -> assertThat(taskStatus(nodeClient, action).getSearchRetries(), greaterThan(initialSearchRejections)));
+            assertBusy(() -> assertThat(taskStatus(masterClient, action).getSearchRetries(), greaterThan(initialSearchRejections)));
 
             logger.info("Unblocking the scroll");
             scrollBlock.await();

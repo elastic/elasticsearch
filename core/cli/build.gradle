@@ -24,7 +24,6 @@ apply plugin: 'ru.vyarus.animalsniffer'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
-//group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-cli'
 
 publishing {

@@ -325,14 +325,22 @@ For more information, see
   This value will need to be increased for jobs that are expected to analyze high
   cardinality fields, but the default is set to a relatively small size to ensure
   that high resource usage is a conscious decision. The default value for jobs
-  created in versions earlier than 6.1 is `4096mb`. If you specify a number instead
-  of a string, the units are assumed to be MiB. Specifying a string is recommended
-  for clarity. If you specify a byte size unit of `b` or `kb` and the number
-  does not equate to a discrete number of megabytes, it is rounded down to the
-  closest MiB. The minimum valid value is 1 MiB. If you specify a value less
-  than 1 MiB, an error occurs. For more information about supported byte size
-  units, see
-  {ref}/common-options.html#byte-units[Byte size units].
+  created in versions earlier than 6.1 is `4096mb`.
++
+--
+If you specify a number instead of a string, the units are assumed to be MiB.
+Specifying a string is recommended for clarity. If you specify a byte size unit
+of `b` or `kb` and the number does not equate to a discrete number of megabytes,
+it is rounded down to the closest MiB. The minimum valid value is 1 MiB. If you
+specify a value less than 1 MiB, an error occurs. For more information about
+supported byte size units, see
+{ref}/common-options.html#byte-units[Byte size units].
+
+If your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit`
+setting, an error occurs when you try to create jobs that have
+`model_memory_limit` values greater than that setting. For more information,
+see <<ml-settings>>.
+--
 
 [float]
 [[ml-apimodelplotconfig]]

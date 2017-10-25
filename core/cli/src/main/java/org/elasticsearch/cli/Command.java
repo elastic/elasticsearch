@@ -23,11 +23,7 @@ import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -79,12 +75,7 @@ public abstract class Command implements Closeable {
             Runtime.getRuntime().addShutdownHook(shutdownHookThread.get());
         }
 
-        if (shouldConfigureLoggingWithoutConfig()) {
-            // initialize default for es.logger.level because we will not read the log4j2.properties
-            final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
-            final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
-            LogConfigurator.configureWithoutConfig(settings);
-        }
+        beforeExecute();
 
         try {
             mainWithoutErrorHandling(args, terminal);
@@ -103,14 +94,10 @@ public abstract class Command implements Closeable {
     }
 
     /**
-     * Indicate whether or not logging should be configured without reading a log4j2.properties. Most commands should do this because we do
-     * not configure logging for CLI tools. Only commands that configure logging on their own should not do this.
-     *
-     * @return true if logging should be configured without reading a log4j2.properties file
+     * Setup method to be executed before parsing or execution of the command being run. Any exceptions thrown by the
+     * method will not be cleanly caught by the parser.
      */
-    protected boolean shouldConfigureLoggingWithoutConfig() {
-        return true;
-    }
+    protected void beforeExecute() throws Exception {}
 
     /**
      * Executes the command, but all errors are thrown.

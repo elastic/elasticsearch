@@ -22,16 +22,12 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -39,12 +35,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -116,8 +109,19 @@ public class RetryTests extends ESIntegTestCase {
 
     public void testReindexFromRemote() throws Exception {
         Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> function = client -> {
-            NodeInfo nodeInfo = client.admin().cluster().prepareNodesInfo().get().getNodes().get(0);
-            TransportAddress address = nodeInfo.getHttp().getAddress().publishAddress();
+            /*
+             * Use the master node for the reindex from remote because that node
+             * doesn't have a copy of the data on it.
+             */
+            NodeInfo masterNode = null;
+            for (NodeInfo candidate : client.admin().cluster().prepareNodesInfo().get().getNodes()) {
+                if (candidate.getNode().isMasterNode()) {
+                    masterNode = candidate;
+                }
+            }
+            assertNotNull(masterNode);
+
+            TransportAddress address = masterNode.getHttp().getAddress().publishAddress();
             RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
                     null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
             ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client).source("source").destination("dest")
@@ -144,7 +148,6 @@ public class RetryTests extends ESIntegTestCase {
             throws Exception {
 
         final Settings nodeSettings = Settings.builder()
-                .put(nodeSettings())
                 // use pools of size 1 so we can block them
                 .put("thread_pool.bulk.size", 1)
                 .put("thread_pool.search.size", 1)
@@ -162,8 +165,10 @@ public class RetryTests extends ESIntegTestCase {
                         .build();
 
         final Client masterClient = internalCluster().masterClient();
+        // Create the source index on the node with small thread pools so we can block them.
         masterClient.admin().indices().prepareCreate("source").setSettings(indexSettings).execute().actionGet();
-        ensureGreen("source");
+        // Not all test cases use the dest index but those that do require that it be on the node will small thread pools
+        masterClient.admin().indices().prepareCreate("dest").setSettings(indexSettings).execute().actionGet();
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
         BulkRequestBuilder bulk = masterClient.prepareBulk();
         for (int i = 0; i < DOC_COUNT; i++) {

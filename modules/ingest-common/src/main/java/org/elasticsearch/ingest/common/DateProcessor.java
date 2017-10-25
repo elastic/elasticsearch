@@ -30,7 +30,6 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.ArrayList;
-import java.util.IllformedLocaleException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -64,7 +63,12 @@ public final class DateProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        String value = ingestDocument.getFieldValue(field, String.class);
+        Object obj = ingestDocument.getFieldValue(field, Object.class);
+        String value = null;
+        if (obj != null) {
+            // Not use Objects.toString(...) here, because null gets changed to "null" which may confuse some date parsers
+            value = obj.toString();
+        }
 
         DateTime dateTime = null;
         Exception lastException = null;

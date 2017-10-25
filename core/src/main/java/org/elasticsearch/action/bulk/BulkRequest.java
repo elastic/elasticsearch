@@ -429,6 +429,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                         if (upsertRequest != null) {
                             upsertRequest.version(version);
                             upsertRequest.versionType(versionType);
+                            upsertRequest.setPipeline(defaultPipeline);
                         }
                         IndexRequest doc = updateRequest.doc();
                         if (doc != null) {

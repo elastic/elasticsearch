@@ -90,7 +90,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 public abstract class Engine implements Closeable {
 
@@ -465,8 +465,9 @@ public abstract class Engine implements Closeable {
         PENDING_OPERATIONS
     }
 
-    protected final GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
-        final Searcher searcher = searcherFactory.apply("get");
+    protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory,
+                                              SearcherScope scope) throws EngineException {
+        final Searcher searcher = searcherFactory.apply("get", scope);
         final DocIdAndVersion docIdAndVersion;
         try {
             docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), get.uid());
@@ -494,23 +495,40 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
+    public abstract GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException;
+
 
     /**
      * Returns a new searcher instance. The consumer of this
      * API is responsible for releasing the returned searcher in a
      * safe manner, preferably in a try/finally block.
      *
+     * @param source the source API or routing that triggers this searcher acquire
+     *
      * @see Searcher#close()
      */
     public final Searcher acquireSearcher(String source) throws EngineException {
+        return acquireSearcher(source, SearcherScope.EXTERNAL);
+    }
+
+    /**
+     * Returns a new searcher instance. The consumer of this
+     * API is responsible for releasing the returned searcher in a
+     * safe manner, preferably in a try/finally block.
+     *
+     * @param source the source API or routing that triggers this searcher acquire
+     * @param scope the scope of this searcher ie. if the searcher will be used for get or search purposes
+     *
+     * @see Searcher#close()
+     */
+    public final Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
         boolean success = false;
          /* Acquire order here is store -> manager since we need
           * to make sure that the store is not closed before
           * the searcher is acquired. */
         store.incRef();
         try {
-            final SearcherManager manager = getSearcherManager(); // can never be null
+            final SearcherManager manager = getSearcherManager(source, scope); // can never be null
             /* This might throw NPE but that's fine we will run ensureOpen()
             *  in the catch block and throw the right exception */
             final IndexSearcher searcher = manager.acquire();
@@ -534,6 +552,10 @@ public abstract class Engine implements Closeable {
                 store.decRef();
             }
         }
+    }
+
+    public enum SearcherScope {
+        EXTERNAL, INTERNAL
     }
 
     /** returns the translog for this engine */
@@ -768,7 +790,7 @@ public abstract class Engine implements Closeable {
               the store is closed so we need to make sure we increment it here
              */
             try {
-                return getSearcherManager().isSearcherCurrent() == false;
+                return getSearcherManager("refresh_needed", SearcherScope.EXTERNAL).isSearcherCurrent() == false;
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
                 failEngine("failed to access searcher manager", e);
@@ -1306,7 +1328,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected abstract SearcherManager getSearcherManager();
+    protected abstract SearcherManager getSearcherManager(String source, SearcherScope scope);
 
     /**
      * Method to close the engine while the write lock is held.

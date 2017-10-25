@@ -149,6 +149,16 @@ And now we are ready to start our node and single cluster:
 --------------------------------------------------
 
 [float]
+=== Installation with Homebrew
+
+On macOS, Elasticsearch can also be installed via https://brew.sh[Homebrew]:
+
+["source","sh"]
+--------------------------------------------------
+brew install elasticsearch
+--------------------------------------------------
+
+[float]
 === Installation example with MSI Windows Installer
 
 For Windows users, we recommend using the {ref}/windows.html[MSI Installer package]. The package contains a graphical user interface (GUI) that guides you through the installation process.
@@ -288,7 +298,13 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 
 We can see that our cluster named "elasticsearch" is up with a green status.
 
-Whenever we ask for the cluster health, we either get green, yellow, or red. Green means everything is good (cluster is fully functional), yellow means all data is available but some replicas are not yet allocated (cluster is fully functional), and red means some data is not available for whatever reason. Note that even if a cluster is red, it still is partially functional (i.e. it will continue to serve search requests from the available shards) but you will likely need to fix it ASAP since you have missing data.
+Whenever we ask for the cluster health, we either get green, yellow, or red.
+
+    * Green - everything is good (cluster is fully functional)
+    * Yellow - all data is available but some replicas are not yet allocated (cluster is fully functional)
+    * Red - some data is not available for whatever reason (cluster is partially functional)
+
+**Note:** When a cluster is red, it will continue to serve search requests from the available shards but you will likely need to fix it ASAP since there are unassigned shards.
 
 Also from the above response, we can see a total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we are using the default cluster name (elasticsearch) and since Elasticsearch uses unicast network discovery by default to find other nodes on the same machine, it is possible that you could accidentally start up more than one node on your computer and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
 

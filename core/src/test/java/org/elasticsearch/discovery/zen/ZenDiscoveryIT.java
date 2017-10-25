@@ -47,7 +47,6 @@ import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -255,6 +254,11 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "      \"total\" : 0,\n" +
                 "      \"pending\" : 0,\n" +
                 "      \"committed\" : 0\n" +
+                "    },\n" +
+                "    \"published_cluster_states\" : {\n" +
+                "      \"full_states\" : 0,\n" +
+                "      \"incompatible_diffs\" : 0,\n" +
+                "      \"compatible_diffs\" : 0\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
@@ -274,6 +278,11 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(stats.getQueueStats().getTotal(), equalTo(0));
         assertThat(stats.getQueueStats().getCommitted(), equalTo(0));
         assertThat(stats.getQueueStats().getPending(), equalTo(0));
+
+        assertThat(stats.getPublishStats(), notNullValue());
+        assertThat(stats.getPublishStats().getFullClusterStateReceivedCount(), equalTo(0L));
+        assertThat(stats.getPublishStats().getIncompatibleClusterStateDiffReceivedCount(), equalTo(0L));
+        assertThat(stats.getPublishStats().getCompatibleClusterStateDiffReceivedCount(), equalTo(0L));
 
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         builder.startObject();

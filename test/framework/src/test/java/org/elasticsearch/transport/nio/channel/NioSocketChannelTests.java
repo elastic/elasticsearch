@@ -89,7 +89,7 @@ public class NioSocketChannelTests extends ESTestCase {
         assertSame(socketChannel, ref.get());
     }
 
-    public void testConnectSucceeds() throws IOException, InterruptedException {
+    public void testConnectSucceeds() throws IOException {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenReturn(true);
         NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, rawChannel, selector);
@@ -106,7 +106,7 @@ public class NioSocketChannelTests extends ESTestCase {
         assertNull(connectFuture.getException());
     }
 
-    public void testConnectFails() throws IOException, InterruptedException {
+    public void testConnectFails() throws IOException {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenThrow(new ConnectException());
         NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, rawChannel, selector);

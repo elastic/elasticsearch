@@ -20,10 +20,12 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -223,9 +225,14 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected List<Future<FakeChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
-                                                                     Consumer onChannelClose) {
+                protected List<ActionFuture<FakeChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
+                                                                           Consumer onChannelClose) {
                     return new ArrayList<>();
+                }
+
+                @Override
+                protected Tuple<FakeChannel, Future<FakeChannel>> initiateChannel(InetSocketAddress address, TimeValue connectTimeout) throws IOException {
+                    return null;
                 }
 
                 @Override

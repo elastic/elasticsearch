@@ -32,7 +32,7 @@ import java.util.Arrays;
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
-    private final ConnectFuture connectFuture = new ConnectFuture();
+    private final ConnectFuture connectFuture = new ConnectFuture(this);
     private final SocketSelector socketSelector;
     private WriteContext writeContext;
     private ReadContext readContext;
@@ -146,7 +146,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
             isConnected = internalFinish();
         }
         if (isConnected) {
-            connectFuture.setConnectionComplete(this);
+            connectFuture.setConnectionComplete();
         }
         return isConnected;
     }

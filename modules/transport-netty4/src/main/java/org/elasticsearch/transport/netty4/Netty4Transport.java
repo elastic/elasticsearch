@@ -40,6 +40,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -52,6 +53,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -60,14 +62,13 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
@@ -259,45 +260,58 @@ public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
         final InetSocketAddress address = node.getAddress().address();
         for (int i = 0; i < connectionCount; i++) {
             ChannelFuture channelFuture = bootstrap.connect(address);
-            pendingConnections.add(new java.util.concurrent.Future<NettyTcpChannel>() {
-                @Override
-                public boolean cancel(boolean mayInterruptIfRunning) {
-                    return channelFuture.cancel(mayInterruptIfRunning);
-                }
-
-                @Override
-                public boolean isCancelled() {
-                    return channelFuture.isCancelled();
-                }
-
-                @Override
-                public boolean isDone() {
-                    return channelFuture.isDone();
-                }
-
-                @Override
-                public NettyTcpChannel get() throws InterruptedException, ExecutionException {
-                    channelFuture.get();
-                    Channel channel = channelFuture.channel();
-                    NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
-                    channel.attr(CHANNEL_KEY).set(nettyChannel);
-                    channelFuture.channel().closeFuture().addListener(f -> onChannelClose.accept(nettyChannel));
-                    return nettyChannel;
-                }
-
-                @Override
-                public NettyTcpChannel get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException,
-                    TimeoutException {
-                    channelFuture.get(timeout, unit);
-                    Channel channel = channelFuture.channel();
-                    NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
-                    channel.attr(CHANNEL_KEY).set(nettyChannel);
-                    channelFuture.channel().closeFuture().addListener(f -> onChannelClose.accept(nettyChannel));
-                    return nettyChannel;
+            Channel channel = channelFuture.channel();
+            NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
+            channel.attr(CHANNEL_KEY).set(nettyChannel);
+            PlainActionFuture<NettyTcpChannel> actionFuture = PlainActionFuture.newFuture();
+            channelFuture.addListener(f -> {
+                if (f.isSuccess()) {
+                    channelFuture.channel().closeFuture().addListener(cf -> onChannelClose.accept(nettyChannel));
+                } else {
+                    Throwable cause = f.cause();
+                    if (cause instanceof Error) {
+                        Netty4Utils.maybeDie(cause);
+                        actionFuture.onFailure(new Exception(cause));
+                    } else {
+                        actionFuture.onFailure((Exception) cause);
+                    }
                 }
             });
+            pendingConnections.add(actionFuture);
         }
         return pendingConnections;
+    }
+
+    @Override
+    protected Tuple<NettyTcpChannel, java.util.concurrent.Future<NettyTcpChannel>> initiateChannel(InetSocketAddress address,
+                                                                                                   TimeValue connectTimeout)
+        throws IOException {
+        ChannelFuture channelFuture = bootstrap.connect(address);
+        Channel channel = channelFuture.channel();
+        if (channel == null) {
+            Netty4Utils.maybeDie(channelFuture.cause());
+            throw new IOException(channelFuture.cause());
+        }
+
+        NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
+        channel.attr(CHANNEL_KEY).set(nettyChannel);
+        PlainActionFuture<NettyTcpChannel> connectFuture = PlainActionFuture.newFuture();
+
+        channelFuture.addListener(f -> {
+            if (f.isSuccess()) {
+                connectFuture.onResponse(nettyChannel);
+            } else {
+                Throwable cause = f.cause();
+                if (cause instanceof Error) {
+                    Netty4Utils.maybeDie(cause);
+                    connectFuture.onFailure(new Exception(cause));
+                } else {
+                    connectFuture.onFailure((Exception) cause);
+                }
+            }
+        });
+
+        return new Tuple<>(nettyChannel, connectFuture);
     }
 
     @Override

@@ -22,13 +22,17 @@ package org.elasticsearch.transport.nio;
 import java.net.StandardSocketOptions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -110,14 +114,13 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected List<Future<NioChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
-                                                        Consumer<NioChannel> onChannelClose) throws IOException {
-        ClientChannelCloseListener closeListener = new ClientChannelCloseListener(onChannelClose);
-        List<Future<NioChannel>> futures = client.initiateConnections(node, profile.getNumConnections(), closeListener);
-        if (futures == null) {
+    protected Tuple<NioChannel, Future<NioChannel>> initiateChannel(InetSocketAddress address, TimeValue connectTimeout)
+        throws IOException {
+        NioSocketChannel channel = client.initiateConnection(address);
+        if (channel == null) {
             throw new ElasticsearchException("client is shutdown");
         }
-        return futures;
+        return new Tuple<>(channel, channel.getConnectFuture());
     }
 
     @Override

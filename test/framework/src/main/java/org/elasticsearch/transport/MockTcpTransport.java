@@ -20,12 +20,14 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -42,6 +44,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -181,32 +184,24 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected List<Future<MockChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
-                                                         Consumer<MockChannel> onChannelClose) throws IOException {
-        PlainActionFuture<MockChannel> future = new PlainActionFuture<>();
+    protected Tuple<MockChannel, Future<MockChannel>> initiateChannel(InetSocketAddress address, TimeValue connectTimeout)
+        throws IOException {
         final MockSocket socket = new MockSocket();
         boolean success = false;
         try {
-            final InetSocketAddress address = node.getAddress().address();
-            // we just use a single connections
             configureSocket(socket);
-            final TimeValue connectTimeout = profile.getConnectTimeout();
-            try {
-                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
-            } catch (SocketTimeoutException ex) {
-                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
-            }
-            MockChannel channel = new MockChannel(socket, address, "none", onChannelClose);
-            future.onResponse(channel);
+            socket.connect(address, Math.toIntExact(connectTimeout.millis()));
+            MockChannel channel = new MockChannel(socket, address, "none", (c) -> {});
             channel.loopRead(executor);
             success = true;
+            PlainActionFuture<MockChannel> connectFuture = PlainActionFuture.newFuture();
+            connectFuture.onResponse(channel);
+            return new Tuple<>(channel, connectFuture);
         } finally {
             if (success == false) {
                 IOUtils.close(socket);
             }
         }
-
-        return Collections.singletonList(future);
     }
 
     @Override
@@ -406,6 +401,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         public boolean isOpen() {
             return isOpen.get();
         }
+
     }
 
 

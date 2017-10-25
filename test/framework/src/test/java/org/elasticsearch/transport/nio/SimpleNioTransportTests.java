@@ -99,8 +99,8 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
     protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        final NioTransport t = (NioTransport) transport;
-        @SuppressWarnings("unchecked") TcpTransport<NioChannel>.NodeChannels channels = (TcpTransport<NioChannel>.NodeChannels) connection;
+        @SuppressWarnings("unchecked")
+        TcpTransport<NioChannel>.NodeChannels channels = (TcpTransport<NioChannel>.NodeChannels) connection;
         TcpChannelUtils.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, logger);
     }
 

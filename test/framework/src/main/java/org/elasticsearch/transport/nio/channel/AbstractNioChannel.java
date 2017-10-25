@@ -166,6 +166,8 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     @Override
     public void setSoLinger(int value) throws IOException {
-        socketChannel.setOption(StandardSocketOptions.SO_LINGER, value);
+        if (isOpen()) {
+            socketChannel.setOption(StandardSocketOptions.SO_LINGER, value);
+        }
     }
 }

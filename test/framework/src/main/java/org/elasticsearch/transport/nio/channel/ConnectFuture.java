@@ -28,12 +28,21 @@ import java.util.concurrent.TimeoutException;
 
 public class ConnectFuture extends BaseFuture<NioChannel> {
 
-    public boolean awaitConnectionComplete(long timeout, TimeUnit unit) throws InterruptedException {
+    private final NioChannel nioChannel;
+
+    public ConnectFuture(NioChannel nioChannel) {
+        this.nioChannel = nioChannel;
+    }
+
+    public boolean awaitConnectionComplete(long timeout, TimeUnit unit) {
         try {
             super.get(timeout, unit);
             return true;
         } catch (ExecutionException | TimeoutException e) {
             return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
         }
     }
 
@@ -64,8 +73,8 @@ public class ConnectFuture extends BaseFuture<NioChannel> {
         return getException() != null;
     }
 
-    void setConnectionComplete(NioSocketChannel channel) {
-        set(channel);
+    void setConnectionComplete() {
+        set(nioChannel);
     }
 
     void setConnectionFailed(IOException e) {

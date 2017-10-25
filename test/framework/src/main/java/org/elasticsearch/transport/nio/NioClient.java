@@ -19,17 +19,12 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class NioClient {
@@ -45,30 +40,23 @@ public class NioClient {
         this.channelFactory = channelFactory;
     }
 
-    ArrayList<Future<NioChannel>> initiateConnections(DiscoveryNode node, int numberOfChannels, Consumer<NioChannel> closeListener)
-        throws IOException {
+    public void close() {
+        semaphore.acquireUninterruptibly(Integer.MAX_VALUE);
+    }
+
+    NioSocketChannel initiateConnection(InetSocketAddress address) throws IOException {
         boolean allowedToConnect = semaphore.tryAcquire();
         if (allowedToConnect == false) {
             return null;
         }
 
-        final ArrayList<Future<NioChannel>> connectFutures = new ArrayList<>(numberOfChannels);
-        final InetSocketAddress address = node.getAddress().address();
-
         try {
-            for (int i = 0; i < numberOfChannels; ++i) {
-                SocketSelector selector = selectorSupplier.get();
-                NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address, selector, closeListener);
-                openChannels.clientChannelOpened(nioSocketChannel);
-                connectFutures.add(nioSocketChannel.getConnectFuture());
-            }
-            return connectFutures;
+            SocketSelector selector = selectorSupplier.get();
+            NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address, selector, (c) -> {});
+            openChannels.clientChannelOpened(nioSocketChannel);
+            return nioSocketChannel;
         } finally {
             semaphore.release();
         }
-    }
-
-    public void close() {
-        semaphore.acquireUninterruptibly(Integer.MAX_VALUE);
     }
 }

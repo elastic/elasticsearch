@@ -2,24 +2,24 @@
 [[xes-6.0.0-rc2]]
 == {es} {xpack} 6.0.0-rc2 Release Notes
 
-To be determined.
 
-////
 [[xes-enhancement-6.0.0-rc2]]
 [float]
 === Enhancements
-////
-////
+
 Machine Learning::
-* [ML] Prevent ML node attributes being set directly
-// https://github.com/elastic/x-pack-elasticsearch/pull/2725[#2725] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2649[#2649])
-* [ML] Allow dynamic updates to the xpack.ml.max_model_memory_limit setting
+* Added the `xpack.ml.max_model_memory_limit` setting, which can be dynamically
+updated. For more information, see <<ml-settings>>.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2503[#2503] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2462[#2462])
-* [ML] Add setting for job max model memory limit
 // https://github.com/elastic/x-pack-elasticsearch/pull/2460[#2460]
-* Assorted improvements to modelling long periodic components
+* Added checks and error messages for the `ml.enabled` and `ml.max_open_jobs`
+node attributes. These are reserved for internal use and their values should be
+set by using `xpack.ml.enabled` and `xpack.ml.max_open_jobs`
+<<ml-settings,{ml} settings>>.
+// https://github.com/elastic/x-pack-elasticsearch/pull/2725[#2725] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2649[#2649])
+* Improved modeling of long periodic components, particularly when there is a
+long bucket span.
 // https://github.com/elastic/machine-learning-cpp/pull/298[#298] (issue: https://github.com/elastic/machine-learning-cpp/issues/272[#272])
-////
 ////
 Monitoring::
 * [Monitoring] Cleaner Service should be able to cleanup .watcher-history*
@@ -41,26 +41,22 @@ Watcher::
 * Watcher: Ensure all templates exist before starting watcher
 // https://github.com/elastic/x-pack-elasticsearch/pull/2765[#2765] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2761[#2761])
 ////
-////
+
 [[xes-bug-6.0.0-rc2]]
 [float]
 === Bug fixes
-////
-////
+
 Machine Learning::
-* Fix a potential memory access issue
-// https://github.com/elastic/machine-learning-cpp/pull/347[#347] (issue: https://github.com/elastic/machine-learning-cpp/issues/344[#344])
-* Prevent models for different partition field values being combined
+* Fixed a scenario where models were incorrectly combined. This problem occurred
+when anomaly detectors were considered to be the same despite having different
+partition field values.
 // https://github.com/elastic/machine-learning-cpp/pull/323[#323]
-* [ML][DOCS] Fix bucket_span type in results resources
-// https://github.com/elastic/x-pack-elasticsearch/pull/2714[#2714]
-* [ML] snapshot_id is required when reverting a model snapshot
-// https://github.com/elastic/x-pack-elasticsearch/pull/2641[#2641]
-* [ML] Tolerate a body without timestamp for get_buckets with a timestamp
-// https://github.com/elastic/x-pack-elasticsearch/pull/2640[#2640] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2515[#2515])
-* [ML] Fix close job when the process has not launched yet
+//* [ML] Tolerate a body without timestamp for get_buckets with a timestamp
+//OMIT: Already in 5.6.3:
+//https://github.com/elastic/x-pack-elasticsearch/pull/2640[#2640] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2515[#2515])
+* Cleaned up the job closure process for situations where the job was still in
+the process of opening.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2616[#2616] (issues: https://github.com/elastic/x-pack-elasticsearch/issues/1270[#1270], https://github.com/elastic/x-pack-elasticsearch/issues/2360[#2360])
-////
 ////
 Security::
 * [Security] BulkShardRequest may have multiple indices [OPEN]

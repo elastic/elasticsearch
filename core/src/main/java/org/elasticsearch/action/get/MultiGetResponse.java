@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -172,5 +173,10 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         for (MultiGetItemResponse response : responses) {
             response.writeTo(out);
         }
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true);
     }
 }

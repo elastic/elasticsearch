@@ -37,8 +37,8 @@ public class DocsStatsTests extends ESTestCase {
 
         // (38*900 + 12*10) / 50 = 686L
         stats.add(new DocsStats(8, 30, 900));
-        assertThat(stats.getCount(), equalTo(18));
-        assertThat(stats.getDeleted(), equalTo(32));
+        assertThat(stats.getCount(), equalTo(18L));
+        assertThat(stats.getDeleted(), equalTo(32L));
         assertThat(stats.getAverageSizeInBytes(), equalTo(686L));
 
         // (50*686 + 40*120) / 90 = 434L
@@ -49,7 +49,7 @@ public class DocsStatsTests extends ESTestCase {
         stats.add(new DocsStats(35, 0, 99));
         assertThat(stats.getAverageSizeInBytes(), equalTo(340L));
 
-        stats.add(new DocsStats(randomNonNegativeLong(), randomNonNegativeLong(), 0L));
+        stats.add(new DocsStats(0, 0, 0L));
         assertThat(stats.getAverageSizeInBytes(), equalTo(340L));
     }
 

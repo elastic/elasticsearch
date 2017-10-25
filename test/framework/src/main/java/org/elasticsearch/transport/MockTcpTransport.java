@@ -184,13 +184,18 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected Tuple<MockChannel, Future<MockChannel>> initiateChannel(InetSocketAddress address, TimeValue connectTimeout)
+    protected Tuple<MockChannel, Future<MockChannel>> initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
         throws IOException {
+        InetSocketAddress address = node.getAddress().address();
         final MockSocket socket = new MockSocket();
         boolean success = false;
         try {
             configureSocket(socket);
-            socket.connect(address, Math.toIntExact(connectTimeout.millis()));
+            try {
+                socket.connect(address, Math.toIntExact(connectTimeout.millis()));
+            } catch (SocketTimeoutException ex) {
+                throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
+            }
             MockChannel channel = new MockChannel(socket, address, "none", (c) -> {});
             channel.loopRead(executor);
             success = true;
@@ -205,8 +210,12 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected NodeChannels createNodeChannels(DiscoveryNode node, ArrayList<MockChannel> channels, ConnectionProfile connectionProfile) {
-        return new NodeChannels(node, channels, LIGHT_PROFILE); // we always use light for the mock transport
+    protected ConnectionProfile resolveConnectionProfile(ConnectionProfile connectionProfile) {
+        ConnectionProfile connectionProfile1 = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder(LIGHT_PROFILE);
+        builder.setHandshakeTimeout(connectionProfile1.getHandshakeTimeout());
+        builder.setConnectTimeout(connectionProfile1.getConnectTimeout());
+        return builder.build();
     }
 
     private void configureSocket(Socket socket) throws SocketException {

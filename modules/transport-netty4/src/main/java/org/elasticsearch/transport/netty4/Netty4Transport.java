@@ -252,41 +252,10 @@ public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
     }
 
     @Override
-    protected List<java.util.concurrent.Future<NettyTcpChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
-                                                                                  Consumer<NettyTcpChannel> onChannelClose) {
-        int connectionCount = profile.getNumConnections();
-        final ArrayList<java.util.concurrent.Future<NettyTcpChannel>> pendingConnections = new ArrayList<>(connectionCount);
-
-        final InetSocketAddress address = node.getAddress().address();
-        for (int i = 0; i < connectionCount; i++) {
-            ChannelFuture channelFuture = bootstrap.connect(address);
-            Channel channel = channelFuture.channel();
-            NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
-            channel.attr(CHANNEL_KEY).set(nettyChannel);
-            PlainActionFuture<NettyTcpChannel> actionFuture = PlainActionFuture.newFuture();
-            channelFuture.addListener(f -> {
-                if (f.isSuccess()) {
-                    channelFuture.channel().closeFuture().addListener(cf -> onChannelClose.accept(nettyChannel));
-                } else {
-                    Throwable cause = f.cause();
-                    if (cause instanceof Error) {
-                        Netty4Utils.maybeDie(cause);
-                        actionFuture.onFailure(new Exception(cause));
-                    } else {
-                        actionFuture.onFailure((Exception) cause);
-                    }
-                }
-            });
-            pendingConnections.add(actionFuture);
-        }
-        return pendingConnections;
-    }
-
-    @Override
-    protected Tuple<NettyTcpChannel, java.util.concurrent.Future<NettyTcpChannel>> initiateChannel(InetSocketAddress address,
+    protected Tuple<NettyTcpChannel, java.util.concurrent.Future<NettyTcpChannel>> initiateChannel(DiscoveryNode node,
                                                                                                    TimeValue connectTimeout)
         throws IOException {
-        ChannelFuture channelFuture = bootstrap.connect(address);
+        ChannelFuture channelFuture = bootstrap.connect(node.getAddress().address());
         Channel channel = channelFuture.channel();
         if (channel == null) {
             Netty4Utils.maybeDie(channelFuture.cause());

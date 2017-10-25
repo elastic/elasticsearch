@@ -26,7 +26,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -400,12 +399,12 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
 
     public final class NodeChannels implements Connection {
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
-        private final ArrayList<Channel> channels;
+        private final List<Channel> channels;
         private final DiscoveryNode node;
         private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final AtomicReference<Version> version;
+        private final Version version;
 
-        public NodeChannels(DiscoveryNode node, ArrayList<Channel> channels, ConnectionProfile connectionProfile) {
+        NodeChannels(DiscoveryNode node, List<Channel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
             this.node = node;
             this.channels = channels;
             assert channels.size() == connectionProfile.getNumConnections() : "expected channels size to be == "
@@ -415,23 +414,12 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                 for (TransportRequestOptions.Type type : handle.getTypes())
                     typeMapping.put(type, handle);
             }
-            version = new AtomicReference<>(node.getVersion());
-        }
-
-        NodeChannels(NodeChannels channels, Version handshakeVersion) {
-            this.node = channels.node;
-            this.channels = channels.channels;
-            this.typeMapping = channels.typeMapping;
-            this.version = new AtomicReference<>(handshakeVersion);
-        }
-
-        public void updateVersion(Version handshakeVersion) {
-            version.compareAndSet(version.get(), handshakeVersion);
+            version = handshakeVersion;
         }
 
         @Override
         public Version getVersion() {
-            return version.get();
+            return version;
         }
 
         public List<Channel> getChannels() {
@@ -469,7 +457,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                     }
 
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
-                    TcpChannelUtils.closeChannels(channels.stream().filter(Objects::nonNull).collect(Collectors.toList()), block, logger);
+                    TcpChannelUtils.closeChannels(channels, block, logger);
                 } finally {
                     transportService.onConnectionClosed(this);
                 }
@@ -505,7 +493,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
                               CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
         throws ConnectTransportException {
-        connectionProfile = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
+        connectionProfile = resolveConnectionProfile(connectionProfile);
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");
         }
@@ -586,6 +574,10 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
         }
     }
 
+    protected ConnectionProfile resolveConnectionProfile(ConnectionProfile connectionProfile) {
+        return resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
+    }
+
     @Override
     public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
         if (node == null) {
@@ -593,19 +585,18 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
         }
         boolean success = false;
         NodeChannels nodeChannels = null;
-        connectionProfile = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
+        connectionProfile = resolveConnectionProfile(connectionProfile);
         closeLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
             ensureOpen();
             try {
-                InetSocketAddress address = node.getAddress().address();
                 IOException connectionException = null;
                 int numConnections = connectionProfile.getNumConnections();
                 List<Tuple<Channel, Future<Channel>>> pendingChannels = new ArrayList<>(numConnections);
                 for (int i = 0; i < numConnections; ++i) {
                     try {
-                        pendingChannels.add(initiateChannel(address, getConnectTimeout(connectionProfile)));
-                    } catch (IOException e) {
+                        pendingChannels.add(initiateChannel(node, connectionProfile.getConnectTimeout()));
+                    } catch (Exception e) {
                         if (connectionException == null) {
                             connectionException = new IOException("error opening connections");
                         }
@@ -614,21 +605,42 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                 }
 
                 if (connectionException != null) {
-                    List<Channel> channels = pendingChannels.stream().map(Tuple::v1).filter(Objects::nonNull).collect(Collectors.toList());
-                    TcpChannelUtils.closeChannels(channels, false, logger);
+                    List<Channel> toClose = pendingChannels.stream().map(Tuple::v1).filter(Objects::nonNull).collect(Collectors.toList());
+                    TcpChannelUtils.closeChannels(toClose, false, logger);
                     throw connectionException;
                 }
 
-                // TODO: Make sure a failure here is handled
-                nodeChannels = finishConnection(node, pendingChannels, connectionProfile);
+                // If we make it past the block above, we successfully instantiated all of the channels
 
-                final TimeValue connectTimeout = getConnectTimeout(connectionProfile);
-                final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
-                    connectTimeout : connectionProfile.getHandshakeTimeout();
-                final Channel handshakeChannel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
+                List<Channel> channels = new ArrayList<>(pendingChannels.size());
+                pendingChannels.forEach(t -> channels.add(t.v1()));
+                try {
+                    TcpChannelUtils.finishConnection(node, pendingChannels, connectionProfile.getConnectTimeout());
+                } catch (Exception ex) {
+                    TcpChannelUtils.closeChannels(channels, false, logger);
+                    throw ex;
+                }
 
-                handshakeChannel.getCloseFuture().addListener(ActionListener.wrap(this::cancelHandshakeForChannel,
-                    e -> cancelHandshakeForChannel(handshakeChannel)));
+                // If we make it past the block above, we have successfully established connections for all of the channels
+
+                final Channel handshakeChannel = channels.get(0); // one channel is guaranteed by the connection profile
+
+                handshakeChannel.getCloseFuture().addListener(ActionListener.wrap(() -> cancelHandshakeForChannel(handshakeChannel)));
+
+                Version version;
+                try {
+                    version = executeHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout());
+                } catch (Exception ex) {
+                    TcpChannelUtils.closeChannels(channels, false, logger);
+                    throw ex;
+                }
+
+                // If we make it past the block above, we have successfully completed the handshake and the connection is now open.
+                // At this point we should construct the connection, notify the transport service, and attach close listeners to the
+                // underlying channels.
+
+                nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
+                transportService.onConnectionOpened(nodeChannels);
 
                 final NodeChannels finalNodeChannels = nodeChannels;
                 final AtomicBoolean runOnce = new AtomicBoolean(false);
@@ -641,13 +653,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                     }
                 };
 
-                nodeChannels.channels.forEach(ch ->
-                    ch.getCloseFuture().addListener(ActionListener.wrap(onClose::accept, e -> onClose.accept(ch))));
-
-
-                final Version version = executeHandshake(node, handshakeChannel, handshakeTimeout);
-                nodeChannels.updateVersion(version);
-                transportService.onConnectionOpened(nodeChannels);
+                nodeChannels.channels.forEach(ch -> ch.getCloseFuture().addListener(ActionListener.wrap(() -> onClose.accept(ch))));
 
                 if (nodeChannels.channels.stream().allMatch(TcpChannel::isOpen) == false) {
                     throw new ConnectTransportException(node, "a channel closed while connecting");
@@ -1072,15 +1078,15 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
     protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener);
 
     /**
-     * Initiate a single tcp socket channel. Implementations do not have to observe the connectTimeout. It is provided for synchronous
-     * connection implementations.
+     * Initiate a single tcp socket channel to a node. Implementations do not have to observe the connectTimeout.
+     * It is provided for synchronous connection implementations.
      *
-     * @param address           the socket address
+     * @param node              the node
      * @param connectTimeout    the connection timeout
      * @return a tuple with the channel and a future representing the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract Tuple<Channel, Future<Channel>> initiateChannel(InetSocketAddress address, TimeValue connectTimeout)
+    protected abstract Tuple<Channel, Future<Channel>> initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
         throws IOException;
 
     /**
@@ -1810,58 +1816,6 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
             portOrRange = PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             publishPort = isDefaultProfile ? PUBLISH_PORT.get(settings) :
                 PUBLISH_PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
-        }
-    }
-
-    protected NodeChannels createNodeChannels(DiscoveryNode node, ArrayList<Channel> channels, ConnectionProfile connectionProfile) {
-        return new NodeChannels(node, channels, connectionProfile);
-    }
-
-    @SuppressWarnings("unchecked")
-    private NodeChannels finishConnection(DiscoveryNode discoveryNode, List<Tuple<Channel, Future<Channel>>> pendingChannels,
-                                          ConnectionProfile connectionProfile) {
-        Exception ex = null;
-        boolean allConnected = true;
-        TimeValue connectTimeout = getConnectTimeout(connectionProfile);
-
-        ArrayList<Channel> channels = new ArrayList<>(pendingChannels.size());
-
-        for (int i = 0; i < pendingChannels.size(); ++i) {
-            try {
-                Tuple<Channel, Future<Channel>> t = pendingChannels.get(i);
-                channels.add(t.v2().get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS));
-            } catch (TimeoutException e) {
-                allConnected = false;
-                break;
-            } catch (InterruptedException e) {
-                allConnected = false;
-                ex = e;
-                break;
-            } catch (ExecutionException e) {
-                allConnected = false;
-                ex = (Exception) e.getCause();
-                break;
-            }
-        }
-
-        if (allConnected == false) {
-            if (ex == null) {
-                throw new ConnectTransportException(discoveryNode, "connect_timeout[" + connectTimeout + "]");
-            } else {
-                throw new ConnectTransportException(discoveryNode, "connect_exception", ex);
-            }
-        }
-
-        return createNodeChannels(discoveryNode, channels, connectionProfile);
-    }
-
-    private TimeValue getConnectTimeout(ConnectionProfile connectionProfile) {
-        TimeValue connectTimeout = connectionProfile.getConnectTimeout();
-        TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
-        if (connectTimeout != null && connectTimeout.equals(defaultConnectTimeout) == false) {
-            return connectTimeout;
-        } else {
-            return defaultConnectTimeout;
         }
     }
 }

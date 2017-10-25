@@ -225,13 +225,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected List<ActionFuture<FakeChannel>> initiateChannels(DiscoveryNode node, ConnectionProfile profile,
-                                                                           Consumer onChannelClose) {
-                    return new ArrayList<>();
-                }
-
-                @Override
-                protected Tuple<FakeChannel, Future<FakeChannel>> initiateChannel(InetSocketAddress address, TimeValue connectTimeout) throws IOException {
+                protected Tuple<FakeChannel, Future<FakeChannel>> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException {
                     return null;
                 }
 
@@ -243,7 +237,7 @@ public class TcpTransportTests extends ESTestCase {
                 @Override
                 public NodeChannels getConnection(DiscoveryNode node) {
                     return new NodeChannels(node, new ArrayList<>(MockTcpTransport.LIGHT_PROFILE.getNumConnections()),
-                        MockTcpTransport.LIGHT_PROFILE);
+                        MockTcpTransport.LIGHT_PROFILE, Version.CURRENT);
                 }
             };
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);

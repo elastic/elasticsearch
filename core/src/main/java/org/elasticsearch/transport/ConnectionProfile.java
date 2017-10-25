@@ -220,7 +220,7 @@ public final class ConnectionProfile {
          * Returns one of the channels out configured for this handle. The channel is selected in a round-robin
          * fashion.
          */
-        <T> T getChannel(ArrayList<T> channels) {
+        <T> T getChannel(List<T> channels) {
             if (length == 0) {
                 throw new IllegalStateException("can't select channel size is 0 for types: " + types);
             }

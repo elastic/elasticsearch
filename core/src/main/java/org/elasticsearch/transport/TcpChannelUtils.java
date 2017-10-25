@@ -23,10 +23,16 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class TcpChannelUtils {
 
@@ -59,6 +65,40 @@ public class TcpChannelUtils {
 
         blockOnFutures(futures);
     }
+
+    public static <C extends TcpChannel<C>> void finishConnection(DiscoveryNode discoveryNode,
+                                                                  List<Tuple<C, Future<C>>> pendingChannels,
+                                                                  TimeValue connectTimeout) throws ConnectTransportException {
+        Exception connectionException = null;
+        boolean allConnected = true;
+
+        for (int i = 0; i < pendingChannels.size(); ++i) {
+            try {
+                Tuple<C, Future<C>> t = pendingChannels.get(i);
+                t.v2().get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                allConnected = false;
+                break;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            } catch (ExecutionException e) {
+                allConnected = false;
+                connectionException = (Exception) e.getCause();
+                break;
+            }
+        }
+
+        if (allConnected == false) {
+            if (connectionException == null) {
+                throw new ConnectTransportException(discoveryNode, "connect_timeout[" + connectTimeout + "]");
+            } else {
+                throw new ConnectTransportException(discoveryNode, "connect_exception", connectionException);
+            }
+        }
+    }
+
+
 
     private static <C extends TcpChannel<C>> void blockOnFutures(ArrayList<ListenableActionFuture<C>> futures) {
         for (ListenableActionFuture<C> future : futures) {

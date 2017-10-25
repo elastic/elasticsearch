@@ -114,9 +114,9 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected Tuple<NioChannel, Future<NioChannel>> initiateChannel(InetSocketAddress address, TimeValue connectTimeout)
+    protected Tuple<NioChannel, Future<NioChannel>> initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
         throws IOException {
-        NioSocketChannel channel = client.initiateConnection(address);
+        NioSocketChannel channel = client.initiateConnection(node.getAddress().address());
         if (channel == null) {
             throw new ElasticsearchException("client is shutdown");
         }

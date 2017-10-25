@@ -210,3 +210,12 @@
       catch: missing
       indices.get_template:
         name: "my_template"
+
+---
+"Put index template without index_patterns":
+
+  - do:
+      catch: /index patterns are missing/
+      indices.put_template:
+        name: test
+        body: {}

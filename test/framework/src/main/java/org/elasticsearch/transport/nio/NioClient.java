@@ -34,7 +34,7 @@ public class NioClient {
     private final ChannelFactory channelFactory;
     private final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
 
-    public NioClient(OpenChannels openChannels, Supplier<SocketSelector> selectorSupplier, ChannelFactory channelFactory) {
+    NioClient(OpenChannels openChannels, Supplier<SocketSelector> selectorSupplier, ChannelFactory channelFactory) {
         this.openChannels = openChannels;
         this.selectorSupplier = selectorSupplier;
         this.channelFactory = channelFactory;

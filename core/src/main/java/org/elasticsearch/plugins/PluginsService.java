@@ -34,6 +34,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -325,6 +326,9 @@ public class PluginsService extends AbstractComponent {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
+                if (FileSystemUtils.isDesktopServicesStore(plugin)) {
+                    continue;
+                }
                 logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
                 final PluginInfo info;
                 try {

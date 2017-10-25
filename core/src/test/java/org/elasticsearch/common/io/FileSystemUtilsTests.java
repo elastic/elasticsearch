@@ -19,19 +19,18 @@
 
 package org.elasticsearch.common.io;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.io.FileTestUtils.assertFileContent;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for {@link org.elasticsearch.common.io.FileSystemUtils}.
@@ -95,4 +94,16 @@ public class FileSystemUtilsTests extends ESTestCase {
             assertTrue(FileSystemUtils.isHidden(path));
         }
     }
+
+    public void testIsDesktopServicesStoreFile() throws IOException {
+        final Path path = createTempDir();
+        final Path desktopServicesStore = path.resolve(".DS_Store");
+        Files.createFile(desktopServicesStore);
+        assertThat(FileSystemUtils.isDesktopServicesStore(desktopServicesStore), equalTo(Constants.MAC_OS_X));
+
+        Files.delete(desktopServicesStore);
+        Files.createDirectory(desktopServicesStore);
+        assertFalse(FileSystemUtils.isDesktopServicesStore(desktopServicesStore));
+    }
+
 }

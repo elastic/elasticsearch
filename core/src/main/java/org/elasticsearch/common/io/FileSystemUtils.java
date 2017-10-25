@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 
 import java.io.BufferedReader;
@@ -65,6 +66,16 @@ public final class FileSystemUtils {
             return false;
         }
         return fileName.toString().startsWith(".");
+    }
+
+    /**
+     * Check whether the file denoted by the given path is a desktop services store created by Finder on macOS.
+     *
+     * @param path the path
+     * @return true if the current system is macOS and the specified file appears to be a desktop services store file
+     */
+    public static boolean isDesktopServicesStore(final Path path) {
+        return Constants.MAC_OS_X && Files.isRegularFile(path) && ".DS_Store".equals(path.getFileName().toString());
     }
 
     /**

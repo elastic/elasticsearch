@@ -59,8 +59,6 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     private volatile Maps maps = new Maps();
 
-    private ReferenceManager<?> mgr;
-
     /** Bytes consumed for each BytesRef UID:
      * In this base value, we account for the {@link BytesRef} object itself as
      * well as the header of the byte[] array it holds, and some lost bytes due
@@ -97,21 +95,6 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     /** Tracks bytes used by tombstones (deletes) */
     final AtomicLong ramBytesUsedTombstones = new AtomicLong();
-
-    /** Sync'd because we replace old mgr. */
-    synchronized void setManager(ReferenceManager<?> newMgr) {
-        if (mgr != null) {
-            mgr.removeListener(this);
-        }
-        mgr = newMgr;
-
-        // In case InternalEngine closes & opens a new IndexWriter/SearcherManager, all deletes are made visible, so we clear old and
-        // current here.  This is safe because caller holds writeLock here (so no concurrent adds/deletes can be happeninge):
-        maps = new Maps();
-
-        // So we are notified when reopen starts and finishes
-        mgr.addListener(this);
-    }
 
     @Override
     public void beforeRefresh() throws IOException {
@@ -249,11 +232,6 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // and this will lead to an assert trip.  Presumably it's fine if our ramBytesUsedTombstones is non-zero after clear since the index
         // is being closed:
         //ramBytesUsedTombstones.set(0);
-
-        if (mgr != null) {
-            mgr.removeListener(this);
-            mgr = null;
-        }
     }
 
     @Override

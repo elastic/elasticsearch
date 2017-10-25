@@ -26,14 +26,17 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -78,22 +81,20 @@ public class BulkProcessor implements Closeable {
 
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final Listener listener;
-        private final ThreadPool threadPool;
-
+        private final Scheduler scheduler;
+        private final Runnable onClose;
         private int concurrentRequests = 1;
         private int bulkActions = 1000;
         private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
 
-        /**
-         * Creates a builder of bulk processor with the client to use and the listener that will be used
-         * to be notified on the completion of bulk requests.
-         */
-        public Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, ThreadPool threadPool) {
+        private Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener,
+                        Scheduler scheduler, Runnable onClose) {
             this.consumer = consumer;
             this.listener = listener;
-            this.threadPool = threadPool;
+            this.scheduler = scheduler;
+            this.onClose = onClose;
         }
 
         /**
@@ -155,39 +156,51 @@ public class BulkProcessor implements Closeable {
          * Builds a new bulk processor.
          */
         public BulkProcessor build() {
-            return new BulkProcessor(consumer, backoffPolicy, listener, concurrentRequests, bulkActions, bulkSize, flushInterval, threadPool);
+            return new BulkProcessor(consumer, backoffPolicy, listener, concurrentRequests, bulkActions, bulkSize, flushInterval,
+                    scheduler, onClose);
         }
     }
 
     public static Builder builder(Client client, Listener listener) {
         Objects.requireNonNull(client, "client");
         Objects.requireNonNull(listener, "listener");
+        return new Builder(client::bulk, listener, client.threadPool(), () -> {});
+    }
 
-        return new Builder(client::bulk, listener, client.threadPool());
+    public static Builder builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener) {
+        Objects.requireNonNull(consumer, "consumer");
+        Objects.requireNonNull(listener, "listener");
+        final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = Scheduler.initScheduler(Settings.EMPTY);
+        return new Builder(consumer, listener,
+                (delay, executor, command) -> scheduledThreadPoolExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS),
+                () -> Scheduler.terminate(scheduledThreadPoolExecutor, 10, TimeUnit.SECONDS));
     }
 
     private final int bulkActions;
     private final long bulkSize;
 
-    private final ThreadPool.Cancellable cancellableFlushTask;
+    private final Scheduler.Cancellable cancellableFlushTask;
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
     private BulkRequest bulkRequest;
     private final BulkRequestHandler bulkRequestHandler;
+    private final Scheduler scheduler;
+    private final Runnable onClose;
 
     private volatile boolean closed = false;
 
     BulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, Listener listener,
                   int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
-                  ThreadPool threadPool) {
+                  Scheduler scheduler, Runnable onClose) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
-        this.bulkRequestHandler = new BulkRequestHandler(consumer, backoffPolicy, listener, threadPool, concurrentRequests);
-
+        this.scheduler = scheduler;
+        this.bulkRequestHandler = new BulkRequestHandler(consumer, backoffPolicy, listener, scheduler, concurrentRequests);
         // Start period flushing task after everything is setup
-        this.cancellableFlushTask = startFlushTask(flushInterval, threadPool);
+        this.cancellableFlushTask = startFlushTask(flushInterval, scheduler);
+        this.onClose = onClose;
     }
 
     /**
@@ -200,6 +213,7 @@ public class BulkProcessor implements Closeable {
         } catch (InterruptedException exc) {
             Thread.currentThread().interrupt();
         }
+        onClose.run();
     }
 
     /**
@@ -289,9 +303,9 @@ public class BulkProcessor implements Closeable {
         return this;
     }
 
-    private ThreadPool.Cancellable startFlushTask(TimeValue flushInterval, ThreadPool threadPool) {
+    private Scheduler.Cancellable startFlushTask(TimeValue flushInterval, Scheduler scheduler) {
         if (flushInterval == null) {
-            return new ThreadPool.Cancellable() {
+            return new Scheduler.Cancellable() {
                 @Override
                 public void cancel() {}
 
@@ -301,9 +315,8 @@ public class BulkProcessor implements Closeable {
                 }
             };
         }
-
-        final Runnable flushRunnable = threadPool.getThreadContext().preserveContext(new Flush());
-        return threadPool.scheduleWithFixedDelay(flushRunnable, flushInterval, ThreadPool.Names.GENERIC);
+        final Runnable flushRunnable = scheduler.preserveContext(new Flush());
+        return scheduler.scheduleWithFixedDelay(flushRunnable, flushInterval, ThreadPool.Names.GENERIC);
     }
 
     private void executeIfNeeded() {

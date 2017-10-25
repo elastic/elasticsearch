@@ -176,7 +176,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile,
+    protected NodeChannels connectToChannels(DiscoveryNode node,
+                                             ConnectionProfile profile,
                                              Consumer<MockChannel> onChannelClose) throws IOException {
         final MockChannel[] mockChannels = new MockChannel[1];
         final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
@@ -242,8 +243,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void closeChannels(List<MockChannel> channels, boolean blocking, boolean closingTransport) throws IOException {
-        if (closingTransport) {
+    protected void closeChannels(List<MockChannel> channels, boolean blocking, boolean doNotLinger) throws IOException {
+        if (doNotLinger) {
             for (MockChannel channel : channels) {
                 if (channel.activeChannel != null) {
                     /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
@@ -80,13 +81,18 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     }
 
     public void updateGlobalCheckpointForShard(final ShardId shardId) {
-        execute(
-                new Request(shardId),
-                ActionListener.wrap(r -> {}, e -> {
-                    if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                        logger.info(new ParameterizedMessage("{} global checkpoint sync failed", shardId), e);
-                    }
-                }));
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            execute(
+                    new Request(shardId),
+                    ActionListener.wrap(r -> {
+                    }, e -> {
+                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
+                            logger.info(new ParameterizedMessage("{} global checkpoint sync failed", shardId), e);
+                        }
+                    }));
+        }
     }
 
     @Override

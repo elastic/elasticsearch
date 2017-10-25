@@ -805,10 +805,10 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     jsonBuilder().startObject().field("field1", "b").endObject().bytes(), XContentType.JSON)))
             .add(client().prepareSearch("test")
                 .setQuery(new PercolateQueryBuilder("query",
-                    yamlBuilder().startObject().field("field1", "c").endObject().bytes(), XContentType.JSON)))
+                    yamlBuilder().startObject().field("field1", "c").endObject().bytes(), XContentType.YAML)))
             .add(client().prepareSearch("test")
                 .setQuery(new PercolateQueryBuilder("query",
-                    smileBuilder().startObject().field("field1", "b c").endObject().bytes(), XContentType.JSON)))
+                    smileBuilder().startObject().field("field1", "b c").endObject().bytes(), XContentType.SMILE)))
             .add(client().prepareSearch("test")
                 .setQuery(new PercolateQueryBuilder("query",
                     jsonBuilder().startObject().field("field1", "d").endObject().bytes(), XContentType.JSON)))

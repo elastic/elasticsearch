@@ -44,6 +44,9 @@ service when running in
 To disable the token service, set `xpack.security.authc.token.enabled`
 to `false` in your `elasticsearch.yml`. See
 {ref}/security-settings.html#token-service-settings[Token Service Settings].
+* Suggesters can no longer be used if document level security is enabled.
+The search request now fails with an error if suggesters are specified and
+document level security is active.
 
 Watcher::
 * The built-in HTTP client used in webhooks, the http input and the http email

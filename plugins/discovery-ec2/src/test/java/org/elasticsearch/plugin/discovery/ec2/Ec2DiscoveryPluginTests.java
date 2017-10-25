@@ -24,7 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-import org.elasticsearch.cloud.qiniu.AwsEc2Service;
+import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;

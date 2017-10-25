@@ -55,7 +55,6 @@ List projects = [
   'plugins:repository-gcs',
   'plugins:repository-hdfs',
   'plugins:repository-s3',
-  'plugins:repository-kodo',
   'plugins:jvm-example',
   'plugins:store-smb',
   'qa:backwards-5.0',
@@ -71,6 +70,7 @@ List projects = [
   'qa:smoke-test-plugins',
   'qa:smoke-test-reindex-with-painless',
   'qa:smoke-test-tribe-node',
+  'qa:vagrant',
 ]
 
 boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
@@ -119,6 +119,3 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
-include 'plugins:repository-kodo'
-findProject(':plugins:repository-kodo')?.name = 'repository'
-

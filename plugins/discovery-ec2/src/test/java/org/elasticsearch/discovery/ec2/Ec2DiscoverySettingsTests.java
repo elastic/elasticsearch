@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.Protocol;
-import org.elasticsearch.cloud.qiniu.AwsEc2Service;
+import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 

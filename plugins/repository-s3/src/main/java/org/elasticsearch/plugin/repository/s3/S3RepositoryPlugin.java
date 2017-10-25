@@ -28,8 +28,8 @@ import java.util.Map;
 
 import com.amazonaws.util.json.Jackson;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.qiniu.AwsS3Service;
-import org.elasticsearch.cloud.qiniu.InternalAwsS3Service;
+import org.elasticsearch.cloud.aws.AwsS3Service;
+import org.elasticsearch.cloud.aws.InternalAwsS3Service;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

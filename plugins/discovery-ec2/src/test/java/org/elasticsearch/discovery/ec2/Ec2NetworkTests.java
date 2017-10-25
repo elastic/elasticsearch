@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import org.elasticsearch.cloud.qiniu.network.Ec2NameResolver;
+import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;

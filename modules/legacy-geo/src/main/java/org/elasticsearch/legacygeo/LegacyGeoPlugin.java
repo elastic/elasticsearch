@@ -38,7 +38,7 @@ public class LegacyGeoPlugin extends Plugin implements MapperPlugin, SearchPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-     // No leniency needed since the transport client does not register mappers
+        // No leniency needed since the transport client does not register mappers
         return Collections.singletonMap(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
     }
 

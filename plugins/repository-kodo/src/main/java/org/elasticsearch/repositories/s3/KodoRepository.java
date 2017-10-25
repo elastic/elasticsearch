@@ -19,13 +19,10 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
-import com.amazonaws.services.s3.AmazonS3;
-import org.elasticsearch.cloud.qiniu.AwsS3Service;
-import org.elasticsearch.cloud.qiniu.AwsS3Service.CLOUD_S3;
-import org.elasticsearch.cloud.qiniu.InternalAwsS3Service;
-import org.elasticsearch.cloud.qiniu.blobstore.S3BlobStore;
+import org.elasticsearch.cloud.qiniu.QiniuKodoClient;
+import org.elasticsearch.cloud.qiniu.QiniuKodoService;
+import org.elasticsearch.cloud.qiniu.QiniuKodoService.CLOUD_Qiniu;
+import org.elasticsearch.cloud.qiniu.blobstore.KodoBlobStore;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -56,16 +53,17 @@ import java.util.Locale;
  * <dt>{@code region}</dt><dd>S3 region. Defaults to us-east</dd>
  * <dt>{@code base_path}</dt><dd>Specifies the path within bucket to repository data. Defaults to root directory.</dd>
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
- * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
+ * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks.
+ * This parameter specifies the chunk size. Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class S3Repository extends BlobStoreRepository {
+public class KodoRepository extends BlobStoreRepository {
 
-    public static final String TYPE = "s3";
+    public static final String TYPE = "kodo";
 
     // prefix for s3 client settings
-    private static final String PREFIX = "s3.client.";
+    private static final String PREFIX = "kodo.client.";
 
     /** The access key (ie login id) for connecting to s3. */
     public static final AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(PREFIX, "access_key",
@@ -79,29 +77,6 @@ public class S3Repository extends BlobStoreRepository {
     public static final AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
         key -> new Setting<>(key, Repositories.ENDPOINT_SETTING, s -> s.toLowerCase(Locale.ROOT), Property.NodeScope));
 
-    /** The protocol to use to connec to to s3. */
-    public static final AffixSetting<Protocol> PROTOCOL_SETTING = Setting.affixKeySetting(PREFIX, "protocol",
-        key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope));
-
-    /** The host name of a proxy to connect to s3 through. */
-    public static final AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(PREFIX, "proxy.host",
-        key -> Setting.simpleString(key, Property.NodeScope));
-
-    /** The port of a proxy to connect to s3 through. */
-    public static final AffixSetting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(PREFIX, "proxy.port",
-        key -> Setting.intSetting(key, 80, 0, 1<<16, Property.NodeScope));
-
-    /** The username of a proxy to connect to s3 through. */
-    public static final AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(PREFIX, "proxy.username",
-        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_USERNAME_SETTING, false));
-
-    /** The password of a proxy to connect to s3 through. */
-    public static final AffixSetting<SecureString> PROXY_PASSWORD_SETTING = Setting.affixKeySetting(PREFIX, "proxy.password",
-        key -> SecureSetting.secureString(key, AwsS3Service.PROXY_PASSWORD_SETTING, false));
-
-    /** The socket timeout for connecting to s3. */
-    public static final AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope));
 
     /**
      * Global S3 repositories settings. Starting with: repositories.s3
@@ -110,36 +85,31 @@ public class S3Repository extends BlobStoreRepository {
     public interface Repositories {
         /**
          * repositories.s3.access_key: AWS Access key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.access_key.
-         * @see CLOUD_S3#KEY_SETTING
+         * @see CLOUD_Qiniu#KEY_SETTING
          */
-        Setting<SecureString> KEY_SETTING = new Setting<>("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, SecureString::new,
+        Setting<SecureString> KEY_SETTING = new Setting<>("repositories.s3.access_key", CLOUD_Qiniu.KEY_SETTING, SecureString::new,
             Property.NodeScope, Property.Filtered, Property.Deprecated);
 
         /**
          * repositories.s3.secret_key: AWS Secret key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.secret_key.
-         * @see CLOUD_S3#SECRET_SETTING
+         * @see CLOUD_Qiniu#SECRET_SETTING
          */
-        Setting<SecureString> SECRET_SETTING = new Setting<>("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, SecureString::new,
+        Setting<SecureString> SECRET_SETTING = new Setting<>("repositories.s3.secret_key", CLOUD_Qiniu.SECRET_SETTING, SecureString::new,
             Property.NodeScope, Property.Filtered, Property.Deprecated);
 
         /**
          * repositories.s3.region: Region specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.region.
-         * @see CLOUD_S3#REGION_SETTING
+         * @see CLOUD_Qiniu#REGION_SETTING
          */
-        Setting<String> REGION_SETTING = new Setting<>("repositories.s3.region", CLOUD_S3.REGION_SETTING,
+        Setting<String> REGION_SETTING = new Setting<>("repositories.s3.region", CLOUD_Qiniu.REGION_SETTING,
             s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.endpoint: Endpoint specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.endpoint.
-         * @see CLOUD_S3#ENDPOINT_SETTING
+         * @see CLOUD_Qiniu#ENDPOINT_SETTING
          */
-        Setting<String> ENDPOINT_SETTING = new Setting<>("repositories.s3.endpoint", CLOUD_S3.ENDPOINT_SETTING,
+        Setting<String> ENDPOINT_SETTING = new Setting<>("repositories.s3.endpoint", CLOUD_Qiniu.ENDPOINT_SETTING,
             s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Deprecated);
-        /**
-         * repositories.s3.protocol: Protocol specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.protocol.
-         * @see CLOUD_S3#PROTOCOL_SETTING
-         */
-        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("repositories.s3.protocol", CLOUD_S3.PROTOCOL_SETTING,
-            s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope, Property.Deprecated);
+
         /**
          * repositories.s3.bucket: The name of the bucket to be used for snapshots.
          */
@@ -176,11 +146,6 @@ public class S3Repository extends BlobStoreRepository {
          * repositories.s3.max_retries: Number of retries in case of S3 errors. Defaults to 3.
          */
         Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("repositories.s3.max_retries", 3, Property.NodeScope);
-        /**
-         * repositories.s3.use_throttle_retries: Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
-         */
-        Setting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.boolSetting("repositories.s3.use_throttle_retries",
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope);
         /**
          * repositories.s3.chunk_size: Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
          */
@@ -236,12 +201,6 @@ public class S3Repository extends BlobStoreRepository {
          */
         Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint", Property.Deprecated);
         /**
-         * protocol
-         * @see  Repositories#PROTOCOL_SETTING
-         */
-        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
-            Property.Deprecated);
-        /**
          * region
          * @see  Repositories#REGION_SETTING
          */
@@ -264,12 +223,8 @@ public class S3Repository extends BlobStoreRepository {
          * @see  Repositories#MAX_RETRIES_SETTING
          */
         Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3);
-        /**
-         * use_throttle_retries
-         * @see  Repositories#USE_THROTTLE_RETRIES_SETTING
-         */
-        Setting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.boolSetting("use_throttle_retries",
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES);
+
+        Setting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.boolSetting("use_throttle_retries", true);
         /**
          * chunk_size
          * @see  Repositories#CHUNK_SIZE_SETTING
@@ -282,29 +237,16 @@ public class S3Repository extends BlobStoreRepository {
          * @see  Repositories#COMPRESS_SETTING
          */
         Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false);
-        /**
-         * storage_class
-         * @see  Repositories#STORAGE_CLASS_SETTING
-         */
-        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
-        /**
-         * canned_acl
-         * @see  Repositories#CANNED_ACL_SETTING
-         */
-        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl");
+
         /**
          * base_path
          * @see  Repositories#BASE_PATH_SETTING
          */
         Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
-        /**
-         * path_style_access
-         * @see  Repositories#PATH_STYLE_ACCESS_SETTING
-         */
-        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("path_style_access", false);
+
     }
 
-    private final S3BlobStore blobStore;
+    private final KodoBlobStore blobStore;
 
     private final BlobPath basePath;
 
@@ -315,19 +257,17 @@ public class S3Repository extends BlobStoreRepository {
     /**
      * Constructs an s3 backed repository
      */
-    public S3Repository(RepositoryMetaData metadata, Settings settings,
-                        NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) throws IOException {
+    public KodoRepository(RepositoryMetaData metadata, Settings settings,
+                          NamedXContentRegistry namedXContentRegistry, QiniuKodoService kodoService) throws IOException {
         super(metadata, settings, namedXContentRegistry);
 
         String bucket = getValue(metadata.settings(), settings, Repository.BUCKET_SETTING, Repositories.BUCKET_SETTING);
         if (bucket == null) {
-            throw new RepositoryException(metadata.name(), "No bucket defined for s3 gateway");
+            throw new RepositoryException(metadata.name(), "No bucket defined for kodo");
         }
 
-        boolean serverSideEncryption = getValue(metadata.settings(), settings, Repository.SERVER_SIDE_ENCRYPTION_SETTING, Repositories.SERVER_SIDE_ENCRYPTION_SETTING);
         ByteSizeValue bufferSize = getValue(metadata.settings(), settings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING);
         Integer maxRetries = getValue(metadata.settings(), settings, Repository.MAX_RETRIES_SETTING, Repositories.MAX_RETRIES_SETTING);
-        boolean useThrottleRetries = getValue(metadata.settings(), settings, Repository.USE_THROTTLE_RETRIES_SETTING, Repositories.USE_THROTTLE_RETRIES_SETTING);
         this.chunkSize = getValue(metadata.settings(), settings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING);
         this.compress = getValue(metadata.settings(), settings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING);
 
@@ -337,27 +277,13 @@ public class S3Repository extends BlobStoreRepository {
                 ") can't be lower than " + Repository.BUFFER_SIZE_SETTING.getKey() + " (" + bufferSize + ").");
         }
 
-        // Parse and validate the user's S3 Storage Class setting
-        String storageClass = getValue(metadata.settings(), settings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING);
-        String cannedACL = getValue(metadata.settings(), settings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING);
+        logger.debug("using bucket [{}], chunk_size [{}],  " +
+            "buffer_size [{}], max_retries [{}], use_throttle_retries [{}]",
+            bucket, chunkSize, bufferSize, maxRetries);
 
-        // If the user defined a path style access setting, we rely on it otherwise we use the default
-        // value set by the SDK
-        Boolean pathStyleAccess = null;
-        if (Repository.PATH_STYLE_ACCESS_SETTING.exists(metadata.settings()) ||
-            Repositories.PATH_STYLE_ACCESS_SETTING.exists(settings)) {
-            pathStyleAccess = getValue(metadata.settings(), settings, Repository.PATH_STYLE_ACCESS_SETTING, Repositories.PATH_STYLE_ACCESS_SETTING);
-        }
-
-        logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
-            "buffer_size [{}], max_retries [{}], use_throttle_retries [{}], cannedACL [{}], storageClass [{}], path_style_access [{}]",
-            bucket, chunkSize, serverSideEncryption, bufferSize, maxRetries, useThrottleRetries, cannedACL,
-            storageClass, pathStyleAccess);
-
-        AmazonS3 client = s3Service.client(metadata.settings(), maxRetries, useThrottleRetries, pathStyleAccess);
-        String region = InternalAwsS3Service.getRegion(metadata.settings(), settings);
-        blobStore = new S3BlobStore(settings, client,
-                bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
+        QiniuKodoClient client = kodoService.client(metadata.settings(), maxRetries, true);
+        blobStore = new KodoBlobStore(settings, client,
+                bucket, "", bufferSize, maxRetries);
 
         String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
         if (Strings.hasLength(basePath)) {

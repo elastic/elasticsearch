@@ -939,7 +939,7 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private static <T> void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+    private static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String timeout = randomTimeValue();
             setter.accept(timeout);

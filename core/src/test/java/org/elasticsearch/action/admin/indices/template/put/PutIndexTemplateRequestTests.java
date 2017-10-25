@@ -35,6 +35,8 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 
 public class PutIndexTemplateRequestTests extends ESTestCase {
 
@@ -125,7 +127,7 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
 
         request.patterns(Collections.singletonList("test-*"));
         ActionRequestValidationException noError = request.validate();
-        assertTrue(noError == null || noError.validationErrors().isEmpty());
+        assertThat(noError, is(nullValue()));
     }
 
 }

@@ -33,11 +33,12 @@ Monitoring::
 Security::
 * Improved the error messages that are returned by the `setup-passwords` command.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2724[#2724]
-////
+
 Watcher::
-* Watcher: Ensure all templates exist before starting watcher
+* Added verification that the required templates exist before {watcher} starts.
+For more information, see
+{xpack-ref}/how-watcher-works.html#scripts-templates[Scripts and Templates].
 // https://github.com/elastic/x-pack-elasticsearch/pull/2765[#2765] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2761[#2761])
-////
 
 [[xes-bug-6.0.0-rc2]]
 [float]

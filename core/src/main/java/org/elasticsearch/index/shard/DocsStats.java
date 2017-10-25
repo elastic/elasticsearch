@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -31,22 +32,30 @@ public class DocsStats implements Streamable, ToXContentFragment {
 
     long count = 0;
     long deleted = 0;
+    long averageSizeInBytes = 0;
 
     public DocsStats() {
 
     }
 
-    public DocsStats(long count, long deleted) {
+    public DocsStats(long count, long deleted, long averageSizeInBytes) {
         this.count = count;
         this.deleted = deleted;
+        this.averageSizeInBytes = averageSizeInBytes;
     }
 
-    public void add(DocsStats docsStats) {
-        if (docsStats == null) {
+    public void add(DocsStats that) {
+        if (that == null) {
             return;
         }
-        count += docsStats.count;
-        deleted += docsStats.deleted;
+        long totalBytes = this.averageSizeInBytes * (this.count + this.deleted)
+                        + that.averageSizeInBytes * (that.count + that.deleted);
+        long totalDocs = this.count + this.deleted + that.count + that.deleted;
+        if (totalDocs > 0) {
+            this.averageSizeInBytes = totalBytes / totalDocs;
+        }
+        this.count += that.count;
+        this.deleted += that.deleted;
     }
 
     public long getCount() {
@@ -57,16 +66,26 @@ public class DocsStats implements Streamable, ToXContentFragment {
         return this.deleted;
     }
 
+    public long getAverageSizeInBytes() {
+        return averageSizeInBytes;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         count = in.readVLong();
         deleted = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            averageSizeInBytes = in.readVLong();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
         out.writeVLong(deleted);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeVLong(averageSizeInBytes);
+        }
     }
 
     @Override

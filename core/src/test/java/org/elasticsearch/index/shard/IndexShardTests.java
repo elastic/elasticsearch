@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.VersionType;
@@ -150,6 +151,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -2227,6 +2229,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final DocsStats docsStats = indexShard.docStats();
                 assertThat(docsStats.getCount(), equalTo(numDocs));
                 assertThat(docsStats.getDeleted(), equalTo(0L));
+                assertThat(docsStats.getAverageSizeInBytes(), greaterThan(0L));
             }
 
             final List<Integer> ids = randomSubsetOf(
@@ -2263,7 +2266,62 @@ public class IndexShardTests extends IndexShardTestCase {
                 final DocsStats docStats = indexShard.docStats();
                 assertThat(docStats.getCount(), equalTo(numDocs));
                 assertThat(docStats.getDeleted(), equalTo(0L));
+                assertThat(docStats.getAverageSizeInBytes(), greaterThan(0L));
             }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testEstimateAverageDocSize() throws Exception {
+        IndexShard indexShard = null;
+        try {
+            indexShard = newStartedShard(true);
+            int smallDocNum = randomIntBetween(5, 100);
+            for (int i = 0; i < smallDocNum; i++) {
+                indexDoc(indexShard, "test", "small-" + i);
+            }
+            // Average document size is estimated by sampling segments, thus it should be zero without flushing.
+            DocsStats withoutFlush = indexShard.docStats();
+            assertThat(withoutFlush.averageSizeInBytes, equalTo(0L));
+
+            indexShard.flush(new FlushRequest());
+            indexShard.refresh("test");
+            DocsStats smallStats = indexShard.docStats();
+            assertThat(smallStats.averageSizeInBytes, greaterThan(10L));
+
+            long storedAvgSize = indexShard.storeStats().sizeInBytes() / smallDocNum;
+            assertThat("Estimated average document size is too small compared with the average stored size",
+                smallStats.averageSizeInBytes, greaterThanOrEqualTo(storedAvgSize * 80/100));
+            assertThat("Estimated average document size is too large compared with the average stored size",
+                smallStats.averageSizeInBytes, lessThanOrEqualTo(storedAvgSize * 120/100));
+
+            // Indexing large documents should increase the average document size.
+            int largeDocNum = randomIntBetween(100, 200);
+            for (int i = 0; i < largeDocNum; i++) {
+                String doc = XContentFactory.jsonBuilder()
+                    .startObject()
+                        .field("count", randomInt())
+                        .field("point", randomFloat())
+                        .field("description", randomUnicodeOfCodepointLength(100))
+                    .endObject().string();
+                indexDoc(indexShard, "test", "large-" + i, doc);
+            }
+            indexShard.flush(new FlushRequest());
+            indexShard.refresh("test");
+            DocsStats largeStats = indexShard.docStats();
+            assertThat(largeStats.averageSizeInBytes, greaterThan(100L));
+            assertThat(largeStats.averageSizeInBytes, greaterThan(smallStats.averageSizeInBytes));
+
+            int deleteDocs = randomIntBetween(1, smallDocNum / 2);
+            for (int i = 0; i < deleteDocs; i++) {
+                deleteDoc(indexShard, "test", "small-" + i);
+            }
+            indexShard.flush(new FlushRequest());
+            indexShard.refresh("test");
+            DocsStats withDeletedStats = indexShard.docStats();
+            assertThat(withDeletedStats.averageSizeInBytes, greaterThan(largeStats.averageSizeInBytes));
+
         } finally {
             closeShards(indexShard);
         }

@@ -20,15 +20,6 @@ set by using `xpack.ml.enabled` and `xpack.ml.max_open_jobs`
 * Improved modeling of long periodic components, particularly when there is a
 long bucket span.
 // https://github.com/elastic/machine-learning-cpp/pull/298[#298] (issue: https://github.com/elastic/machine-learning-cpp/issues/272[#272])
-////
-Monitoring::
-* [Monitoring] Cleaner Service should be able to cleanup .watcher-history*
-// https://github.com/elastic/x-pack-elasticsearch/pull/2696[#2696] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1337[#1337])
-* [Monitoring] Clean .watcher-history-* indices by default in 6.0+ [OPEN]
-// https://github.com/elastic/x-pack-elasticsearch/pull/2720[#2720] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1337[#1337])
-* [Monitoring] Remove MonitoringSettings
-// https://github.com/elastic/x-pack-elasticsearch/pull/2596[#2596]
-////
 
 Security::
 * Improved the error messages that are returned by the `setup-passwords` command.
@@ -39,6 +30,11 @@ Watcher::
 For more information, see
 {xpack-ref}/how-watcher-works.html#scripts-templates[Scripts and Templates].
 // https://github.com/elastic/x-pack-elasticsearch/pull/2765[#2765] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2761[#2761])
+* Added the `xpack.watcher.history.cleaner_service.enabled` setting. You can use
+this setting to enable or disable the cleaner service, which removes previous
+versions of {watcher} indices (for example, .watcher-history*) when it
+determines that they are old. For more information, see <<notification-settings>>.
+// https://github.com/elastic/x-pack-elasticsearch/pull/2696[#2696] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1337[#1337])
 
 [[xes-bug-6.0.0-rc2]]
 [float]

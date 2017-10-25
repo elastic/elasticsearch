@@ -7,14 +7,20 @@
 
 You configure `xpack.notification` settings in `elasticsearch.yml` to
 send set up {watcher} and send notifications via <<email-notification-settings, email>>,
-<<hipchat-notification-settings, HipChat>>, <<slack-notification-settings,
-Slack>>, and <<pagerduty-notification-settings, PagerDuty>>.
+<<hipchat-notification-settings, HipChat>>,
+<<slack-notification-settings,Slack>>, and
+<<pagerduty-notification-settings, PagerDuty>>.
 
 [float]
 [[general-notification-settings]]
 ==== General Watcher Settings
 `xpack.watcher.enabled`::
 Set to `false` to disable {watcher} on the node.
+
+`xpack.watcher.history.cleaner_service.enabled`::
+Set to `false` (default) to disable the cleaner service, which removes previous
+versions of {watcher} indices (for example, .watcher-history*) when it
+determines that they are old.
 
 `xpack.http.proxy.host`::
 Specifies the address of the proxy server to use to connect to HTTP services.

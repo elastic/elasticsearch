@@ -1,0 +1,117 @@
+:buildSrc:compileJava UP-TO-DATE
+:buildSrc:compileGroovy UP-TO-DATE
+:buildSrc:writeVersionProperties UP-TO-DATE
+:buildSrc:processResources UP-TO-DATE
+:buildSrc:classes UP-TO-DATE
+:buildSrc:jar UP-TO-DATE
+:buildSrc:assemble UP-TO-DATE
+:buildSrc:compileTestJava UP-TO-DATE
+:buildSrc:compileTestGroovy NO-SOURCE
+:buildSrc:processTestResources NO-SOURCE
+:buildSrc:testClasses UP-TO-DATE
+:buildSrc:test NO-SOURCE
+:buildSrc:check UP-TO-DATE
+:buildSrc:build UP-TO-DATE
+=======================================
+Elasticsearch Build Hamster says Hello!
+=======================================
+  Gradle Version        : 3.5.1
+  OS Info               : Linux 4.13.4-200.fc26.x86_64 (amd64)
+  JDK Version           : Oracle Corporation 1.8.0_144 [OpenJDK 64-Bit Server VM 25.144-b01]
+  JAVA_HOME             : /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.144-7.b01.fc26.x86_64
+  Random Testing Seed   : 2E950AEF82BCA72F
+The executable property on ForkOptions has been deprecated and is scheduled to be removed in Gradle 5.0. Please use javaHome instead.
+:core:compileJava UP-TO-DATE
+:core:generateModulesList UP-TO-DATE
+:core:generatePluginsList UP-TO-DATE
+:core:processResources UP-TO-DATE
+:core:classes UP-TO-DATE
+:core:jar UP-TO-DATE
+:client:rest:compileJava UP-TO-DATE
+:client:rest:processResources NO-SOURCE
+:client:rest:classes UP-TO-DATE
+:client:rest:jar UP-TO-DATE
+:modules:reindex:compileJava UP-TO-DATE
+:modules:reindex:processResources NO-SOURCE
+:modules:reindex:classes UP-TO-DATE
+:modules:reindex:copyCheckstyleConf UP-TO-DATE
+:modules:reindex:checkstyleMain UP-TO-DATE
+:modules:parent-join:compileJava UP-TO-DATE
+:modules:parent-join:processResources UP-TO-DATE
+:modules:parent-join:classes UP-TO-DATE
+:modules:parent-join:jar UP-TO-DATE
+:modules:parent-join:copyPluginPropertiesTemplate
+:modules:parent-join:pluginProperties UP-TO-DATE
+:modules:reindex:copyParentJoinMetadata UP-TO-DATE
+:modules:transport-netty4:copyPluginPropertiesTemplate
+:modules:transport-netty4:pluginProperties UP-TO-DATE
+:modules:reindex:copyTransportNetty4Metadata UP-TO-DATE
+:modules:reindex:copyPluginPropertiesTemplate
+:modules:reindex:pluginProperties UP-TO-DATE
+:modules:transport-netty4:compileJava UP-TO-DATE
+:modules:transport-netty4:processResources NO-SOURCE
+:modules:transport-netty4:classes UP-TO-DATE
+:modules:transport-netty4:jar UP-TO-DATE
+:test:framework:compileJava UP-TO-DATE
+:test:framework:processResources UP-TO-DATE
+:test:framework:classes UP-TO-DATE
+:test:framework:jar UP-TO-DATE
+:modules:reindex:compileTestJava
+:modules:reindex:processTestResources UP-TO-DATE
+:modules:reindex:testClasses
+:modules:reindex:checkstyleTest
+:modules:reindex:forbiddenApisMain UP-TO-DATE
+:modules:reindex:forbiddenApisTest
+:modules:reindex:forbiddenApis
+:modules:reindex:jar UP-TO-DATE
+:modules:reindex:bundlePlugin UP-TO-DATE
+:distribution:buildCoreNotice UP-TO-DATE
+:modules:transport-netty4:bundlePlugin UP-TO-DATE
+:distribution:buildTransportModules UP-TO-DATE
+:distribution:integ-test-zip:createPluginsDir
+:distribution:tools:java-version-checker:compileJava UP-TO-DATE
+:distribution:tools:java-version-checker:processResources NO-SOURCE
+:distribution:tools:java-version-checker:classes UP-TO-DATE
+:distribution:tools:java-version-checker:jar UP-TO-DATE
+:distribution:tools:plugin-cli:compileJava UP-TO-DATE
+:distribution:tools:plugin-cli:processResources NO-SOURCE
+:distribution:tools:plugin-cli:classes UP-TO-DATE
+:distribution:tools:plugin-cli:jar UP-TO-DATE
+:distribution:integ-test-zip:buildZip UP-TO-DATE
+:modules:reindex:integTestCluster#prepareCluster.cleanShared
+:modules:reindex:integTestCluster#clean
+:modules:reindex:integTestCluster#checkPrevious SKIPPED
+:modules:reindex:integTestCluster#stopPrevious SKIPPED
+:modules:reindex:integTestCluster#extract
+:modules:reindex:integTestCluster#configure
+:modules:reindex:integTestCluster#installReindexModule
+:modules:reindex:integTestCluster#start
+:rest-api-spec:compileJava NO-SOURCE
+:rest-api-spec:processResources UP-TO-DATE
+:rest-api-spec:classes UP-TO-DATE
+:rest-api-spec:jar UP-TO-DATE
+:modules:reindex:copyRestSpec UP-TO-DATE
+:modules:reindex:checkstyle
+:modules:reindex:dependencyLicenses
+:modules:reindex:forbiddenPatterns UP-TO-DATE
+:modules:reindex:jarHell
+:modules:reindex:licenseHeaders
+:test:logger-usage:compileJava UP-TO-DATE
+:test:logger-usage:processResources NO-SOURCE
+:test:logger-usage:classes UP-TO-DATE
+:test:logger-usage:jar UP-TO-DATE
+:modules:reindex:loggerUsageCheck
+:build-tools:compileJava UP-TO-DATE
+:build-tools:compileGroovy UP-TO-DATE
+:build-tools:writeVersionProperties UP-TO-DATE
+:build-tools:processResources UP-TO-DATE
+:build-tools:classes UP-TO-DATE
+:build-tools:jar UP-TO-DATE
+:modules:reindex:namingConventions
+:modules:reindex:thirdPartyAudit SKIPPED
+:modules:reindex:precommit
+:modules:reindex:test
+==> Test Info: seed=B024FB0FAD72759A; jvms=3; suites=30
+HEARTBEAT J0 PID(12966@localhost.localdomain): 2017-10-25T19:20:17, stalled for 11.5s at: ReindexVersioningTests.testCreateVersionConflictsOnOlder
+HEARTBEAT J1 PID(12970@localhost.localdomain): 2017-10-25T19:20:19, stalled for 11.0s at: UpdateByQueryWhileModifyingTests.testUpdateWhileReindexing
+HEARTBEAT J2 PID(12971@localhost.localdomain): 2017-10-25T19:20:21, stalled for 11.9s at: RetryTests.testDeleteByQuery

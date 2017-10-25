@@ -53,8 +53,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Integration test for retry behavior. Useful because retrying relies on the way that the rest of Elasticsearch throws exceptions and unit
- * tests won't verify that.
+ * Integration test for retry behavior. Useful because retrying relies on the way that the
+ * rest of Elasticsearch throws exceptions and unit tests won't verify that.
  */
 public class RetryTests extends ESIntegTestCase {
 
@@ -146,6 +146,15 @@ public class RetryTests extends ESIntegTestCase {
             Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> request,
             BulkIndexByScrollResponseMatcher matcher)
             throws Exception {
+        /*
+         * These test cases work by stuffing the search and bulk queues of a single node and
+         * making sure that we read and write from that node. Because of some "fun" with the
+         * way that searches work, we need at least one more node to act as the coordinating
+         * node for the search request. If we didn't do this then the searches would get stuck
+         * in the queue anyway because we force queue portions of the coordinating node's
+         * actions. This is not a big deal in normal operations but a real pain when you are
+         * intentionally stuffing queues hoping for a failure.
+         */
 
         final Settings nodeSettings = Settings.builder()
                 // use pools of size 1 so we can block them
@@ -164,27 +173,26 @@ public class RetryTests extends ESIntegTestCase {
                         .put("index.routing.allocation.include.color", "blue")
                         .build();
 
-        final Client masterClient = internalCluster().masterClient();
         // Create the source index on the node with small thread pools so we can block them.
-        masterClient.admin().indices().prepareCreate("source").setSettings(indexSettings).execute().actionGet();
+        client().admin().indices().prepareCreate("source").setSettings(indexSettings).execute().actionGet();
         // Not all test cases use the dest index but those that do require that it be on the node will small thread pools
-        masterClient.admin().indices().prepareCreate("dest").setSettings(indexSettings).execute().actionGet();
+        client().admin().indices().prepareCreate("dest").setSettings(indexSettings).execute().actionGet();
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
-        BulkRequestBuilder bulk = masterClient.prepareBulk();
+        BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < DOC_COUNT; i++) {
-            bulk.add(masterClient.prepareIndex("source", "test").setSource("foo", "bar " + i));
+            bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
         }
 
-        Retry retry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.exponentialBackoff(), masterClient.threadPool());
-        BulkResponse initialBulkResponse = retry.withBackoff(masterClient::bulk, bulk.request(), masterClient.settings()).actionGet();
+        Retry retry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.exponentialBackoff(), client().threadPool());
+        BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request(), client().settings()).actionGet();
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
-        masterClient.admin().indices().prepareRefresh("source").get();
+        client().admin().indices().prepareRefresh("source").get();
 
         logger.info("Blocking search");
         CyclicBarrier initialSearchBlock = blockExecutor(ThreadPool.Names.SEARCH, node);
 
+        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
         // Make sure we use more than one batch so we have to scroll
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(masterClient);
         builder.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 
         logger.info("Starting request");
@@ -192,24 +200,24 @@ public class RetryTests extends ESIntegTestCase {
 
         try {
             logger.info("Waiting for search rejections on the initial search");
-            assertBusy(() -> assertThat(taskStatus(masterClient, action).getSearchRetries(), greaterThan(0L)));
+            assertBusy(() -> assertThat(taskStatus(action).getSearchRetries(), greaterThan(0L)));
 
             logger.info("Blocking bulk and unblocking search so we start to get bulk rejections");
             CyclicBarrier bulkBlock = blockExecutor(ThreadPool.Names.BULK, node);
             initialSearchBlock.await();
 
             logger.info("Waiting for bulk rejections");
-            assertBusy(() -> assertThat(taskStatus(masterClient, action).getBulkRetries(), greaterThan(0L)));
+            assertBusy(() -> assertThat(taskStatus(action).getBulkRetries(), greaterThan(0L)));
 
             // Keep a copy of the current number of search rejections so we can assert that we get more when we block the scroll
-            long initialSearchRejections = taskStatus(masterClient, action).getSearchRetries();
+            long initialSearchRejections = taskStatus(action).getSearchRetries();
 
             logger.info("Blocking search and unblocking bulk so we should get search rejections for the scroll");
             CyclicBarrier scrollBlock = blockExecutor(ThreadPool.Names.SEARCH, node);
             bulkBlock.await();
 
             logger.info("Waiting for search rejections for the scroll");
-            assertBusy(() -> assertThat(taskStatus(masterClient, action).getSearchRetries(), greaterThan(initialSearchRejections)));
+            assertBusy(() -> assertThat(taskStatus(action).getSearchRetries(), greaterThan(initialSearchRejections)));
 
             logger.info("Unblocking the scroll");
             scrollBlock.await();
@@ -254,8 +262,13 @@ public class RetryTests extends ESIntegTestCase {
     /**
      * Fetch the status for a task of type "action". Fails if there aren't exactly one of that type of task running.
      */
-    private BulkByScrollTask.Status taskStatus(Client client, String action) {
-        ListTasksResponse response = client.admin().cluster().prepareListTasks().setActions(action).setDetailed(true).get();
+    private BulkByScrollTask.Status taskStatus(String action) {
+        /*
+         * We always use the master client because we always start the test requests on the
+         * master. We do this simply to make sure that the test request is not started on the
+         * node who's queue we're manipulating.
+         */
+        ListTasksResponse response = client().admin().cluster().prepareListTasks().setActions(action).setDetailed(true).get();
         assertThat(response.getTasks(), hasSize(1));
         return (BulkByScrollTask.Status) response.getTasks().get(0).getStatus();
     }

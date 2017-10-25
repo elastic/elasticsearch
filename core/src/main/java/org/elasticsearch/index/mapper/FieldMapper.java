@@ -292,7 +292,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 .metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                    fields.add(new Field(FieldNamesFieldMapper.NAME, fieldName, fieldNamesFieldType));
+                fields.add(new Field(FieldNamesFieldMapper.NAME, fieldName, fieldNamesFieldType));
             }
         }
     }

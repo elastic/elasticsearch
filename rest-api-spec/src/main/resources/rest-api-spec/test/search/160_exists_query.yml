@@ -583,6 +583,9 @@ setup:
 
 ---
 "Test exists query on _uid field":
+  - skip:
+      version: " - 6.1.0"
+      reason: exists on _uid not supported prior to 6.1.0
   - do:
       search:
           index: test
@@ -595,6 +598,9 @@ setup:
 
 ---
 "Test exists query on _index field":
+  - skip:
+      version: " - 6.1.0"
+      reason: exists on _index not supported prior to 6.1.0
   - do:
       search:
           index: test
@@ -607,6 +613,9 @@ setup:
 
 ---
 "Test exists query on _type field":
+  - skip:
+      version: " - 6.1.0"
+      reason: exists on _type not supported prior to 6.1.0
   - do:
       search:
           index: test
@@ -643,6 +652,9 @@ setup:
 
 ---
 "Test exists query on _source field":
+  - skip:
+      version: " - 6.1.0"
+      reason: exists on _source not supported prior to 6.1.0
   - do:
       catch: /query_shard_exception/
       search:

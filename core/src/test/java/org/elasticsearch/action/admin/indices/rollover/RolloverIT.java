@@ -19,13 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -128,13 +130,18 @@ public class RolloverIT extends ESIntegTestCase {
         index("test_index-0", "type1", "1", "field", "value");
         flush("test_index-0");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
+            .addMaxIndexSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB))
             .addMaxIndexAgeCondition(TimeValue.timeValueHours(4)).get();
         assertThat(response.getOldIndex(), equalTo("test_index-0"));
         assertThat(response.getNewIndex(), equalTo("test_index-000001"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(false));
-        assertThat(response.getConditionStatus().size(), equalTo(1));
+        assertThat(response.getConditionStatus().size(), equalTo(2));
         final Map.Entry<String, Boolean> conditionEntry = response.getConditionStatus().iterator().next();
+
+        assertThat(conditionEntry.getKey(), equalTo(new MaxSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB)).toString()));
+        assertThat(conditionEntry.getValue(), equalTo(false));
+
         assertThat(conditionEntry.getKey(), equalTo(new MaxAgeCondition(TimeValue.timeValueHours(4)).toString()));
         assertThat(conditionEntry.getValue(), equalTo(false));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -217,5 +224,34 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
+    }
+
+    public void testRolloverMaxSize() throws Exception {
+        assertAcked(prepareCreate("test-1").addAlias(new Alias("test_alias")).get());
+        int numDocs = randomIntBetween(10, 20);
+        for (int i = 0; i < numDocs; i++) {
+            index("test-1", "type", Integer.toString(i), "field", "foo-" + i);
+        }
+        flush("test-1");
+
+        // No rollover with a large max_size condition.
+        RolloverResponse response = client().admin().indices()
+            .prepareRolloverIndex("test_alias")
+            .addMaxIndexSizeCondition(new ByteSizeValue(randomIntBetween(100, 50*1024), ByteSizeUnit.MB))
+            .get();
+
+        assertThat(response.getOldIndex(), equalTo("test-1"));
+        assertThat(response.getNewIndex(), equalTo("test-000002"));
+        assertThat(response.isRolledOver(), equalTo(false));
+
+        // Should rollover with a extremely small max_size condition.
+        response = client().admin().indices()
+            .prepareRolloverIndex("test_alias")
+            .addMaxIndexSizeCondition(new ByteSizeValue(randomIntBetween(1, 20), ByteSizeUnit.BYTES))
+            .get();
+
+        assertThat(response.getOldIndex(), equalTo("test-1"));
+        assertThat(response.getNewIndex(), equalTo("test-000002"));
+        assertThat(response.isRolledOver(), equalTo(true));
     }
 }

@@ -40,6 +40,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.settings.Setting.boolSetting;
+
 /**
  * Base class for all services and components that need up-to-date information about the registered remote clusters
  */
@@ -53,6 +55,11 @@ public abstract class RemoteClusterAware extends AbstractComponent {
             Setting.Property.NodeScope, Setting.Property.Dynamic));
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
+
+    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_IF_DISCONNECTED =
+            Setting.affixKeySetting("search.remote.", "skip_if_disconnected",
+                    key -> boolSetting(key, false, Setting.Property.NodeScope, Setting.Property.Dynamic));
+
     protected final ClusterNameExpressionResolver clusterNameResolver;
 
     /**
@@ -160,7 +167,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
         }
     }
 
-    public static final String buildRemoteIndexName(String clusterAlias, String indexName) {
+    public static String buildRemoteIndexName(String clusterAlias, String indexName) {
         return clusterAlias != null ? clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName : indexName;
     }
 }

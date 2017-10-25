@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -211,38 +212,38 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
             final String[] indices = entry.getValue().indices();
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
-                .indicesOptions(indicesOptions).local(true).preference(preference)
-                .routing(routing);
+                    .indicesOptions(indicesOptions).local(true).preference(preference)
+                    .routing(routing);
             remoteClusterConnection.fetchSearchShards(searchShardsRequest,
-                new ActionListener<ClusterSearchShardsResponse>() {
-                    @Override
-                    public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
-                        searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
-                        if (responsesCountDown.countDown()) {
-                            TransportException exception = transportException.get();
-                            if (exception == null) {
-                                listener.onResponse(searchShardsResponses);
-                            } else {
-                                listener.onFailure(transportException.get());
+                    new ActionListener<ClusterSearchShardsResponse>() {
+                        @Override
+                        public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
+                            searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
+                            if (responsesCountDown.countDown()) {
+                                TransportException exception = transportException.get();
+                                if (exception == null) {
+                                    listener.onResponse(searchShardsResponses);
+                                } else {
+                                    listener.onFailure(transportException.get());
+                                }
                             }
                         }
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        TransportException exception = new TransportException("unable to communicate with remote cluster [" +
-                            clusterName + "]", e);
-                        if (transportException.compareAndSet(null, exception) == false) {
-                            exception = transportException.accumulateAndGet(exception, (previous, current) -> {
-                                current.addSuppressed(previous);
-                                return current;
-                            });
+                        @Override
+                        public void onFailure(Exception e) {
+                            TransportException exception = new TransportException("unable to communicate with remote cluster [" +
+                                    clusterName + "]", e);
+                            if (transportException.compareAndSet(null, exception) == false) {
+                                exception = transportException.accumulateAndGet(exception, (previous, current) -> {
+                                    current.addSuppressed(previous);
+                                    return current;
+                                });
+                            }
+                            if (responsesCountDown.countDown()) {
+                                listener.onFailure(exception);
+                            }
                         }
-                        if (responsesCountDown.countDown()) {
-                            listener.onFailure(exception);
-                        }
-                    }
-                });
+                    });
         }
     }
 
@@ -281,6 +282,26 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     protected Set<String> getRemoteClusterNames() {
         return this.remoteClusters.keySet();
+    }
+
+    @Override
+    public void listenForUpdates(ClusterSettings clusterSettings) {
+        super.listenForUpdates(clusterSettings);
+        clusterSettings.addAffixUpdateConsumer(RemoteClusterAware.REMOTE_CLUSTER_SKIP_IF_DISCONNECTED, this::updateSkipIfDisconnected,
+                (clusterAlias, value) -> {});
+    }
+
+    synchronized void updateSkipIfDisconnected(String clusterAlias, Boolean skipIfDisconnected) {
+        RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
+        //assert remote != null : "remote cluster [" + clusterAlias + "] not registered";
+        //this happens if skip_if_disconnected is provided for a remote cluster that is not registered.
+        //for instance if you set seeds to null in the same call where you set skip_if_disconnected to null, the latter will not find
+        //the remote cluster.
+        //TODO it should be possible to remove the if and uncomment the assertion above once we accept
+        //the skip_if_disconnected setting only for registered remote clusters.
+        if (remote != null) {
+            remote.updateSkipIfDisconnected(skipIfDisconnected);
+        }
     }
 
     protected void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {

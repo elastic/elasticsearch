@@ -179,6 +179,82 @@ will be prefixed with their remote cluster name:
 // TESTRESPONSE
 
 [float]
+=== Skipping disconnected clusters
+
+By default all remote clusters that are searched via Cross Cluster Search need to be available when
+the search request is executed, otherwise the whole request fails and no search results are returned
+despite some of the clusters are available. Remote clusters can be made optional through the
+boolean `skip_if_disconnected` setting, set to `false` by default.
+
+[source,js]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "search": {
+      "remote": {
+        "cluster_one": {
+          "skip_if_disconnected": true <1>
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// CONSOLE
+<1> `cluster_one` is made optional
+
+[source,js]
+--------------------------------------------------
+POST /cluster_one:twitter,twitter/tweet/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:we don't have two clusters set up during docs testing]
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 89,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 10,
+    "successful" : 10,
+    "failed" : 0
+  },
+  "_clusters" : {
+    "total" : 2,
+    "successful" : 1,
+    "skipped" : 1
+  },
+  "hits" : {
+    "total" : 1,
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "twitter",
+        "_type" : "tweet",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "user" : "kimchy",
+          "postDate" : "2009-11-15T14:12:12",
+          "message" : "trying out Elasticsearch"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+
+[float]
 [[cross-cluster-search-settings]]
 === Cross cluster search settings
 
@@ -204,6 +280,14 @@ will be prefixed with their remote cluster name:
   to `false` (defaults to `true`) to prevent certain nodes from connecting to
   remote clusters. Cross-cluster search requests must be sent to a node that
   is allowed to act as a cross-cluster client.
+
+`search.remote.${cluster_alias}.skip_if_disconnected`::
+
+  Per cluster boolean setting that allows to skip specific clusters when no
+  nodes belonging to them are available and they are searched as part of a
+  cross cluster search request. Default is `false`, meaning that all clusters
+  are mandatory by default, but they can selectively be made optional by
+  setting this setting to `true`.
 
 [float]
 [[retrieve-remote-clusters-info]]

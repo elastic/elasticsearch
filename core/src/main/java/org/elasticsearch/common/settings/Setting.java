@@ -643,7 +643,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * Returns the namespace for a concrete settting. Ie. an affix setting with prefix: <tt>search.</tt> and suffix: <tt>username</tt>
+         * Returns the namespace for a concrete setting. Ie. an affix setting with prefix: <tt>search.</tt> and suffix: <tt>username</tt>
          * will return <tt>remote</tt> as a namespace for the setting <tt>search.remote.username</tt>
          */
         public String getNamespace(Setting<T> concreteSetting) {
@@ -1180,9 +1180,7 @@ public class Setting<T> implements ToXContentObject {
     private static <T> AffixSetting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory) {
         Setting<T> delegate = delegateFactory.apply("_na_");
         return new AffixSetting<>(key, delegate, delegateFactory);
-    };
-
-
+    }
 
     public interface Key {
         boolean match(String key);

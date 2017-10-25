@@ -20,13 +20,20 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
 
 public final class FetchSourceSubPhase implements FetchSubPhase {
 
@@ -35,22 +42,27 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
         if (context.sourceRequested() == false) {
             return;
         }
+        final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
         SourceLookup source = context.lookup().source();
         FetchSourceContext fetchSourceContext = context.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
-        if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {
-            hitContext.hit().sourceRef(source.internalSourceRef());
-            return;
+        if (nestedHit == false) {
+            if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {
+                hitContext.hit().sourceRef(source.internalSourceRef());
+                return;
+            }
+            if (source.internalSourceRef() == null) {
+                throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
+                        "for index [" + context.indexShard().shardId().getIndexName() + "]");
+            }
         }
 
-        if (source.internalSourceRef() == null) {
-            throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
-                    "for index [" + context.indexShard().shardId().getIndexName() + "]");
+        Object value = source.filter(fetchSourceContext);
+        if (nestedHit) {
+            value = getNestedSource((Map<String, Object>) value, hitContext);
         }
-
-        final Object value = source.filter(fetchSourceContext);
         try {
-            final int initialCapacity = Math.min(1024, source.internalSourceRef().length());
+            final int initialCapacity = nestedHit ? 1024 : Math.min(1024, source.internalSourceRef().length());
             BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
             XContentBuilder builder = new XContentBuilder(source.sourceContentType().xContent(), streamOutput);
             builder.value(value);
@@ -58,6 +70,12 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
         } catch (IOException e) {
             throw new ElasticsearchException("Error filtering source", e);
         }
+    }
 
+    private Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {
+        for (SearchHit.NestedIdentity o = hitContext.hit().getNestedIdentity(); o != null; o = o.getChild()) {
+            sourceAsMap = (Map<String, Object>) sourceAsMap.get(o.getField().string());
+        }
+        return sourceAsMap;
     }
 }

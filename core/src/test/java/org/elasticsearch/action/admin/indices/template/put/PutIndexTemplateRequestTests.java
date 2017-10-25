@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +32,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 
 public class PutIndexTemplateRequestTests extends ESTestCase {
 
@@ -107,4 +111,21 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
             assertEquals("template", request.patterns().get(0));
         }
     }
+
+    public void testValidateErrorMessage() throws Exception {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        ActionRequestValidationException withoutNameAndPattern = request.validate();
+        assertThat(withoutNameAndPattern.getMessage(), containsString("name is missing"));
+        assertThat(withoutNameAndPattern.getMessage(), containsString("index patterns are missing"));
+
+        request.name("foo");
+        ActionRequestValidationException withoutIndexPatterns = request.validate();
+        assertThat(withoutIndexPatterns.validationErrors(), hasSize(1));
+        assertThat(withoutIndexPatterns.getMessage(), containsString("index patterns are missing"));
+
+        request.patterns(Collections.singletonList("test-*"));
+        ActionRequestValidationException noError = request.validate();
+        assertTrue(noError == null || noError.validationErrors().isEmpty());
+    }
+
 }

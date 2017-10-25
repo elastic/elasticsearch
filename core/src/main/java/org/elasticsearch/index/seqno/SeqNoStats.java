@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -52,8 +53,9 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
     }
 
     public SeqNoStats(StreamInput in) throws IOException {
-        // TODO: bwc versioning:
-        this(in.readZLong(), in.readZLong(), in.readZLong(), in.readString());
+        // TODO: use right 6.x version
+        this(in.readZLong(), in.readZLong(), in.readZLong(),
+                in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) ? in.readString() : null);
     }
 
     /** the maximum sequence number seen so far */
@@ -79,8 +81,10 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
         out.writeZLong(maxSeqNo);
         out.writeZLong(localCheckpoint);
         out.writeZLong(globalCheckpoint);
-        // TODO: bwc versioning:
-        out.writeString(historyUUID);
+        // TODO: use right 6.x version
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeString(historyUUID);
+        }
     }
 
     @Override

@@ -76,7 +76,13 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     public int read(NetworkBytes bytes) throws IOException {
-        int bytesRead = socketChannel.read(bytes.getWriteByteBuffer());
+        int bytesRead;
+        if (bytes.isCompositeBuffer()) {
+            bytesRead = (int) socketChannel.read(bytes.getWriteByteBuffers());
+        } else {
+            bytesRead = socketChannel.read(bytes.getWriteByteBuffer());
+
+        }
 
         if (bytesRead == -1) {
             return bytesRead;

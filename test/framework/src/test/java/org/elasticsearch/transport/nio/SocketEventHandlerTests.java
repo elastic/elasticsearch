@@ -56,7 +56,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     public void setUpHandler() throws IOException {
         exceptionHandler = mock(BiConsumer.class);
         SocketSelector socketSelector = mock(SocketSelector.class);
-        handler = new SocketEventHandler(logger, exceptionHandler);
+        handler = new SocketEventHandler(logger, exceptionHandler, mock(OpenChannels.class));
         rawChannel = mock(SocketChannel.class);
         channel = new DoNotRegisterChannel("", rawChannel, socketSelector);
         readContext = mock(ReadContext.class);

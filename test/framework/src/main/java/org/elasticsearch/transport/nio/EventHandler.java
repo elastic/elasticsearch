@@ -30,9 +30,11 @@ import java.nio.channels.Selector;
 public abstract class EventHandler {
 
     protected final Logger logger;
+    private final OpenChannels openChannels;
 
-    EventHandler(Logger logger) {
+    public EventHandler(Logger logger, OpenChannels openChannels) {
         this.logger = logger;
+        this.openChannels = openChannels;
     }
 
     /**
@@ -70,6 +72,7 @@ public abstract class EventHandler {
      * @param channel that should be closed
      */
     void handleClose(NioChannel channel) {
+        openChannels.channelClosed(channel);
         channel.closeFromSelector();
         CloseFuture closeFuture = channel.getCloseFuture();
         assert closeFuture.isDone() : "Should always be done as we are on the selector thread";

@@ -197,8 +197,9 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
     // node id to actual channel
     protected final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
 
-    protected final Map<String, List<Channel>> serverChannels = newConcurrentMap();
     protected final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
+    private final Map<String, List<Channel>> serverChannels = newConcurrentMap();
+    private final Set<Channel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     protected final KeyedLock<String> connectionLock = new KeyedLock<>();
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -944,12 +945,15 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
             try {
                 // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
-                    try {
-                        TcpChannelUtils.closeServerChannels(entry.getKey(), entry.getValue(), logger);
-                    } catch (Exception e) {
-                        logger.warn(new ParameterizedMessage("Error closing serverChannel for profile [{}]", entry.getKey()), e);
-                    }
+                    TcpChannelUtils.closeServerChannels(entry.getKey(), entry.getValue(), logger);
                 }
+                serverChannels.clear();
+
+                // close all of the incoming channels
+                TcpChannelUtils.closeChannels(new ArrayList<>(acceptedChannels), true, logger);
+                acceptedChannels.clear();
+
+
                 // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
                 // all instances and then clear them maps
                 Iterator<Map.Entry<DiscoveryNode, NodeChannels>> iterator = connectedNodes.entrySet().iterator();
@@ -1031,6 +1035,13 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                 (Supplier<?>) () -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
             TcpChannelUtils.closeChannel(channel, false, logger);
+        }
+    }
+
+    protected void serverAcceptedChannel(Channel channel) {
+        if (acceptedChannels.add(channel)) {
+            TcpChannelUtils.addCloseExceptionListener(channel, logger);
+            channel.getCloseFuture().addListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
         }
     }
 

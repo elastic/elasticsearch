@@ -22,14 +22,13 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.transport.TcpChannelUtils;
-import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -76,6 +75,10 @@ public class OpenChannels implements Releasable {
         if (added && logger.isTraceEnabled()) {
             logger.trace("client channel opened: {}", channel);
         }
+    }
+
+    public Map<NioSocketChannel, Long> getClientChannels() {
+        return openClientChannels;
     }
 
     public void channelClosed(NioChannel channel) {

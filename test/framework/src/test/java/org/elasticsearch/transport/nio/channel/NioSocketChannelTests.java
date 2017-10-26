@@ -22,6 +22,7 @@ package org.elasticsearch.transport.nio.channel;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TcpChannelUtils;
+import org.elasticsearch.transport.nio.OpenChannels;
 import org.elasticsearch.transport.nio.SocketEventHandler;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.junit.After;
@@ -47,11 +48,13 @@ public class NioSocketChannelTests extends ESTestCase {
     private SocketSelector selector;
     private AtomicBoolean closedRawChannel;
     private Thread thread;
+    private OpenChannels openChannels;
 
     @Before
     @SuppressWarnings("unchecked")
     public void startSelector() throws IOException {
-        selector = new SocketSelector(new SocketEventHandler(logger, mock(BiConsumer.class)));
+        openChannels = new OpenChannels(logger);
+        selector = new SocketSelector(new SocketEventHandler(logger, mock(BiConsumer.class), openChannels));
         thread = new Thread(selector::runLoop);
         closedRawChannel = new AtomicBoolean(false);
         thread.start();
@@ -69,6 +72,7 @@ public class NioSocketChannelTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
 
         NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, mock(SocketChannel.class), selector);
+        openChannels.clientChannelOpened(socketChannel);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         Consumer<NioChannel> listener = (c) -> {
             ref.set(c);
@@ -79,6 +83,7 @@ public class NioSocketChannelTests extends ESTestCase {
 
         assertFalse(closeFuture.isClosed());
         assertFalse(closedRawChannel.get());
+        assertTrue(openChannels.getClientChannels().containsKey(socketChannel));
 
         TcpChannelUtils.closeChannel(socketChannel, false, logger);
 
@@ -86,6 +91,7 @@ public class NioSocketChannelTests extends ESTestCase {
 
         assertTrue(closedRawChannel.get());
         assertTrue(closeFuture.isClosed());
+        assertFalse(openChannels.getClientChannels().containsKey(socketChannel));
         latch.await();
         assertSame(socketChannel, ref.get());
     }

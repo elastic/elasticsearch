@@ -49,7 +49,7 @@ public class NioServerSocketChannelTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void setSelector() throws IOException {
-        selector = new AcceptingSelector(new AcceptorEventHandler(logger, mock(OpenChannels.class), mock(Supplier.class)));
+        selector = new AcceptingSelector(new AcceptorEventHandler(logger, mock(OpenChannels.class), mock(Supplier.class), (c) -> {}));
         thread = new Thread(selector::runLoop);
         closedRawChannel = new AtomicBoolean(false);
         thread.start();

@@ -40,7 +40,8 @@ public class TcpChannelUtils {
     public static <C extends TcpChannel<C>> void closeChannel(C channel, boolean blocking, Logger logger) {
         if (channel.isOpen()) {
             ListenableActionFuture<C> f = channel.closeAsync();
-            f.addListener(ActionListener.wrap(c -> {},
+            f.addListener(ActionListener.wrap(c -> {
+                },
                 e -> logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), e)));
             if (blocking) {
                 blockOnFutures(Collections.singletonList(f));
@@ -53,7 +54,8 @@ public class TcpChannelUtils {
         for (final C channel : channels) {
             if (channel.isOpen()) {
                 ListenableActionFuture<C> f = channel.closeAsync();
-                f.addListener(ActionListener.wrap(c -> {},
+                f.addListener(ActionListener.wrap(c -> {
+                    },
                     e -> logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), e)));
                 futures.add(f);
             }
@@ -69,7 +71,8 @@ public class TcpChannelUtils {
         for (final C channel : channels) {
             if (channel.isOpen()) {
                 ListenableActionFuture<C> f = channel.closeAsync();
-                f.addListener(ActionListener.wrap(c -> {},
+                f.addListener(ActionListener.wrap(c -> {
+                    },
                     e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)));
                 futures.add(f);
             }
@@ -120,5 +123,10 @@ public class TcpChannelUtils {
                 throw new IllegalStateException("Future got interrupted", e);
             }
         }
+    }
+
+    public static <Channel extends TcpChannel<Channel>> void addCloseExceptionListener(Channel channel, Logger logger) {
+        channel.getCloseFuture().addListener(ActionListener.wrap(c -> {},
+            e -> logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), e)));
     }
 }

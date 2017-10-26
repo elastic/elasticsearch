@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
+import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -411,8 +412,18 @@ public class NodeStatsTests extends ESTestCase {
         }
         ScriptStats scriptStats = frequently() ?
                 new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
-        DiscoveryStats discoveryStats = frequently() ? new DiscoveryStats(randomBoolean() ? new PendingClusterStateStats(randomInt(),
-                randomInt(), randomInt()) : null) : null;
+        DiscoveryStats discoveryStats = frequently()
+            ? new DiscoveryStats(
+                randomBoolean()
+                ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt())
+                : null,
+                randomBoolean()
+                ? new PublishClusterStateStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong())
+                : null)
+            : null;
         IngestStats ingestStats = null;
         if (frequently()) {
             IngestStats.Stats totalStats = new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),

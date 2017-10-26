@@ -184,8 +184,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected ChannelFuture<MockChannel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
-        throws IOException {
+    protected PlainChannelFuture<MockChannel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         final MockSocket socket = new MockSocket();
         boolean success = false;

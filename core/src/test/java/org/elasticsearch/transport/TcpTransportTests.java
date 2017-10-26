@@ -225,7 +225,8 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected ChannelFuture<FakeChannel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException {
+                protected PlainChannelFuture<FakeChannel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
+                    throws IOException {
                     FakeChannel fakeChannel = new FakeChannel();
                     return new PlainChannelFuture<>(fakeChannel);
                 }

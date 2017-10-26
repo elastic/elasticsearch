@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 
-public class PlainChannelFuture<Channel> extends PlainActionFuture<Channel> implements ChannelFuture<Channel> {
+public class PlainChannelFuture<Channel> extends PlainActionFuture<Channel> {
 
     private final Channel channel;
 
@@ -29,7 +29,6 @@ public class PlainChannelFuture<Channel> extends PlainActionFuture<Channel> impl
         this.channel = nioChannel;
     }
 
-    @Override
     public Channel channel() {
         return channel;
     }

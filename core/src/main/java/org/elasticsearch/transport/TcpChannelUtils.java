@@ -81,12 +81,12 @@ public class TcpChannelUtils {
         blockOnFutures(futures);
     }
 
-    public static <C extends TcpChannel<C>> void finishConnection(DiscoveryNode discoveryNode, List<ChannelFuture<C>> pendingChannels,
+    public static <C extends TcpChannel<C>> void finishConnection(DiscoveryNode discoveryNode, List<PlainChannelFuture<C>> pendingChannels,
                                                                   TimeValue connectTimeout) throws ConnectTransportException {
         Exception connectionException = null;
         boolean allConnected = true;
 
-        for (ChannelFuture<C> pendingChannel : pendingChannels) {
+        for (PlainChannelFuture<C> pendingChannel : pendingChannels) {
             try {
                 pendingChannel.get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
             } catch (TimeoutException e) {

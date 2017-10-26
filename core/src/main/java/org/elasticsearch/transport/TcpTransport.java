@@ -589,10 +589,10 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
             try {
                 Exception connectionException = null;
                 int numConnections = connectionProfile.getNumConnections();
-                List<ChannelFuture<Channel>> pendingChannels = new ArrayList<>(numConnections);
+                List<PlainChannelFuture<Channel>> pendingChannels = new ArrayList<>(numConnections);
                 for (int i = 0; i < numConnections; ++i) {
                     try {
-                        ChannelFuture<Channel> pending = initiateChannel(node, connectionProfile.getConnectTimeout());
+                        PlainChannelFuture<Channel> pending = initiateChannel(node, connectionProfile.getConnectTimeout());
                         pendingChannels.add(pending);
                     } catch (Exception e) {
                         connectionException = e;
@@ -600,8 +600,12 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                     }
                 }
 
+                // We add listeners to log in the case of an exception at time of channel close
+                pendingChannels.forEach((c) -> TcpChannelUtils.addCloseExceptionListener(c.channel(), logger));
+
+                // If there was an exception when attempting to instantiate the raw channels, we close all of the channels
                 if (connectionException != null) {
-                    List<Channel> toClose = pendingChannels.stream().map(ChannelFuture::channel).collect(Collectors.toList());
+                    List<Channel> toClose = pendingChannels.stream().map(PlainChannelFuture::channel).collect(Collectors.toList());
                     TcpChannelUtils.closeChannels(toClose, false, logger);
                     throw connectionException;
                 }
@@ -1077,7 +1081,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
      * @return a channel future representing the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract ChannelFuture<Channel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException;
+    protected abstract PlainChannelFuture<Channel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException;
 
     /**
      * Called to tear down internal resources

@@ -1,8 +1,5 @@
 ---
 "Put job and datafeed in old cluster":
-  - skip:
-      version:  "all"
-      reason:   "Awaiting fix of #1760"
 
   - do:
       xpack.ml.put_job:

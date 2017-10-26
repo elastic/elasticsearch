@@ -7,10 +7,6 @@ setup:
 
 ---
 "Test get old cluster job":
-  - skip:
-      version:  "all"
-      reason:   "Awaiting fix of #1760"
-
   - do:
       xpack.ml.get_jobs:
         job_id: old-cluster-job
@@ -48,10 +44,6 @@ setup:
 
 ---
 "Create a job in the mixed cluster and write some data":
-  - skip:
-      version:  "all"
-      reason:   "Awaiting fix of #1760"
-
   - do:
       xpack.ml.put_job:
         job_id: mixed-cluster-job

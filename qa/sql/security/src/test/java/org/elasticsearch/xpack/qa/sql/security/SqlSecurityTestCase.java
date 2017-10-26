@@ -5,29 +5,21 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
-import org.apache.http.Header;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 import org.junit.Before;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,16 +30,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.columnInfo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
@@ -58,16 +49,25 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
      */
     protected interface Actions {
         void queryWorksAsAdmin() throws Exception;
+        /**
+         * Assert that running some sql as a user returns the same result as running it as
+         * the administrator.
+         */
         void expectMatchesAdmin(String adminSql, String user, String userSql) throws Exception;
+        /**
+         * Same as {@link #expectMatchesAdmin(String, String, String)} but sets the scroll size
+         * to 1 and completely scrolls the results.
+         */
+        void expectScrollMatchesAdmin(String adminSql, String user, String userSql) throws Exception;
         void expectDescribe(Map<String, String> columns, String user) throws Exception;
         void expectShowTables(List<String> tables, String user) throws Exception;
-        
+
         void expectForbidden(String user, String sql) throws Exception;
         void expectUnknownColumn(String user, String sql, String column) throws Exception;
     }
 
-    private static final String SQL_ACTION_NAME = "indices:data/read/sql";
-    private static final String SQL_INDICES_ACTION_NAME = "indices:data/read/sql/tables";
+    protected static final String SQL_ACTION_NAME = "indices:data/read/sql";
+    protected static final String SQL_INDICES_ACTION_NAME = "indices:data/read/sql/tables";
     /**
      * Location of the audit log file. We could technically figure this out by reading the admin
      * APIs but it isn't worth doing because we also have to give ourselves permission to read
@@ -94,7 +94,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
      * The actions taken by this test.
      */
     private final Actions actions;
-    
+
     /**
      * How much of the audit log was written before the test started.
      */
@@ -179,48 +179,86 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         }
     }
 
-    // NOCOMMIT we'll have to test scrolling as well
-    // NOCOMMIT assert that we don't have more audit logs then what we expect.
-
     public void testQueryWorksAsAdmin() throws Exception {
         actions.queryWorksAsAdmin();
-        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
+        new AuditLogAsserter()
+            .expectSqlWithSyncLookup("test_admin", "test")
+            .assertLogs();
     }
 
     public void testQueryWithFullAccess() throws Exception {
         createUser("full_access", "read_all");
 
         actions.expectMatchesAdmin("SELECT * FROM test ORDER BY a", "full_access", "SELECT * FROM test ORDER BY a");
-        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
-        assertAuditForSqlGetTableSyncGranted("full_access", "test");
+        new AuditLogAsserter()
+            .expectSqlWithSyncLookup("test_admin", "test")
+            .expectSqlWithSyncLookup("full_access", "test")
+            .assertLogs();
+    }
+
+    public void testScrollWithFullAccess() throws Exception {
+        createUser("full_access", "read_all");
+
+        actions.expectScrollMatchesAdmin("SELECT * FROM test ORDER BY a", "full_access", "SELECT * FROM test ORDER BY a");
+        new AuditLogAsserter()
+            .expectSqlWithSyncLookup("test_admin", "test")
+            /* Scrolling doesn't have to access the index again, at least not through sql.
+             * If we asserted query and scroll logs then we would see the scoll. */
+            .expect(true, SQL_ACTION_NAME, "test_admin", empty())
+            .expect(true, SQL_ACTION_NAME, "test_admin", empty())
+            .expectSqlWithSyncLookup("full_access", "test")
+            .expect(true, SQL_ACTION_NAME, "full_access", empty())
+            .expect(true, SQL_ACTION_NAME, "full_access", empty())
+            .assertLogs();
     }
 
     public void testQueryNoAccess() throws Exception {
         createUser("no_access", "read_nothing");
 
         actions.expectForbidden("no_access", "SELECT * FROM test");
-        assertAuditEvents(audit(false, SQL_ACTION_NAME, "no_access", empty()));
+        new AuditLogAsserter()
+            .expect(false, SQL_ACTION_NAME, "no_access", empty())
+            .assertLogs();
     }
 
     public void testQueryWrongAccess() throws Exception {
         createUser("wrong_access", "read_something_else");
 
         actions.expectForbidden("wrong_access", "SELECT * FROM test");
-        assertAuditEvents(
-                /* This user has permission to run sql queries so they are
-                 * given preliminary authorization. */
-                audit(true, SQL_ACTION_NAME, "wrong_access", empty()),
-                /* But as soon as they attempt to resolve an index that
-                 * they don't have access to they get denied. */
-                audit(false, SQL_ACTION_NAME, "wrong_access", hasItems("test")));
+        new AuditLogAsserter()
+            /* This user has permission to run sql queries so they are
+             * given preliminary authorization. */
+            .expect(true, SQL_ACTION_NAME, "wrong_access", empty())
+            /* But as soon as they attempt to resolve an index that
+             * they don't have access to they get denied. */
+            .expect(false, SQL_ACTION_NAME, "wrong_access", hasItems("test"))
+            .assertLogs();
     }
 
     public void testQuerySingleFieldGranted() throws Exception {
         createUser("only_a", "read_test_a");
 
-        actions.expectMatchesAdmin("SELECT a FROM test", "only_a", "SELECT * FROM test");
-        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
-        assertAuditForSqlGetTableSyncGranted("only_a", "test");
+        actions.expectMatchesAdmin("SELECT a FROM test ORDER BY a", "only_a", "SELECT * FROM test ORDER BY a");
+        new AuditLogAsserter()
+            .expectSqlWithSyncLookup("test_admin", "test")
+            .expectSqlWithSyncLookup("only_a", "test")
+            .assertLogs();
+    }
+
+    public void testScrollWithSingleFieldGranted() throws Exception {
+        createUser("only_a", "read_test_a");
+
+        actions.expectScrollMatchesAdmin("SELECT a FROM test ORDER BY a", "only_a", "SELECT * FROM test ORDER BY a");
+        new AuditLogAsserter()
+            .expectSqlWithSyncLookup("test_admin", "test")
+            /* Scrolling doesn't have to access the index again, at least not through sql.
+             * If we asserted query and scroll logs then we would see the scoll. */
+            .expect(true, SQL_ACTION_NAME, "test_admin", empty())
+            .expect(true, SQL_ACTION_NAME, "test_admin", empty())
+            .expectSqlWithSyncLookup("only_a", "test")
+            .expect(true, SQL_ACTION_NAME, "only_a", empty())
+            .expect(true, SQL_ACTION_NAME, "only_a", empty())
+            .assertLogs();
     }
 
     public void testQueryStringSingeFieldGrantedWrongRequested() throws Exception {
@@ -233,15 +271,35 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
          * query from the audit side because all the permissions checked
          * out but it failed in SQL because it couldn't compile the
          * query without the metadata for the missing field. */
-        assertAuditForSqlGetTableSyncGranted("only_a", "test");
+        new AuditLogAsserter()
+            .expectSqlWithSyncLookup("only_a", "test")
+            .assertLogs();
     }
 
     public void testQuerySingleFieldExcepted() throws Exception {
         createUser("not_c", "read_test_a_and_b");
 
-        actions.expectMatchesAdmin("SELECT a, b FROM test", "not_c", "SELECT * FROM test");
-        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
-        assertAuditForSqlGetTableSyncGranted("not_c", "test");
+        actions.expectMatchesAdmin("SELECT a, b FROM test ORDER BY a", "not_c", "SELECT * FROM test ORDER BY a");
+        new AuditLogAsserter()
+            .expectSqlWithSyncLookup("test_admin", "test")
+            .expectSqlWithSyncLookup("not_c", "test")
+            .assertLogs();
+    }
+
+    public void testScrollWithSingleFieldExcepted() throws Exception {
+        createUser("not_c", "read_test_a_and_b");
+
+        actions.expectScrollMatchesAdmin("SELECT a, b FROM test ORDER BY a", "not_c", "SELECT * FROM test ORDER BY a");
+        new AuditLogAsserter()
+            .expectSqlWithSyncLookup("test_admin", "test")
+            /* Scrolling doesn't have to access the index again, at least not through sql.
+             * If we asserted query and scroll logs then we would see the scoll. */
+            .expect(true, SQL_ACTION_NAME, "test_admin", empty())
+            .expect(true, SQL_ACTION_NAME, "test_admin", empty())
+            .expectSqlWithSyncLookup("not_c", "test")
+            .expect(true, SQL_ACTION_NAME, "not_c", empty())
+            .expect(true, SQL_ACTION_NAME, "not_c", empty())
+            .assertLogs();
     }
 
     public void testQuerySingleFieldExceptionedWrongRequested() throws Exception {
@@ -254,60 +312,67 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
          * query from the audit side because all the permissions checked
          * out but it failed in SQL because it couldn't compile the
          * query without the metadata for the missing field. */
-        assertAuditForSqlGetTableSyncGranted("not_c", "test");
+        new AuditLogAsserter()
+            .expectSqlWithSyncLookup("not_c", "test")
+            .assertLogs();
     }
 
     public void testQueryDocumentExclued() throws Exception {
         createUser("no_3s", "read_test_without_c_3");
 
-        actions.expectMatchesAdmin("SELECT * FROM test WHERE c != 3", "no_3s", "SELECT * FROM test");
-        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
-        assertAuditForSqlGetTableSyncGranted("no_3s", "test");
+        actions.expectMatchesAdmin("SELECT * FROM test WHERE c != 3 ORDER BY a", "no_3s", "SELECT * FROM test ORDER BY a");
+        new AuditLogAsserter()
+            .expectSqlWithSyncLookup("test_admin", "test")
+            .expectSqlWithSyncLookup("no_3s", "test")
+            .assertLogs();
     }
 
     public void testShowTablesWorksAsAdmin() throws Exception {
         actions.expectShowTables(Arrays.asList("bort", "test"), null);
-        assertAuditEvents(
-                audit(true, SQL_ACTION_NAME, "test_admin", empty()),
-                audit(true, SQL_INDICES_ACTION_NAME, "test_admin", hasItems("test", "bort")));
+        new AuditLogAsserter()
+            .expectSqlWithAsyncLookup("test_admin", "bort", "test")
+            .assertLogs();
     }
 
     public void testShowTablesWorksAsFullAccess() throws Exception {
         createUser("full_access", "read_all");
 
         actions.expectMatchesAdmin("SHOW TABLES", "full_access", "SHOW TABLES");
-        assertAuditEvents(
-                audit(true, SQL_ACTION_NAME, "test_admin", empty()),
-                audit(true, SQL_INDICES_ACTION_NAME, "test_admin", hasItems("test", "bort")),
-                audit(true, SQL_ACTION_NAME, "full_access", empty()),
-                audit(true, SQL_INDICES_ACTION_NAME, "full_access", hasItems("test", "bort")));
+        new AuditLogAsserter()
+            .expectSqlWithAsyncLookup("test_admin", "bort", "test")
+            .expectSqlWithAsyncLookup("full_access", "bort", "test")
+            .assertLogs();
     }
 
     public void testShowTablesWithNoAccess() throws Exception {
         createUser("no_access", "read_nothing");
 
         actions.expectForbidden("no_access", "SHOW TABLES");
-        assertAuditEvents(audit(false, SQL_ACTION_NAME, "no_access", empty()));
+        new AuditLogAsserter()
+            .expect(false, SQL_ACTION_NAME, "no_access", empty())
+            .assertLogs();
     }
 
     public void testShowTablesWithLimitedAccess() throws Exception {
         createUser("read_bort", "read_bort");
 
         actions.expectMatchesAdmin("SHOW TABLES LIKE 'bort'", "read_bort", "SHOW TABLES");
-        assertAuditEvents(
-                audit(true, SQL_ACTION_NAME, "test_admin", empty()),
-                audit(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("bort")),
-                audit(true, SQL_ACTION_NAME, "read_bort", empty()),
-                audit(true, SQL_INDICES_ACTION_NAME, "read_bort", contains("bort")));
+        new AuditLogAsserter()
+            .expectSqlWithAsyncLookup("test_admin", "bort")
+            .expectSqlWithAsyncLookup("read_bort", "bort")
+            .assertLogs();
     }
 
-    public void testShowTablesWithLimitedAccessAndPattern() throws Exception {
+    public void testShowTablesWithLimitedAccessUnaccessableIndex() throws Exception {
         createUser("read_bort", "read_bort");
 
         actions.expectMatchesAdmin("SHOW TABLES LIKE 'not_created'", "read_bort", "SHOW TABLES LIKE 'test'");
-        assertAuditEvents(
-                audit(true, SQL_ACTION_NAME, "read_bort", empty()),
-                audit(true, SQL_INDICES_ACTION_NAME, "read_bort", contains("*", "-*")));
+        new AuditLogAsserter()
+            .expect(true, SQL_ACTION_NAME, "test_admin", empty())
+            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("*", "-*"))
+            .expect(true, SQL_ACTION_NAME, "read_bort", empty())
+            .expect(true, SQL_INDICES_ACTION_NAME, "read_bort", contains("*", "-*"))
+            .assertLogs();
     }
 
     public void testDescribeWorksAsAdmin() throws Exception {
@@ -316,42 +381,51 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         expected.put("b", "BIGINT");
         expected.put("c", "BIGINT");
         actions.expectDescribe(expected, null);
-        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
+        new AuditLogAsserter()
+            .expectSqlWithAsyncLookup("test_admin", "test")
+            .assertLogs();
     }
 
     public void testDescribeWorksAsFullAccess() throws Exception {
         createUser("full_access", "read_all");
 
         actions.expectMatchesAdmin("DESCRIBE test", "full_access", "DESCRIBE test");
-        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
-        assertAuditForSqlGetTableSyncGranted("full_access", "test");
+        new AuditLogAsserter()
+            .expectSqlWithAsyncLookup("test_admin", "test")
+            .expectSqlWithAsyncLookup("full_access", "test")
+            .assertLogs();
     }
 
     public void testDescribeWithNoAccess() throws Exception {
         createUser("no_access", "read_nothing");
 
         actions.expectForbidden("no_access", "DESCRIBE test");
-        assertAuditEvents(audit(false, SQL_ACTION_NAME, "no_access", empty()));
+        new AuditLogAsserter()
+            .expect(false, SQL_ACTION_NAME, "no_access", empty())
+            .assertLogs();
     }
 
     public void testDescribeWithWrongAccess() throws Exception {
         createUser("wrong_access", "read_something_else");
 
         actions.expectForbidden("wrong_access", "DESCRIBE test");
-        assertAuditEvents(
-                /* This user has permission to run sql queries so they are
-                 * given preliminary authorization. */
-                audit(true, SQL_ACTION_NAME, "wrong_access", empty()),
-                /* But as soon as they attempt to resolve an index that
-                 * they don't have access to they get denied. */
-                audit(false, SQL_INDICES_ACTION_NAME, "wrong_access", hasItems("test")));
+        new AuditLogAsserter()
+            /* This user has permission to run sql queries so they are
+             * given preliminary authorization. */
+            .expect(true, SQL_ACTION_NAME, "wrong_access", empty())
+            /* But as soon as they attempt to resolve an index that
+             * they don't have access to they get denied. */
+            .expect(false, SQL_INDICES_ACTION_NAME, "wrong_access", hasItems("test"))
+            .assertLogs();
     }
 
     public void testDescribeSingleFieldGranted() throws Exception {
         createUser("only_a", "read_test_a");
 
         actions.expectDescribe(singletonMap("a", "BIGINT"), "only_a");
-        assertAuditForSqlGetTableSyncGranted("only_a", "test");
+        new AuditLogAsserter()
+            .expectSqlWithAsyncLookup("only_a", "test")
+            .assertLogs();
     }
 
     public void testDescribeSingleFieldExcepted() throws Exception {
@@ -361,18 +435,22 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         expected.put("a", "BIGINT");
         expected.put("b", "BIGINT");
         actions.expectDescribe(expected, "not_c");
-        assertAuditForSqlGetTableSyncGranted("not_c", "test");
+        new AuditLogAsserter()
+            .expectSqlWithAsyncLookup("not_c", "test")
+            .assertLogs();
     }
 
     public void testDescribeDocumentExclued() throws Exception {
         createUser("no_3s", "read_test_without_c_3");
 
         actions.expectMatchesAdmin("DESCRIBE test", "no_3s", "DESCRIBE test");
-        assertAuditForSqlGetTableSyncGranted("test_admin", "test");
-        assertAuditForSqlGetTableSyncGranted("no_3s", "test");
+        new AuditLogAsserter()
+            .expectSqlWithAsyncLookup("test_admin", "test")
+            .expectSqlWithAsyncLookup("no_3s", "test")
+            .assertLogs();
     }
 
-    private void createUser(String name, String role) throws IOException {
+    protected final void createUser(String name, String role) throws IOException {
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint().startObject(); {
             user.field("password", "testpass");
             user.field("roles", role);
@@ -382,102 +460,161 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                 new StringEntity(user.string(), ContentType.APPLICATION_JSON));
     }
 
-    private void assertAuditForSqlGetTableSyncGranted(String user, String index) throws Exception {
-        assertAuditEvents(
-                audit(true, SQL_ACTION_NAME, user, empty()),
-                audit(true, SQL_ACTION_NAME, user, hasItems(index)));
-    }
-
     /**
-     * Asserts that audit events have been logged that match all the provided checkers.
+     * Used to assert audit logs. Logs are asserted to match in any order because
+     * we don't always scroll in the same order but each log checker must match a
+     * single log and all logs must be matched.
      */
-    @SafeVarargs
-    private final void assertAuditEvents(CheckedFunction<Map<?, ?>, Boolean, Exception>... eventCheckers) throws Exception {
-        assertFalse("Previous test had an audit-related failure. All subsequent audit related assertions are bogus because we can't "
-                + "guarantee that we fully cleaned up after the last test.", auditFailure);
-        try {
-            assertBusy(() -> {
-                SecurityManager sm = System.getSecurityManager();
-                if (sm != null) {
-                    sm.checkPermission(new SpecialPermission());
-                }
-                BufferedReader logReader = AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
-                    try {
-                        return  Files.newBufferedReader(AUDIT_LOG_FILE, StandardCharsets.UTF_8);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
+    protected final class AuditLogAsserter {
+        private final List<Function<Map<String, Object>, Boolean>> logCheckers = new ArrayList<>();
+
+        public AuditLogAsserter expectSqlWithAsyncLookup(String user, String... indices) {
+            expect(true, SQL_ACTION_NAME, user, empty());
+            expect(true, SQL_INDICES_ACTION_NAME, user, contains(indices));
+            for (String index : indices) {
+                expect(true, SQL_ACTION_NAME, user, hasItems(index));
+            }
+            return this;
+        }
+
+        public AuditLogAsserter expectSqlWithSyncLookup(String user, String... indices) {
+            expect(true, SQL_ACTION_NAME, user, empty());
+            for (String index : indices) {
+                expect(true, SQL_ACTION_NAME, user, hasItems(index));
+            }
+            return this;
+        }
+
+        public AuditLogAsserter expect(boolean granted, String action, String principal,
+                    Matcher<? extends Iterable<? extends String>> indicesMatcher) {
+            String request;
+            switch (action) {
+            case SQL_ACTION_NAME:
+                request = "SqlRequest";
+                break;
+            case SQL_INDICES_ACTION_NAME:
+                request = "Request";
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown action [" + action + "]");
+            }
+            return expect(granted, action, principal, indicesMatcher, request);
+        }
+
+        public AuditLogAsserter expect(boolean granted, String action, String principal,
+                    Matcher<? extends Iterable<? extends String>> indicesMatcher, String request) {
+            String eventType = granted ? "access_granted" : "access_denied";
+            logCheckers.add(m -> eventType.equals(m.get("event_type"))
+                && action.equals(m.get("action"))
+                && principal.equals(m.get("principal"))
+                && indicesMatcher.matches(m.get("indices"))
+                && request.equals(m.get("request"))
+            );
+            return this;
+        }
+
+        public void assertLogs() throws Exception {
+            assertFalse("Previous test had an audit-related failure. All subsequent audit related assertions are bogus because we can't "
+                    + "guarantee that we fully cleaned up after the last test.", auditFailure);
+            try {
+                assertBusy(() -> {
+                    SecurityManager sm = System.getSecurityManager();
+                    if (sm != null) {
+                        sm.checkPermission(new SpecialPermission());
+                    }
+                    BufferedReader logReader = AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
+                        try {
+                            return  Files.newBufferedReader(AUDIT_LOG_FILE, StandardCharsets.UTF_8);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+                    logReader.skip(auditLogWrittenBeforeTestStart);
+
+                    List<Map<String, Object>> logs = new ArrayList<>();
+                    String line;
+                    Pattern logPattern = Pattern.compile(
+                            ("PART PART PART origin_type=PART, origin_address=PART, "
+                            + "principal=PART, (?:run_as_principal=PART, )?(?:run_by_principal=PART, )?"
+                            + "action=\\[(.*?)\\], (?:indices=PART, )?request=PART")
+                                .replace(" ", "\\s+").replace("PART", "\\[([^\\]]*)\\]"));
+                    // fail(logPattern.toString());
+                    while ((line = logReader.readLine()) != null) {
+                        java.util.regex.Matcher m = logPattern.matcher(line);
+                        if (false == m.matches()) {
+                            throw new IllegalArgumentException("Unrecognized log: " + line);
+                        }
+                        int i = 1;
+                        Map<String, Object> log = new HashMap<>();
+                        /* We *could* parse the date but leaving it in the original format makes it
+                        * easier to find the lines in the file that this log comes from. */
+                        log.put("time", m.group(i++));
+                        log.put("origin", m.group(i++));
+                        String eventType = m.group(i++);
+                        if (false == ("access_denied".equals(eventType) || "access_granted".equals(eventType))) {
+                            continue;
+                        }
+                        log.put("event_type", eventType);
+                        log.put("origin_type", m.group(i++));
+                        log.put("origin_address", m.group(i++));
+                        String principal = m.group(i++);
+                        log.put("principal", principal);
+                        log.put("run_as_principal", m.group(i++));
+                        log.put("run_by_principal", m.group(i++));
+                        String action = m.group(i++);
+                        if (false == (SQL_ACTION_NAME.equals(action) || SQL_INDICES_ACTION_NAME.equals(action))) {
+                            continue;
+                        }
+                        log.put("action", action);
+                        // Use a sorted list for indices for consistent error reporting
+                        List<String> indices = new ArrayList<>(Strings.splitStringByCommaToSet(m.group(i++)));
+                        Collections.sort(indices);
+                        if ("test_admin".equals(principal)) {
+                            /* Sometimes we accidentally sneak access to the security tables. This is fine, SQL
+                            * drops them from the interface. So we might have access to them, but we don't show
+                            * them. */
+                            indices.remove(".security");
+                            indices.remove(".security-v6");
+                        }
+                        log.put("indices", indices);
+                        log.put("request", m.group(i++));
+                        logs.add(log);
+                    }
+                    List<Map<String, Object>> allLogs = new ArrayList<>(logs);
+                    List<Integer> notMatching = new ArrayList<>();
+                    checker: for (int c = 0; c < logCheckers.size(); c++) {
+                        Function<Map<String, Object>, Boolean> logChecker = logCheckers.get(c);
+                        for (Iterator<Map<String, Object>> logsItr = logs.iterator(); logsItr.hasNext();) {
+                            Map<String, Object> log = logsItr.next();
+                            if (logChecker.apply(log)) {
+                                logsItr.remove();
+                                continue checker;
+                            }
+                        }
+                        notMatching.add(c);
+                    }
+                    if (false == notMatching.isEmpty()) {
+                        fail("Some checkers " + notMatching + " didn't match any logs. All logs:" + logsMessage(allLogs)
+                            + "\nRemaining logs:" + logsMessage(logs));
+                    }
+                    if (false == logs.isEmpty()) {
+                        fail("Not all logs matched. Unmatched logs:" + logsMessage(logs));
                     }
                 });
-                logReader.skip(auditLogWrittenBeforeTestStart);
-
-                List<Map<String, Object>> logs = new ArrayList<>();
-                String line;
-                Pattern logPattern = Pattern.compile(
-                        ("PART PART PART origin_type=PART, origin_address=PART, "
-                        + "principal=PART, (?:run_as_principal=PART, )?(?:run_by_principal=PART, )?"
-                        + "action=\\[(.*?)\\], (?:indices=PART, )?request=PART")
-                            .replace(" ", "\\s+").replace("PART", "\\[([^\\]]*)\\]"));
-                // fail(logPattern.toString());
-                while ((line = logReader.readLine()) != null) {
-                    java.util.regex.Matcher m = logPattern.matcher(line);
-                    if (false == m.matches()) {
-                        throw new IllegalArgumentException("Unrecognized log: " + line);
-                    }
-                    int i = 1;
-                    Map<String, Object> log = new HashMap<>();
-                    /* We *could* parse the date but leaving it in the original format makes it
-                     * easier to find the lines in the file that this log comes from. */
-                    log.put("time", m.group(i++));
-                    log.put("origin", m.group(i++));
-                    String eventType = m.group(i++);
-                    if (false == ("access_denied".equals(eventType) || "access_granted".equals(eventType))) {
-                        continue;
-                    }
-                    log.put("event_type", eventType);
-                    log.put("origin_type", m.group(i++));
-                    log.put("origin_address", m.group(i++));
-                    log.put("principal", m.group(i++));
-                    log.put("run_as_principal", m.group(i++));
-                    log.put("run_by_principal", m.group(i++));
-                    String action = m.group(i++);
-                    if (false == (SQL_ACTION_NAME.equals(action) || SQL_INDICES_ACTION_NAME.equals(action))) {
-                        continue;
-                    }
-                    log.put("action", action);
-                    // Use a sorted list for indices for consistent error reporting
-                    List<String> indices = new ArrayList<>(Strings.splitStringByCommaToSet(m.group(i++)));
-                    Collections.sort(indices);
-                    log.put("indices", indices);
-                    log.put("request", m.group(i++));
-                    logs.add(log);
-                }
-                verifier: for (CheckedFunction<Map<?, ?>, Boolean, Exception> eventChecker : eventCheckers) {
-                    for (Map<String, Object> log : logs) {
-                        if (eventChecker.apply(log)) {
-                            continue verifier;
-                        }
-                    }
-                    StringBuilder logsMessage = new StringBuilder();
-                    for (Map<String, Object> log : logs) {
-                        logsMessage.append('\n').append(log);
-                    }
-                    fail("Didn't find an audit event we were looking for. Found:" + logsMessage);
-                }
-            });
-        } catch (AssertionError e) {
-            auditFailure = true;
-            logger.warn("Failed to find an audit log. Skipping remaining tests in this class after this the missing audit"
-                    + "logs could turn up later.");
-            throw e;
+            } catch (AssertionError e) {
+                auditFailure = true;
+                logger.warn("Failed to find an audit log. Skipping remaining tests in this class after this the missing audit"
+                        + "logs could turn up later.");
+                throw e;
+            }
         }
-    }
 
-    private CheckedFunction<Map<?, ?>, Boolean, Exception> audit(boolean granted, String action,
-            String principal, Matcher<? extends Iterable<? extends String>> indicesMatcher) {
-        String eventType = granted ? "access_granted" : "access_denied";
-        return m -> eventType.equals(m.get("event_type"))
-            && action.equals(m.get("action"))
-            && principal.equals(m.get("principal"))
-            && indicesMatcher.matches(m.get("indices"));
+        private String logsMessage(List<Map<String, Object>> logs) {
+            StringBuilder logsMessage = new StringBuilder();
+            for (Map<String, Object> log : logs) {
+                logsMessage.append('\n').append(log);
+            }
+            return logsMessage.toString();
+        }
     }
 }

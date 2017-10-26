@@ -10,6 +10,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -46,6 +47,18 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
                     Connection other = DriverManager.getConnection(elasticsearchAddress(), userProperties(user))) {
                 ResultSet expected = admin.createStatement().executeQuery(adminSql);
                 assertResultSets(expected, other.createStatement().executeQuery(userSql));
+            }
+        }
+
+        @Override
+        public void expectScrollMatchesAdmin(String adminSql, String user, String userSql) throws Exception {
+            try (Connection admin = DriverManager.getConnection(elasticsearchAddress(), adminProperties());
+                    Connection other = DriverManager.getConnection(elasticsearchAddress(), userProperties(user))) {
+                Statement adminStatement = admin.createStatement();
+                adminStatement.setFetchSize(1);
+                Statement otherStatement = other.createStatement();
+                otherStatement.setFetchSize(1);
+                assertResultSets(adminStatement.executeQuery(adminSql), otherStatement.executeQuery(userSql));
             }
         }
 

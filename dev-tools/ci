@@ -72,7 +72,6 @@ case $key in
             "-x:x-pack-elasticsearch:sql:jdbc:forbiddenPatterns"
             "-x:x-pack-elasticsearch:sql:server:forbiddenPatterns"
             "-x:x-pack-elasticsearch:qa:sql:forbiddenPatterns"
-            "-x:x-pack-elasticsearch:qa:sql:security:forbiddenPatterns"
         )
         ;;
     releaseTest)

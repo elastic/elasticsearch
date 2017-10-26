@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.xpack.qa.sql.cli.RemoteCli;
 
 import static org.elasticsearch.xpack.qa.sql.cli.CliIntegrationTestCase.elasticsearchAddress;
@@ -39,19 +40,35 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectMatchesAdmin(String adminSql, String user, String userSql) throws Exception {
+            expectMatchesAdmin(adminSql, user, userSql, cli -> {});
+        }
+
+        @Override
+        public void expectScrollMatchesAdmin(String adminSql, String user, String userSql) throws Exception {
+            expectMatchesAdmin(adminSql, user, userSql, cli -> {
+                assertEquals("fetch size set to [90m1[0m", cli.command("fetch size = 1"));
+                assertEquals("fetch separator set to \"[90m -- fetch sep -- [0m\"",
+                        cli.command("fetch separator = \" -- fetch sep -- \""));
+            });
+        }
+
+        public void expectMatchesAdmin(String adminSql, String user, String userSql,
+                CheckedConsumer<RemoteCli, Exception> customizer) throws Exception {
             List<String> adminResult = new ArrayList<>();
             try (RemoteCli cli = new RemoteCli(adminEsUrlPrefix() + elasticsearchAddress())) {
+                customizer.accept(cli);
                 adminResult.add(cli.command(adminSql));
                 String line;
                 do {
                     line = cli.readLine();
                     adminResult.add(line);
-                } while (false == line.equals("[0m"));
+                } while (false == (line.equals("[0m") || line.equals("")));
                 adminResult.add(line);
             }
 
             Iterator<String> expected = adminResult.iterator();
             try (RemoteCli cli = new RemoteCli(userPrefix(user) + elasticsearchAddress())) {
+                customizer.accept(cli);
                 assertTrue(expected.hasNext());
                 assertEquals(expected.next(), cli.command(userSql));
                 String line;
@@ -59,7 +76,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                     line = cli.readLine();
                     assertTrue(expected.hasNext());
                     assertEquals(expected.next(), line);
-                } while (false == line.equals("[0m"));
+                } while (false == (line.equals("[0m") || line.equals("")));
                 assertTrue(expected.hasNext());
                 assertEquals(expected.next(), line);
                 assertFalse(expected.hasNext());

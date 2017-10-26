@@ -62,52 +62,25 @@ public class ChannelBufferTests extends ESTestCase {
         NetworkBytesReference reference = HeapNetworkBytes.fromBytesPage(bytesPage);
         ChannelBuffer channelBuffer = new ChannelBuffer(reference);
 
-        assertEquals(0, reference.getReadIndex());
-        assertEquals(0, reference.getWriteIndex());
+        assertEquals(0, reference.getIndex());
 
         BytesPage bytesPage2 = bigArrays.newBytePage();
         NetworkBytesReference reference2 = HeapNetworkBytes.fromBytesPage(bytesPage2);
         channelBuffer.addBuffer(reference2);
 
-        assertEquals(0, reference2.getReadIndex());
-        assertEquals(0, reference2.getWriteIndex());
+        assertEquals(0, reference2.getIndex());
 
         int randomDelta = randomInt(200);
-        channelBuffer.incrementWrite(BigArrays.BYTE_PAGE_SIZE - randomDelta);
+        channelBuffer.incrementIndex(BigArrays.BYTE_PAGE_SIZE - randomDelta);
 
-        assertEquals(0, channelBuffer.getReadIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE - randomDelta, channelBuffer.getWriteIndex());
-        assertEquals(0, reference.getReadIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE - randomDelta, reference.getWriteIndex());
-        assertEquals(0, reference2.getReadIndex());
-        assertEquals(0, reference2.getWriteIndex());
+        assertEquals(BigArrays.BYTE_PAGE_SIZE - randomDelta, channelBuffer.getIndex());
+        assertEquals(BigArrays.BYTE_PAGE_SIZE - randomDelta, reference.getIndex());
+        assertEquals(0, reference2.getIndex());
 
-        channelBuffer.incrementWrite(randomDelta + 1);
+        channelBuffer.incrementIndex(randomDelta + 1);
 
-        assertEquals(0, channelBuffer.getReadIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE + 1, channelBuffer.getWriteIndex());
-        assertEquals(0, reference.getReadIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE, reference.getWriteIndex());
-        assertEquals(0, reference2.getReadIndex());
-        assertEquals(1, reference2.getWriteIndex());
-
-        int randomDelta2 = randomInt(200);
-        channelBuffer.incrementRead(BigArrays.BYTE_PAGE_SIZE - randomDelta2);
-
-        assertEquals(BigArrays.BYTE_PAGE_SIZE - randomDelta2, channelBuffer.getReadIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE + 1, channelBuffer.getWriteIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE - randomDelta2, reference.getReadIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE, reference.getWriteIndex());
-        assertEquals(0, reference2.getReadIndex());
-        assertEquals(1, reference2.getWriteIndex());
-
-        channelBuffer.incrementRead(randomDelta2 + 1);
-
-        assertEquals(BigArrays.BYTE_PAGE_SIZE + 1, channelBuffer.getReadIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE + 1, channelBuffer.getWriteIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE, reference.getReadIndex());
-        assertEquals(BigArrays.BYTE_PAGE_SIZE, reference.getWriteIndex());
-        assertEquals(1, reference2.getReadIndex());
-        assertEquals(1, reference2.getWriteIndex());
+        assertEquals(BigArrays.BYTE_PAGE_SIZE + 1, channelBuffer.getIndex());
+        assertEquals(BigArrays.BYTE_PAGE_SIZE, reference.getIndex());
+        assertEquals(1, reference2.getIndex());
     }
 }

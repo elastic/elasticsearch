@@ -37,8 +37,7 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
     private int[] offsets;
 
     private int length;
-    private int writeIndex;
-    private int readIndex;
+    private int index;
 
     public ChannelBuffer(NetworkBytesReference... newReferences) {
         this.references = new IndexedArrayDeque<>(Math.max(8, newReferences.length));
@@ -103,17 +102,17 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
             NetworkBytesReference first = references.removeFirst();
             messageReferences[offsetIndex] = first.sliceAndRetain(0, messageBytesInFinalBuffer);
             NetworkBytesReference newRef = first.sliceAndRetain(messageBytesInFinalBuffer, first.length() - messageBytesInFinalBuffer);
-            first.close();
             references.addFirst(newRef);
             bytesDropped += messageBytesInFinalBuffer;
         }
 
+        boolean releaseLastReference = false;
         if (references.getFirst().length() == 0) {
-            references.removeFirst().close();
+            releaseLastReference = true;
+            references.removeFirst();
         }
 
-        this.writeIndex = Math.max(0, writeIndex - bytesDropped);
-        this.readIndex = Math.max(0, readIndex - bytesDropped);
+        this.index = Math.max(0, index - bytesDropped);
         this.length -= bytesDropped;
 
         this.offsets = new int[references.size()];
@@ -123,7 +122,7 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
             offsets[i++] = currentOffset;
             currentOffset += reference.value.length();
         }
-        return new ChannelMessage(new CompositeBytesReference(messageReferences), messageReferences);
+        return new ChannelMessage(messageReferences, releaseLastReference);
     }
 
     public NetworkBytesReference peek() {
@@ -137,128 +136,92 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         NetworkBytesReference reference = references.removeFirst();
         int bytesDropped = reference.length();
         this.length -= bytesDropped;
-        this.writeIndex = Math.max(0, writeIndex - bytesDropped);
-        this.readIndex = Math.max(0, readIndex - bytesDropped);
+        this.index = Math.max(0, index - bytesDropped);
         return reference;
     }
 
     @Override
-    public int getWriteIndex() {
-        return writeIndex;
+    public int getIndex() {
+        return index;
     }
 
     @Override
-    public void incrementWrite(int delta) {
-        int offsetIndex = getOffsetIndex(writeIndex);
+    public void incrementIndex(int delta) {
+        int offsetIndex = getOffsetIndex(index);
 
-        int newWriteIndex = writeIndex + delta;
-        NetworkBytes.validateWriteIndex(newWriteIndex, length);
+        int newIndex = index + delta;
+        NetworkBytes.validateIndex(newIndex, length);
 
-        writeIndex = newWriteIndex;
+        index = newIndex;
 
         int i = delta;
         while (i != 0) {
             NetworkBytesReference reference = references.get(offsetIndex++);
-            int bytesToInc = Math.min(reference.getWriteRemaining(), i);
-            reference.incrementWrite(bytesToInc);
+            int bytesToInc = Math.min(reference.getRemaining(), i);
+            reference.incrementIndex(bytesToInc);
             i -= bytesToInc;
         }
     }
 
     @Override
-    public int getWriteRemaining() {
-        return length - writeIndex;
+    public int getRemaining() {
+        return length - index;
     }
 
     @Override
-    public boolean hasWriteRemaining() {
-        return getWriteRemaining() > 0;
+    public boolean hasRemaining() {
+        return getRemaining() != 0;
     }
 
     @Override
-    public int getReadIndex() {
-        return readIndex;
-    }
-
-    @Override
-    public void incrementRead(int delta) {
-        int offsetIndex = getOffsetIndex(readIndex);
-
-        int newReadIndex = readIndex + delta;
-        NetworkBytes.validateReadIndex(newReadIndex, writeIndex);
-
-        readIndex = newReadIndex;
-
-        int i = delta;
-        while (i != 0) {
-            NetworkBytesReference reference = references.get(offsetIndex++);
-            int bytesToInc = Math.min(reference.getReadRemaining(), i);
-            reference.incrementRead(bytesToInc);
-            i -= bytesToInc;
-        }
-    }
-
-    @Override
-    public int getReadRemaining() {
-        return writeIndex - readIndex;
-    }
-
-    @Override
-    public boolean hasReadRemaining() {
-        return getReadRemaining() > 0;
-    }
-
-    @Override
-    public boolean isCompositeBuffer() {
+    public boolean isComposite() {
         return references.size() > 1;
     }
 
     @Override
-    public ByteBuffer[] getWriteByteBuffers() {
-        if (hasWriteRemaining() == false) {
+    public ByteBuffer[] postIndexByteBuffers() {
+        if (hasRemaining() == false) {
             return new ByteBuffer[0];
         }
 
-        int offsetIndex = getOffsetIndex(writeIndex);
+        int offsetIndex = getOffsetIndex(index);
 
         int refCount = references.size();
         ByteBuffer[] buffers = new ByteBuffer[refCount - offsetIndex];
 
         int j = 0;
         for (int i = offsetIndex; i < refCount; ++i) {
-            buffers[j++] = references.get(i).getWriteByteBuffer();
+            buffers[j++] = references.get(i).postIndexByteBuffer();
         }
 
         return buffers;
     }
 
     @Override
-    public ByteBuffer[] getReadByteBuffers() {
-        if (hasReadRemaining() == false) {
+    public ByteBuffer[] preIndexByteBuffers() {
+        if (index == 0) {
             return new ByteBuffer[0];
         }
 
-        int offsetIndex = getOffsetIndex(readIndex);
+        int offsetIndex = getOffsetIndex(index);
 
-        int refCount = references.size();
-        ByteBuffer[] buffers = new ByteBuffer[refCount - offsetIndex];
+        ByteBuffer[] buffers = new ByteBuffer[offsetIndex];
 
-        int j = 0;
-        for (int i = offsetIndex; i < refCount; ++i) {
-            buffers[j++] = references.get(i).getReadByteBuffer();
+        for (int i = 0; i < offsetIndex; ++i) {
+            buffers[i++] = references.get(i).preIndexByteBuffer();
         }
 
         return buffers;
     }
 
     @Override
-    public ByteBuffer getWriteByteBuffer() {
-        return references.getLast().getWriteByteBuffer();
+    public ByteBuffer postIndexByteBuffer() {
+        return references.getLast().postIndexByteBuffer();
     }
 
     @Override
-    public ByteBuffer getReadByteBuffer() {
-        return references.getLast().getReadByteBuffer();
+    public ByteBuffer preIndexByteBuffer() {
+        return references.getLast().preIndexByteBuffer();
     }
 
     @Override
@@ -288,15 +251,13 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
     }
 
     private void addBuffer0(NetworkBytesReference ref, int[] newOffsetArray, int offsetIndex) {
-        int refReadIndex = ref.getReadIndex();
-        int refWriteIndex = ref.getWriteIndex();
-        validateReadAndWritesIndexes(refReadIndex, refWriteIndex);
+        int refIndex = ref.getIndex();
+        validateReadAndWritesIndexes(refIndex);
 
         newOffsetArray[offsetIndex] = length;
         this.references.addLast(ref);
-        this.writeIndex += refWriteIndex;
-        this.readIndex += refReadIndex;
         this.length += ref.length();
+        this.index += ref.getIndex();
     }
 
     private void removeAddedReferences(int initialReferenceCount) {
@@ -304,17 +265,13 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         for (int i = 0; i < refsToDrop; ++i) {
             NetworkBytesReference reference = references.removeLast();
             this.length -= reference.length();
-            this.writeIndex -= reference.getWriteIndex();
-            this.readIndex -= reference.getReadIndex();
+            this.index -= reference.getIndex();
         }
     }
 
-    private void validateReadAndWritesIndexes(int refReadIndex, int refWriteIndex) {
-        if (writeIndex != length && refWriteIndex != 0) {
+    private void validateReadAndWritesIndexes(int refIndex) {
+        if (index != length && refIndex != 0) {
             throw new IllegalArgumentException("The writable spaces must be contiguous across buffers.");
-        }
-        if (this.readIndex != length && refReadIndex != 0) {
-            throw new IllegalArgumentException("The readable spaces must be contiguous across buffers.");
         }
     }
 

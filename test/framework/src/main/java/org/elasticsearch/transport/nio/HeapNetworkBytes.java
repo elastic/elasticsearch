@@ -36,18 +36,16 @@ public class HeapNetworkBytes extends NetworkBytesReference {
         this.bytesArray = bytesArray;
     }
 
-    private HeapNetworkBytes(BytesArray bytesArray, int writerIndex, int readerIndex) {
-        super((Releasable) null, bytesArray.length());
+    private HeapNetworkBytes(BytesArray bytesArray, int index) {
+        super(null, bytesArray.length());
         this.bytesArray = bytesArray;
-        this.writeIndex = writerIndex;
-        this.readIndex = readerIndex;
+        this.index = index;
     }
 
-    private HeapNetworkBytes(BytesArray bytesArray, RefCountedReleasable releasable, int writerIndex, int readerIndex) {
+    private HeapNetworkBytes(BytesArray bytesArray, Releasable releasable, int index) {
         super(releasable, bytesArray.length());
         this.bytesArray = bytesArray;
-        this.writeIndex = writerIndex;
-        this.readIndex = readerIndex;
+        this.index = index;
     }
 
     public static HeapNetworkBytes fromBytesPage(BytesPage bytesPage) {
@@ -55,54 +53,52 @@ public class HeapNetworkBytes extends NetworkBytesReference {
     }
 
     public static HeapNetworkBytes wrap(BytesArray bytesArray) {
-        return new HeapNetworkBytes(bytesArray, 0, 0);
+        return new HeapNetworkBytes(bytesArray, 0);
     }
 
-    public static NetworkBytesReference wrap(BytesArray bytesArray, int writeIndex, int readIndex) {
-        return new HeapNetworkBytes(bytesArray, writeIndex, readIndex);
+    public static NetworkBytesReference wrap(BytesArray bytesArray, int index) {
+        return new HeapNetworkBytes(bytesArray, index);
     }
 
     @Override
     public NetworkBytesReference sliceAndRetain(int from, int length) {
-        BytesArray slice = (BytesArray) bytesArray.slice(from, length);
-        refCountedReleasable.incRef();
-        int newWriteIndex = Math.min(Math.max(writeIndex - from, 0), length);
-        int newReadIndex = Math.min(Math.max(readIndex - from, 0), length);
-        return new HeapNetworkBytes(slice, refCountedReleasable, newWriteIndex, newReadIndex);
+        BytesArray slice = bytesArray.slice(from, length);
+        int newIndex = Math.min(Math.max(index - from, 0), length);
+        return new HeapNetworkBytes(slice, releasable, newIndex);
     }
 
     @Override
-    public boolean isCompositeBuffer() {
+    public boolean isComposite() {
         return false;
     }
 
     @Override
-    public ByteBuffer getWriteByteBuffer() {
+    public ByteBuffer postIndexByteBuffer() {
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytesArray.array());
-        byteBuffer.position(bytesArray.offset() + writeIndex);
+        byteBuffer.position(bytesArray.offset() + index);
         byteBuffer.limit(bytesArray.offset() + length);
         return byteBuffer;
     }
 
     @Override
-    public ByteBuffer getReadByteBuffer() {
+    public ByteBuffer preIndexByteBuffer() {
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytesArray.array());
-        byteBuffer.position(bytesArray.offset() + readIndex);
-        byteBuffer.limit(bytesArray.offset() + writeIndex);
+        byteBuffer.position(bytesArray.offset());
+        byteBuffer.limit(bytesArray.offset() + index);
         return byteBuffer;
     }
 
     @Override
-    public ByteBuffer[] getWriteByteBuffers() {
+    public ByteBuffer[] postIndexByteBuffers() {
         ByteBuffer[] byteBuffers = new ByteBuffer[1];
-        byteBuffers[0] = getWriteByteBuffer();
+        byteBuffers[0] = postIndexByteBuffer();
         return byteBuffers;
     }
 
     @Override
-    public ByteBuffer[] getReadByteBuffers() {
+    public ByteBuffer[] preIndexByteBuffers() {
         ByteBuffer[] byteBuffers = new ByteBuffer[1];
-        byteBuffers[0] = getReadByteBuffer();
+        byteBuffers[0] = preIndexByteBuffer();
         return byteBuffers;
     }
 

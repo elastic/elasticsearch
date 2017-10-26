@@ -26,11 +26,11 @@ public class ReleaseOnReadChannelBuffer extends ChannelBuffer {
     }
 
     @Override
-    public void incrementRead(int delta) {
-        super.incrementRead(delta);
+    public void incrementIndex(int delta) {
+        super.incrementIndex(delta);
 
         NetworkBytesReference headRef;
-        while((headRef = peek()) != null && headRef.hasReadRemaining() == false) {
+        while((headRef = peek()) != null && headRef.hasRemaining() == false) {
             NetworkBytesReference reference = removeFirst();
             reference.close();
         }

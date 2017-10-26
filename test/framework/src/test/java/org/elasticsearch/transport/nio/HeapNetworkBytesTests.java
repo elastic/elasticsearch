@@ -25,8 +25,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BytesPage;
-import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -34,7 +32,6 @@ import java.nio.ByteBuffer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
 
@@ -73,19 +70,19 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
         }
     }
 
-    public void testGetWriteBufferRespectsWriteIndex() {
+    public void testGetWriteBufferRespectsIndex() {
         byte[] bytes = new byte[10];
 
         buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 2, 8));
 
-        ByteBuffer writeByteBuffer = buffer.getWriteByteBuffer();
+        ByteBuffer writeByteBuffer = buffer.postIndexByteBuffer();
 
         assertEquals(2, writeByteBuffer.position());
         assertEquals(10, writeByteBuffer.limit());
 
-        buffer.incrementWrite(2);
+        buffer.incrementIndex(2);
 
-        writeByteBuffer = buffer.getWriteByteBuffer();
+        writeByteBuffer = buffer.postIndexByteBuffer();
         assertEquals(4, writeByteBuffer.position());
         assertEquals(10, writeByteBuffer.limit());
     }
@@ -94,18 +91,18 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
         byte[] bytes = new byte[10];
 
         buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 3, 6));
-        buffer.incrementWrite(6);
+        buffer.incrementIndex(3);
 
-        ByteBuffer readByteBuffer = buffer.getReadByteBuffer();
+        ByteBuffer readByteBuffer = buffer.preIndexByteBuffer();
 
         assertEquals(3, readByteBuffer.position());
-        assertEquals(9, readByteBuffer.limit());
+        assertEquals(6, readByteBuffer.limit());
 
-        buffer.incrementRead(2);
+        buffer.incrementIndex(2);
 
-        readByteBuffer = buffer.getReadByteBuffer();
-        assertEquals(5, readByteBuffer.position());
-        assertEquals(9, readByteBuffer.limit());
+        readByteBuffer = buffer.preIndexByteBuffer();
+        assertEquals(3, readByteBuffer.position());
+        assertEquals(8, readByteBuffer.limit());
     }
 
     public void testWriteAndReadRemaining() {
@@ -113,14 +110,11 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
 
         buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 2, 8));
 
-        assertEquals(0, buffer.getReadRemaining());
-        assertEquals(8, buffer.getWriteRemaining());
+        assertEquals(8, buffer.getRemaining());
 
-        buffer.incrementWrite(3);
-        buffer.incrementRead(2);
+        buffer.incrementIndex(3);
 
-        assertEquals(1, buffer.getReadRemaining());
-        assertEquals(5, buffer.getWriteRemaining());
+        assertEquals(5, buffer.getRemaining());
     }
 
     public void testBasicSlice() {
@@ -144,14 +138,12 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
 
         buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 2, 18));
 
-        buffer.incrementWrite(9);
-        buffer.incrementRead(5);
+        buffer.incrementIndex(9);
 
         NetworkBytesReference slice = buffer.sliceAndRetain(6, 12);
 
         assertEquals(12, slice.length());
-        assertEquals(0, slice.getReadIndex());
-        assertEquals(3, slice.getWriteIndex());
+        assertEquals(3, slice.getIndex());
 
         for (int i = 8; i < 20; ++i) {
             assertEquals(i, slice.get(i - 8));
@@ -185,7 +177,7 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
         verify(closer, times(1)).close();
     }
 
-    public void testSliceAndRetainRetains() {
+    public void testSliceAndRetainRetainsReleasable() {
         byte[] bytes = new byte[20];
         initializeBytes(bytes);
         Releasable closer = mock(Releasable.class);
@@ -194,15 +186,8 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
         HeapNetworkBytes heapNetworkBytes = HeapNetworkBytes.fromBytesPage(bytesPage);
 
         NetworkBytesReference child1 = heapNetworkBytes.sliceAndRetain(0, 8);
-        NetworkBytesReference child2 = heapNetworkBytes.sliceAndRetain(8, 12);
-
-        heapNetworkBytes.close();
-        verify(closer, times(0)).close();
 
         child1.close();
-        verify(closer, times(0)).close();
-
-        child2.close();
         verify(closer).close();
     }
 

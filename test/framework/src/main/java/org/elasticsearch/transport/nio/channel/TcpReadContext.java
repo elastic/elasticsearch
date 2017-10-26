@@ -50,7 +50,7 @@ public class TcpReadContext implements ReadContext {
     @Override
     public int read() throws IOException {
         // TODO: Decide when to start adding more bytes. We do not actually want to wait until buffer is exhausted.
-        if (channelBuffer.hasWriteRemaining() == false) {
+        if (channelBuffer.hasRemaining() == false) {
             channelBuffer.addBuffer(allocator.get());
         }
 

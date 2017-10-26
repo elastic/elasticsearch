@@ -38,7 +38,7 @@ public class TcpFrameDecoder {
     private int expectedMessageLength = -1;
 
     public ChannelMessage decode(ChannelBuffer buffer) throws IOException {
-        int currentBufferSize = buffer.getWriteIndex();
+        int currentBufferSize = buffer.getIndex();
         if (currentBufferSize >= 6) {
             int messageLength = readHeaderBuffer(buffer);
             int totalLength = messageLength + HEADER_SIZE;

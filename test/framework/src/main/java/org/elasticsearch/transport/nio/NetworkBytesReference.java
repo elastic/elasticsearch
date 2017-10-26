@@ -28,71 +28,46 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class NetworkBytesReference extends BytesReference implements NetworkBytes {
 
-    final RefCountedReleasable refCountedReleasable;
+    final Releasable releasable;
 
     final int length;
-    int writeIndex;
-    int readIndex;
+    int index;
 
     private AtomicBoolean isClosed = new AtomicBoolean(false);
 
     NetworkBytesReference(Releasable releasable, int length) {
-        this.refCountedReleasable = new RefCountedReleasable(releasable);
+        this.releasable = releasable;
         this.length = length;
     }
 
-    NetworkBytesReference(RefCountedReleasable refCountedReleasable, int length) {
-        this.refCountedReleasable = refCountedReleasable;
-        this.length = length;
+    @Override
+    public int getIndex() {
+        return index;
     }
 
-    public int getWriteIndex() {
-        return writeIndex;
+    @Override
+    public void incrementIndex(int delta) {
+        int newIndex = index + delta;
+        NetworkBytes.validateIndex(newIndex, length);
+        index = newIndex;
     }
 
-    public void incrementWrite(int delta) {
-        int newWriteIndex = writeIndex + delta;
-        if (newWriteIndex > length) {
-            throw new IndexOutOfBoundsException("New write index [" + newWriteIndex + "] would be greater than length" +
-                " [" + length + "]");
-        }
-
-        writeIndex = newWriteIndex;
+    @Override
+    public int getRemaining() {
+        return length - index;
     }
 
-    public int getWriteRemaining() {
-        return length - writeIndex;
-    }
-
-    public boolean hasWriteRemaining() {
-        return getWriteRemaining() > 0;
-    }
-
-    public int getReadIndex() {
-        return readIndex;
-    }
-
-    public void incrementRead(int delta) {
-        int newReadIndex = readIndex + delta;
-        if (newReadIndex > writeIndex) {
-            throw new IndexOutOfBoundsException("New read index [" + newReadIndex + "] would be greater than write" +
-                " index [" + writeIndex + "]");
-        }
-        readIndex = newReadIndex;
-    }
-
-    public int getReadRemaining() {
-        return writeIndex - readIndex;
-    }
-
-    public boolean hasReadRemaining() {
-        return getReadRemaining() > 0;
+    @Override
+    public boolean hasRemaining() {
+        return getRemaining() != 0;
     }
 
     @Override
     public void close() {
         if (isClosed.compareAndSet(false, true)) {
-            refCountedReleasable.decRef();
+            if (releasable != null) {
+                releasable.close();
+            }
         } else {
             throw new IllegalStateException("Attempting to close NetworkBytesReference that is already closed.");
         }
@@ -100,26 +75,8 @@ public abstract class NetworkBytesReference extends BytesReference implements Ne
 
     public abstract NetworkBytesReference sliceAndRetain(int from, int length);
 
-    public abstract ByteBuffer getWriteByteBuffer();
+    public abstract ByteBuffer postIndexByteBuffer();
 
-    public abstract ByteBuffer getReadByteBuffer();
+    public abstract ByteBuffer preIndexByteBuffer();
 
-    protected static class RefCountedReleasable extends AbstractRefCounted {
-
-        private static final String REF_COUNTED_ARRAY_NAME = "network bytes";
-
-        private final Releasable releasable;
-
-        private RefCountedReleasable(Releasable releasable) {
-            super(REF_COUNTED_ARRAY_NAME);
-            this.releasable = releasable;
-        }
-
-        @Override
-        protected void closeInternal() {
-            if (releasable != null) {
-                releasable.close();
-            }
-        }
-    }
 }

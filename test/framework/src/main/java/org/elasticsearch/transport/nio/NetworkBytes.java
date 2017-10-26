@@ -25,42 +25,27 @@ import java.nio.ByteBuffer;
 
 public interface NetworkBytes extends Releasable {
 
-    int getWriteIndex();
+    int getIndex();
 
-    void incrementWrite(int delta);
+    void incrementIndex(int delta);
 
-    int getWriteRemaining();
+    int getRemaining();
 
-    boolean hasWriteRemaining();
+    boolean hasRemaining();
 
-    int getReadIndex();
+    boolean isComposite();
 
-    void incrementRead(int delta);
+    ByteBuffer[] postIndexByteBuffers();
 
-    int getReadRemaining();
+    ByteBuffer[] preIndexByteBuffers();
 
-    boolean hasReadRemaining() ;
+    ByteBuffer postIndexByteBuffer();
 
-    boolean isCompositeBuffer();
+    ByteBuffer preIndexByteBuffer();
 
-    ByteBuffer[] getWriteByteBuffers();
-
-    ByteBuffer[] getReadByteBuffers();
-
-    ByteBuffer getWriteByteBuffer();
-
-    ByteBuffer getReadByteBuffer();
-
-    static void validateReadIndex(int newReadIndex, int writeIndex) {
-        if (newReadIndex > writeIndex) {
-            throw new IndexOutOfBoundsException("New read index [" + newReadIndex + "] would be greater than write" +
-                " index [" + writeIndex + "]");
-        }
-    }
-
-    static void validateWriteIndex(int newWriteIndex, int length) {
-        if (newWriteIndex > length) {
-            throw new IndexOutOfBoundsException("New write index [" + newWriteIndex + "] would be greater than length" +
+    static void validateIndex(int newIndex, int length) {
+        if (newIndex > length) {
+            throw new IndexOutOfBoundsException("New index [" + newIndex + "] would be greater than length" +
                 " [" + length + "]");
         }
     }

@@ -56,7 +56,7 @@ public class WriteOperation implements Releasable {
     }
 
     public boolean isFullyFlushed() {
-        return bytes.hasReadRemaining() == false;
+        return bytes.hasRemaining() == false;
     }
 
     public int flush() throws IOException {
@@ -75,7 +75,7 @@ public class WriteOperation implements Releasable {
             // Most network messages are composed of three buffers
             ArrayList<NetworkBytesReference> references = new ArrayList<>(3);
             while ((r = byteRefIterator.next()) != null) {
-                references.add(HeapNetworkBytes.wrap(new BytesArray(r), r.length, 0));
+                references.add(HeapNetworkBytes.wrap(new BytesArray(r)));
             }
             return new ReleaseOnReadChannelBuffer(references.toArray(new NetworkBytesReference[references.size()]));
 

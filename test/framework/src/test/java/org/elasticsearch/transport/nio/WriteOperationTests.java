@@ -54,7 +54,7 @@ public class WriteOperationTests extends ESTestCase {
 
         when(channel.write(any())).thenAnswer(invocationOnMock -> {
             NetworkBytes bytes = (NetworkBytes) invocationOnMock.getArguments()[0];
-            bytes.incrementRead(10);
+            bytes.incrementIndex(10);
             return 10;
         });
 
@@ -68,13 +68,13 @@ public class WriteOperationTests extends ESTestCase {
 
         when(channel.write(any())).thenAnswer(invocationOnMock -> {
             NetworkBytes bytes = (NetworkBytes) invocationOnMock.getArguments()[0];
-            bytes.incrementRead(5);
+            bytes.incrementIndex(5);
             return 5;
         });
 
         writeOp.flush();
 
         assertFalse(writeOp.isFullyFlushed());
-        assertEquals(5, writeOp.getByteReferences().getReadRemaining());
+        assertEquals(5, writeOp.getByteReferences().getRemaining());
     }
 }

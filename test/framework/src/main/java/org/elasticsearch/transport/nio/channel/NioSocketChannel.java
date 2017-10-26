@@ -61,26 +61,26 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     public int write(NetworkBytes bytes) throws IOException {
         int written;
-        if (bytes.isCompositeBuffer() == false) {
-            written = socketChannel.write(bytes.getReadByteBuffer());
+        if (bytes.isComposite() == false) {
+            written = socketChannel.write(bytes.postIndexByteBuffer());
         } else {
-            written = (int) socketChannel.write(bytes.getReadByteBuffers());
+            written = (int) socketChannel.write(bytes.postIndexByteBuffers());
         }
         if (written <= 0) {
             return written;
         }
 
-        bytes.incrementRead(written);
+        bytes.incrementIndex(written);
 
         return written;
     }
 
     public int read(NetworkBytes bytes) throws IOException {
         int bytesRead;
-        if (bytes.isCompositeBuffer()) {
-            bytesRead = (int) socketChannel.read(bytes.getWriteByteBuffers());
+        if (bytes.isComposite()) {
+            bytesRead = (int) socketChannel.read(bytes.postIndexByteBuffers());
         } else {
-            bytesRead = socketChannel.read(bytes.getWriteByteBuffer());
+            bytesRead = socketChannel.read(bytes.postIndexByteBuffer());
 
         }
 
@@ -88,7 +88,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
             return bytesRead;
         }
 
-        bytes.incrementWrite(bytesRead);
+        bytes.incrementIndex(bytesRead);
         return bytesRead;
     }
 

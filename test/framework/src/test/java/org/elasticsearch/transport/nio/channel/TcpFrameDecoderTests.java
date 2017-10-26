@@ -173,6 +173,6 @@ public class TcpFrameDecoderTests extends ESTestCase {
 
     private static ChannelBuffer toChannelBuffer(BytesStreamOutput streamOutput) {
         BytesReference bytes = streamOutput.bytes();
-        return new ChannelBuffer(HeapNetworkBytes.wrap(new BytesArray(bytes.toBytesRef()), bytes.length(), 0));
+        return new ChannelBuffer(HeapNetworkBytes.wrap(new BytesArray(bytes.toBytesRef()), bytes.length()));
     }
 }

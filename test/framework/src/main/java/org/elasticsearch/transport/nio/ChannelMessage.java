@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 
@@ -28,9 +29,14 @@ public class ChannelMessage implements Releasable {
     private final BytesReference content;
     private final Releasable[] closeables;
 
-    ChannelMessage(BytesReference content, Releasable[] resourcesToClose) {
-        this.content = content;
-        this.closeables = resourcesToClose;
+    ChannelMessage(NetworkBytesReference[] messageReferences, boolean releaseLastReference) {
+        content = new CompositeBytesReference(messageReferences);
+        if (releaseLastReference == false) {
+            closeables = new Releasable[messageReferences.length - 1];
+        } else {
+            closeables = new Releasable[messageReferences.length];
+        }
+        System.arraycopy(messageReferences, 0, closeables, 0, closeables.length);
     }
 
 

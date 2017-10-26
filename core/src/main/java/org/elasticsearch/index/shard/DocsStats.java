@@ -84,6 +84,8 @@ public class DocsStats implements Streamable, ToXContentFragment {
         deleted = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             totalSizeInBytes = in.readVLong();
+        } else {
+            totalSizeInBytes = -1;
         }
     }
 

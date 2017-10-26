@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
@@ -51,6 +50,7 @@ public final class EAssignment extends AExpression {
     private Type shiftDistance; // for shifts, the RHS is promoted independently
     private Cast there = null;
     private Cast back = null;
+    private Type DefType = null;
 
     public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
         super(location);
@@ -80,6 +80,8 @@ public final class EAssignment extends AExpression {
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
+
+        DefType = locals.getDefinition().DefType;
     }
 
     private void analyzeLHS(Locals locals) {
@@ -138,33 +140,33 @@ public final class EAssignment extends AExpression {
         boolean shift = false;
 
         if (operation == Operation.MUL) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
         } else if (operation == Operation.DIV) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
         } else if (operation == Operation.REM) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
         } else if (operation == Operation.ADD) {
-            promote = AnalyzerCaster.promoteAdd(lhs.actual, rhs.actual);
+            promote = locals.getDefinition().caster.promoteAdd(lhs.actual, rhs.actual);
         } else if (operation == Operation.SUB) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
         } else if (operation == Operation.LSH) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
-            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
+            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, false);
+            shiftDistance = locals.getDefinition().caster.promoteNumeric(rhs.actual, false);
             shift = true;
         } else if (operation == Operation.RSH) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
-            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
+            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, false);
+            shiftDistance = locals.getDefinition().caster.promoteNumeric(rhs.actual, false);
             shift = true;
         } else if (operation == Operation.USH) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
-            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
+            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, false);
+            shiftDistance = locals.getDefinition().caster.promoteNumeric(rhs.actual, false);
             shift = true;
         } else if (operation == Operation.BWAND) {
-            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
+            promote = locals.getDefinition().caster.promoteXor(lhs.actual, rhs.actual);
         } else if (operation == Operation.XOR) {
-            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
+            promote = locals.getDefinition().caster.promoteXor(lhs.actual, rhs.actual);
         } else if (operation == Operation.BWOR) {
-            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
+            promote = locals.getDefinition().caster.promoteXor(lhs.actual, rhs.actual);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
@@ -187,7 +189,7 @@ public final class EAssignment extends AExpression {
                 // shifts are promoted independently, but for the def type, we need object.
                 rhs.expected = promote;
             } else if (shiftDistance.clazz == long.class) {
-                rhs.expected = Definition.INT_TYPE;
+                rhs.expected = locals.getDefinition().intType;
                 rhs.explicit = true;
             } else {
                 rhs.expected = shiftDistance;
@@ -198,11 +200,11 @@ public final class EAssignment extends AExpression {
 
         rhs = rhs.cast(locals);
 
-        there = AnalyzerCaster.getLegalCast(location, lhs.actual, promote, false, false);
-        back = AnalyzerCaster.getLegalCast(location, promote, lhs.actual, true, false);
+        there = locals.getDefinition().caster.getLegalCast(location, lhs.actual, promote, false, false);
+        back = locals.getDefinition().caster.getLegalCast(location, promote, lhs.actual, true, false);
 
         this.statement = true;
-        this.actual = read ? lhs.actual : Definition.VOID_TYPE;
+        this.actual = read ? lhs.actual : locals.getDefinition().voidType;
     }
 
     private void analyzeSimple(Locals locals) {
@@ -222,7 +224,7 @@ public final class EAssignment extends AExpression {
         rhs = rhs.cast(locals);
 
         this.statement = true;
-        this.actual = read ? lhs.actual : Definition.VOID_TYPE;
+        this.actual = read ? lhs.actual : locals.getDefinition().voidType;
     }
 
     /**
@@ -295,8 +297,8 @@ public final class EAssignment extends AExpression {
         // its tricky here as there are possibly explicit casts, too.
         // write the operation instruction for compound assignment
             if (promote.dynamic) {
-                writer.writeDynamicBinaryInstruction(location, promote,
-                    Definition.DEF_TYPE, Definition.DEF_TYPE, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
+                writer.writeDynamicBinaryInstruction(
+                    location, promote, DefType, DefType, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
             } else {
                 writer.writeBinaryInstruction(location, promote, operation);
             }

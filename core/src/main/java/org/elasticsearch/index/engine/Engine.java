@@ -708,12 +708,11 @@ public abstract class Engine implements Closeable {
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
-
         // first, go over and compute the search ones...
-        Searcher searcher = acquireSearcher("segments");
-        try {
+        try (Searcher searcher = acquireSearcher("segments")){
             for (LeafReaderContext reader : searcher.reader().leaves()) {
-                SegmentCommitInfo info = segmentReader(reader.reader()).getSegmentInfo();
+                final SegmentReader segmentReader = segmentReader(reader.reader());
+                SegmentCommitInfo info = segmentReader.getSegmentInfo();
                 assert !segments.containsKey(info.info.name);
                 Segment segment = new Segment(info.info.name);
                 segment.search = true;
@@ -726,7 +725,6 @@ public abstract class Engine implements Closeable {
                 } catch (IOException e) {
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                 }
-                final SegmentReader segmentReader = segmentReader(reader.reader());
                 segment.memoryInBytes = segmentReader.ramBytesUsed();
                 segment.segmentSort = info.info.getIndexSort();
                 if (verbose) {
@@ -736,8 +734,6 @@ public abstract class Engine implements Closeable {
                 // TODO: add more fine grained mem stats values to per segment info here
                 segments.put(info.info.name, segment);
             }
-        } finally {
-            searcher.close();
         }
 
         // now, correlate or add the committed ones...

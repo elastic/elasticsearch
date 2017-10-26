@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -145,7 +146,11 @@ public class PluginsServiceTests extends ESTestCase {
             assertThat(e, hasToString(containsString("Could not load plugin descriptor for existing plugin [.DS_Store]")));
             assertNotNull(e.getCause());
             assertThat(e.getCause(), instanceOf(FileSystemException.class));
-            assertThat(e.getCause(), hasToString(containsString("Not a directory")));
+            if (Constants.WINDOWS) {
+                assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
+            } else {
+                assertThat(e.getCause(), hasToString(containsString("Not a directory")));
+            }
         }
     }
 

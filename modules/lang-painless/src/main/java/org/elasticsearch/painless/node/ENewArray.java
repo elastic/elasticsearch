@@ -71,8 +71,7 @@ public final class ENewArray extends AExpression {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = initialize ? locals.getDefinition().getType(type.struct, 0)
-                    : Definition.INT_TYPE;
+            expression.expected = initialize ? locals.getDefinition().getType(type.struct, 0) : locals.getDefinition().intType;
             expression.internal = true;
             expression.analyze(locals);
             arguments.set(argument, expression.cast(locals));

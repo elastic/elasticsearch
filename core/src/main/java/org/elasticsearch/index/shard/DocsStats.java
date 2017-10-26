@@ -45,13 +45,13 @@ public class DocsStats implements Streamable, ToXContentFragment {
         this.totalSizeInBytes = totalSizeInBytes;
     }
 
-    public void add(DocsStats that) {
-        if (that == null) {
+    public void add(DocsStats other) {
+        if (other == null) {
             return;
         }
-        this.totalSizeInBytes += that.totalSizeInBytes;
-        this.count += that.count;
-        this.deleted += that.deleted;
+        this.totalSizeInBytes += other.totalSizeInBytes;
+        this.count += other.count;
+        this.deleted += other.deleted;
     }
 
     public long getCount() {

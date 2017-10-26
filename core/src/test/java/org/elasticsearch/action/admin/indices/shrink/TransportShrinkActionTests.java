@@ -73,7 +73,7 @@ public class TransportShrinkActionTests extends ESTestCase {
         assertTrue(
             expectThrows(IllegalStateException.class, () ->
             TransportShrinkAction.prepareCreateIndexRequest(new ShrinkRequest("target", "source"), state,
-                (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 10000)), new IndexNameExpressionResolver(Settings.EMPTY))
+                (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)), new IndexNameExpressionResolver(Settings.EMPTY))
         ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
 
 

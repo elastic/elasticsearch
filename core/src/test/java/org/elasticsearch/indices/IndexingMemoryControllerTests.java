@@ -35,7 +35,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.Scheduler.Cancellable;
 
 import java.io.IOException;
 import java.util.ArrayList;

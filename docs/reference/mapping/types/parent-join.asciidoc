@@ -114,6 +114,17 @@ PUT my_index/doc/4?routing=1&refresh
 <2> `answer` is the name of the join for this document
 <3> The parent id of this child document
 
+==== Parent-join and performance.
+
+The join field shouldn't be used like joins in a relation database. In Elasticsearch the key to good performance
+is to de-normalize your data into documents. Each join field, `has_child` or `has_parent` query adds a
+significant tax to your query performance.
+
+The only case where the join field makes sense is if your data contains a one-to-many relationship where
+one entity significantly outnumbers the other entity. An example of such case is a use case with products
+and offers for these products. In the case that offers significantly outnumbers the number of products then
+it makes sense to model the product as parent document and the offer as child document.
+
 ==== Parent-join restrictions
 
 * Only one `join` field mapping is allowed per index.
@@ -338,7 +349,7 @@ GET _nodes/stats/indices/fielddata?human&fields=my_join_field#question
 // CONSOLE
 // TEST[continued]
 
-==== Multiple levels of parent join
+==== Multiple children per parent
 
 It is also possible to define multiple children for a single parent:
 
@@ -363,62 +374,3 @@ PUT my_index
 // CONSOLE
 
 <1> `question` is parent of `answer` and `comment`.
-
-And multiple levels of parent/child:
-
-[source,js]
---------------------------------------------------
-PUT my_index
-{
-  "mappings": {
-    "doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "question": ["answer", "comment"],  <1>
-            "answer": "vote" <2>
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-
-<1> `question` is parent of `answer` and `comment`
-<2> `answer` is parent of `vote`
-
-The mapping above represents the following tree:
-
-                         question
-                          /    \
-                         /      \
-                      comment  answer
-                                 |
-                                 |
-                                vote
-
-Indexing a grand child document requires a `routing` value equals
-to the grand-parent (the greater parent of the lineage):
-
-
-[source,js]
---------------------------------------------------
-PUT my_index/doc/3?routing=1&refresh <1>
-{
-  "text": "This is a vote",
-  "my_join_field": {
-    "name": "vote",
-    "parent": "2" <2>
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-<1> This child document must be on the same shard than its grandparent and parent
-<2> The parent id of this document (must points to an `answer` document)
-
-

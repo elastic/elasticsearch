@@ -134,6 +134,12 @@ public class DateProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("1970-01-01T00:16:40.500Z"));
+
+        document = new HashMap<>();
+        document.put("date_as_string", 1000500L);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("1970-01-01T00:16:40.500Z"));
     }
 
     public void testUnix() {

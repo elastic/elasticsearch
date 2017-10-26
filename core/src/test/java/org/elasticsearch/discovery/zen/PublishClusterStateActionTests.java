@@ -705,6 +705,73 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
     }
 
+    private void assertPublishClusterStateStats(String description, MockNode node, long expectedFull, long expectedIncompatibleDiffs,
+                                                long expectedCompatibleDiffs) {
+        PublishClusterStateStats stats = node.action.stats();
+        assertThat(description + ": full cluster states", stats.getFullClusterStateReceivedCount(), equalTo(expectedFull));
+        assertThat(description + ": incompatible cluster state diffs", stats.getIncompatibleClusterStateDiffReceivedCount(),
+            equalTo(expectedIncompatibleDiffs));
+        assertThat(description + ": compatible cluster state diffs", stats.getCompatibleClusterStateDiffReceivedCount(),
+            equalTo(expectedCompatibleDiffs));
+    }
+
+    public void testPublishClusterStateStats() throws Exception {
+        MockNode nodeA = createMockNode("nodeA").setAsMaster();
+        MockNode nodeB = createMockNode("nodeB");
+
+        assertPublishClusterStateStats("nodeA: initial state", nodeA, 0, 0, 0);
+        assertPublishClusterStateStats("nodeB: initial state", nodeB, 0, 0, 0);
+
+        // Initial cluster state
+        ClusterState clusterState = nodeA.clusterState;
+
+        // cluster state update - add nodeB
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(clusterState.nodes()).add(nodeB.discoveryNode).build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).incrementVersion().build();
+        publishStateAndWait(nodeA.action, clusterState, previousClusterState);
+
+        // Sent as a full cluster state update
+        assertPublishClusterStateStats("nodeA: after full update", nodeA, 0, 0, 0);
+        assertPublishClusterStateStats("nodeB: after full update", nodeB, 1, 0, 0);
+
+        // Increment cluster state version
+        previousClusterState = clusterState;
+        clusterState = ClusterState.builder(clusterState).incrementVersion().build();
+        publishStateAndWait(nodeA.action, clusterState, previousClusterState);
+
+        // Sent, successfully, as a cluster state diff
+        assertPublishClusterStateStats("nodeA: after successful diff update", nodeA, 0, 0, 0);
+        assertPublishClusterStateStats("nodeB: after successful diff update", nodeB, 1, 0, 1);
+
+        // Increment cluster state version twice
+        previousClusterState = ClusterState.builder(clusterState).incrementVersion().build();
+        clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
+        publishStateAndWait(nodeA.action, clusterState, previousClusterState);
+
+        // Sent, unsuccessfully, as a diff and then retried as a full update
+        assertPublishClusterStateStats("nodeA: after unsuccessful diff update", nodeA, 0, 0, 0);
+        assertPublishClusterStateStats("nodeB: after unsuccessful diff update", nodeB, 2, 1, 1);
+
+        // node A steps down from being master
+        nodeA.resetMasterId();
+        nodeB.resetMasterId();
+
+        // node B becomes the master and sends a version of the cluster state that goes back
+        discoveryNodes = DiscoveryNodes.builder(discoveryNodes)
+            .add(nodeA.discoveryNode)
+            .add(nodeB.discoveryNode)
+            .masterNodeId(nodeB.discoveryNode.getId())
+            .localNodeId(nodeB.discoveryNode.getId())
+            .build();
+        previousClusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
+        clusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).incrementVersion().build();
+        publishStateAndWait(nodeB.action, clusterState, previousClusterState);
+
+        // Sent, unsuccessfully, as a diff, and then retried as a full update
+        assertPublishClusterStateStats("nodeA: B became master", nodeA, 1, 1, 0);
+        assertPublishClusterStateStats("nodeB: B became master", nodeB, 2, 1, 1);
+    }
 
     private MetaData buildMetaDataForVersion(MetaData metaData, long version) {
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.builder(metaData.indices());

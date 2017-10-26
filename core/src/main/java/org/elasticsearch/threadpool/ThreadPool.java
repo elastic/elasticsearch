@@ -33,10 +33,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
@@ -64,7 +61,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class ThreadPool extends AbstractComponent implements Closeable {
+public class ThreadPool extends AbstractComponent implements Scheduler, Closeable {
 
     public static class Names {
         public static final String SAME = "same";
@@ -143,8 +140,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
     private Map<String, ExecutorHolder> executors = new HashMap<>();
 
-    private final ScheduledThreadPoolExecutor scheduler;
-
     private final CachedTimeThread cachedTimeThread;
 
     static final ExecutorService DIRECT_EXECUTOR = EsExecutors.newDirectExecutorService();
@@ -152,6 +147,8 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     private final ThreadContext threadContext;
 
     private final Map<String, ExecutorBuilder> builders;
+
+    private final ScheduledThreadPoolExecutor scheduler;
 
     public Collection<ExecutorBuilder> builders() {
         return Collections.unmodifiableCollection(builders.values());
@@ -210,12 +207,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
         executors.put(Names.SAME, new ExecutorHolder(DIRECT_EXECUTOR, new Info(Names.SAME, ThreadPoolType.DIRECT)));
         this.executors = unmodifiableMap(executors);
-
-        this.scheduler = new ScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
-        this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-        this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-        this.scheduler.setRemoveOnCancelPolicy(true);
-
+        this.scheduler = Scheduler.initScheduler(settings);
         TimeValue estimatedTimeInterval = ESTIMATED_TIME_INTERVAL_SETTING.get(settings);
         this.cachedTimeThread = new CachedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
         this.cachedTimeThread.start();
@@ -329,25 +321,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         return holder.executor();
     }
 
-    public ScheduledExecutorService scheduler() {
-        return this.scheduler;
-    }
-
-    /**
-     * Schedules a periodic action that runs on the specified thread pool.
-     *
-     * @param command the action to take
-     * @param interval the delay interval
-     * @param executor The name of the thread pool on which to execute this task. {@link Names#SAME} means "execute on the scheduler thread",
-     *             which there is only one of. Executing blocking or long running code on the {@link Names#SAME} thread pool should never
-     *             be done as it can cause issues with the cluster
-     * @return a {@link Cancellable} that can be used to cancel the subsequent runs of the command. If the command is running, it will
-     *         not be interrupted.
-     */
-    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-        return new ReschedulingRunnable(command, interval, executor, this);
-    }
-
     /**
      * Schedules a one-shot command to run after a given delay. The command is not run in the context of the calling thread. To preserve the
      * context of the calling thread you may call <code>threadPool.getThreadContext().preserveContext</code> on the runnable before passing
@@ -361,13 +334,30 @@ public class ThreadPool extends AbstractComponent implements Closeable {
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture will cannot interact with it.
-     * @throws EsRejectedExecutionException if the task cannot be scheduled for execution
+     * @throws org.elasticsearch.common.util.concurrent.EsRejectedExecutionException if the task cannot be scheduled for execution
      */
     public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
         if (!Names.SAME.equals(executor)) {
             command = new ThreadedRunnable(command, executor(executor));
         }
-        return scheduler.schedule(new LoggingRunnable(command), delay.millis(), TimeUnit.MILLISECONDS);
+        return scheduler.schedule(new ThreadPool.LoggingRunnable(command), delay.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
+        return new ReschedulingRunnable(command, interval, executor, this,
+                (e) -> {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]",
+                                command, executor), e);
+                    }
+                },
+                (e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
+                        command, executor), e));
+    }
+
+    public Runnable preserveContext(Runnable command) {
+        return getThreadContext().preserveContext(command);
     }
 
     public void shutdown() {
@@ -376,7 +366,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
-                ((ThreadPoolExecutor) executor.executor()).shutdown();
+                executor.executor().shutdown();
             }
         }
     }
@@ -387,7 +377,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
-                ((ThreadPoolExecutor) executor.executor()).shutdownNow();
+                executor.executor().shutdownNow();
             }
         }
     }
@@ -396,12 +386,15 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         boolean result = scheduler.awaitTermination(timeout, unit);
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
-                result &= ((ThreadPoolExecutor) executor.executor()).awaitTermination(timeout, unit);
+                result &= executor.executor().awaitTermination(timeout, unit);
             }
         }
-
         cachedTimeThread.join(unit.toMillis(timeout));
         return result;
+    }
+
+    public ScheduledExecutorService scheduler() {
+        return this.scheduler;
     }
 
     /**
@@ -726,7 +719,9 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         if (pool != null) {
             try {
                 pool.shutdown();
-                if (awaitTermination(pool, timeout, timeUnit)) return true;
+                if (awaitTermination(pool, timeout, timeUnit)) {
+                    return true;
+                }
                 // last resort
                 pool.shutdownNow();
                 return awaitTermination(pool, timeout, timeUnit);
@@ -738,11 +733,11 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     private static boolean awaitTermination(
-            final ThreadPool pool,
+            final ThreadPool threadPool,
             final long timeout,
             final TimeUnit timeUnit) {
         try {
-            if (pool.awaitTermination(timeout, timeUnit)) {
+            if (threadPool.awaitTermination(timeout, timeUnit)) {
                 return true;
             }
         } catch (InterruptedException e) {
@@ -758,102 +753,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
     public ThreadContext getThreadContext() {
         return threadContext;
-    }
-
-    /**
-     * This interface represents an object whose execution may be cancelled during runtime.
-     */
-    public interface Cancellable {
-
-        /**
-         * Cancel the execution of this object. This method is idempotent.
-         */
-        void cancel();
-
-        /**
-         * Check if the execution has been cancelled
-         * @return true if cancelled
-         */
-        boolean isCancelled();
-    }
-
-    /**
-     * This class encapsulates the scheduling of a {@link Runnable} that needs to be repeated on a interval. For example, checking a value
-     * for cleanup every second could be done by passing in a Runnable that can perform the check and the specified interval between
-     * executions of this runnable. <em>NOTE:</em> the runnable is only rescheduled to run again after completion of the runnable.
-     *
-     * For this class, <i>completion</i> means that the call to {@link Runnable#run()} returned or an exception was thrown and caught. In
-     * case of an exception, this class will log the exception and reschedule the runnable for its next execution. This differs from the
-     * {@link ScheduledThreadPoolExecutor#scheduleWithFixedDelay(Runnable, long, long, TimeUnit)} semantics as an exception there would
-     * terminate the rescheduling of the runnable.
-     */
-    static final class ReschedulingRunnable extends AbstractRunnable implements Cancellable {
-
-        private final Runnable runnable;
-        private final TimeValue interval;
-        private final String executor;
-        private final ThreadPool threadPool;
-
-        private volatile boolean run = true;
-
-        /**
-         * Creates a new rescheduling runnable and schedules the first execution to occur after the interval specified
-         *
-         * @param runnable the {@link Runnable} that should be executed periodically
-         * @param interval the time interval between executions
-         * @param executor the executor where this runnable should be scheduled to run
-         * @param threadPool the {@link ThreadPool} instance to use for scheduling
-         */
-        ReschedulingRunnable(Runnable runnable, TimeValue interval, String executor, ThreadPool threadPool) {
-            this.runnable = runnable;
-            this.interval = interval;
-            this.executor = executor;
-            this.threadPool = threadPool;
-            threadPool.schedule(interval, executor, this);
-        }
-
-        @Override
-        public void cancel() {
-            run = false;
-        }
-
-        @Override
-        public boolean isCancelled() {
-            return run == false;
-        }
-
-        @Override
-        public void doRun() {
-            // always check run here since this may have been cancelled since the last execution and we do not want to run
-            if (run) {
-                runnable.run();
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            threadPool.logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]", runnable.toString(), executor), e);
-        }
-
-        @Override
-        public void onRejection(Exception e) {
-            run = false;
-            if (threadPool.logger.isDebugEnabled()) {
-                threadPool.logger.debug((Supplier<?>) () -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]", runnable, executor), e);
-            }
-        }
-
-        @Override
-        public void onAfter() {
-            // if this has not been cancelled reschedule it to run again
-            if (run) {
-                try {
-                    threadPool.schedule(interval, executor, this);
-                } catch (final EsRejectedExecutionException e) {
-                    onRejection(e);
-                }
-            }
-        }
     }
 
     public static boolean assertNotScheduleThread(String reason) {

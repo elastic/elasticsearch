@@ -590,10 +590,10 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
             try {
                 Exception connectionException = null;
                 int numConnections = connectionProfile.getNumConnections();
-                List<Tuple<Channel, Future<Channel>>> pendingChannels = new ArrayList<>(numConnections);
+                List<ChannelFuture<Channel>> pendingChannels = new ArrayList<>(numConnections);
                 for (int i = 0; i < numConnections; ++i) {
                     try {
-                        Tuple<Channel, Future<Channel>> pending = initiateChannel(node, connectionProfile.getConnectTimeout());
+                        ChannelFuture<Channel> pending = initiateChannel(node, connectionProfile.getConnectTimeout());
                         pendingChannels.add(pending);
                     } catch (Exception e) {
                         connectionException = e;
@@ -602,7 +602,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                 }
 
                 if (connectionException != null) {
-                    List<Channel> toClose = pendingChannels.stream().map(Tuple::v1).collect(Collectors.toList());
+                    List<Channel> toClose = pendingChannels.stream().map(ChannelFuture::channel).collect(Collectors.toList());
                     TcpChannelUtils.closeChannels(toClose, false, logger);
                     throw connectionException;
                 }
@@ -610,7 +610,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                 // If we make it past the block above, we successfully instantiated all of the channels
 
                 List<Channel> channels = new ArrayList<>(pendingChannels.size());
-                pendingChannels.forEach(t -> channels.add(t.v1()));
+                pendingChannels.forEach(cf -> channels.add(cf.channel()));
                 try {
                     TcpChannelUtils.finishConnection(node, pendingChannels, connectionProfile.getConnectTimeout());
                 } catch (Exception ex) {
@@ -1080,11 +1080,10 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
      *
      * @param node              the node
      * @param connectTimeout    the connection timeout
-     * @return a tuple with the channel and a future representing the pending connection
+     * @return a channel future representing the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract Tuple<Channel, Future<Channel>> initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
-        throws IOException;
+    protected abstract ChannelFuture<Channel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException;
 
     /**
      * Called to tear down internal resources

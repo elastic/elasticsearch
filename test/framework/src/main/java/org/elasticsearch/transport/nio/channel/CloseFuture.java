@@ -86,5 +86,4 @@ public class CloseFuture extends PlainListenableActionFuture<NioChannel> {
     boolean channelCloseThrewException(IOException ex) {
         return setException(ex);
     }
-
 }

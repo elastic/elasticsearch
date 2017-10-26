@@ -66,16 +66,14 @@ public class TcpChannelUtils {
         blockOnFutures(futures);
     }
 
-    public static <C extends TcpChannel<C>> void finishConnection(DiscoveryNode discoveryNode,
-                                                                  List<Tuple<C, Future<C>>> pendingChannels,
+    public static <C extends TcpChannel<C>> void finishConnection(DiscoveryNode discoveryNode, List<ChannelFuture<C>> pendingChannels,
                                                                   TimeValue connectTimeout) throws ConnectTransportException {
         Exception connectionException = null;
         boolean allConnected = true;
 
-        for (int i = 0; i < pendingChannels.size(); ++i) {
+        for (ChannelFuture<C> pendingChannel : pendingChannels) {
             try {
-                Tuple<C, Future<C>> t = pendingChannels.get(i);
-                t.v2().get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
+                pendingChannel.get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
             } catch (TimeoutException e) {
                 allConnected = false;
                 break;

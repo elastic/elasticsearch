@@ -59,6 +59,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.PlainChannelFuture;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 
@@ -252,9 +253,7 @@ public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
     }
 
     @Override
-    protected Tuple<NettyTcpChannel, java.util.concurrent.Future<NettyTcpChannel>> initiateChannel(DiscoveryNode node,
-                                                                                                   TimeValue connectTimeout)
-        throws IOException {
+    protected PlainChannelFuture<NettyTcpChannel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException {
         ChannelFuture channelFuture = bootstrap.connect(node.getAddress().address());
         Channel channel = channelFuture.channel();
         if (channel == null) {
@@ -264,11 +263,11 @@ public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
 
         NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
-        PlainActionFuture<NettyTcpChannel> connectFuture = PlainActionFuture.newFuture();
+        PlainChannelFuture<NettyTcpChannel> connectFuture = new PlainChannelFuture<>(nettyChannel);
 
         channelFuture.addListener(f -> {
             if (f.isSuccess()) {
-                connectFuture.onResponse(nettyChannel);
+                connectFuture.setOnResponse();
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
@@ -280,7 +279,7 @@ public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
             }
         });
 
-        return new Tuple<>(nettyChannel, connectFuture);
+        return connectFuture;
     }
 
     @Override

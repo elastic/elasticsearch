@@ -184,7 +184,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected Tuple<MockChannel, Future<MockChannel>> initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
+    protected ChannelFuture<MockChannel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
         throws IOException {
         InetSocketAddress address = node.getAddress().address();
         final MockSocket socket = new MockSocket();
@@ -199,9 +199,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             MockChannel channel = new MockChannel(socket, address, "none", (c) -> {});
             channel.loopRead(executor);
             success = true;
-            PlainActionFuture<MockChannel> connectFuture = PlainActionFuture.newFuture();
-            connectFuture.onResponse(channel);
-            return new Tuple<>(channel, connectFuture);
+            PlainChannelFuture<MockChannel> connectFuture = new PlainChannelFuture<>(channel);
+            connectFuture.setOnResponse();
+            return connectFuture;
         } finally {
             if (success == false) {
                 IOUtils.close(socket);

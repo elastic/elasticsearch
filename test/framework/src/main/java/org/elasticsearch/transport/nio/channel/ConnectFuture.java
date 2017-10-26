@@ -19,19 +19,17 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.transport.PlainChannelFuture;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class ConnectFuture extends BaseFuture<NioChannel> {
-
-    private final NioChannel nioChannel;
+public class ConnectFuture extends PlainChannelFuture<NioChannel> {
 
     public ConnectFuture(NioChannel nioChannel) {
-        this.nioChannel = nioChannel;
+        super(nioChannel);
     }
 
     public boolean awaitConnectionComplete(long timeout, TimeUnit unit) {
@@ -58,7 +56,7 @@ public class ConnectFuture extends BaseFuture<NioChannel> {
                 return (Exception) e.getCause();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return null;
+                throw new IllegalStateException("interrupted", e);
             }
         } else {
             return null;
@@ -66,7 +64,7 @@ public class ConnectFuture extends BaseFuture<NioChannel> {
     }
 
     public boolean isConnectComplete() {
-        return getChannel() != null;
+        return isConnectComplete0();
     }
 
     public boolean connectFailed() {
@@ -74,7 +72,7 @@ public class ConnectFuture extends BaseFuture<NioChannel> {
     }
 
     void setConnectionComplete() {
-        set(nioChannel);
+        onResponse(channel());
     }
 
     void setConnectionFailed(IOException e) {
@@ -85,21 +83,21 @@ public class ConnectFuture extends BaseFuture<NioChannel> {
         setException(e);
     }
 
-    private NioChannel getChannel() {
+    private boolean isConnectComplete0() {
         if (isDone()) {
             try {
                 // Get should always return without blocking as we already checked 'isDone'
-                return super.get(0, TimeUnit.NANOSECONDS);
+                return super.get(0, TimeUnit.NANOSECONDS) != null;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return null;
+                throw new IllegalStateException("interrupted", e);
             } catch (ExecutionException e) {
-                return null;
+                return false;
             } catch (TimeoutException e) {
                 throw new AssertionError("This should never happen as we only call get() after isDone() is true.");
             }
         } else {
-            return null;
+            return false;
         }
     }
 }

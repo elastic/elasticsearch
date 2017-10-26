@@ -35,7 +35,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
@@ -95,7 +94,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -690,15 +688,6 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
         }
     }
 
-    /**
-     * Disconnects from a node if a channel is found as part of that nodes channels.
-     */
-    protected final void closeChannelWhileHandlingExceptions(final Channel channel) {
-        if (channel.isOpen()) {
-            channel.closeAsync();
-        }
-    }
-
     @Override
     public NodeChannels getConnection(DiscoveryNode node) {
         NodeChannels nodeChannels = connectedNodes.get(node);
@@ -991,7 +980,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
     protected void onException(Channel channel, Exception e) {
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
-            closeChannelWhileHandlingExceptions(channel);
+            TcpChannelUtils.closeChannel(channel, false, logger);
             return;
         }
 
@@ -1002,15 +991,15 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                     channel),
                 e);
             // close the channel, which will cause a node to be disconnected if relevant
-            closeChannelWhileHandlingExceptions(channel);
+            TcpChannelUtils.closeChannel(channel, false, logger);
         } else if (isConnectException(e)) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            closeChannelWhileHandlingExceptions(channel);
+            TcpChannelUtils.closeChannel(channel, false, logger);
         } else if (e instanceof BindException) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            closeChannelWhileHandlingExceptions(channel);
+            TcpChannelUtils.closeChannel(channel, false, logger);
         } else if (e instanceof CancelledKeyException) {
             logger.trace(
                 (Supplier<?>) () -> new ParameterizedMessage(
@@ -1018,7 +1007,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                     channel),
                 e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            closeChannelWhileHandlingExceptions(channel);
+            TcpChannelUtils.closeChannel(channel, false, logger);
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
@@ -1026,19 +1015,13 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
                 final SendMetricListener<Channel> closeChannel = new SendMetricListener<Channel>(message.length()) {
                     @Override
                     protected void innerInnerOnResponse(Channel channel) {
-                        channel.closeAsync().addListener(ActionListener.wrap((c) -> {
-                            },
-                            e -> logger.debug("failed to close httpOnTransport channel", e)));
+                        TcpChannelUtils.closeChannel(channel, false, logger);
                     }
 
                     @Override
                     protected void innerOnFailure(Exception e) {
-                        channel.closeAsync().addListener(ActionListener.wrap((c) -> {
-                            },
-                            e1 -> {
-                                e.addSuppressed(e1);
-                                logger.debug("failed to close httpOnTransport channel", e);
-                            }));
+                        logger.debug("failed to send message to httpOnTransport channel", e);
+                        TcpChannelUtils.closeChannel(channel, false, logger);
                     }
                 };
                 internalSendMessage(channel, message, closeChannel);
@@ -1047,7 +1030,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
             logger.warn(
                 (Supplier<?>) () -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
-            closeChannelWhileHandlingExceptions(channel);
+            TcpChannelUtils.closeChannel(channel, false, logger);
         }
     }
 

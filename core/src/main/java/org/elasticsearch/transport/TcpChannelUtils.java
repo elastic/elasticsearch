@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -36,10 +37,21 @@ import java.util.concurrent.TimeoutException;
 
 public class TcpChannelUtils {
 
+    public static <C extends TcpChannel<C>> void closeChannel(C channel, boolean blocking, Logger logger) {
+        if (channel.isOpen()) {
+            ListenableActionFuture<C> f = channel.closeAsync();
+            f.addListener(ActionListener.wrap(c -> {},
+                e -> logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), e)));
+            if (blocking) {
+                blockOnFutures(Collections.singletonList(f));
+            }
+        }
+    }
+
     public static <C extends TcpChannel<C>> void closeChannels(List<C> channels, boolean blocking, Logger logger) {
         ArrayList<ListenableActionFuture<C>> futures = new ArrayList<>(channels.size());
         for (final C channel : channels) {
-            if (channel != null && channel.isOpen()) {
+            if (channel.isOpen()) {
                 ListenableActionFuture<C> f = channel.closeAsync();
                 f.addListener(ActionListener.wrap(c -> {},
                     e -> logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), e)));
@@ -52,10 +64,10 @@ public class TcpChannelUtils {
         }
     }
 
-    public static  <C extends TcpChannel<C>> void closeServerChannels(String profile, List<C> channels, Logger logger) {
+    public static <C extends TcpChannel<C>> void closeServerChannels(String profile, List<C> channels, Logger logger) {
         ArrayList<ListenableActionFuture<C>> futures = new ArrayList<>(channels.size());
         for (final C channel : channels) {
-            if (channel != null && channel.isOpen()) {
+            if (channel.isOpen()) {
                 ListenableActionFuture<C> f = channel.closeAsync();
                 f.addListener(ActionListener.wrap(c -> {},
                     e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)));
@@ -97,8 +109,7 @@ public class TcpChannelUtils {
     }
 
 
-
-    private static <C extends TcpChannel<C>> void blockOnFutures(ArrayList<ListenableActionFuture<C>> futures) {
+    private static <C extends TcpChannel<C>> void blockOnFutures(List<ListenableActionFuture<C>> futures) {
         for (ListenableActionFuture<C> future : futures) {
             try {
                 future.get();

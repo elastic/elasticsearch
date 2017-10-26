@@ -64,6 +64,7 @@ When a user's role enables document level security for an index:
 ** The `percolate` query isn't supported.
 * If suggesters are specified and document level security is enabled then
   the specified suggesters are ignored.
+* A search request cannot be profiled if document level security is enabled.
 
 [float]
 [[alias-limitations]]

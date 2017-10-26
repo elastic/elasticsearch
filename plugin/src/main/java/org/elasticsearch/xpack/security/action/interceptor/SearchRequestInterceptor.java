@@ -33,6 +33,10 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
                 throw new ElasticsearchSecurityException("Suggest isn't supported if document level security is enabled",
                         RestStatus.BAD_REQUEST);
             }
+            if (request.source() != null && request.source().profile()) {
+                throw new ElasticsearchSecurityException("A search request cannot be profiled if document level security is enabled",
+                        RestStatus.BAD_REQUEST);
+            }
         }
     }
 

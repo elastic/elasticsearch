@@ -47,6 +47,9 @@ to `false` in your `elasticsearch.yml`. See
 * Suggesters can no longer be used if document level security is enabled.
 The search request now fails with an error if suggesters are specified and
 document level security is active.
+* Query and aggregation profiling can no longer be used if document level
+security is enabled. The search request now fails with an error if profiling
+are enabled and document level security is active.
 
 Watcher::
 * The built-in HTTP client used in webhooks, the http input and the http email

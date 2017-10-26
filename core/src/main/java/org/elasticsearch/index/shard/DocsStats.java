@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.store.StoreStats;
 
 import java.io.IOException;
 
@@ -32,28 +33,23 @@ public class DocsStats implements Streamable, ToXContentFragment {
 
     long count = 0;
     long deleted = 0;
-    long averageSizeInBytes = 0;
+    long totalSizeInBytes = 0;
 
     public DocsStats() {
 
     }
 
-    public DocsStats(long count, long deleted, long averageSizeInBytes) {
+    public DocsStats(long count, long deleted, long totalSizeInBytes) {
         this.count = count;
         this.deleted = deleted;
-        this.averageSizeInBytes = averageSizeInBytes;
+        this.totalSizeInBytes = totalSizeInBytes;
     }
 
     public void add(DocsStats that) {
         if (that == null) {
             return;
         }
-        long totalBytes = this.averageSizeInBytes * (this.count + this.deleted)
-                        + that.averageSizeInBytes * (that.count + that.deleted);
-        long totalDocs = this.count + this.deleted + that.count + that.deleted;
-        if (totalDocs > 0) {
-            this.averageSizeInBytes = totalBytes / totalDocs;
-        }
+        this.totalSizeInBytes += that.totalSizeInBytes;
         this.count += that.count;
         this.deleted += that.deleted;
     }
@@ -66,8 +62,20 @@ public class DocsStats implements Streamable, ToXContentFragment {
         return this.deleted;
     }
 
+    /**
+     * Returns the total size in bytes of all documents in this stats.
+     * This value may be more reliable than {@link StoreStats#getSizeInBytes()} in estimating the index size.
+     */
+    public long getTotalSizeInBytes() {
+        return totalSizeInBytes;
+    }
+
+    /**
+     * Returns the average size in bytes of all documents in this stats.
+     */
     public long getAverageSizeInBytes() {
-        return averageSizeInBytes;
+        long totalDocs = count + deleted;
+        return totalDocs == 0 ? 0 : totalSizeInBytes / totalDocs;
     }
 
     @Override
@@ -75,7 +83,7 @@ public class DocsStats implements Streamable, ToXContentFragment {
         count = in.readVLong();
         deleted = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            averageSizeInBytes = in.readVLong();
+            totalSizeInBytes = in.readVLong();
         }
     }
 
@@ -84,7 +92,7 @@ public class DocsStats implements Streamable, ToXContentFragment {
         out.writeVLong(count);
         out.writeVLong(deleted);
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeVLong(averageSizeInBytes);
+            out.writeVLong(totalSizeInBytes);
         }
     }
 

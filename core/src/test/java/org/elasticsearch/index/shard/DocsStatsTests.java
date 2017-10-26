@@ -29,29 +29,17 @@ import static org.hamcrest.Matchers.equalTo;
 public class DocsStatsTests extends ESTestCase {
 
     public void testCalculateAverageDocSize() throws Exception {
-        DocsStats stats = new DocsStats(10, 2, 10);
+        DocsStats stats = new DocsStats(10, 2, 120);
         assertThat(stats.getAverageSizeInBytes(), equalTo(10L));
 
-        stats.add(new DocsStats(0, 0, randomNonNegativeLong()));
+        stats.add(new DocsStats(0, 0, 0));
         assertThat(stats.getAverageSizeInBytes(), equalTo(10L));
 
-        // (38*900 + 12*10) / 50 = 686L
-        stats.add(new DocsStats(8, 30, 900));
+        stats.add(new DocsStats(8, 30, 480));
         assertThat(stats.getCount(), equalTo(18L));
         assertThat(stats.getDeleted(), equalTo(32L));
-        assertThat(stats.getAverageSizeInBytes(), equalTo(686L));
-
-        // (50*686 + 40*120) / 90 = 434L
-        stats.add(new DocsStats(0, 40, 120));
-        assertThat(stats.getCount(), equalTo(18L));
-        assertThat(stats.getDeleted(), equalTo(72L));
-        assertThat(stats.getAverageSizeInBytes(), equalTo(434L));
-
-        // (90*434 + 35*99) / 125 = 340L
-        stats.add(new DocsStats(35, 0, 99));
-        assertThat(stats.getCount(), equalTo(53L));
-        assertThat(stats.getDeleted(), equalTo(72L));
-        assertThat(stats.getAverageSizeInBytes(), equalTo(340L));
+        assertThat(stats.getTotalSizeInBytes(), equalTo(600L));
+        assertThat(stats.getAverageSizeInBytes(), equalTo(12L));
     }
 
     public void testSerialize() throws Exception {

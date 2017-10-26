@@ -88,6 +88,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -2273,54 +2274,57 @@ public class IndexShardTests extends IndexShardTestCase {
         }
     }
 
-    public void testEstimateAverageDocSize() throws Exception {
+    public void testEstimateTotalDocSize() throws Exception {
         IndexShard indexShard = null;
         try {
             indexShard = newStartedShard(true);
-            int smallDocNum = randomIntBetween(5, 100);
-            for (int i = 0; i < smallDocNum; i++) {
-                indexDoc(indexShard, "test", "small-" + i);
-            }
-            // Average document size is estimated by sampling segments, thus it should be zero without flushing.
-            DocsStats withoutFlush = indexShard.docStats();
-            assertThat(withoutFlush.averageSizeInBytes, equalTo(0L));
 
-            indexShard.flush(new FlushRequest());
-            indexShard.refresh("test");
-            DocsStats smallStats = indexShard.docStats();
-            assertThat(smallStats.averageSizeInBytes, greaterThan(10L));
-
-            long storedAvgSize = indexShard.storeStats().sizeInBytes() / smallDocNum;
-            assertThat("Estimated average document size is too small compared with the average stored size",
-                smallStats.averageSizeInBytes, greaterThanOrEqualTo(storedAvgSize * 80/100));
-            assertThat("Estimated average document size is too large compared with the average stored size",
-                smallStats.averageSizeInBytes, lessThanOrEqualTo(storedAvgSize * 120/100));
-
-            // Indexing large documents should increase the average document size.
-            int largeDocNum = randomIntBetween(100, 200);
-            for (int i = 0; i < largeDocNum; i++) {
+            int numDoc = randomIntBetween(100, 200);
+            for (int i = 0; i < numDoc; i++) {
                 String doc = XContentFactory.jsonBuilder()
                     .startObject()
                         .field("count", randomInt())
                         .field("point", randomFloat())
                         .field("description", randomUnicodeOfCodepointLength(100))
                     .endObject().string();
-                indexDoc(indexShard, "test", "large-" + i, doc);
+                indexDoc(indexShard, "doc", Integer.toString(i), doc);
             }
-            indexShard.flush(new FlushRequest());
-            indexShard.refresh("test");
-            DocsStats largeStats = indexShard.docStats();
-            assertThat(largeStats.averageSizeInBytes, greaterThan(100L));
-            assertThat(largeStats.averageSizeInBytes, greaterThan(smallStats.averageSizeInBytes));
 
-            int deleteDocs = randomIntBetween(1, smallDocNum / 2);
-            for (int i = 0; i < deleteDocs; i++) {
-                deleteDoc(indexShard, "test", "small-" + i);
-            }
+            assertThat("Without flushing, segment sizes should be zero",
+                indexShard.docStats().getTotalSizeInBytes(), equalTo(0L));
+
             indexShard.flush(new FlushRequest());
             indexShard.refresh("test");
-            DocsStats withDeletedStats = indexShard.docStats();
-            assertThat(withDeletedStats.averageSizeInBytes, greaterThan(largeStats.averageSizeInBytes));
+            {
+                final DocsStats docsStats = indexShard.docStats();
+                final StoreStats storeStats = indexShard.storeStats();
+                assertThat(storeStats.sizeInBytes(), greaterThan(numDoc * 100L)); // A doc should be more than 100 bytes.
+
+                assertThat("Estimated total document size is too small compared with the stored size",
+                    docsStats.getTotalSizeInBytes(), greaterThanOrEqualTo(storeStats.sizeInBytes() * 80/100));
+                assertThat("Estimated total document size is too large compared with the stored size",
+                    docsStats.getTotalSizeInBytes(), lessThanOrEqualTo(storeStats.sizeInBytes() * 120/100));
+            }
+
+            // Do some updates and deletes, then recheck the correlation again.
+            for (int i = 0; i < numDoc / 2; i++) {
+                if (randomBoolean()) {
+                    deleteDoc(indexShard, "doc", Integer.toString(i));
+                } else {
+                    indexDoc(indexShard, "doc", Integer.toString(i), "{\"foo\": \"bar\"}");
+                }
+            }
+
+            indexShard.flush(new FlushRequest());
+            indexShard.refresh("test");
+            {
+                final DocsStats docsStats = indexShard.docStats();
+                final StoreStats storeStats = indexShard.storeStats();
+                assertThat("Estimated total document size is too small compared with the stored size",
+                    docsStats.getTotalSizeInBytes(), greaterThanOrEqualTo(storeStats.sizeInBytes() * 80/100));
+                assertThat("Estimated total document size is too large compared with the stored size",
+                    docsStats.getTotalSizeInBytes(), lessThanOrEqualTo(storeStats.sizeInBytes() * 120/100));
+            }
 
         } finally {
             closeShards(indexShard);

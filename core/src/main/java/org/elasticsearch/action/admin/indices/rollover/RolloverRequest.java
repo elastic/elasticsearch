@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 
@@ -106,6 +108,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
         for (Condition condition : conditions) {
+            if (condition instanceof MaxSizeCondition && out.getVersion().before(Version.V_6_1_0)) {
+                continue;
+            }
             out.writeNamedWriteable(condition);
         }
         createIndexRequest.writeTo(out);
@@ -153,6 +158,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      */
     public void addMaxIndexDocsCondition(long numDocs) {
         this.conditions.add(new MaxDocsCondition(numDocs));
+    }
+
+    /**
+     * Adds a size-based condition to check if the index size is at least <code>size</code>.
+     */
+    public void addMaxIndexSizeCondition(ByteSizeValue size) {
+        this.conditions.add(new MaxSizeCondition(size));
     }
 
     /**

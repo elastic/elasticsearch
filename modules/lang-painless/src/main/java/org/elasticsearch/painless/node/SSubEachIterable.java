@@ -33,6 +33,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 
@@ -84,7 +85,7 @@ final class SSubEachIterable extends AStatement {
             }
         }
 
-        cast = AnalyzerCaster.getLegalCast(location, Definition.DEF_TYPE, variable.type, true, true);
+        cast = locals.getDefinition().caster.getLegalCast(location, locals.getDefinition().DefType, variable.type, true, true);
     }
 
     @Override
@@ -95,7 +96,7 @@ final class SSubEachIterable extends AStatement {
 
         if (method == null) {
             org.objectweb.asm.Type methodType = org.objectweb.asm.Type
-                    .getMethodType(Definition.ITERATOR_TYPE.type, Definition.DEF_TYPE.type);
+                    .getMethodType(org.objectweb.asm.Type.getType(Iterator.class), org.objectweb.asm.Type.getType(Object.class));
             writer.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
             method.write(writer);

@@ -1,0 +1,323 @@
+setup:
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              doc:
+                properties:
+                  int_field:
+                     type : integer
+                  double_field:
+                     type : double
+                  string_field:
+                     type: keyword
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _type:  doc
+               _id:    1
+           - int_field: 1
+             double_field: 1.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _type:  doc
+               _id:    2
+           - int_field: 51
+             double_field: 51.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _type:  doc
+               _id:    3
+           - int_field: 101
+             double_field: 101.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _type:  doc
+               _id:    4
+           - int_field: 151
+             double_field: 151.0
+             string_field: foo
+
+---
+"Basic test":
+
+  - do:
+      search:
+        body:
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int_field
+                values: [50, 99]
+                hdr: {}
+            percentile_ranks_double:
+              percentile_ranks:
+                field: double_field
+                values: [50, 99]
+                hdr: {}
+
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match:
+      aggregations.percentile_ranks_int.values:
+        "50.0": 25.0
+        "99.0": 50.0
+
+  - match:
+      aggregations.percentile_ranks_double.values:
+        "50.0": 25.0
+        "99.0": 50.0
+
+  - do:
+      search:
+        body:
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int_field
+                values: [50, 99]
+                hdr:
+                  number_of_significant_value_digits: 3
+            percentile_ranks_double:
+              percentile_ranks:
+                field: double_field
+                values: [50, 99]
+                hdr:
+                  number_of_significant_value_digits: 3
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match:
+      aggregations.percentile_ranks_int.values:
+        "50.0": 25.0
+        "99.0": 50.0
+
+  - match:
+      aggregations.percentile_ranks_double.values:
+        "50.0": 25.0
+        "99.0": 50.0
+
+---
+"Only aggs test":
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int_field
+                values: [50, 99]
+                hdr:
+                  number_of_significant_value_digits: 3
+            percentile_ranks_double:
+              percentile_ranks:
+                field: double_field
+                values: [50, 99]
+                hdr:
+                  number_of_significant_value_digits: 3
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 0 }
+  - match:
+      aggregations.percentile_ranks_int.values:
+        "50.0": 25.0
+        "99.0": 50.0
+
+  - match:
+      aggregations.percentile_ranks_double.values:
+        "50.0": 25.0
+        "99.0": 50.0
+
+---
+"Filtered test":
+
+  - do:
+      search:
+        body:
+          query:
+            constant_score:
+              filter:
+                range:
+                  int_field:
+                    gte: 50
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int_field
+                values: [50]
+                hdr:
+                  number_of_significant_value_digits: 3
+            percentile_ranks_double:
+              percentile_ranks:
+                field: double_field
+                values: [50]
+                hdr:
+                  number_of_significant_value_digits: 3
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+  - match:
+      aggregations.percentile_ranks_int.values:
+        "50.0": 0.0
+
+  - match:
+      aggregations.percentile_ranks_double.values:
+        "50.0": 0.0
+
+---
+"Missing field with missing param":
+
+  - do:
+      search:
+        body:
+          aggs:
+            percentile_ranks_missing:
+              percentile_ranks:
+                field: missing_field
+                missing: 1.0
+                values: [50, 99]
+                hdr:
+                  number_of_significant_value_digits: 3
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match:
+      aggregations.percentile_ranks_missing.values:
+        "50.0": 100.0
+        "99.0": 100.0
+
+
+---
+"Missing field without missing param":
+
+  - do:
+      search:
+        body:
+          aggs:
+            percentile_ranks_missing:
+              percentile_ranks:
+                field: missing_field
+                values: [50, 99]
+                hdr:
+                  number_of_significant_value_digits: 3
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - is_false: aggregations.percentile_ranks_missing.value
+
+---
+"Metadata test":
+
+  - do:
+      search:
+        body:
+          aggs:
+            percentile_ranks_int:
+              meta:
+                foo: bar
+              percentile_ranks:
+                field: int_field
+                values: [50, 99]
+                hdr:
+                  number_of_significant_value_digits: 3
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.percentile_ranks_int.meta.foo: "bar" }
+  - match:
+      aggregations.percentile_ranks_int.values:
+        "50.0": 25.0
+        "99.0": 50.0
+
+---
+"Invalid params test":
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int_field
+                values: []
+                hdr:
+                  number_of_significant_value_digits: 3
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int_field
+                values: null
+                hdr:
+                  number_of_significant_value_digits: 3
+
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int_field
+                values: ["foo"]
+                hdr:
+                  number_of_significant_value_digits: 3
+
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          aggs:
+            percentile_ranks_string:
+              percentile_ranks:
+                field: string_field
+                hdr:
+                  number_of_significant_value_digits: 3
+
+
+---
+"Non-keyed test":
+
+  - do:
+      search:
+        body:
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int_field
+                values: [50, 99]
+                keyed: false
+                hdr:
+                  number_of_significant_value_digits: 3
+
+
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match:
+      aggregations.percentile_ranks_int.values:
+        - key: 50.0
+          value: 25.0
+        - key: 99.0
+          value: 50.0
+

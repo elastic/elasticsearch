@@ -102,7 +102,7 @@ public class IndicesAndAliasesResolver {
         return resolveIndicesAndAliases((IndicesRequest) request, metaData, authorizedIndices);
     }
 
-    private ResolvedIndices resolveIndicesAndAliases(IndicesRequest indicesRequest, MetaData metaData,
+    ResolvedIndices resolveIndicesAndAliases(IndicesRequest indicesRequest, MetaData metaData,
                                                      AuthorizedIndices authorizedIndices) {
         boolean indicesReplacedWithNoIndices = false;
         final ResolvedIndices indices;

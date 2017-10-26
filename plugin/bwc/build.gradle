@@ -47,6 +47,8 @@ subprojects {
     File esCheckoutDir = file("${buildDir}/bwc/checkout-es-${bwcBranch}")
     File xpackCheckoutDir = file("${esCheckoutDir}-extra/x-pack-elasticsearch")
 
+    final String remote = System.getProperty("tests.bwc.remote", "elastic")
+
     task createElasticsearchClone(type: LoggedExec) {
       onlyIf { esCheckoutDir.exists() == false }
       commandLine = ['git', 'clone', rootDir, esCheckoutDir]
@@ -58,7 +60,7 @@ subprojects {
     }
 
     // we use regular Exec here to ensure we always get output, regardless of logging level
-    task findElasticsearchUpstream(type: Exec) {
+    task findElasticsearchRemote(type: Exec) {
       dependsOn createElasticsearchClone
       workingDir = esCheckoutDir
       commandLine = ['git', 'remote', '-v']
@@ -70,16 +72,16 @@ subprojects {
           output.toString('UTF-8').eachLine { line -> logger.error(line) }
           execResult.assertNormalExitValue()
         }
-        project.ext.esUpstreamExists = false
+        project.ext.esRemoteExists = false
         output.toString('UTF-8').eachLine {
-          if (it.contains("upstream")) {
-            project.ext.esUpstreamExists = true
+          if (it.contains("${remote}\tgit@github.com:${remote}/elasticsearch.git")) {
+            project.ext.esRemoteExists = true
           }
         }
       }
     }
 
-    task findXPackUpstream(type: Exec) {
+    task findXPackRemote(type: Exec) {
       dependsOn createXPackClone
       workingDir = xpackCheckoutDir
       commandLine = ['git', 'remote', '-v']
@@ -91,37 +93,37 @@ subprojects {
           output.toString('UTF-8').eachLine { line -> logger.error(line) }
           execResult.assertNormalExitValue()
         }
-        project.ext.xpackUpstreamExists = false
+        project.ext.xpackRemoteExists = false
         output.toString('UTF-8').eachLine {
-          if (it.contains("upstream")) {
-            project.ext.xpackUpstreamExists = true
+          if (it.contains("${remote}\tgit@github.com:${remote}/x-pack-elasticsearch.git")) {
+            project.ext.xpackRemoteExists = true
           }
         }
       }
     }
 
-    task addElasticsearchUpstream(type: LoggedExec) {
-      dependsOn findElasticsearchUpstream
-      onlyIf { project.ext.esUpstreamExists == false }
+    task addElasticsearchRemote(type: LoggedExec) {
+      dependsOn findElasticsearchRemote
+      onlyIf { project.ext.esRemoteExists == false }
       workingDir = esCheckoutDir
-      commandLine = ['git', 'remote', 'add', 'upstream', 'git@github.com:elastic/elasticsearch.git']
+      commandLine = ['git', 'remote', 'add', "${remote}", "git@github.com:${remote}/elasticsearch.git"]
     }
 
-    task addXPackUpstream(type: LoggedExec) {
-      dependsOn findXPackUpstream
-      onlyIf { project.ext.xpackUpstreamExists == false }
+    task addXPackRemote(type: LoggedExec) {
+      dependsOn findXPackRemote
+      onlyIf { project.ext.xpackRemoteExists == false }
       workingDir = xpackCheckoutDir
-      commandLine = ['git', 'remote', 'add', 'upstream', 'git@github.com:elastic/x-pack-elasticsearch.git']
+      commandLine = ['git', 'remote', 'add', "${remote}", "git@github.com:${remote}/x-pack-elasticsearch.git"]
     }
 
     task fetchElasticsearchLatest(type: LoggedExec) {
-      dependsOn addElasticsearchUpstream
+      dependsOn addElasticsearchRemote
       workingDir = esCheckoutDir
       commandLine = ['git', 'fetch', '--all']
     }
 
     task fetchXPackLatest(type: LoggedExec) {
-      dependsOn addXPackUpstream
+      dependsOn addXPackRemote
       workingDir = xpackCheckoutDir
       commandLine = ['git', 'fetch', '--all']
     }
@@ -129,7 +131,7 @@ subprojects {
     String esBuildMetadataKey = "bwc_refspec_${project.path.substring(1)}_elasticsearch"
     task checkoutElasticsearchBwcBranch(type: LoggedExec) {
       dependsOn fetchElasticsearchLatest
-      def String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(esBuildMetadataKey, "upstream/${bwcBranch}"))
+      def String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(esBuildMetadataKey, "${remote}/${bwcBranch}"))
       workingDir = esCheckoutDir
       commandLine = ['git', 'checkout', refspec]
     }
@@ -137,7 +139,7 @@ subprojects {
     String xpackBuildMetadataKey = "bwc_refspec_${project.path.substring(1)}_xpack"
     task checkoutXPackBwcBranch(type: LoggedExec) {
       dependsOn fetchXPackLatest
-      def String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(xpackBuildMetadataKey, "upstream/${bwcBranch}"))
+      def String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(xpackBuildMetadataKey, "${remote}/${bwcBranch}"))
       workingDir = xpackCheckoutDir
       commandLine = ['git', 'checkout', refspec]
     }

@@ -22,34 +22,36 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 
 /**
- * Condition for maximum index docs. Evaluates to <code>true</code>
- * when the index has at least {@link #value} docs
+ * A size-based condition for an index size.
+ * Evaluates to <code>true</code> if the index size is at least {@link #value}.
  */
-public class MaxDocsCondition extends Condition<Long> {
-    public static final String NAME = "max_docs";
+public class MaxSizeCondition extends Condition<ByteSizeValue> {
+    public static final String NAME = "max_size";
 
-    public MaxDocsCondition(Long value) {
+    public MaxSizeCondition(ByteSizeValue value) {
         super(NAME);
         this.value = value;
     }
 
-    public MaxDocsCondition(StreamInput in) throws IOException {
+    public MaxSizeCondition(StreamInput in) throws IOException {
         super(NAME);
-        this.value = in.readLong();
+        this.value = new ByteSizeValue(in.readVLong(), ByteSizeUnit.BYTES);
     }
 
     @Override
-    public Result evaluate(final Stats stats) {
-        return new Result(this, this.value <= stats.numDocs);
+    public Result evaluate(Stats stats) {
+        return new Result(this, stats.indexSize.getBytes() >= value.getBytes());
     }
 
     @Override
     boolean includedInVersion(Version version) {
-        return true;
+        return version.onOrAfter(Version.V_7_0_0_alpha1);
     }
 
     @Override
@@ -59,6 +61,6 @@ public class MaxDocsCondition extends Condition<Long> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(value);
+        out.writeVLong(value.getBytes());
     }
 }

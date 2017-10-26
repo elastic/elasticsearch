@@ -73,22 +73,23 @@ public final class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        constant = new Constant(location, Definition.PATTERN_TYPE.type, "regexAt$" + location.getOffset(), this::initializeConstant);
-        actual = Definition.PATTERN_TYPE;
+        constant = new Constant(
+            location, locals.getDefinition().PatternType.type, "regexAt$" + location.getOffset(), this::initializeConstant);
+        actual = locals.getDefinition().PatternType;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, Definition.PATTERN_TYPE.type);
+        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, org.objectweb.asm.Type.getType(Pattern.class));
         globals.addConstantInitializer(constant);
     }
 
     private void initializeConstant(MethodWriter writer) {
         writer.push(pattern);
         writer.push(flags);
-        writer.invokeStatic(Definition.PATTERN_TYPE.type, WriterConstants.PATTERN_COMPILE);
+        writer.invokeStatic(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_COMPILE);
     }
 
     private int flagForChar(char c) {

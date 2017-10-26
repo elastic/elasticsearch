@@ -283,9 +283,10 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             return new ScrollingTopDocsCollectorContext(searchContext.scrollContext(),
                 searchContext.sort(), numDocs, searchContext.trackScores(), searchContext.numberOfShards());
         } else if (searchContext.collapse() != null) {
+            boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             return new CollapsingTopDocsCollectorContext(searchContext.collapse(),
-                searchContext.sort(), numDocs, searchContext.trackScores());
+                searchContext.sort(), numDocs, trackScores);
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;

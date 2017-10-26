@@ -16,6 +16,11 @@ Slack>>, and <<pagerduty-notification-settings, PagerDuty>>.
 `xpack.watcher.enabled`::
 Set to `false` to disable {watcher} on the node.
 
+`xpack.watcher.history.cleaner_service.enabled`::
+Set to `false` (default) to disable the cleaner service, which removes previous
+versions of {watcher} indices (for example, .watcher-history*) when it
+determines that they are old.
+
 `xpack.http.proxy.host`::
 Specifies the address of the proxy server to use to connect to HTTP services.
 

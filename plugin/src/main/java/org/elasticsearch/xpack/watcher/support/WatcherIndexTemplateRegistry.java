@@ -127,6 +127,12 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         });
     }
 
+    public static boolean validate(ClusterState state) {
+        return state.getMetaData().getTemplates().containsKey(HISTORY_TEMPLATE_NAME) &&
+                state.getMetaData().getTemplates().containsKey(TRIGGERED_TEMPLATE_NAME) &&
+                state.getMetaData().getTemplates().containsKey(WATCHES_TEMPLATE_NAME);
+    }
+
     public static class TemplateConfig {
 
         private final String templateName;

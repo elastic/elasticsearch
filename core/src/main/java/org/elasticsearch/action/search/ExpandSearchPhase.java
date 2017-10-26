@@ -124,16 +124,12 @@ final class ExpandSearchPhase extends SearchPhase {
             .types(orig.types())
             .source(sourceBuilder)
             .indicesOptions(orig.indicesOptions())
-            .requestCache(orig.requestCache());
-        groupRequest.setMaxConcurrentShardRequests(orig.getMaxConcurrentShardRequests());
-        if (orig.preference() != null) {
-            groupRequest.preference(orig.preference());
-        }
-        if (orig.routing() != null) {
-            groupRequest.routing(orig.routing());
-        }
-        if (orig.searchType() != null) {
-            groupRequest.searchType(orig.searchType());
+            .requestCache(orig.requestCache())
+            .preference(orig.preference())
+            .routing(orig.routing())
+            .searchType(orig.searchType());
+        if (orig.isMaxConcurrentShardRequestsSet()) {
+            groupRequest.setMaxConcurrentShardRequests(orig.getMaxConcurrentShardRequests());
         }
         return groupRequest;
     }

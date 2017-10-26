@@ -59,7 +59,7 @@ public final class EConditional extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        condition.expected = Definition.BOOLEAN_TYPE;
+        condition.expected = locals.getDefinition().booleanType;
         condition.analyze(locals);
         condition = condition.cast(locals);
 
@@ -79,7 +79,7 @@ public final class EConditional extends AExpression {
         right.analyze(locals);
 
         if (expected == null) {
-            final Type promote = AnalyzerCaster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
+            final Type promote = locals.getDefinition().caster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
 
             left.expected = promote;
             right.expected = promote;

@@ -94,7 +94,7 @@ public final class SFor extends AStatement {
         }
 
         if (condition != null) {
-            condition.expected = Definition.BOOLEAN_TYPE;
+            condition.expected = locals.getDefinition().booleanType;
             condition.analyze(locals);
             condition = condition.cast(locals);
 

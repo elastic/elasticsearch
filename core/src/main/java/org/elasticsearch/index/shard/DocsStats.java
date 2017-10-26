@@ -74,7 +74,7 @@ public class DocsStats implements Streamable, ToXContentFragment {
     public void readFrom(StreamInput in) throws IOException {
         count = in.readVLong();
         deleted = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             averageSizeInBytes = in.readVLong();
         }
     }
@@ -83,7 +83,7 @@ public class DocsStats implements Streamable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
         out.writeVLong(deleted);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeVLong(averageSizeInBytes);
         }
     }

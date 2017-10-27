@@ -518,3 +518,99 @@ setup:
       xpack.ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         end: "invalid"
+
+---
+"Test overall buckets given bucket_span":
+  - do:
+      xpack.ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        bucket_span: "2h"
+  - match: { count: 2 }
+  - match: { overall_buckets.0.timestamp: 1464739200000 }
+  - match: { overall_buckets.0.bucket_span: 7200 }
+  - match: { overall_buckets.0.overall_score: 30.0 }
+  - length: { overall_buckets.0.jobs: 3}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.0.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.0.jobs.1.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.0.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.2.max_anomaly_score: 30.0 }
+  - match: { overall_buckets.0.is_interim: false }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+  - match: { overall_buckets.1.timestamp: 1464746400000 }
+  - match: { overall_buckets.1.bucket_span: 7200 }
+  - match: { overall_buckets.1.overall_score: 60.0 }
+  - length: { overall_buckets.1.jobs: 3}
+  - match: {overall_buckets.1.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.1.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.1.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.1.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.1.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.1.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.1.is_interim: true }
+  - match: { overall_buckets.1.result_type: overall_bucket }
+
+---
+"Test overall buckets given bucket_span and top_n is 2":
+  - do:
+      xpack.ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        top_n: 2
+        bucket_span: "2h"
+
+  - match: { count: 2 }
+  - match: { overall_buckets.0.timestamp: 1464739200000 }
+  - match: { overall_buckets.0.bucket_span: 7200 }
+  - match: { overall_buckets.0.overall_score: 30.0 }
+  - length: { overall_buckets.0.jobs: 3}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.0.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.0.jobs.1.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.0.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.2.max_anomaly_score: 30.0 }
+  - match: { overall_buckets.0.is_interim: false }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+  - match: { overall_buckets.1.timestamp: 1464746400000 }
+  - match: { overall_buckets.1.bucket_span: 7200 }
+  - match: { overall_buckets.1.overall_score: 50.0 }
+  - length: { overall_buckets.1.jobs: 3}
+  - match: {overall_buckets.1.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.1.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.1.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.1.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.1.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.1.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.1.is_interim: true }
+  - match: { overall_buckets.1.result_type: overall_bucket }
+
+---
+"Test overall buckets given bucket_span and overall_score filter":
+  - do:
+      xpack.ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        bucket_span: "2h"
+        overall_score: "41.0"
+
+  - match: { count: 1 }
+  - match: { overall_buckets.0.timestamp: 1464746400000 }
+  - match: { overall_buckets.0.bucket_span: 7200 }
+  - match: { overall_buckets.0.overall_score: 60.0 }
+  - length: { overall_buckets.0.jobs: 3}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.0.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.0.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.0.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.0.is_interim: true }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+
+---
+"Test overall buckets given bucket_span is smaller than max job bucket_span":
+  - do:
+      catch: /.*Param \[bucket_span\] must be greater or equal to the max bucket_span \[60m\]*/
+      xpack.ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        bucket_span: "59m"

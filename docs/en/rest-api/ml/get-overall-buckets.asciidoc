@@ -32,6 +32,11 @@ score in the overall bucket. Alternatively, if you set `top_n` to the number of
 jobs, the `overall_score` is high only when all jobs detect anomalies in that
 overall bucket.
 
+In addition, the optional parameter `bucket_span` may be used in order
+to request overall buckets that span longer than the largest job's `bucket_span`.
+When set, the `overall_score` will be the max `overall_score` of the corresponding
+overall buckets with a span equal to the largest job's `bucket_span`.
+
 ==== Path Parameters
 
 `job_id`::
@@ -43,6 +48,10 @@ overall bucket.
 `allow_no_jobs`::
   (boolean) If `false` and the `job_id` does not match any job an error will
   be returned. The default value is `true`.
+
+`bucket_span`::
+  (string) The span of the overall buckets. Must be greater or equal
+  to the largest job's `bucket_span`. Defaults to the largest job's `bucket_span`.
 
 `end`::
   (string) Returns overall buckets with timestamps earlier than this time.

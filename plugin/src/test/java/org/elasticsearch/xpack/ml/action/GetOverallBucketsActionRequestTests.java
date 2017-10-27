@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.GetOverallBucketsAction.Request;
@@ -18,7 +19,9 @@ public class GetOverallBucketsActionRequestTests extends AbstractStreamableXCont
         if (randomBoolean()) {
             request.setTopN(randomIntBetween(1, 1000));
         }
-        request.setAllowNoJobs(randomBoolean());
+        if (randomBoolean()) {
+            request.setBucketSpan(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
+        }
         if (randomBoolean()) {
             request.setStart(randomNonNegativeLong());
         }
@@ -31,6 +34,7 @@ public class GetOverallBucketsActionRequestTests extends AbstractStreamableXCont
         if (randomBoolean()) {
             request.setEnd(randomNonNegativeLong());
         }
+        request.setAllowNoJobs(randomBoolean());
         return request;
     }
 

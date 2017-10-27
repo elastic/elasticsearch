@@ -24,9 +24,12 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -38,10 +41,11 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
-
 
     public void testFilterShards() throws InterruptedException {
 
@@ -185,6 +189,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
+
         final SearchTransportService searchTransportService =
                 new SearchTransportService(Settings.builder().put("search.remote.connect", false).build(), null, null) {
                     @Override
@@ -197,11 +202,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     }
                 };
 
-        final AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final OriginalIndices originalIndices = new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed());
         final GroupShardsIterator<SearchShardIterator> shardsIter =
-                SearchAsyncActionTests.getShardsIter("idx", originalIndices, 2048, randomBoolean(), primaryNode, replicaNode);
+                SearchAsyncActionTests.getShardsIter("idx", originalIndices, 4096, randomBoolean(), primaryNode, replicaNode);
+        final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
         final CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
                 logger,
                 searchTransportService,
@@ -215,16 +220,38 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 0,
                 null,
-                (iter) -> new SearchPhase("test") {
+                (iter) -> new InitialSearchPhase<SearchPhaseResult>("test", null, iter, logger, randomIntBetween(1, 32), executor) {
                     @Override
-                    public void run() throws IOException {
-                        result.set(iter);
+                    void onPhaseDone() {
                         latch.countDown();
-                    }});
+                    }
+
+                    @Override
+                    void onShardFailure(final int shardIndex, final SearchShardTarget shardTarget, final Exception ex) {
+
+                    }
+
+                    @Override
+                    void onShardSuccess(final SearchPhaseResult result) {
+
+                    }
+
+                    @Override
+                    protected void executePhaseOnShard(
+                            final SearchShardIterator shardIt,
+                            final ShardRouting shard,
+                            final SearchActionListener<SearchPhaseResult> listener) {
+                        if (randomBoolean()) {
+                            listener.onResponse(new SearchPhaseResult() {});
+                        } else {
+                            listener.onFailure(new Exception("failure"));
+                        }
+                    }
+                });
 
         canMatchPhase.start();
         latch.await();
-
+        executor.shutdown();
     }
 
 }

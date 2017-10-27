@@ -1,8 +1,8 @@
 ---
 "Discovery stats":
   - skip:
-      version:     " - 6.99.99"
-      reason:      "published_cluster_states_received is not (yet) in 6.x"
+      version:     " - 6.0.99"
+      reason:      "published_cluster_states_received arrived in 6.1.0"
   - do:
       cluster.state: {}
 

@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -53,7 +54,7 @@ public class SocketSelectorTests extends ESTestCase {
     private TestSelectionKey selectionKey;
     private WriteContext writeContext;
     private ActionListener<NioChannel> listener;
-    private CloseableHeapBytes bufferReference = CloseableHeapBytes.wrap(new BytesArray(new byte[1]));
+    private BytesReference bufferReference = new BytesArray(new byte[1]);
 
     @Before
     @SuppressWarnings("unchecked")

@@ -22,7 +22,7 @@ package org.elasticsearch.transport.nio;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesPage;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.transport.nio.channel.NioChannel;
@@ -73,11 +73,11 @@ public class WriteOperation implements Releasable {
         BytesRef r;
         try {
             // Most network messages are composed of three buffers
-            ArrayList<CloseableHeapBytes> references = new ArrayList<>(3);
+            ArrayList<BytesPage> references = new ArrayList<>(3);
             while ((r = byteRefIterator.next()) != null) {
-                references.add(CloseableHeapBytes.wrap(new BytesArray(r)));
+                references.add(new BytesPage(r));
             }
-            return new ReleaseOnReadChannelBuffer(references.toArray(new CloseableHeapBytes[references.size()]));
+            return new ReleaseOnReadChannelBuffer(references.toArray(new BytesPage[references.size()]));
 
         } catch (IOException e) {
             // this is really an error since we don't do IO in our bytesreferences

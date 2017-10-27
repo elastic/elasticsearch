@@ -19,9 +19,11 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.common.bytes.BytesPage;
+
 public class ReleaseOnReadChannelBuffer extends ChannelBuffer {
 
-    public ReleaseOnReadChannelBuffer(CloseableHeapBytes... newReferences) {
+    public ReleaseOnReadChannelBuffer(BytesPage... newReferences) {
         super(newReferences);
     }
 
@@ -32,7 +34,7 @@ public class ReleaseOnReadChannelBuffer extends ChannelBuffer {
         int offsetIndex = getOffsetIndex(getIndex());
 
         for (int i = 0; i < offsetIndex; ++i) {
-            CloseableHeapBytes reference = removeFirst();
+            BytesPage reference = removeFirst();
             reference.close();
         }
     }

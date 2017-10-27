@@ -19,14 +19,13 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesPage;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.ChannelBuffer;
 import org.elasticsearch.transport.nio.ChannelMessage;
-import org.elasticsearch.transport.nio.CloseableHeapBytes;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -173,7 +172,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
 
     private static ChannelBuffer toChannelBuffer(BytesStreamOutput streamOutput) {
         BytesReference bytes = streamOutput.bytes();
-        ChannelBuffer buffer = new ChannelBuffer(CloseableHeapBytes.wrap(new BytesArray(bytes.toBytesRef())));
+        ChannelBuffer buffer = new ChannelBuffer(new BytesPage(bytes.toBytesRef()));
         buffer.incrementIndex(bytes.length());
         return buffer;
     }

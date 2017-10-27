@@ -19,11 +19,11 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.common.bytes.BytesPage;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.transport.nio.ChannelBuffer;
 import org.elasticsearch.transport.nio.ChannelMessage;
-import org.elasticsearch.transport.nio.CloseableHeapBytes;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 
 import java.io.IOException;
@@ -35,14 +35,14 @@ public class TcpReadContext implements ReadContext {
     private final NioSocketChannel channel;
     private final TcpFrameDecoder frameDecoder;
     private final ChannelBuffer channelBuffer;
-    private final Supplier<CloseableHeapBytes> allocator;
+    private final Supplier<BytesPage> allocator;
     private boolean closed = false;
 
     public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler, BigArrays bigArrays) {
         this.handler = handler;
         this.channel = channel;
         this.frameDecoder = new TcpFrameDecoder();
-        this.allocator = () -> CloseableHeapBytes.fromBytesPage(bigArrays.newBytePage());
+        this.allocator = bigArrays::newBytePage;
         this.channelBuffer = new ChannelBuffer(allocator.get());
     }
 

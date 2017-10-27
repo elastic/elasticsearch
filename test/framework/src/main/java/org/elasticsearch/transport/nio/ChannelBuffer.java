@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesPage;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.BytesReferenceStreamInput;
 import org.elasticsearch.common.collect.IndexedArrayDeque;
@@ -33,15 +34,15 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.stream.StreamSupport;
 
-public class ChannelBuffer implements Iterable<CloseableHeapBytes> {
+public class ChannelBuffer implements Iterable<BytesPage> {
 
-    private final IndexedArrayDeque<CloseableHeapBytes> references;
+    private final IndexedArrayDeque<BytesPage> references;
     private int[] offsets;
 
     private int length;
     private int index;
 
-    public ChannelBuffer(CloseableHeapBytes... newReferences) {
+    public ChannelBuffer(BytesPage... newReferences) {
         this.references = new IndexedArrayDeque<>(Math.max(8, newReferences.length));
         this.offsets = new int[0];
         this.length = 0;
@@ -49,18 +50,18 @@ public class ChannelBuffer implements Iterable<CloseableHeapBytes> {
         addBuffers(newReferences);
     }
 
-    public void addBuffer(CloseableHeapBytes newReference) {
+    public void addBuffer(BytesPage newReference) {
         addBuffers(newReference);
     }
 
-    public void addBuffers(CloseableHeapBytes... refs) {
+    public void addBuffers(BytesPage... refs) {
         int initialReferenceCount = references.size();
         int[] newOffsets = new int[offsets.length + refs.length];
         System.arraycopy(offsets, 0, newOffsets, 0, offsets.length);
 
         try {
             int i = refs.length;
-            for (CloseableHeapBytes ref : refs) {
+            for (BytesPage ref : refs) {
                 addBuffer0(ref, newOffsets, newOffsets.length - i--);
             }
             this.offsets = newOffsets;
@@ -97,15 +98,14 @@ public class ChannelBuffer implements Iterable<CloseableHeapBytes> {
             closeables = new Releasable[offsetIndex + 1];
         }
         for (int i = 0; i < offsetIndex; ++i) {
-            CloseableHeapBytes removed = references.removeFirst();
+            BytesPage removed = references.removeFirst();
             messageReferences[i] = removed;
             closeables[i] = removed;
-            int bytesOfRemoved = removed.length();
-            bytesDropped += bytesOfRemoved;
+            bytesDropped += removed.length();
         }
 
         if (messageBytesInFinalBuffer != 0) {
-            CloseableHeapBytes first = references.getFirst();
+            BytesPage first = references.getFirst();
             if (messageBytesInFinalBuffer == first.length()) {
                 references.removeFirst();
                 messageReferences[offsetIndex] = first;
@@ -123,15 +123,15 @@ public class ChannelBuffer implements Iterable<CloseableHeapBytes> {
         this.offsets = new int[references.size()];
         int currentOffset = 0;
         int i = 0;
-        for (ObjectCursor<CloseableHeapBytes> reference : references) {
+        for (ObjectCursor<BytesPage> reference : references) {
             offsets[i++] = currentOffset;
             currentOffset += reference.value.length();
         }
         return new ChannelMessage(messageReferences, closeables);
     }
 
-    public CloseableHeapBytes removeFirst() {
-        CloseableHeapBytes reference = references.removeFirst();
+    public BytesPage removeFirst() {
+        BytesPage reference = references.removeFirst();
         int bytesDropped = reference.length();
         this.length -= bytesDropped;
         this.index = Math.max(0, index - bytesDropped);
@@ -202,7 +202,7 @@ public class ChannelBuffer implements Iterable<CloseableHeapBytes> {
         }
         int bytesForLastRef = index - offsets[offsetIndex];
         BytesRef lastRef = references.get(offsetIndex).toBytesRef();
-        buffers[j++] = ByteBuffer.wrap(lastRef.bytes, lastRef.offset + bytesForLastRef, bytesForLastRef);
+        buffers[j] = ByteBuffer.wrap(lastRef.bytes, lastRef.offset + bytesForLastRef, bytesForLastRef);
 
         return buffers;
     }
@@ -220,12 +220,12 @@ public class ChannelBuffer implements Iterable<CloseableHeapBytes> {
     }
 
     public void close() {
-        for (ObjectCursor<CloseableHeapBytes> reference : references) {
+        for (ObjectCursor<BytesPage> reference : references) {
             reference.value.close();
         }
     }
 
-    public Iterator<CloseableHeapBytes> iterator() {
+    public Iterator<BytesPage> iterator() {
         return StreamSupport.stream(references.spliterator(), false).map(o -> o.value).iterator();
     }
 
@@ -243,7 +243,7 @@ public class ChannelBuffer implements Iterable<CloseableHeapBytes> {
         return i < 0 ? (-(i + 1)) - 1 : i;
     }
 
-    private void addBuffer0(CloseableHeapBytes ref, int[] newOffsetArray, int offsetIndex) {
+    private void addBuffer0(BytesPage ref, int[] newOffsetArray, int offsetIndex) {
         newOffsetArray[offsetIndex] = length;
         this.references.addLast(ref);
         this.length += ref.length();
@@ -252,19 +252,13 @@ public class ChannelBuffer implements Iterable<CloseableHeapBytes> {
     private void removeAddedReferences(int initialReferenceCount) {
         int refsToDrop = references.size() - initialReferenceCount;
         for (int i = 0; i < refsToDrop; ++i) {
-            CloseableHeapBytes reference = references.removeLast();
+            BytesPage reference = references.removeLast();
             this.length -= reference.length();
         }
     }
 
-    private void validateReadAndWritesIndexes(int refIndex) {
-        if (index != length && refIndex != 0) {
-            throw new IllegalArgumentException("The writable spaces must be contiguous across buffers.");
-        }
-    }
-
     public StreamInput streamInput() throws IOException {
-        Iterator<CloseableHeapBytes> refIterator = iterator();
+        Iterator<BytesPage> refIterator = iterator();
         return new BytesReferenceStreamInput(() -> {
             if (refIterator.hasNext()) {
                 return refIterator.next().toBytesRef();

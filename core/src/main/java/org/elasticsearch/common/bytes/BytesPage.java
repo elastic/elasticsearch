@@ -17,21 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.common.bytes;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public final class BytesPage implements Releasable {
+public class BytesPage extends BytesArray implements Releasable {
 
-    private final byte[] page;
     private final Releasable recycler;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     public BytesPage(byte[] page, Releasable recycler) {
-        this.page = page;
+        super(page);
         this.recycler = recycler;
+    }
+
+    public BytesPage(BytesRef pageRef) {
+        super(pageRef);
+        this.recycler = null;
     }
 
     @Override
@@ -43,9 +48,5 @@ public final class BytesPage implements Releasable {
         } else {
             throw new IllegalStateException("Attempting to close BytesPage that is already closed.");
         }
-    }
-
-    public byte[] getByteArray() {
-        return page;
     }
 }

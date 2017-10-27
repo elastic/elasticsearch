@@ -66,16 +66,16 @@ public abstract class EnvironmentAwareCommand extends Command {
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
-        execute(terminal, options, createEnv(terminal, settings));
+        execute(terminal, options, createEnv(settings));
     }
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */
-    protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) throws UserException {
+    protected Environment createEnv(final Map<String, String> settings) throws UserException {
         final String esPathConf = System.getProperty("es.path.conf");
         if (esPathConf == null) {
             throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
         }
-        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, getConfigPath(esPathConf));
+        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, settings, getConfigPath(esPathConf));
     }
 
     @SuppressForbidden(reason = "need path to construct environment")

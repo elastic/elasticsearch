@@ -5,38 +5,42 @@
  */
 package org.elasticsearch.xpack.sql.rule;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
     private final Logger log = Loggers.getLogger(getClass());
 
     public static class Limiter {
-        public static final Limiter DEFAULT = new Limiter(100, 5, TimeUnit.SECONDS);
-        public static final Limiter ONCE = new Limiter(1, 5, TimeUnit.SECONDS);
+        public static final Limiter DEFAULT = new Limiter(100);
+        public static final Limiter ONCE = new Limiter(1) {
+
+            @Override
+            boolean reached(int runs) {
+                return runs >= 1;
+            }
+        };
 
         private final int runs;
-        private final long duration;
 
-        public Limiter(int runs, long duration, TimeUnit timeUnit) {
-            this.runs = runs;
-            this.duration = timeUnit.toNanos(duration);
+        public Limiter(int maximumRuns) {
+            this.runs = maximumRuns;
         }
 
-        private boolean reached(int runs, long duration) {
-            // NOCOMMIT we should probably be throwing exceptions rather than stopping
-            // NOCOMMIT including time here seems like it'd cause very unpredictable behavior
-            return runs >= this.runs || duration >= this.duration;
+        boolean reached(int runs) {
+            if (runs >= this.runs) {
+                throw new RuleExecutionException("Rule execution limit %d reached", runs);
+            }
+            return false;
         }
     }
 
@@ -160,12 +164,12 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     }
                     else {
                         if (log.isTraceEnabled()) {
-                            log.trace("Rule {} applied w/o changes\n", rule);
+                            log.trace("Rule {} applied w/o changes", rule);
                         }
                     }
                 }
                 batchDuration = System.currentTimeMillis() - batchStart; 
-            } while (hasChanged && !batch.limit.reached(batchRuns, batchDuration));
+            } while (hasChanged && !batch.limit.reached(batchRuns));
             
             totalDuration += batchDuration;
             

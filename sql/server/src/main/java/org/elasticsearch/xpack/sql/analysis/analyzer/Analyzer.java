@@ -650,6 +650,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return plan.transformExpressionsUp(e -> {
                 if (e instanceof UnresolvedFunction) {
                     UnresolvedFunction uf = (UnresolvedFunction) e;
+
+                    if (uf.analyzed()) {
+                        return uf;
+                    }
+
                     String name = uf.name();
 
                     if (hasStar(uf.arguments())) {
@@ -690,12 +695,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         }
                         
                         List<String> matches = StringUtils.findSimilar(normalizedName, names);
-                        if (!matches.isEmpty()) {
-                            return new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), uf.children(), UnresolvedFunction.errorMessage(normalizedName, matches));
-                        }
-                        else {
-                            return uf;
-                        }
+                        String message = matches.isEmpty() ? uf.unresolvedMessage() : UnresolvedFunction.errorMessage(normalizedName, matches);
+                        return new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), uf.children(), true, message);
                     }
                     // TODO: look into Generator for significant terms, etc..
                     Function f = functionRegistry.resolveFunction(uf, SqlSession.CURRENT_SETTINGS.get());

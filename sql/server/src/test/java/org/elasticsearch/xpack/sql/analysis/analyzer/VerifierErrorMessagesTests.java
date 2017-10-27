@@ -71,7 +71,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Unknown function [ZAZ]", verify("SELECT ZAZ(bool) FROM test"));
     }
 
-    public void testMispelledFunction() {
+    public void testMisspelledFunction() {
         assertEquals("1:8: Unknown function [COONT], did you mean [COUNT]?", verify("SELECT COONT(bool) FROM test"));
     }
 

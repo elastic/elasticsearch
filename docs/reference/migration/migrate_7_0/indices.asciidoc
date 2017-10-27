@@ -10,3 +10,12 @@ index names may no longer contain `:`.
 
 Negative values were interpreted as zero in earlier versions but are no
 longer accepted.
+
+
+==== `_flush` and `_force_merge` will no longer refresh
+
+In previous versions issuing a `_flush` or `_force_merge` (with `flush=true`)
+had the undocumented side-effect of refreshing the index which made new documents
+visible to searches and non-realtime GET operations. From now on these operations
+don't have this side-effect anymore. To make documents visible an explicit `_refresh`
+call is needed unless the index is refreshed by the internal scheduler.

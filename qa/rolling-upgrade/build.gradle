@@ -61,6 +61,7 @@ for (Version version : wireCompatVersions) {
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
+    minimumMasterNodes = { 2 }
     /* Override the data directory so the new node always gets the node we
      * just stopped's data directory. */
     dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
@@ -81,6 +82,7 @@ for (Version version : wireCompatVersions) {
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
+    minimumMasterNodes = { 2 }
     /* Override the data directory so the new node always gets the node we
      * just stopped's data directory. */
     dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir}

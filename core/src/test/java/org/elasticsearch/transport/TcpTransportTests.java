@@ -45,8 +45,8 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/** Unit tests for TCPTransport */
-public class TCPTransportTests extends ESTestCase {
+/** Unit tests for {@link TcpTransport} */
+public class TcpTransportTests extends ESTestCase {
 
     /** Test ipv4 host with a default port works */
     public void testParseV4DefaultPort() throws Exception {
@@ -175,7 +175,7 @@ public class TCPTransportTests extends ESTestCase {
         final boolean compressed = randomBoolean();
         final AtomicBoolean called = new AtomicBoolean(false);
         Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
-        ThreadPool threadPool = new TestThreadPool(TCPTransportTests.class.getName());
+        ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
         AtomicReference<IOException> exceptionReference = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport("test", Settings.builder().put("transport.tcp.compress", compressed).build(),
@@ -191,7 +191,7 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void closeChannels(List channel, boolean blocking, boolean closingTransport) throws IOException {
+                protected void closeChannels(List channel, boolean blocking, boolean doNotLinger) throws IOException {
 
                 }
 
@@ -224,8 +224,8 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile,
-                                                         Consumer onChannelClose) throws IOException {
+                protected NodeChannels connectToChannels(
+                        DiscoveryNode node, ConnectionProfile profile, Consumer onChannelClose) throws IOException {
                     return new NodeChannels(node, new Object[profile.getNumConnections()], profile);
                 }
 

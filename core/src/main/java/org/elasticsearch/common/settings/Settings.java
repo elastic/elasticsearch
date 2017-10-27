@@ -366,48 +366,48 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
-     * The values associated with a setting key as an array.
+     * The values associated with a setting key as an immutable list.
      * <p>
      * It will also automatically load a comma separated list under the settingPrefix and merge with
      * the numbered format.
      *
-     * @param key The setting prefix to load the array by
-     * @return The setting array values
+     * @param key The setting key to load the list by
+     * @return The setting list values
      */
-    public String[] getAsArray(String key) throws SettingsException {
-        return getAsArray(key, Strings.EMPTY_ARRAY, true);
+    public List<String> getAsList(String key) throws SettingsException {
+        return getAsList(key, Collections.emptyList());
     }
 
     /**
-     * The values associated with a setting key as an array.
+     * The values associated with a setting key as an immutable list.
      * <p>
      * If commaDelimited is true, it will automatically load a comma separated list under the settingPrefix and merge with
      * the numbered format.
      *
-     * @param key The setting key to load the array by
-     * @return The setting array values
+     * @param key The setting key to load the list by
+     * @return The setting list values
      */
-    public String[] getAsArray(String key, String[] defaultArray) throws SettingsException {
-        return getAsArray(key, defaultArray, true);
+    public List<String> getAsList(String key, List<String> defaultValue) throws SettingsException {
+        return getAsList(key, defaultValue, true);
     }
 
     /**
-     * The values associated with a setting key as an array.
+     * The values associated with a setting key as an immutable list.
      * <p>
      * It will also automatically load a comma separated list under the settingPrefix and merge with
      * the numbered format.
      *
-     * @param key  The setting key to load the array by
-     * @param defaultArray   The default array to use if no value is specified
+     * @param key  The setting key to load the list by
+     * @param defaultValue   The default value to use if no value is specified
      * @param commaDelimited Whether to try to parse a string as a comma-delimited value
-     * @return The setting array values
+     * @return The setting list values
      */
-    public String[] getAsArray(String key, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
+    public List<String> getAsList(String key, List<String> defaultValue, Boolean commaDelimited) throws SettingsException {
         List<String> result = new ArrayList<>();
         final Object valueFromPrefix = settings.get(key);
         if (valueFromPrefix != null) {
             if (valueFromPrefix instanceof List) {
-                result =  ((List<String>) valueFromPrefix);
+                return ((List<String>) valueFromPrefix); // it's already unmodifiable since the builder puts it as a such
             } else if (commaDelimited) {
                 String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
@@ -421,9 +421,9 @@ public final class Settings implements ToXContentFragment {
         }
 
         if (result.isEmpty()) {
-            return defaultArray;
+            return defaultValue;
         }
-        return result.toArray(new String[result.size()]);
+        return Collections.unmodifiableList(result);
     }
 
 
@@ -552,7 +552,7 @@ public final class Settings implements ToXContentFragment {
                 if (value == null) {
                     builder.putNull(key);
                 } else if (value instanceof List) {
-                    builder.putArray(key, (List<String>) value);
+                    builder.putList(key, (List<String>) value);
                 } else {
                     builder.put(key, value.toString());
                 }
@@ -679,7 +679,7 @@ public final class Settings implements ToXContentFragment {
                 }
                 String key = keyBuilder.toString();
                 validateValue(key, list, builder, parser, allowNullValues);
-                builder.putArray(key, list);
+                builder.putList(key, list);
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 String key = keyBuilder.toString();
                 validateValue(key, null, builder, parser, allowNullValues);
@@ -898,7 +898,7 @@ public final class Settings implements ToXContentFragment {
             }
             final Object value = source.settings.get(sourceKey);
             if (value instanceof List) {
-                return putArray(key, (List)value);
+                return putList(key, (List)value);
             } else if (value == null) {
                 return putNull(key);
             } else {
@@ -1022,8 +1022,8 @@ public final class Settings implements ToXContentFragment {
          * @param values  The values
          * @return The builder
          */
-        public Builder putArray(String setting, String... values) {
-            return putArray(setting, Arrays.asList(values));
+        public Builder putList(String setting, String... values) {
+            return putList(setting, Arrays.asList(values));
         }
 
         /**
@@ -1033,7 +1033,7 @@ public final class Settings implements ToXContentFragment {
          * @param values  The values
          * @return The builder
          */
-        public Builder putArray(String setting, List<String> values) {
+        public Builder putList(String setting, List<String> values) {
             remove(setting);
             map.put(setting, Collections.unmodifiableList(new ArrayList<>(values)));
             return this;

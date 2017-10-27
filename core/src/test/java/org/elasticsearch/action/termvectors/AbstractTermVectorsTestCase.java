@@ -210,7 +210,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.tv_test.filter", "lowercase");
+                .putList("index.analysis.analyzer.tv_test.filter", "lowercase");
         assertAcked(prepareCreate(index).addMapping("type1", mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
     }
 

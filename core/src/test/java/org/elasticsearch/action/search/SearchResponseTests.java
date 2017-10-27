@@ -175,7 +175,7 @@ public class SearchResponseTests extends ESTestCase {
                 ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
                 ShardSearchFailure originalFailure = failures[i];
                 assertEquals(originalFailure.index(), parsedFailure.index());
-                assertEquals(originalFailure.shard().getNodeId(), parsedFailure.shard().getNodeId());
+                assertEquals(originalFailure.shard(), parsedFailure.shard());
                 assertEquals(originalFailure.shardId(), parsedFailure.shardId());
                 String originalMsg = originalFailure.getCause().getMessage();
                 assertEquals(parsedFailure.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" +

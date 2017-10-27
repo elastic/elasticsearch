@@ -68,7 +68,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -105,10 +104,10 @@ public class Analysis {
         if ("_none_".equals(value)) {
             return CharArraySet.EMPTY_SET;
         }
-        String[] stemExclusion = settings.getAsArray("stem_exclusion", null);
+        List<String> stemExclusion = settings.getAsList("stem_exclusion", null);
         if (stemExclusion != null) {
             // LUCENE 4 UPGRADE: Should be settings.getAsBoolean("stem_exclusion_case", false)?
-            return new CharArraySet(Arrays.asList(stemExclusion), false);
+            return new CharArraySet(stemExclusion, false);
         } else {
             return defaultStemExclusion;
         }
@@ -161,7 +160,7 @@ public class Analysis {
             if ("_none_".equals(value)) {
                 return CharArraySet.EMPTY_SET;
             } else {
-                return resolveNamedWords(Arrays.asList(settings.getAsArray(name)), namedWords, ignoreCase);
+                return resolveNamedWords(settings.getAsList(name), namedWords, ignoreCase);
             }
         }
         List<String> pathLoadedWords = getWordList(env, settings, name);
@@ -225,11 +224,11 @@ public class Analysis {
         String wordListPath = settings.get(settingPrefix + "_path", null);
 
         if (wordListPath == null) {
-            String[] explicitWordList = settings.getAsArray(settingPrefix, null);
+            List<String> explicitWordList = settings.getAsList(settingPrefix, null);
             if (explicitWordList == null) {
                 return null;
             } else {
-                return Arrays.asList(explicitWordList);
+                return explicitWordList;
             }
         }
 

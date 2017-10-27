@@ -53,7 +53,7 @@ public final class EDecimal extends AExpression {
         if (value.endsWith("f") || value.endsWith("F")) {
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                actual = Definition.FLOAT_TYPE;
+                actual = locals.getDefinition().floatType;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
             }
@@ -64,7 +64,7 @@ public final class EDecimal extends AExpression {
             }
             try {
                 constant = Double.parseDouble(toParse);
-                actual = Definition.DOUBLE_TYPE;
+                actual = locals.getDefinition().doubleType;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
             }

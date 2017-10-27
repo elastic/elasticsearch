@@ -331,8 +331,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void closeChannels(final List<Channel> channels, boolean blocking, boolean closingTransport) throws IOException {
-        if (closingTransport) {
+    protected void closeChannels(final List<Channel> channels, boolean blocking, boolean doNotLinger) throws IOException {
+        if (doNotLinger) {
             for (Channel channel : channels) {
                 /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
                  * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server

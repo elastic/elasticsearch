@@ -804,14 +804,14 @@ public class Setting<T> implements ToXContentObject {
 
         private ListSetting(String key, Function<Settings, List<String>> defaultStringValue, Function<String, List<T>> parser,
                             Property... properties) {
-            super(new ListKey(key), (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser,
+            super(new ListKey(key), (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s)), parser,
                 properties);
             this.defaultStringValue = defaultStringValue;
         }
 
         @Override
         public String getRaw(Settings settings) {
-            String[] array = settings.getAsArray(getKey(), null);
+            List<String> array = settings.getAsList(getKey(), null);
             return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
         }
 
@@ -823,11 +823,11 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
             if (exists(source) == false) {
-                String[] asArray = defaultSettings.getAsArray(getKey(), null);
-                if (asArray == null) {
-                    builder.putArray(getKey(), defaultStringValue.apply(defaultSettings));
+                List<String> asList = defaultSettings.getAsList(getKey(), null);
+                if (asList == null) {
+                    builder.putList(getKey(), defaultStringValue.apply(defaultSettings));
                 } else {
-                    builder.putArray(getKey(), asArray);
+                    builder.putList(getKey(), asList);
                 }
             }
         }
@@ -1087,7 +1087,7 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    private static String arrayToParsableString(String[] array) {
+    private static String arrayToParsableString(List<String> array) {
         try {
             XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
             builder.startArray();

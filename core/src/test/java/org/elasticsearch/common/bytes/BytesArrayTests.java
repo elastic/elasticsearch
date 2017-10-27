@@ -35,7 +35,7 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
         return newBytesArrayReference(length, 0);
     }
 
-    public static BytesReference newBytesArrayReference(int length, int offset) throws IOException {
+    private static BytesReference newBytesArrayReference(int length, int offset) throws IOException {
         // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
         final BytesStreamOutput out = new BytesStreamOutput(length + offset);
         for (int i = 0; i < length + offset; i++) {

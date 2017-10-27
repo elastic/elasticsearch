@@ -39,6 +39,11 @@ public class BytesPage extends BytesArray implements Releasable {
         this.recycler = null;
     }
 
+    private BytesPage(byte[] bytes, int offset, int length, Releasable recycler) {
+        super(bytes, offset, length);
+        this.recycler = recycler;
+    }
+
     @Override
     public void close() {
         if (isClosed.compareAndSet(false, true)) {
@@ -48,5 +53,13 @@ public class BytesPage extends BytesArray implements Releasable {
         } else {
             throw new IllegalStateException("Attempting to close BytesPage that is already closed.");
         }
+    }
+
+    public BytesPage sliceAndRetain(int from, int length) {
+        if (from < 0 || (from + length) > this.length()) {
+            throw new IllegalArgumentException("can't slice a buffer with length [" + this.length() +
+                "], with slice parameters from [" + from + "], length [" + length + "]");
+        }
+        return new BytesPage(array(), offset() + from, length, recycler);
     }
 }

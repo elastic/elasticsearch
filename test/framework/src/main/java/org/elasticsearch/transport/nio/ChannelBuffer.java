@@ -105,12 +105,12 @@ public class ChannelBuffer implements Iterable<BytesPage> {
         }
 
         if (messageBytesInFinalBuffer != 0) {
-            BytesPage first = references.getFirst();
+            BytesPage first = references.removeFirst();
             if (messageBytesInFinalBuffer == first.length()) {
-                references.removeFirst();
                 messageReferences[offsetIndex] = first;
                 closeables[offsetIndex] = first;
             } else {
+                references.addFirst(first.sliceAndRetain(messageBytesInFinalBuffer, first.length() - messageBytesInFinalBuffer));
                 messageReferences[offsetIndex] = first.slice(0, messageBytesInFinalBuffer);
                 closeables[offsetIndex] = () -> {};
             }

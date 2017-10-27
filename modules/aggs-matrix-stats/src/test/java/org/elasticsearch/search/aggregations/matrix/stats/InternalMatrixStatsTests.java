@@ -100,7 +100,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         }
 
         final String unknownField = randomAlphaOfLength(3);
-        final String other = randomAlphaOfLength(3);
+        final String other = randomValueOtherThan(unknownField, () -> randomAlphaOfLength(3));
 
         for (MatrixStats matrix : Arrays.asList(actual)) {
 

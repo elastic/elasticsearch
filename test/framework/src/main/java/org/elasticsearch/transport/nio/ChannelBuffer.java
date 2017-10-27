@@ -175,7 +175,13 @@ public class ChannelBuffer implements Iterable<BytesPage> {
         ByteBuffer[] buffers = new ByteBuffer[refCount - offsetIndex];
 
         int j = 0;
-        int bytesForFirstRef = offsets[offsetIndex + 1] - index;
+        int bytesForFirstRef;
+        if (offsetIndex == (offsets.length - 1)) {
+            bytesForFirstRef = length - index;
+
+        } else {
+            bytesForFirstRef = offsets[offsetIndex + 1] - index;
+        }
         BytesRef firstRef = references.get(offsetIndex).toBytesRef();
         buffers[j++] = ByteBuffer.wrap(firstRef.bytes, firstRef.offset + (firstRef.length - bytesForFirstRef), bytesForFirstRef);
         for (int i = offsetIndex + 1; i < refCount; ++i) {

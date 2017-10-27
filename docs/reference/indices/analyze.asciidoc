@@ -58,6 +58,8 @@ GET _analyze
 
 deprecated[5.0.0, Use `filter`/`char_filter` instead of `filters`/`char_filters` and `token_filters` has been removed]
 
+WARNING: `tokenizer` is mandatory when using `char_filter` or `filter`. If it is not set, the filters are ignored and the default analyzer is used.
+
 Custom tokenizers, token filters, and character filters can be specified in the request body as follows:
 
 [source,js]

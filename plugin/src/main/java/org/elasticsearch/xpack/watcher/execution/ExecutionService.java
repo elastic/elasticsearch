@@ -399,7 +399,7 @@ public class ExecutionService extends AbstractComponent {
             executor.execute(new WatchExecutionTask(ctx, () -> execute(ctx)));
         } catch (EsRejectedExecutionException e) {
             String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
-            WatchRecord record = ctx.abortBeforeExecution(ExecutionState.FAILED, message);
+            WatchRecord record = ctx.abortBeforeExecution(ExecutionState.THREADPOOL_REJECTION, message);
             try {
                 if (ctx.overrideRecordOnConflict()) {
                     historyStore.forcePut(record);

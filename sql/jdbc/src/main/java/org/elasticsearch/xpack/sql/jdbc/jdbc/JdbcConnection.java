@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
 import org.elasticsearch.xpack.sql.jdbc.net.client.JdbcHttpClient;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
-import java.sql.ClientInfoStatus;
 import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -33,8 +31,6 @@ import java.util.TimeZone;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
-
 /**
  * Implementation of {@link Connection} for Elasticsearch.
  */
@@ -47,7 +43,6 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     private boolean closed = false;
     private String catalog;
     private String schema;
-    private Properties clientInfo = new Properties();
 
     public JdbcConnection(JdbcConfiguration connectionInfo) throws SQLException {
         cfg = connectionInfo;
@@ -331,42 +326,36 @@ public class JdbcConnection implements Connection, JdbcWrapper {
 
     private void checkOpenClientInfo() throws SQLClientInfoException {
         if (isClosed()) {
-            throw new SQLClientInfoException();
+            throw new SQLClientInfoException("Connection closed", null);
         }
     }
 
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
         checkOpenClientInfo();
-        if (!StringUtils.hasText(name)) {
-            throw new SQLClientInfoException(singletonMap(name, ClientInfoStatus.REASON_VALUE_INVALID));
-        }
-        if (value != null) {
-            clientInfo.put(name, value);
-        }
-        else {
-            clientInfo.remove(name);
-        }
+        // no-op
+        throw new SQLClientInfoException("Unsupported operation", null);
     }
 
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
         checkOpenClientInfo();
-        clientInfo.putAll(properties);
+        // no-op
+        throw new SQLClientInfoException("Unsupported operation", null);
     }
 
     @Override
     public String getClientInfo(String name) throws SQLException {
         checkOpenClientInfo();
-        return clientInfo.getProperty(name);
+        // we don't support client info - the docs indicate we should return null if properties are not supported
+        return null;
     }
 
     @Override
     public Properties getClientInfo() throws SQLException {
         checkOpenClientInfo();
-        Properties clone = new Properties();
-        clone.putAll(clientInfo);
-        return clone;
+        // similar to getClientInfo - return an empty object instead of an exception
+        return new Properties();
     }
 
     @Override

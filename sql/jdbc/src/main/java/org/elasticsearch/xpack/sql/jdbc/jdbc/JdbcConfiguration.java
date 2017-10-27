@@ -14,8 +14,11 @@ import java.net.URL;
 import java.sql.DriverPropertyInfo;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TimeZone;
 
 //
@@ -41,40 +44,56 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     static final String DEBUG_OUTPUT_DEFAULT = "err";
 
     static final String TIME_ZONE = "timezone";
-
     // follow the JDBC spec and use the JVM default...
     // to avoid inconsistency, the default is picked up once at startup and reused across connections
     // to cater to the principle of least surprise 
     // really, the way to move forward is to specify a calendar or the timezone manually
     static final String TIME_ZONE_DEFAULT = TimeZone.getDefault().getID();
 
-    private static final List<String> KNOWN_OPTIONS = Arrays.asList(DEBUG, DEBUG_OUTPUT, TIME_ZONE);
+    // options that don't change at runtime
+    private static final Set<String> OPTION_NAMES = new LinkedHashSet<>(Arrays.asList(TIME_ZONE, DEBUG, DEBUG_OUTPUT));
 
-    private HostAndPort hostAndPort;
-    private String originalUrl;
-    private String urlFile = "/";
+    // immutable properties
+    private final HostAndPort hostAndPort;
+    private final String originalUrl;
+    private final String urlFile;
+    private final boolean debug;
+    private final String debugOut;
 
-    private boolean debug = false;
-    private String debugOut = DEBUG_OUTPUT_DEFAULT;
+    // mutable ones
     private TimeZone timeZone;
 
-    public JdbcConfiguration(String u, Properties props) throws JdbcSQLException {
-        super(props);
-        originalUrl = u;
-        parseUrl(u);
+    public static JdbcConfiguration create(String u, Properties props) throws JdbcSQLException {
+        Object[] result = parseUrl(u);
 
-        Properties set = settings();
-        debug = Boolean.parseBoolean(set.getProperty(DEBUG, DEBUG_DEFAULT));
-        debugOut = settings().getProperty(DEBUG_OUTPUT, DEBUG_OUTPUT_DEFAULT);
-        timeZone = TimeZone.getTimeZone(settings().getProperty(TIME_ZONE, TIME_ZONE_DEFAULT));
+        String urlFile = (String) result[0];
+        HostAndPort hostAndPort = (HostAndPort) result[1];
+        Properties urlProps = (Properties) result[2];
+
+        // override properties set in the URL with the ones specified programmatically
+        if (props != null) {
+            urlProps.putAll(props);
+        }
+
+        try {
+            return new JdbcConfiguration(u, urlFile, hostAndPort, urlProps);
+        } catch (JdbcSQLException e) {
+            throw e;
+        } catch (Exception ex) {
+            throw new JdbcSQLException(ex, ex.getMessage());
+        }
     }
 
-    private void parseUrl(String u) throws JdbcSQLException {
+    private static Object[] parseUrl(String u) throws JdbcSQLException {
         String url = u;
         String format = "jdbc:es://[host[:port]]*/[prefix]*[?[option=value]&]*";
         if (!canAccept(u)) {
             throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + u +"]");
         }
+
+        String urlFile = "/";
+        HostAndPort destination;
+        Properties props = new Properties();
 
         try {
             if (u.endsWith("/")) {
@@ -141,14 +160,15 @@ public class JdbcConfiguration extends ConnectionConfiguration {
                 String host = hostAndPort.substring(0, index);
                 String port = hostAndPort.substring(index + 1);
 
-                this.hostAndPort = new HostAndPort(host, Integer.parseInt(port));
+                destination = new HostAndPort(host, Integer.parseInt(port));
             } else {
-                this.hostAndPort = new HostAndPort(hostAndPort);
+                destination = new HostAndPort(hostAndPort);
             }
 
             //
             // parse params
             //
+            
             if (params != null) {
                 // parse properties
                 List<String> prms = StringUtils.tokenize(params, "&");
@@ -157,13 +177,8 @@ public class JdbcConfiguration extends ConnectionConfiguration {
                     if (args.size() != 2) {
                         throw new JdbcSQLException("Invalid parameter [" + param + "], format needs to be key=value");
                     }
-                    String pName = args.get(0);
-                    if (!KNOWN_OPTIONS.contains(pName)) {
-                        throw new JdbcSQLException("Unknown parameter [" + pName + "] ; did you mean " +
-                                StringUtils.findSimiliar(pName, KNOWN_OPTIONS));
-                    }
-                    
-                    settings().setProperty(args.get(0), args.get(1));
+                    // further validation happens in the constructor (since extra properties might be specified either way)
+                    props.setProperty(args.get(0).trim(), args.get(1).trim());
                 }
             }
         } catch (JdbcSQLException e) {
@@ -172,10 +187,31 @@ public class JdbcConfiguration extends ConnectionConfiguration {
             // Add the url to unexpected exceptions
             throw new IllegalArgumentException("Failed to parse acceptable jdbc url [" + u + "]", e);
         }
+        
+        return new Object[] { urlFile, destination, props };
+    }
+
+    // constructor is private to force the use of a factory in order to catch and convert any validation exception
+    // and also do input processing as oppose to handling this from the constructor (which is tricky or impossible)
+    private JdbcConfiguration(String u, String urlFile, HostAndPort hostAndPort, Properties props) throws JdbcSQLException {
+        super(props);
+
+        this.originalUrl = u;
+        this.urlFile = urlFile;
+        this.hostAndPort = hostAndPort;
+
+        this.debug = parseValue(DEBUG, props.getProperty(DEBUG, DEBUG_DEFAULT), Boolean::parseBoolean);
+        this.debugOut = props.getProperty(DEBUG_OUTPUT, DEBUG_OUTPUT_DEFAULT);
+
+        this.timeZone = parseValue(TIME_ZONE, props.getProperty(TIME_ZONE, TIME_ZONE_DEFAULT), TimeZone::getTimeZone);
+    }
+
+    @Override
+    protected Collection<? extends String> extraOptions() {
+        return OPTION_NAMES;
     }
 
     public URL asUrl() throws JdbcSQLException {
-        // TODO: need to assemble all the various params here
         try {
             return new URL(isSSLEnabled() ? "https" : "http", hostAndPort.ip, port(), urlFile);
         } catch (MalformedURLException ex) {
@@ -199,8 +235,8 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         return timeZone;
     }
 
-    public void timeZone(TimeZone tz) {
-        timeZone = tz;
+    public void timeZone(TimeZone timeZone) {
+        this.timeZone = timeZone;
     }
 
     public static boolean canAccept(String url) {
@@ -209,7 +245,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     public DriverPropertyInfo[] driverPropertyInfo() {
         List<DriverPropertyInfo> info = new ArrayList<>();
-        for (String option : KNOWN_OPTIONS) {
+        for (String option : OPTION_NAMES) {
             String value = null;
             DriverPropertyInfo prop = new DriverPropertyInfo(option, value);
             info.add(prop);

@@ -15,7 +15,7 @@ import static org.hamcrest.Matchers.is;
 public class JdbcConfigurationTests extends ESTestCase {
 
     private JdbcConfiguration ci(String url) throws SQLException {
-        return new JdbcConfiguration(url, null);
+        return JdbcConfiguration.create(url, null);
     }
 
     public void testJustThePrefix() throws Exception {

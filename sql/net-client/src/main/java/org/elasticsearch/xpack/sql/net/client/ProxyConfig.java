@@ -11,7 +11,10 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Properties;
+import java.util.Set;
 
 class ProxyConfig {
 
@@ -19,6 +22,8 @@ class ProxyConfig {
     private static final String HTTP_PROXY_DEFAULT = StringUtils.EMPTY;
     private static final String SOCKS_PROXY = "proxy.socks";
     private static final String SOCKS_PROXY_DEFAULT = StringUtils.EMPTY;
+
+    static final Set<String> OPTION_NAMES = new LinkedHashSet<>(Arrays.asList(HTTP_PROXY, SOCKS_PROXY));
 
     private final Proxy proxy;
 
@@ -32,12 +37,7 @@ class ProxyConfig {
             address = host(settings.getProperty(SOCKS_PROXY, SOCKS_PROXY_DEFAULT), 1080);
             type = Proxy.Type.SOCKS;
         }
-        if (address != null) {
-            proxy = createProxy(type, address);
-        }
-        else {
-            proxy = null;
-        }
+        proxy = address != null ? createProxy(type, address) : null;
     }
 
     @SuppressForbidden(reason = "create the actual proxy")

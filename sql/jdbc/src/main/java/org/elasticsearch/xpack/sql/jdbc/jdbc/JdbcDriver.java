@@ -81,7 +81,7 @@ public class JdbcDriver implements java.sql.Driver, Closeable {
     }
 
     private static JdbcConfiguration initCfg(String url, Properties props) throws JdbcSQLException {
-        JdbcConfiguration ci = new JdbcConfiguration(url, props);
+        JdbcConfiguration ci = JdbcConfiguration.create(url, props);
 
         // if there's a timeout set on the DriverManager, make sure to use it
         if (DriverManager.getLoginTimeout() > 0) {
@@ -100,7 +100,7 @@ public class JdbcDriver implements java.sql.Driver, Closeable {
         if (!acceptsURL(url)) {
             return new DriverPropertyInfo[0];
         }
-        return new JdbcConfiguration(url, info).driverPropertyInfo();
+        return JdbcConfiguration.create(url, info).driverPropertyInfo();
     }
 
     @Override

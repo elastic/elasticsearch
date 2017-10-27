@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import javax.sql.DataSource;
+
 public class JdbcDataSource implements DataSource, Wrapper, Closeable {
 
     private String url;
@@ -93,7 +94,7 @@ public class JdbcDataSource implements DataSource, Wrapper, Closeable {
     }
 
     private Connection doGetConnection(Properties p) throws SQLException {
-        JdbcConfiguration cfg = new JdbcConfiguration(url, p);
+        JdbcConfiguration cfg = JdbcConfiguration.create(url, p);
         if (loginTimeout > 0) {
             cfg.connectTimeout(TimeUnit.SECONDS.toMillis(loginTimeout));
         }

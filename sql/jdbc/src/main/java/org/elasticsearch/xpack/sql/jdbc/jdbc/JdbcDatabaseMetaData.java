@@ -1124,7 +1124,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getClientInfoProperties() throws SQLException {
-        throw new UnsupportedOperationException("Client info not implemented yet");
+        throw new SQLException("Client info not implemented yet");
     }
 
     @Override

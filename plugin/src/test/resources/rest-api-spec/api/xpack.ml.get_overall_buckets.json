@@ -19,6 +19,10 @@
           "type": "int",
           "description": "The number of top job bucket scores to be used in the overall_score calculation"
         },
+        "bucket_span": {
+          "type": "string",
+          "description": "The span of the overall buckets. Defaults to the longest job bucket_span"
+        },
         "overall_score": {
           "type": "double",
           "description": "Returns overall buckets with overall scores higher than this value"
@@ -37,7 +41,6 @@
         },
         "allow_no_jobs": {
           "type": "boolean",
-          "required": false,
           "description": "Whether to ignore if a wildcard expression matches no jobs. (This includes `_all` string or when no jobs have been specified)"
         }
       }

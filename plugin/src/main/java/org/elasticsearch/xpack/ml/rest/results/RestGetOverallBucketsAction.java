@@ -44,6 +44,9 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
         } else {
             request = new Request(jobId);
             request.setTopN(restRequest.paramAsInt(Request.TOP_N.getPreferredName(), request.getTopN()));
+            if (restRequest.hasParam(Request.BUCKET_SPAN.getPreferredName())) {
+                request.setBucketSpan(restRequest.param(Request.BUCKET_SPAN.getPreferredName()));
+            }
             request.setOverallScore(Double.parseDouble(restRequest.param(Request.OVERALL_SCORE.getPreferredName(), "0.0")));
             request.setExcludeInterim(restRequest.paramAsBoolean(Request.EXCLUDE_INTERIM.getPreferredName(), request.isExcludeInterim()));
             if (restRequest.hasParam(Request.START.getPreferredName())) {

@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -825,7 +826,9 @@ public class ExecutionServiceTests extends ESTestCase {
         executionService.executeTriggeredWatches(Collections.singleton(triggeredWatch));
 
         verify(triggeredWatchStore, times(1)).delete(wid);
-        verify(historyStore, times(1)).forcePut(any(WatchRecord.class));
+        ArgumentCaptor<WatchRecord> captor = ArgumentCaptor.forClass(WatchRecord.class);
+        verify(historyStore, times(1)).forcePut(captor.capture());
+        assertThat(captor.getValue().state(), is(ExecutionState.THREADPOOL_REJECTION));
     }
 
     public void testThatTriggeredWatchDeletionHappensOnlyIfWatchExists() throws Exception {

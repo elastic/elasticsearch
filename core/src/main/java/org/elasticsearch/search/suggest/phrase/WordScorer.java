@@ -57,7 +57,10 @@ public abstract class WordScorer {
         final long vocSize = terms.getSumTotalTermFreq();
         this.vocabluarySize =  vocSize == -1 ? reader.maxDoc() : vocSize;
         this.useTotalTermFreq = vocSize != -1;
-        this.numTerms = terms.size();
+        long numTerms = terms.size();
+        // -1 cannot be used as value, because scoreUnigram(...) can then divide by 0 if vocabluarySize is 1.
+        // -1 is returned when terms is a MultiTerms instance.
+        this.numTerms = vocabluarySize + numTerms > 1 ? numTerms : 0;
         this.termsEnum = new FreqTermsEnum(reader, field, !useTotalTermFreq, useTotalTermFreq, null, BigArrays.NON_RECYCLING_INSTANCE); // non recycling for now
         this.reader = reader;
         this.realWordLikelyhood = realWordLikelyHood;

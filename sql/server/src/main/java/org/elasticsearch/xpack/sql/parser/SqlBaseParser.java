@@ -16,7 +16,7 @@ import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class SqlBaseParser extends Parser {
-  static { RuntimeMetaData.checkVersion("4.5.1", RuntimeMetaData.VERSION); }
+  static { RuntimeMetaData.checkVersion("4.5.3", RuntimeMetaData.VERSION); }
 
   protected static final DFA[] _decisionToDFA;
   protected static final PredictionContextCache _sharedContextCache =
@@ -479,6 +479,7 @@ class SqlBaseParser extends Parser {
     int _la;
     try {
       setState(141);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,10,_ctx) ) {
       case 1:
         _localctx = new StatementDefaultContext(_localctx);
@@ -495,6 +496,7 @@ class SqlBaseParser extends Parser {
         setState(85);
         match(EXPLAIN);
         setState(99);
+        _errHandler.sync(this);
         switch ( getInterpreter().adaptivePredict(_input,2,_ctx) ) {
         case 1:
           {
@@ -567,6 +569,7 @@ class SqlBaseParser extends Parser {
         setState(102);
         match(DEBUG);
         setState(114);
+        _errHandler.sync(this);
         switch ( getInterpreter().adaptivePredict(_input,5,_ctx) ) {
         case 1:
           {
@@ -1442,6 +1445,7 @@ class SqlBaseParser extends Parser {
     int _la;
     try {
       setState(247);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,29,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
@@ -2125,6 +2129,7 @@ class SqlBaseParser extends Parser {
     int _la;
     try {
       setState(342);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,48,_ctx) ) {
       case 1:
         _localctx = new TableNameContext(_localctx);
@@ -2458,26 +2463,27 @@ class SqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(393);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,52,_ctx) ) {
       case 1:
-        {
-        _localctx = new LogicalNotContext(_localctx);
-        _ctx = _localctx;
-        _prevctx = _localctx;
-
-        setState(347);
-        match(NOT);
-        setState(348);
-        booleanExpression(7);
-        }
-        break;
-      case 2:
         {
         _localctx = new BooleanDefaultContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(349);
+
+        setState(347);
         predicated();
+        }
+        break;
+      case 2:
+        {
+        _localctx = new LogicalNotContext(_localctx);
+        _ctx = _localctx;
+        _prevctx = _localctx;
+        setState(348);
+        match(NOT);
+        setState(349);
+        booleanExpression(7);
         }
         break;
       case 3:
@@ -2607,6 +2613,7 @@ class SqlBaseParser extends Parser {
           _prevctx = _localctx;
           {
           setState(401);
+          _errHandler.sync(this);
           switch ( getInterpreter().adaptivePredict(_input,53,_ctx) ) {
           case 1:
             {
@@ -2689,6 +2696,7 @@ class SqlBaseParser extends Parser {
       setState(406);
       valueExpression(0);
       setState(408);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,55,_ctx) ) {
       case 1:
         {
@@ -2763,6 +2771,7 @@ class SqlBaseParser extends Parser {
     int _la;
     try {
       setState(451);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,62,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
@@ -3029,25 +3038,6 @@ class SqlBaseParser extends Parser {
       {
       setState(457);
       switch (_input.LA(1)) {
-      case PLUS:
-      case MINUS:
-        {
-        _localctx = new ArithmeticUnaryContext(_localctx);
-        _ctx = _localctx;
-        _prevctx = _localctx;
-
-        setState(454);
-        ((ArithmeticUnaryContext)_localctx).operator = _input.LT(1);
-        _la = _input.LA(1);
-        if ( !(_la==PLUS || _la==MINUS) ) {
-          ((ArithmeticUnaryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
-        } else {
-          consume();
-        }
-        setState(455);
-        valueExpression(4);
-        }
-        break;
       case T__0:
       case NULL:
       case TRUE:
@@ -3080,8 +3070,27 @@ class SqlBaseParser extends Parser {
         _localctx = new ValueExpressionDefaultContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
-        setState(456);
+
+        setState(454);
         primaryExpression();
+        }
+        break;
+      case PLUS:
+      case MINUS:
+        {
+        _localctx = new ArithmeticUnaryContext(_localctx);
+        _ctx = _localctx;
+        _prevctx = _localctx;
+        setState(455);
+        ((ArithmeticUnaryContext)_localctx).operator = _input.LT(1);
+        _la = _input.LA(1);
+        if ( !(_la==PLUS || _la==MINUS) ) {
+          ((ArithmeticUnaryContext)_localctx).operator = (Token)_errHandler.recoverInline(this);
+        } else {
+          consume();
+        }
+        setState(456);
+        valueExpression(4);
         }
         break;
       default:
@@ -3097,6 +3106,7 @@ class SqlBaseParser extends Parser {
           _prevctx = _localctx;
           {
           setState(469);
+          _errHandler.sync(this);
           switch ( getInterpreter().adaptivePredict(_input,64,_ctx) ) {
           case 1:
             {
@@ -3385,6 +3395,7 @@ class SqlBaseParser extends Parser {
     int _la;
     try {
       setState(526);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,70,_ctx) ) {
       case 1:
         _localctx = new ConstantDefaultContext(_localctx);
@@ -3599,10 +3610,12 @@ class SqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(534);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,72,_ctx) ) {
       case 1:
         {
         setState(530);
+        _errHandler.sync(this);
         switch ( getInterpreter().adaptivePredict(_input,71,_ctx) ) {
         case 1:
           {
@@ -4750,8 +4763,8 @@ class SqlBaseParser extends Parser {
     "\u0152\3\2\2\2\u0153\u0154\3\2\2\2\u0154\u0155\3\2\2\2\u0155\u0157\5B"+
     "\"\2\u0156\u0153\3\2\2\2\u0156\u0157\3\2\2\2\u0157\u0159\3\2\2\2\u0158"+
     "\u013f\3\2\2\2\u0158\u0146\3\2\2\2\u0158\u014f\3\2\2\2\u0159)\3\2\2\2"+
-    "\u015a\u015b\5,\27\2\u015b+\3\2\2\2\u015c\u015d\b\27\1\2\u015d\u015e\7"+
-    "\32\2\2\u015e\u018c\5,\27\t\u015f\u018c\5.\30\2\u0160\u0161\7\34\2\2\u0161"+
+    "\u015a\u015b\5,\27\2\u015b+\3\2\2\2\u015c\u015d\b\27\1\2\u015d\u018c\5"+
+    ".\30\2\u015e\u015f\7\32\2\2\u015f\u018c\5,\27\t\u0160\u0161\7\34\2\2\u0161"+
     "\u0162\7\3\2\2\u0162\u0163\5\b\5\2\u0163\u0164\7\4\2\2\u0164\u018c\3\2"+
     "\2\2\u0165\u0166\7T\2\2\u0166\u0167\7\3\2\2\u0167\u016c\7c\2\2\u0168\u0169"+
     "\7\5\2\2\u0169\u016b\7c\2\2\u016a\u0168\3\2\2\2\u016b\u016e\3\2\2\2\u016c"+
@@ -4764,7 +4777,7 @@ class SqlBaseParser extends Parser {
     "\2\2\u0180\u0181\7c\2\2\u0181\u0182\7\5\2\2\u0182\u0187\7c\2\2\u0183\u0184"+
     "\7\5\2\2\u0184\u0186\7c\2\2\u0185\u0183\3\2\2\2\u0186\u0189\3\2\2\2\u0187"+
     "\u0185\3\2\2\2\u0187\u0188\3\2\2\2\u0188\u018a\3\2\2\2\u0189\u0187\3\2"+
-    "\2\2\u018a\u018c\7\4\2\2\u018b\u015c\3\2\2\2\u018b\u015f\3\2\2\2\u018b"+
+    "\2\2\u018a\u018c\7\4\2\2\u018b\u015c\3\2\2\2\u018b\u015e\3\2\2\2\u018b"+
     "\u0160\3\2\2\2\u018b\u0165\3\2\2\2\u018b\u0170\3\2\2\2\u018b\u017e\3\2"+
     "\2\2\u018c\u0195\3\2\2\2\u018d\u018e\f\b\2\2\u018e\u018f\7\30\2\2\u018f"+
     "\u0194\5,\27\t\u0190\u0191\f\7\2\2\u0191\u0192\7\27\2\2\u0192\u0194\5"+
@@ -4786,9 +4799,9 @@ class SqlBaseParser extends Parser {
     "\u01c6\5\62\32\2\u01c0\u01c2\7 \2\2\u01c1\u01c3\7\32\2\2\u01c2\u01c1\3"+
     "\2\2\2\u01c2\u01c3\3\2\2\2\u01c3\u01c4\3\2\2\2\u01c4\u01c6\7!\2\2\u01c5"+
     "\u019d\3\2\2\2\u01c5\u01a5\3\2\2\2\u01c5\u01b4\3\2\2\2\u01c5\u01bc\3\2"+
-    "\2\2\u01c5\u01c0\3\2\2\2\u01c6\61\3\2\2\2\u01c7\u01c8\b\32\1\2\u01c8\u01c9"+
-    "\t\13\2\2\u01c9\u01cc\5\62\32\6\u01ca\u01cc\5\64\33\2\u01cb\u01c7\3\2"+
-    "\2\2\u01cb\u01ca\3\2\2\2\u01cc\u01d9\3\2\2\2\u01cd\u01ce\f\5\2\2\u01ce"+
+    "\2\2\u01c5\u01c0\3\2\2\2\u01c6\61\3\2\2\2\u01c7\u01c8\b\32\1\2\u01c8\u01cc"+
+    "\5\64\33\2\u01c9\u01ca\t\13\2\2\u01ca\u01cc\5\62\32\6\u01cb\u01c7\3\2"+
+    "\2\2\u01cb\u01c9\3\2\2\2\u01cc\u01d9\3\2\2\2\u01cd\u01ce\f\5\2\2\u01ce"+
     "\u01cf\t\f\2\2\u01cf\u01d8\5\62\32\6\u01d0\u01d1\f\4\2\2\u01d1\u01d2\t"+
     "\13\2\2\u01d2\u01d8\5\62\32\5\u01d3\u01d4\f\3\2\2\u01d4\u01d5\5:\36\2"+
     "\u01d5\u01d6\5\62\32\4\u01d6\u01d8\3\2\2\2\u01d7\u01cd\3\2\2\2\u01d7\u01d0"+

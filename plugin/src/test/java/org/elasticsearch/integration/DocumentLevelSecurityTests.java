@@ -139,6 +139,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
+                .put(XPackSettings.AUDIT_ENABLED.getKey(), false) // Just to make logs less noisy
                 .build();
     }
 
@@ -956,7 +957,11 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSuggesters() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.refresh_interval", -1)
+                )
                 .addMapping("type1", "field1", "type=text", "suggest_field1", "type=text", "suggest_field2", "type=completion")
         );
 

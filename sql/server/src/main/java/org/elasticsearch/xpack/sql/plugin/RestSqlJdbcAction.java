@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
@@ -149,8 +150,10 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     }
 
     private Consumer<RestChannel> queryInit(Client client, QueryInitRequest request) {
-        SqlRequest sqlRequest = new SqlRequest(request.query, SqlRequest.DEFAULT_TIME_ZONE, request.fetchSize, Cursor.EMPTY);
-        sqlRequest.timeZone(DateTimeZone.forTimeZone(request.timeZone));
+        SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize, 
+                                                TimeValue.timeValueMillis(request.timeout.requestTimeout),
+                                                TimeValue.timeValueMillis(request.timeout.pageTimeout), 
+                                                Cursor.EMPTY);
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(request, channel, response -> {
             List<JDBCType> types = new ArrayList<>(response.columns().size());
@@ -173,7 +176,11 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
         } catch (IOException e) {
             throw new IllegalArgumentException("error reading the cursor");
         }
-        SqlRequest sqlRequest = new SqlRequest(EMPTY, SqlRequest.DEFAULT_TIME_ZONE, 0, cursor);
+        // NB: the timezone and page size are locked already by the query so pass in defaults (as they are not read anyway)
+        SqlRequest sqlRequest = new SqlRequest(EMPTY, SqlRequest.DEFAULT_TIME_ZONE, 0, 
+                                                TimeValue.timeValueMillis(request.timeout.requestTimeout),
+                                                TimeValue.timeValueMillis(request.timeout.pageTimeout), 
+                                                cursor);
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(request, channel, response -> {
             return new QueryPageResponse(System.nanoTime() - start, serializeCursor(response.cursor(), types),

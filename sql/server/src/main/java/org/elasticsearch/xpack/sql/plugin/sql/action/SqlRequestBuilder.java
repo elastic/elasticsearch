@@ -7,20 +7,24 @@ package org.elasticsearch.xpack.sql.plugin.sql.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.joda.time.DateTimeZone;
 
 import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_FETCH_SIZE;
+import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_PAGE_TIMEOUT;
+import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_REQUEST_TIMEOUT;
 import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_TIME_ZONE;
 
 public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlResponse, SqlRequestBuilder> {
 
     public SqlRequestBuilder(ElasticsearchClient client, SqlAction action) {
-        this(client, action, "", DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, Cursor.EMPTY);
+        this(client, action, "", DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PAGE_TIMEOUT, Cursor.EMPTY);
     }
 
-    public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, DateTimeZone timeZone, int fetchSize, Cursor nextPageInfo) {
-        super(client, action, new SqlRequest(query, timeZone, fetchSize, nextPageInfo));
+    public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, DateTimeZone timeZone, int fetchSize,
+                              TimeValue requestTimeout, TimeValue pageTimeout, Cursor nextPageInfo) {
+        super(client, action, new SqlRequest(query, timeZone, fetchSize, requestTimeout, pageTimeout, nextPageInfo));
     }
 
     public SqlRequestBuilder query(String query) {
@@ -38,4 +42,13 @@ public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlRespo
         return this;
     }
 
+    public SqlRequestBuilder requestTimeout(TimeValue timeout) {
+        request.requestTimeout(timeout);
+        return this;
+    }
+
+    public SqlRequestBuilder pageTimeout(TimeValue timeout) {
+        request.pageTimeout(timeout);
+        return this;
+    }
 }

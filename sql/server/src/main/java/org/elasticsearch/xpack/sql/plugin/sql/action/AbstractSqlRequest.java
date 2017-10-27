@@ -12,8 +12,10 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
+import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -24,18 +26,25 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
 
     public static final DateTimeZone DEFAULT_TIME_ZONE = DateTimeZone.UTC;
     public static final int DEFAULT_FETCH_SIZE = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
+    public static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueMillis(TimeoutInfo.DEFAULT_REQUEST_TIMEOUT);
+    public static final TimeValue DEFAULT_PAGE_TIMEOUT = TimeValue.timeValueMillis(TimeoutInfo.DEFAULT_PAGE_TIMEOUT);
+    
     private String query = "";
     private DateTimeZone timeZone = DEFAULT_TIME_ZONE;
     private int fetchSize = DEFAULT_FETCH_SIZE;
+    private TimeValue requestTimeout = DEFAULT_REQUEST_TIMEOUT; 
+    private TimeValue pageTimeout = DEFAULT_PAGE_TIMEOUT;
 
     public AbstractSqlRequest() {
         super();
     }
 
-    public AbstractSqlRequest(String query, DateTimeZone timeZone, int fetchSize) {
+    public AbstractSqlRequest(String query, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
         this.query = query;
         this.timeZone = timeZone;
         this.fetchSize = fetchSize;
+        this.requestTimeout = requestTimeout;
+        this.pageTimeout = pageTimeout;
     }
 
     public static <R extends AbstractSqlRequest> ObjectParser<R, Void> objectParser(Supplier<R> supplier) {
@@ -44,7 +53,12 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
         parser.declareString(AbstractSqlRequest::query, new ParseField("query"));
         parser.declareString((request, zoneId) -> request.timeZone(DateTimeZone.forID(zoneId)), new ParseField("time_zone"));
         parser.declareInt(AbstractSqlRequest::fetchSize, new ParseField("fetch_size"));
-
+        parser.declareString(
+                (request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, DEFAULT_REQUEST_TIMEOUT, "request_timeout")),
+                new ParseField("request_timeout"));
+        parser.declareString(
+                (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, DEFAULT_PAGE_TIMEOUT, "page_timeout")),
+                new ParseField("page_timeout"));
         return parser;
     }
 
@@ -84,9 +98,28 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
      */
     public AbstractSqlRequest fetchSize(int fetchSize) {
         if (fetchSize <= 0) {
-            throw new IllegalArgumentException("fetch_size must be more than 0");
+            throw new IllegalArgumentException("fetch_size must be more than 0.");
         }
         this.fetchSize = fetchSize;
+        return this;
+    }
+
+    public TimeValue requestTimeout() {
+        return requestTimeout;
+    }
+
+    public AbstractSqlRequest requestTimeout(TimeValue requestTimeout) {
+        this.requestTimeout = requestTimeout;
+        return this;
+    }
+
+
+    public TimeValue pageTimeout() {
+        return pageTimeout;
+    }
+
+    public AbstractSqlRequest pageTimeout(TimeValue pageTimeout) {
+        this.pageTimeout = pageTimeout;
         return this;
     }
 
@@ -96,6 +129,8 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
         query = in.readString();
         timeZone = DateTimeZone.forID(in.readString());
         fetchSize = in.readVInt();
+        requestTimeout = new TimeValue(in);
+        pageTimeout = new TimeValue(in);
     }
 
     @Override
@@ -104,11 +139,13 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
         out.writeString(query);
         out.writeString(timeZone.getID());
         out.writeVInt(fetchSize);
+        requestTimeout.writeTo(out);
+        pageTimeout.writeTo(out);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, timeZone, fetchSize);
+        return Objects.hash(query, timeZone, fetchSize, requestTimeout, pageTimeout);
     }
 
     @Override
@@ -124,6 +161,8 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
         AbstractSqlRequest other = (AbstractSqlRequest) obj;
         return Objects.equals(query, other.query) 
                 && Objects.equals(timeZone, other.timeZone)
-                && fetchSize == other.fetchSize;
+                && fetchSize == other.fetchSize
+                && Objects.equals(requestTimeout, other.requestTimeout)
+                && Objects.equals(pageTimeout, other.pageTimeout);
     }
 }

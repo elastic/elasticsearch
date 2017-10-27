@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.plugin.sql.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.joda.time.DateTimeZone;
 
@@ -18,8 +19,8 @@ public class SqlTranslateRequest extends AbstractSqlRequest {
 
     public SqlTranslateRequest() {}
 
-    public SqlTranslateRequest(String query, DateTimeZone timeZone, int fetchSize) {
-        super(query, timeZone, fetchSize);
+    public SqlTranslateRequest(String query, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
+        super(query, timeZone, fetchSize, requestTimeout, pageTimeout);
     }
 
     @Override

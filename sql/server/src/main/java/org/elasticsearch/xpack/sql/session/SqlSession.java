@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction;
 
 import java.util.List;
-import java.util.function.Function;
 
 public class SqlSession {
 
@@ -35,12 +33,12 @@ public class SqlSession {
     private final Planner planner;
     private final Analyzer analyzer;
 
-    private final SqlSettings defaults; // NOCOMMIT this doesn't look used - it is for RESET SESSION
-    private SqlSettings settings;
+    private final Configuration defaults; // NOCOMMIT this doesn't look used - it is for RESET SESSION
+    private Configuration settings;
 
     // thread-local used for sharing settings across the plan compilation
     // TODO investigate removing
-    public static final ThreadLocal<SqlSettings> CURRENT_SETTINGS = new ThreadLocal<SqlSettings>() {
+    public static final ThreadLocal<Configuration> CURRENT_SETTINGS = new ThreadLocal<Configuration>() {
         @Override
         public String toString() {
             return "SQL Session";
@@ -52,7 +50,7 @@ public class SqlSession {
                 other.parser, other.optimizer(), other.planner());
     }
 
-    public SqlSession(SqlSettings defaults, Client client,
+    public SqlSession(Configuration defaults, Client client,
             Catalog catalog, FunctionRegistry functionRegistry, 
             SqlParser parser, 
             Optimizer optimizer,
@@ -139,17 +137,11 @@ public class SqlSession {
         executable(sql).execute(this, listener);
     }
 
-    public SqlSettings defaults() {
+    public Configuration defaults() {
         return defaults;
     }
 
-    public SqlSettings settings() {
-        return settings;
-    }
-
-    // session SET
-    public SqlSettings updateSettings(Function<Settings, Settings> transformer) {
-        settings = new SqlSettings(transformer.apply(settings.cfg()));
+    public Configuration settings() {
         return settings;
     }
 

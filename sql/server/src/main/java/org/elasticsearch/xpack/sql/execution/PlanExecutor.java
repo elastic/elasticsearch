@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.session.SqlSettings;
+import org.elasticsearch.xpack.sql.session.Configuration;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -50,13 +50,13 @@ public class PlanExecutor {
         this.planner = new Planner();
     }
 
-    public SqlSession newSession(SqlSettings settings) {
+    public SqlSession newSession(Configuration cfg) {
         Catalog catalog = catalogSupplier.apply(stateSupplier.get());
-        return new SqlSession(settings, client, catalog, functionRegistry, parser, optimizer, planner);
+        return new SqlSession(cfg, client, catalog, functionRegistry, parser, optimizer, planner);
     }
 
 
-    public SearchSourceBuilder searchSource(String sql, SqlSettings settings) {
+    public SearchSourceBuilder searchSource(String sql, Configuration settings) {
         PhysicalPlan executable = newSession(settings).executable(sql);
         if (executable instanceof EsQueryExec) {
             EsQueryExec e = (EsQueryExec) executable;
@@ -68,10 +68,10 @@ public class PlanExecutor {
     }
 
     public void sql(String sql, ActionListener<RowSet> listener) {
-        sql(SqlSettings.EMPTY, sql, listener);
+        sql(Configuration.DEFAULT, sql, listener);
     }
 
-    public void sql(SqlSettings sqlSettings, String sql, ActionListener<RowSet> listener) {
+    public void sql(Configuration sqlSettings, String sql, ActionListener<RowSet> listener) {
         SqlSession session = newSession(sqlSettings);
         try {
             PhysicalPlan executable = session.executable(sql);

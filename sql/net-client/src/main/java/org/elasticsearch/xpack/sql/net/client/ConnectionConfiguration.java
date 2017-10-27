@@ -39,13 +39,13 @@ public class ConnectionConfiguration {
     public static final String NETWORK_TIMEOUT = "network.timeout";
     private static final String NETWORK_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(1));
 
-    // 1m
+    // 90s
     public static final String QUERY_TIMEOUT = "query.timeout";
-    private static final String QUERY_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(1));
+    private static final String QUERY_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.SECONDS.toMillis(90));
 
-    // 5m
+    // 45s
     public static final String PAGE_TIMEOUT = "page.timeout";
-    private static final String PAGE_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.MINUTES.toMillis(5));
+    private static final String PAGE_TIMEOUT_DEFAULT = String.valueOf(TimeUnit.SECONDS.toMillis(45));
 
     public static final String PAGE_SIZE = "page.size";
     private static final String PAGE_SIZE_DEFAULT = "1000";

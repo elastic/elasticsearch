@@ -10,6 +10,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.joda.time.DateTimeZone;
@@ -33,8 +34,8 @@ public class SqlRequest extends AbstractSqlRequest {
 
     public SqlRequest() {}
 
-    public SqlRequest(String query, DateTimeZone timeZone, int fetchSize, Cursor cursor) {
-        super(query, timeZone, fetchSize);
+    public SqlRequest(String query, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Cursor cursor) {
+        super(query, timeZone, fetchSize, requestTimeout, pageTimeout);
         this.cursor = cursor;
     }
 

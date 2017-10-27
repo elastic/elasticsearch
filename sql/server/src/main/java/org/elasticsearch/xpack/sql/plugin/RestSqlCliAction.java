@@ -15,13 +15,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
+import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageRequest;
@@ -49,7 +50,7 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
     @Override
     public String getName() {
         return "xpack_sql_cli_action";
-    }
+        }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(Request request, Client client) throws IOException {
@@ -90,7 +91,10 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
 
     private Consumer<RestChannel> queryInit(Client client, QueryInitRequest request) {
         // TODO time zone support for CLI
-        SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize, Cursor.EMPTY);
+        SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize, 
+                                                TimeValue.timeValueMillis(request.timeout.requestTimeout),
+                                                TimeValue.timeValueMillis(request.timeout.pageTimeout), 
+                                                Cursor.EMPTY);
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(request, channel, response -> {
             CliFormatter formatter = new CliFormatter(response);
@@ -108,7 +112,11 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
         } catch (IOException e) {
             throw new IllegalArgumentException("error reading the cursor");
         }
-        SqlRequest sqlRequest = new SqlRequest("", SqlRequest.DEFAULT_TIME_ZONE, -1, cursor);
+        SqlRequest sqlRequest = new SqlRequest("", SqlRequest.DEFAULT_TIME_ZONE, 0,
+                                                TimeValue.timeValueMillis(request.timeout.requestTimeout),
+                                                TimeValue.timeValueMillis(request.timeout.pageTimeout), 
+                                                cursor);
+
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(request, channel, response -> {
             String data = formatter.formatWithoutHeader(response);
@@ -128,4 +136,4 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
             throw new RuntimeException("unexpected trouble building the cursor", e);
         }
     }
-}
+                    }

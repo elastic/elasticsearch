@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.aware.DistinctAware;
 import org.elasticsearch.xpack.sql.expression.function.aware.TimeZoneAware;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.session.SqlSettings;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.tree.NodeUtils.NodeInfo;
@@ -51,12 +51,12 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
 
     
     @Override
-    public Function resolveFunction(UnresolvedFunction ur, SqlSettings settings) {
+    public Function resolveFunction(UnresolvedFunction ur, Configuration cfg) {
         FunctionDefinition def = defs.get(normalize(ur.name()));
         if (def == null) {
             throw new SqlIllegalArgumentException("Cannot find function %s; this should have been caught during analysis", ur.name());
         }
-        return createInstance(def.clazz(), ur, settings);
+        return createInstance(def.clazz(), ur, cfg);
     }
 
     @Override
@@ -107,7 +107,7 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
     // If the function has certain 'aware'-ness (based on the interface implemented), the appropriate types are added to the signature
 
     @SuppressWarnings("rawtypes")
-    private static Function createInstance(Class<? extends Function> clazz, UnresolvedFunction ur, SqlSettings settings) {
+    private static Function createInstance(Class<? extends Function> clazz, UnresolvedFunction ur, Configuration cfg) {
         NodeInfo info = NodeUtils.info((Class<? extends Node>) clazz);
         Class<?>[] pTypes = info.ctr.getParameterTypes();
 
@@ -171,7 +171,7 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
                 args.add(ur.distinct());
             }
             if (timezoneAware) {
-                args.add(settings.timeZone());
+                args.add(cfg.timeZone());
             }
 
             return (Function) info.ctr.newInstance(args.toArray());

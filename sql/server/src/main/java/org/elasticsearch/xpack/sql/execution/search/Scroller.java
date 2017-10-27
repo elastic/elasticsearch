@@ -44,9 +44,9 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TotalCountRef;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SqlSettings;
 import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -62,9 +62,8 @@ public class Scroller {
     private final int size;
     private final Client client;
 
-    public Scroller(Client client, SqlSettings settings) {
-        // NOCOMMIT the scroll time should be available in the request somehow. Rest is going to fail badly unless they set it.
-        this(client, TimeValue.timeValueSeconds(90), TimeValue.timeValueSeconds(45), settings.pageSize());
+    public Scroller(Client client, Configuration cfg) {
+        this(client, cfg.requestTimeout(), cfg.pageTimeout(), cfg.pageSize());
     }
 
     public Scroller(Client client, TimeValue keepAlive, TimeValue timeout, int size) {

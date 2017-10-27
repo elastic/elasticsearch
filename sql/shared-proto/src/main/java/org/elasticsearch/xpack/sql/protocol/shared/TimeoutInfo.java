@@ -9,31 +9,43 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
+/**
+ * Common class handling timeouts. Due to the nature of JDBC, all timeout values are expressed as millis.
+ * Contains 
+ */
 public class TimeoutInfo {
-    public final long clientTime, timeout, requestTimeout;
+
+    public static final long DEFAULT_REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(90);
+    public static final long DEFAULT_PAGE_TIMEOUT = TimeUnit.SECONDS.toMillis(45);
+
+    // client time - millis since epoch of when the client made the request
+    // request timeout - how long the client is willing to wait for the server to process its request
+    // page timeout - how long retrieving the next page (of the query) should take (this is used to scroll across pages)
+    public final long clientTime, requestTimeout, pageTimeout;
 
     public TimeoutInfo(long clientTime, long timeout, long requestTimeout) {
         this.clientTime = clientTime;
-        this.timeout = timeout;
-        this.requestTimeout = requestTimeout;
+        this.requestTimeout = timeout;
+        this.pageTimeout = requestTimeout;
     }
 
     TimeoutInfo(DataInput in) throws IOException {
         clientTime = in.readLong();
-        timeout = in.readLong();
         requestTimeout = in.readLong();
+        pageTimeout = in.readLong();
     }
 
     void writeTo(DataOutput out) throws IOException {
         out.writeLong(clientTime);
-        out.writeLong(timeout);
         out.writeLong(requestTimeout);
+        out.writeLong(pageTimeout);
     }
 
     @Override
     public String toString() {
-        return "client=" + clientTime + ",timeout=" + timeout + ",request=" + requestTimeout;
+        return "client=" + clientTime + ",request=" + requestTimeout + ",page=" + pageTimeout;
     }
 
     @Override
@@ -43,12 +55,12 @@ public class TimeoutInfo {
         }
         TimeoutInfo other = (TimeoutInfo) obj;
         return clientTime == other.clientTime
-                && timeout == other.timeout
-                && requestTimeout == other.requestTimeout;
+                && requestTimeout == other.requestTimeout
+                && pageTimeout == other.pageTimeout;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(clientTime, timeout, requestTimeout);
+        return Objects.hash(clientTime, requestTimeout, pageTimeout);
     }
 }

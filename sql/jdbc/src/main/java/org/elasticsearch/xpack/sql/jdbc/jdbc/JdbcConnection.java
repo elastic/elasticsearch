@@ -29,6 +29,7 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.util.Map;
 import java.util.Properties;
+import java.util.TimeZone;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
@@ -53,7 +54,7 @@ public class JdbcConnection implements Connection, JdbcWrapper {
         client = new JdbcHttpClient(connectionInfo);
 
         url = connectionInfo.asUrl().toExternalForm();
-        userName = connectionInfo.userName();
+        userName = connectionInfo.authUser();
     }
 
     private void checkOpen() throws SQLException {
@@ -447,4 +448,9 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     public int esInfoMinorVersion() throws SQLException {
         return client.serverInfo().minorVersion;
     }
+
+    public void setTimeZone(TimeZone tz) {
+        cfg.timeZone(tz);
+    }
+
 }

@@ -15,7 +15,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
-import org.elasticsearch.xpack.sql.session.SqlSettings;
+import org.elasticsearch.xpack.sql.session.Configuration;
 
 public class TransportSqlTranslateAction extends HandledTransportAction<SqlTranslateRequest, SqlTranslateResponse> {
 
@@ -39,10 +39,8 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         sqlLicenseChecker.checkIfSqlAllowed();
         String query = request.query();
 
-        SqlSettings sqlSettings = new SqlSettings(Settings.builder()
-            .put(SqlSettings.PAGE_SIZE, request.fetchSize())
-            .put(SqlSettings.TIMEZONE_ID, request.timeZone().getID()).build());
+        Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout());
     
-        listener.onResponse(new SqlTranslateResponse(planExecutor.searchSource(query, sqlSettings)));
+        listener.onResponse(new SqlTranslateResponse(planExecutor.searchSource(query, cfg)));
     }
 }

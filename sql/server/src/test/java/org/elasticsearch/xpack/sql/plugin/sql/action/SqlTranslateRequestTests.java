@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plugin.sql.action;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
@@ -13,7 +14,12 @@ public class SqlTranslateRequestTests extends AbstractStreamableTestCase<SqlTran
 
     @Override
     protected SqlTranslateRequest createTestInstance() {
-        return new SqlTranslateRequest(randomAlphaOfLength(10), randomDateTimeZone(), between(1, Integer.MAX_VALUE));
+        return new SqlTranslateRequest(randomAlphaOfLength(10), randomDateTimeZone(), between(1, Integer.MAX_VALUE), randomTV(),
+                randomTV());
+    }
+
+    private TimeValue randomTV() {
+        return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
     }
 
     @Override
@@ -30,6 +36,10 @@ public class SqlTranslateRequestTests extends AbstractStreamableTestCase<SqlTran
                 request -> (SqlTranslateRequest) getCopyFunction().copy(request)
                         .timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomDateTimeZone)),
                 request -> (SqlTranslateRequest) getCopyFunction().copy(request)
-                        .fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))));
+                        .fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
+                request -> (SqlTranslateRequest) getCopyFunction().copy(request)
+                        .requestTimeout(randomValueOtherThan(request.requestTimeout(), () -> randomTV())),
+                request -> (SqlTranslateRequest) getCopyFunction().copy(request)
+                        .pageTimeout(randomValueOtherThan(request.pageTimeout(), () -> randomTV())));
     }
 }

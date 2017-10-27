@@ -16,9 +16,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse.ColumnInfo;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
-import org.elasticsearch.xpack.sql.session.SqlSettings;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.ArrayList;
@@ -53,10 +53,9 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
      */
     public static void operation(PlanExecutor planExecutor, SqlRequest request, ActionListener<SqlResponse> listener) {
         if (request.cursor() == Cursor.EMPTY) {
-            SqlSettings sqlSettings = new SqlSettings(Settings.builder()
-                    .put(SqlSettings.PAGE_SIZE, request.fetchSize())
-                    .put(SqlSettings.TIMEZONE_ID, request.timeZone().getID()).build());
-            planExecutor.sql(sqlSettings, request.query(),
+            Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),
+                                                          request.requestTimeout(), request.pageTimeout());
+            planExecutor.sql(cfg, request.query(),
                     ActionListener.wrap(cursor -> listener.onResponse(createResponse(true, cursor)), listener::onFailure));
         } else {
             planExecutor.nextPage(request.cursor(),

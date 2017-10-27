@@ -18,13 +18,16 @@ import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.TimeZone;
 
 public class CliHttpClient implements AutoCloseable {
     private final HttpClient http;
+    private final CliConfiguration cfg;
 
     public CliHttpClient(CliConfiguration cfg) {
-        http = new HttpClient(cfg);
+        this.cfg = cfg;
+        this.http = new HttpClient(cfg);
     }
 
     public InfoResponse serverInfo() {
@@ -35,15 +38,19 @@ public class CliHttpClient implements AutoCloseable {
 
     public Response queryInit(String query, int fetchSize) {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
-        QueryInitRequest request = new QueryInitRequest(query, fetchSize, TimeZone.getTimeZone("UTC"), new TimeoutInfo(0, 0, 0));
+        QueryInitRequest request = new QueryInitRequest(query, fetchSize, TimeZone.getTimeZone("UTC"), timeout());
         return sendRequest(request);
     }
 
     public Response nextPage(byte[] cursor) {
-        QueryPageRequest request = new QueryPageRequest(cursor, new TimeoutInfo(0, 0, 0));
+        QueryPageRequest request = new QueryPageRequest(cursor, timeout());
         return sendRequest(request);
     }
 
+    private TimeoutInfo timeout() {
+        long clientTime = Instant.now().toEpochMilli();
+        return new TimeoutInfo(clientTime, cfg.queryTimeout(), cfg.pageTimeout());
+    }
     private Response sendRequest(Request request) {
         Bytes ba = http.post(out -> Proto.INSTANCE.writeRequest(request, out));
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(ba.bytes(), 0, ba.size()))) {

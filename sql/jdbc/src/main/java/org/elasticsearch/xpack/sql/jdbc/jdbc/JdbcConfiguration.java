@@ -56,7 +56,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     private boolean debug = false;
     private String debugOut = DEBUG_OUTPUT_DEFAULT;
-    private final TimeZone timeZone;
+    private TimeZone timeZone;
 
     public JdbcConfiguration(String u, Properties props) throws JdbcSQLException {
         super(props);
@@ -183,15 +183,6 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         }
     }
 
-    public String userName() {
-        return settings().getProperty(AUTH_USER);
-    }
-
-    public String password() {
-        // NOCOMMIT make sure we're doing right by the password. Compare with other jdbc drivers and our security code.
-        return settings().getProperty(AUTH_PASS);
-    }
-
     private int port() {
         return hostAndPort.port > 0 ? hostAndPort.port : 9200;
     }
@@ -206,6 +197,10 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     public TimeZone timeZone() {
         return timeZone;
+    }
+
+    public void timeZone(TimeZone tz) {
+        timeZone = tz;
     }
 
     public static boolean canAccept(String url) {

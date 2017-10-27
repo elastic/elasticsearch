@@ -11,6 +11,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.Objects;
 
 public class ForecastTests extends AbstractSerializingTestCase<Forecast> {
 
@@ -25,7 +26,9 @@ public class ForecastTests extends AbstractSerializingTestCase<Forecast> {
     }
 
     public Forecast createTestInstance(String jobId) {
-        Forecast forecast = new Forecast(jobId, randomNonNegativeLong(), new Date(randomLong()), randomNonNegativeLong());
+        Forecast forecast =
+                new Forecast(jobId, randomNonNegativeLong(), new Date(randomLong()),
+                        randomNonNegativeLong(), randomInt());
 
         if (randomBoolean()) {
             forecast.setByFieldName(randomAlphaOfLengthBetween(1, 20));
@@ -65,4 +68,27 @@ public class ForecastTests extends AbstractSerializingTestCase<Forecast> {
         return Forecast.PARSER.apply(parser, null);
     }
 
+    public void testId() {
+        Forecast forecast = new Forecast("job-foo", 222, new Date(100L), 60L, 2);
+        String byFieldValue = null;
+        String partitionFieldValue = null;
+
+        int valuesHash = Objects.hash(byFieldValue, partitionFieldValue);
+        assertEquals("job-foo_model_forecast_222_100_60_2_" + valuesHash + "_0", forecast.getId());
+
+        int length = 0;
+        if (randomBoolean()) {
+            byFieldValue = randomAlphaOfLength(10);
+            length += byFieldValue.length();
+            forecast.setByFieldValue(byFieldValue);
+        }
+        if (randomBoolean()) {
+            partitionFieldValue = randomAlphaOfLength(10);
+            length += partitionFieldValue.length();
+            forecast.setPartitionFieldValue(partitionFieldValue);
+        }
+
+        valuesHash = Objects.hash(byFieldValue, partitionFieldValue);
+        assertEquals("job-foo_model_forecast_222_100_60_2_" + valuesHash + "_" + length, forecast.getId());
+    }
 }

@@ -276,7 +276,7 @@ final class Security {
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
         addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink");
         // read-write dirs
-        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
+        addDirectoryPath(policy, "java.io.tmpdir", environment.systemTmpFile(), "read,readlink,write,delete");
         addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
         if (environment.sharedDataFile() != null) {
             addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),

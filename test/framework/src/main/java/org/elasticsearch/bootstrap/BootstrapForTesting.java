@@ -28,10 +28,10 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.IfConfig;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
 import org.junit.Assert;
 
-import java.io.FilePermission;
 import java.io.InputStream;
 import java.net.SocketPermission;
 import java.net.URL;
@@ -72,6 +72,9 @@ public class BootstrapForTesting {
                                                                "please set ${java.io.tmpdir} in pom.xml"));
         try {
             Security.ensureDirectoryExists(javaTmpDir);
+            // This ensures that the secure temp directory under java.io.tmpdir
+            // exists before we install any mock file systems
+            Environment.ensureClassLoaded();
         } catch (Exception e) {
             throw new RuntimeException("unable to create test temp directory", e);
         }

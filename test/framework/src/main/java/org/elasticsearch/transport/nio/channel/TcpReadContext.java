@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.common.bytes.BytesPage;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.transport.nio.ChannelBuffer;
@@ -35,8 +35,7 @@ public class TcpReadContext implements ReadContext {
     private final NioSocketChannel channel;
     private final TcpFrameDecoder frameDecoder;
     private final ChannelBuffer channelBuffer;
-    private final Supplier<BytesPage> allocator;
-    private boolean closed = false;
+    private final Supplier<BytesArray> allocator;
 
     public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler, BigArrays bigArrays) {
         this.handler = handler;
@@ -64,10 +63,9 @@ public class TcpReadContext implements ReadContext {
         // Frame decoder will throw an exception if the message is improperly formatted, the header is incorrect,
         // or the message is corrupted
         while ((message = frameDecoder.decode(channelBuffer)) != null) {
-            BytesReference messageBytes = message.getContent();
-            int messageLengthWithHeader = messageBytes.length();
-
             try {
+                BytesReference messageBytes = message.getContent();
+                int messageLengthWithHeader = messageBytes.length();
                 BytesReference messageWithoutHeader = messageBytes.slice(6, messageBytes.length() - 6);
 
                 // A message length of 6 bytes it is just a ping. Ignore for now.
@@ -86,9 +84,6 @@ public class TcpReadContext implements ReadContext {
 
     @Override
     public void close() {
-        if (closed == false) {
-            channelBuffer.close();
-            closed = true;
-        }
+        channelBuffer.close();
     }
 }

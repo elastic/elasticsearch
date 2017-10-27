@@ -20,13 +20,15 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lease.Releasable;
 
-public class BytesArray extends BytesReference {
+public class BytesArray extends BytesReference implements Releasable {
 
     public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);
     private final byte[] bytes;
     private final int offset;
     private final int length;
+    private final Releasable releasable;
 
     public BytesArray(String bytes) {
         this(new BytesRef(bytes));
@@ -43,16 +45,26 @@ public class BytesArray extends BytesReference {
         bytes = bytesRef.bytes;
         offset = bytesRef.offset;
         length = bytesRef.length;
+        releasable = null;
     }
 
     public BytesArray(byte[] bytes) {
         this(bytes, 0, bytes.length);
     }
 
+    public BytesArray(byte[] bytes, Releasable releasable) {
+        this(bytes, 0, bytes.length, releasable);
+    }
+
     public BytesArray(byte[] bytes, int offset, int length) {
+        this(bytes, offset, length, null);
+    }
+
+    public BytesArray(byte[] bytes, int offset, int length, Releasable releasable) {
         this.bytes = bytes;
         this.offset = offset;
         this.length = length;
+        this.releasable = releasable;
     }
 
     @Override
@@ -68,9 +80,23 @@ public class BytesArray extends BytesReference {
     @Override
     public BytesReference slice(int from, int length) {
         if (from < 0 || (from + length) > this.length) {
-            throw new IllegalArgumentException("can't slice a buffer with length [" + this.length + "], with slice parameters from [" + from + "], length [" + length + "]");
+            throw new IllegalArgumentException("can't slice a buffer with length [" + this.length +
+                "], with slice parameters from [" + from + "], length [" + length + "]");
         }
         return new BytesArray(bytes, offset + from, length);
+    }
+
+    /**
+     * This provides the same facilities as {@link #slice(int, int)}, but retains a reference to
+     * the underlying releasable (if one exists for this array). Closing the "slice" will also
+     * close this array.
+     */
+    public BytesArray sliceAndRetainReleasable(int from, int length) {
+        if (from < 0 || (from + length) > this.length()) {
+            throw new IllegalArgumentException("can't slice a buffer with length [" + this.length +
+                "], with slice parameters from [" + from + "], length [" + length + "]");
+        }
+        return new BytesArray(bytes, offset + from, length, releasable);
     }
 
     public byte[] array() {
@@ -91,4 +117,10 @@ public class BytesArray extends BytesReference {
         return bytes.length;
     }
 
+    @Override
+    public void close() {
+        if (releasable != null) {
+            releasable.close();
+        }
+    }
 }

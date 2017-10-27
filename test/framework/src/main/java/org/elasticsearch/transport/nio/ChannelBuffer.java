@@ -21,7 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesPage;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.BytesReferenceStreamInput;
 import org.elasticsearch.common.collect.IndexedArrayDeque;
@@ -34,15 +34,15 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.stream.StreamSupport;
 
-public class ChannelBuffer implements Iterable<BytesPage> {
+public class ChannelBuffer implements Iterable<BytesArray> {
 
-    private final IndexedArrayDeque<BytesPage> references;
+    private final IndexedArrayDeque<BytesArray> references;
     private int[] offsets;
 
     private int length;
     private int index;
 
-    public ChannelBuffer(BytesPage... newReferences) {
+    public ChannelBuffer(BytesArray... newReferences) {
         this.references = new IndexedArrayDeque<>(Math.max(8, newReferences.length));
         this.offsets = new int[0];
         this.length = 0;
@@ -50,18 +50,18 @@ public class ChannelBuffer implements Iterable<BytesPage> {
         addBuffers(newReferences);
     }
 
-    public void addBuffer(BytesPage newReference) {
+    public void addBuffer(BytesArray newReference) {
         addBuffers(newReference);
     }
 
-    public void addBuffers(BytesPage... refs) {
+    public void addBuffers(BytesArray... refs) {
         int initialReferenceCount = references.size();
         int[] newOffsets = new int[offsets.length + refs.length];
         System.arraycopy(offsets, 0, newOffsets, 0, offsets.length);
 
         try {
             int i = refs.length;
-            for (BytesPage ref : refs) {
+            for (BytesArray ref : refs) {
                 addBuffer0(ref, newOffsets, newOffsets.length - i--);
             }
             this.offsets = newOffsets;
@@ -98,19 +98,19 @@ public class ChannelBuffer implements Iterable<BytesPage> {
             closeables = new Releasable[offsetIndex + 1];
         }
         for (int i = 0; i < offsetIndex; ++i) {
-            BytesPage removed = references.removeFirst();
+            BytesArray removed = references.removeFirst();
             messageReferences[i] = removed;
             closeables[i] = removed;
             bytesDropped += removed.length();
         }
 
         if (messageBytesInFinalBuffer != 0) {
-            BytesPage first = references.removeFirst();
+            BytesArray first = references.removeFirst();
             if (messageBytesInFinalBuffer == first.length()) {
                 messageReferences[offsetIndex] = first;
                 closeables[offsetIndex] = first;
             } else {
-                references.addFirst(first.sliceAndRetain(messageBytesInFinalBuffer, first.length() - messageBytesInFinalBuffer));
+                references.addFirst(first.sliceAndRetainReleasable(messageBytesInFinalBuffer, first.length() - messageBytesInFinalBuffer));
                 messageReferences[offsetIndex] = first.slice(0, messageBytesInFinalBuffer);
                 closeables[offsetIndex] = () -> {};
             }
@@ -123,15 +123,15 @@ public class ChannelBuffer implements Iterable<BytesPage> {
         this.offsets = new int[references.size()];
         int currentOffset = 0;
         int i = 0;
-        for (ObjectCursor<BytesPage> reference : references) {
+        for (ObjectCursor<BytesArray> reference : references) {
             offsets[i++] = currentOffset;
             currentOffset += reference.value.length();
         }
         return new ChannelMessage(messageReferences, closeables);
     }
 
-    public BytesPage removeFirst() {
-        BytesPage reference = references.removeFirst();
+    public BytesArray removeFirst() {
+        BytesArray reference = references.removeFirst();
         int bytesDropped = reference.length();
         this.length -= bytesDropped;
         this.index = Math.max(0, index - bytesDropped);
@@ -226,12 +226,12 @@ public class ChannelBuffer implements Iterable<BytesPage> {
     }
 
     public void close() {
-        for (ObjectCursor<BytesPage> reference : references) {
+        for (ObjectCursor<BytesArray> reference : references) {
             reference.value.close();
         }
     }
 
-    public Iterator<BytesPage> iterator() {
+    public Iterator<BytesArray> iterator() {
         return StreamSupport.stream(references.spliterator(), false).map(o -> o.value).iterator();
     }
 
@@ -249,7 +249,7 @@ public class ChannelBuffer implements Iterable<BytesPage> {
         return i < 0 ? (-(i + 1)) - 1 : i;
     }
 
-    private void addBuffer0(BytesPage ref, int[] newOffsetArray, int offsetIndex) {
+    private void addBuffer0(BytesArray ref, int[] newOffsetArray, int offsetIndex) {
         newOffsetArray[offsetIndex] = length;
         this.references.addLast(ref);
         this.length += ref.length();
@@ -258,13 +258,13 @@ public class ChannelBuffer implements Iterable<BytesPage> {
     private void removeAddedReferences(int initialReferenceCount) {
         int refsToDrop = references.size() - initialReferenceCount;
         for (int i = 0; i < refsToDrop; ++i) {
-            BytesPage reference = references.removeLast();
+            BytesArray reference = references.removeLast();
             this.length -= reference.length();
         }
     }
 
     public StreamInput streamInput() throws IOException {
-        Iterator<BytesPage> refIterator = iterator();
+        Iterator<BytesArray> refIterator = iterator();
         return new BytesReferenceStreamInput(() -> {
             if (refIterator.hasNext()) {
                 return refIterator.next().toBytesRef();

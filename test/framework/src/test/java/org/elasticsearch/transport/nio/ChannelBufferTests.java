@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.bytes.BytesPage;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 
@@ -28,25 +28,25 @@ public class ChannelBufferTests extends ESTestCase {
     private BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
 
     public void testChannelBufferCanBeExpanded() {
-        BytesPage bytesPage = bigArrays.newBytePage();
+        BytesArray bytesPage = bigArrays.newBytePage();
         ChannelBuffer channelBuffer = new ChannelBuffer(bytesPage);
 
         assertEquals(BigArrays.BYTE_PAGE_SIZE, channelBuffer.length());
 
-        BytesPage bytesPage2 = bigArrays.newBytePage();
+        BytesArray bytesPage2 = bigArrays.newBytePage();
         channelBuffer.addBuffer(bytesPage2);
 
         assertEquals(BigArrays.BYTE_PAGE_SIZE * 2, channelBuffer.length());
     }
 
     public void testChannelBufferCanBeAccessedUsingOffsets() {
-        BytesPage bytesPage = bigArrays.newBytePage();
+        BytesArray bytesPage = bigArrays.newBytePage();
         bytesPage.array()[0] = (byte) 10;
         ChannelBuffer channelBuffer = new ChannelBuffer(bytesPage);
 
         assertEquals((byte) 10, channelBuffer.get(0));
 
-        BytesPage bytesPage2 = bigArrays.newBytePage();
+        BytesArray bytesPage2 = bigArrays.newBytePage();
         bytesPage2.array()[0] = (byte) 11;
         channelBuffer.addBuffer(bytesPage2);
 

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.bytes.BytesPage;
+import org.elasticsearch.common.bytes.BytesArray;
 
 public class ReleaseOnReadChannelBuffer extends ChannelBuffer {
 
-    public ReleaseOnReadChannelBuffer(BytesPage... newReferences) {
+    public ReleaseOnReadChannelBuffer(BytesArray... newReferences) {
         super(newReferences);
     }
 
@@ -34,7 +34,7 @@ public class ReleaseOnReadChannelBuffer extends ChannelBuffer {
         int offsetIndex = getOffsetIndex(getIndex());
 
         for (int i = 0; i < offsetIndex; ++i) {
-            BytesPage reference = removeFirst();
+            BytesArray reference = removeFirst();
             reference.close();
         }
     }

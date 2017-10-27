@@ -21,6 +21,9 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BytesArray extends BytesReference implements Releasable {
 
@@ -29,6 +32,7 @@ public class BytesArray extends BytesReference implements Releasable {
     private final int offset;
     private final int length;
     private final Releasable releasable;
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     public BytesArray(String bytes) {
         this(new BytesRef(bytes));
@@ -119,8 +123,9 @@ public class BytesArray extends BytesReference implements Releasable {
 
     @Override
     public void close() {
-        if (releasable != null) {
-            releasable.close();
+        // TODO: Do we want to throw an exception to expose misuse?
+        if (isClosed.compareAndSet(false, true)) {
+            Releasables.close(releasable);
         }
     }
 }

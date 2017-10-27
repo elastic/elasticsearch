@@ -403,7 +403,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
 
         NodeChannels(DiscoveryNode node, List<Channel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
             this.node = node;
-            this.channels = channels;
+            this.channels = Collections.unmodifiableList(channels);
             assert channels.size() == connectionProfile.getNumConnections() : "expected channels size to be == "
                 + connectionProfile.getNumConnections() + " but was: [" + channels.size() + "]";
             typeMapping = new EnumMap<>(TransportRequestOptions.Type.class);
@@ -420,7 +420,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
         }
 
         public List<Channel> getChannels() {
-            return new ArrayList<>(channels);
+            return channels;
         }
 
         public Channel channel(TransportRequestOptions.Type type) {
@@ -886,9 +886,7 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
     // not perfect, but PortsRange should take care of any port range validation, not a regex
     private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 
-    /**
-     * parse a hostname+port range spec into its equivalent addresses
-     */
+    /** parse a hostname+port range spec into its equivalent addresses */
     static TransportAddress[] parse(String hostPortString, String defaultPortRange, int perAddressLimit) throws UnknownHostException {
         Objects.requireNonNull(hostPortString);
         String host;

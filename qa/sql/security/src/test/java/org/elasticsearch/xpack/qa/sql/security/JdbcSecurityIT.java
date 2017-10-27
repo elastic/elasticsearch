@@ -14,7 +14,6 @@ import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.StringJoiner;
 
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcAssert.assertResultSets;
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcIntegrationTestCase.elasticsearchAddress;

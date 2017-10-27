@@ -75,7 +75,7 @@ public class ConnectionConfiguration {
     public static final String AUTH_PASS = "pass";
 
     protected static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-            Arrays.asList(CONNECT_TIMEOUT, NETWORK_TIMEOUT, QUERY_TIMEOUT, PAGE_TIMEOUT, PAGE_SIZE));
+            Arrays.asList(CONNECT_TIMEOUT, NETWORK_TIMEOUT, QUERY_TIMEOUT, PAGE_TIMEOUT, PAGE_SIZE, AUTH_USER, AUTH_PASS));
 
     static {
         OPTION_NAMES.addAll(SslConfig.OPTION_NAMES);
@@ -195,7 +195,7 @@ public class ConnectionConfiguration {
     public int pageSize() {
         return pageSize;
     }
-    
+
     // auth
     public String authUser() {
         return user;

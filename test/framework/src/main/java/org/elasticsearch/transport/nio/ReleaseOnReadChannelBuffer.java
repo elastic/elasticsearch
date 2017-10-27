@@ -21,7 +21,7 @@ package org.elasticsearch.transport.nio;
 
 public class ReleaseOnReadChannelBuffer extends ChannelBuffer {
 
-    public ReleaseOnReadChannelBuffer(NetworkBytesReference... newReferences) {
+    public ReleaseOnReadChannelBuffer(CloseableHeapBytes... newReferences) {
         super(newReferences);
     }
 
@@ -29,9 +29,10 @@ public class ReleaseOnReadChannelBuffer extends ChannelBuffer {
     public void incrementIndex(int delta) {
         super.incrementIndex(delta);
 
-        NetworkBytesReference headRef;
-        while((headRef = peek()) != null && headRef.hasRemaining() == false) {
-            NetworkBytesReference reference = removeFirst();
+        int offsetIndex = getOffsetIndex(getIndex());
+
+        for (int i = 0; i < offsetIndex; ++i) {
+            CloseableHeapBytes reference = removeFirst();
             reference.close();
         }
     }

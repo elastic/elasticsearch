@@ -23,7 +23,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.NetworkBytes;
+import org.elasticsearch.transport.nio.ChannelBuffer;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.Before;
 
@@ -62,8 +62,8 @@ public class TcpReadContextTests extends ESTestCase {
         byte[] fullMessage = combineMessageAndHeader(bytes);
 
         final AtomicInteger bufferCapacity = new AtomicInteger();
-        when(channel.read(any(NetworkBytes.class))).thenAnswer(invocationOnMock -> {
-            NetworkBytes networkBytes = (NetworkBytes) invocationOnMock.getArguments()[0];
+        when(channel.read(any(ChannelBuffer.class))).thenAnswer(invocationOnMock -> {
+            ChannelBuffer networkBytes = (ChannelBuffer) invocationOnMock.getArguments()[0];
             ByteBuffer buffer = networkBytes.postIndexByteBuffer();
             bufferCapacity.set(networkBytes.getRemaining());
             buffer.put(fullMessage);
@@ -89,8 +89,8 @@ public class TcpReadContextTests extends ESTestCase {
         final AtomicInteger bufferCapacity = new AtomicInteger();
         final AtomicReference<byte[]> bytes = new AtomicReference<>();
 
-        when(channel.read(any(NetworkBytes.class))).thenAnswer(invocationOnMock -> {
-            NetworkBytes reference = (NetworkBytes) invocationOnMock.getArguments()[0];
+        when(channel.read(any(ChannelBuffer.class))).thenAnswer(invocationOnMock -> {
+            ChannelBuffer reference = (ChannelBuffer) invocationOnMock.getArguments()[0];
             ByteBuffer buffer = reference.postIndexByteBuffer();
             bufferCapacity.set(reference.getRemaining());
             buffer.put(bytes.get());

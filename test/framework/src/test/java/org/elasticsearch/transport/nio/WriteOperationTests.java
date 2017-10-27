@@ -53,7 +53,7 @@ public class WriteOperationTests extends ESTestCase {
 
 
         when(channel.write(any())).thenAnswer(invocationOnMock -> {
-            NetworkBytes bytes = (NetworkBytes) invocationOnMock.getArguments()[0];
+            ChannelBuffer bytes = (ChannelBuffer) invocationOnMock.getArguments()[0];
             bytes.incrementIndex(10);
             return 10;
         });
@@ -67,7 +67,7 @@ public class WriteOperationTests extends ESTestCase {
         WriteOperation writeOp = new WriteOperation(channel, new BytesArray(new byte[10]), listener);
 
         when(channel.write(any())).thenAnswer(invocationOnMock -> {
-            NetworkBytes bytes = (NetworkBytes) invocationOnMock.getArguments()[0];
+            ChannelBuffer bytes = (ChannelBuffer) invocationOnMock.getArguments()[0];
             bytes.incrementIndex(5);
             return 5;
         });

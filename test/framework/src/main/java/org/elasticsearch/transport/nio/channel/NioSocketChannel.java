@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.transport.nio.NetworkBytes;
+import org.elasticsearch.transport.nio.ChannelBuffer;
 import org.elasticsearch.transport.nio.SocketSelector;
 
 import java.io.IOException;
@@ -59,7 +59,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return socketSelector;
     }
 
-    public int write(NetworkBytes bytes) throws IOException {
+    public int write(ChannelBuffer bytes) throws IOException {
         int written;
         if (bytes.isComposite() == false) {
             written = socketChannel.write(bytes.postIndexByteBuffer());
@@ -75,7 +75,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return written;
     }
 
-    public int read(NetworkBytes bytes) throws IOException {
+    public int read(ChannelBuffer bytes) throws IOException {
         int bytesRead;
         if (bytes.isComposite()) {
             bytesRead = (int) socketChannel.read(bytes.postIndexByteBuffers());

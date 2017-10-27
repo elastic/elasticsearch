@@ -141,7 +141,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
 
         BytesArray bytesArray = new BytesArray(new byte[1]);
-        NetworkBytesReference networkBuffer = HeapNetworkBytes.wrap(bytesArray, 1);
+        CloseableHeapBytes networkBuffer = CloseableHeapBytes.wrap(bytesArray);
         channel.getWriteContext().queueWriteOperations(new WriteOperation(channel, networkBuffer, mock(ActionListener.class)));
 
         when(rawChannel.write(ByteBuffer.wrap(bytesArray.array()))).thenReturn(0);

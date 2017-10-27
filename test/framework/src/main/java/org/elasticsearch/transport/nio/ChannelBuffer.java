@@ -20,10 +20,12 @@
 package org.elasticsearch.transport.nio;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.BytesReferenceStreamInput;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.IndexedArrayDeque;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -31,15 +33,15 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.stream.StreamSupport;
 
-public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReference> {
+public class ChannelBuffer implements Iterable<CloseableHeapBytes> {
 
-    private final IndexedArrayDeque<NetworkBytesReference> references;
+    private final IndexedArrayDeque<CloseableHeapBytes> references;
     private int[] offsets;
 
     private int length;
     private int index;
 
-    public ChannelBuffer(NetworkBytesReference... newReferences) {
+    public ChannelBuffer(CloseableHeapBytes... newReferences) {
         this.references = new IndexedArrayDeque<>(Math.max(8, newReferences.length));
         this.offsets = new int[0];
         this.length = 0;
@@ -47,18 +49,18 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         addBuffers(newReferences);
     }
 
-    public void addBuffer(NetworkBytesReference newReference) {
+    public void addBuffer(CloseableHeapBytes newReference) {
         addBuffers(newReference);
     }
 
-    public void addBuffers(NetworkBytesReference... refs) {
+    public void addBuffers(CloseableHeapBytes... refs) {
         int initialReferenceCount = references.size();
         int[] newOffsets = new int[offsets.length + refs.length];
         System.arraycopy(offsets, 0, newOffsets, 0, offsets.length);
 
         try {
             int i = refs.length;
-            for (NetworkBytesReference ref : refs) {
+            for (CloseableHeapBytes ref : refs) {
                 addBuffer0(ref, newOffsets, newOffsets.length - i--);
             }
             this.offsets = newOffsets;
@@ -85,31 +87,34 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         int bytesDropped = 0;
 
         int messageBytesInFinalBuffer = messageLength - offsets[offsetIndex];
-        NetworkBytesReference[] messageReferences;
+        BytesReference[] messageReferences;
+        Releasable[] closeables;
         if (messageBytesInFinalBuffer == 0) {
-            messageReferences = new NetworkBytesReference[offsetIndex];
+            messageReferences = new BytesReference[offsetIndex];
+            closeables = new Releasable[offsetIndex];
         } else {
-            messageReferences = new NetworkBytesReference[offsetIndex + 1];
+            messageReferences = new BytesReference[offsetIndex + 1];
+            closeables = new Releasable[offsetIndex + 1];
         }
         for (int i = 0; i < offsetIndex; ++i) {
-            NetworkBytesReference removed = references.removeFirst();
+            CloseableHeapBytes removed = references.removeFirst();
             messageReferences[i] = removed;
+            closeables[i] = removed;
             int bytesOfRemoved = removed.length();
             bytesDropped += bytesOfRemoved;
         }
 
         if (messageBytesInFinalBuffer != 0) {
-            NetworkBytesReference first = references.removeFirst();
-            messageReferences[offsetIndex] = first.sliceAndRetain(0, messageBytesInFinalBuffer);
-            NetworkBytesReference newRef = first.sliceAndRetain(messageBytesInFinalBuffer, first.length() - messageBytesInFinalBuffer);
-            references.addFirst(newRef);
+            CloseableHeapBytes first = references.getFirst();
+            if (messageBytesInFinalBuffer == first.length()) {
+                references.removeFirst();
+                messageReferences[offsetIndex] = first;
+                closeables[offsetIndex] = first;
+            } else {
+                messageReferences[offsetIndex] = first.slice(0, messageBytesInFinalBuffer);
+                closeables[offsetIndex] = () -> {};
+            }
             bytesDropped += messageBytesInFinalBuffer;
-        }
-
-        boolean releaseLastReference = false;
-        if (references.getFirst().length() == 0) {
-            releaseLastReference = true;
-            references.removeFirst();
         }
 
         this.index = Math.max(0, index - bytesDropped);
@@ -118,67 +123,47 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         this.offsets = new int[references.size()];
         int currentOffset = 0;
         int i = 0;
-        for (ObjectCursor<NetworkBytesReference> reference : references) {
+        for (ObjectCursor<CloseableHeapBytes> reference : references) {
             offsets[i++] = currentOffset;
             currentOffset += reference.value.length();
         }
-        return new ChannelMessage(messageReferences, releaseLastReference);
+        return new ChannelMessage(messageReferences, closeables);
     }
 
-    public NetworkBytesReference peek() {
-        if (references.isEmpty()) {
-            return null;
-        }
-        return references.getFirst();
-    }
-
-    public NetworkBytesReference removeFirst() {
-        NetworkBytesReference reference = references.removeFirst();
+    public CloseableHeapBytes removeFirst() {
+        CloseableHeapBytes reference = references.removeFirst();
         int bytesDropped = reference.length();
         this.length -= bytesDropped;
         this.index = Math.max(0, index - bytesDropped);
         return reference;
     }
 
-    @Override
     public int getIndex() {
         return index;
     }
 
-    @Override
     public void incrementIndex(int delta) {
-        int offsetIndex = getOffsetIndex(index);
-
         int newIndex = index + delta;
-        NetworkBytes.validateIndex(newIndex, length);
+        if (newIndex > length) {
+            throw new IndexOutOfBoundsException("New index [" + newIndex + "] would be greater than length" +
+                " [" + length + "]");
+        }
 
         index = newIndex;
-
-        int i = delta;
-        while (i != 0) {
-            NetworkBytesReference reference = references.get(offsetIndex++);
-            int bytesToInc = Math.min(reference.getRemaining(), i);
-            reference.incrementIndex(bytesToInc);
-            i -= bytesToInc;
-        }
     }
 
-    @Override
     public int getRemaining() {
         return length - index;
     }
 
-    @Override
     public boolean hasRemaining() {
         return getRemaining() != 0;
     }
 
-    @Override
     public boolean isComposite() {
         return references.size() > 1;
     }
 
-    @Override
     public ByteBuffer[] postIndexByteBuffers() {
         if (hasRemaining() == false) {
             return new ByteBuffer[0];
@@ -190,14 +175,17 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         ByteBuffer[] buffers = new ByteBuffer[refCount - offsetIndex];
 
         int j = 0;
-        for (int i = offsetIndex; i < refCount; ++i) {
-            buffers[j++] = references.get(i).postIndexByteBuffer();
+        int bytesForFirstRef = offsets[offsetIndex + 1] - index;
+        BytesRef firstRef = references.get(offsetIndex).toBytesRef();
+        buffers[j++] = ByteBuffer.wrap(firstRef.bytes, firstRef.offset + (firstRef.length - bytesForFirstRef), bytesForFirstRef);
+        for (int i = offsetIndex + 1; i < refCount; ++i) {
+            BytesRef ref = references.get(i).toBytesRef();
+            buffers[j++] = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
         }
 
         return buffers;
     }
 
-    @Override
     public ByteBuffer[] preIndexByteBuffers() {
         if (index == 0) {
             return new ByteBuffer[0];
@@ -207,32 +195,37 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
 
         ByteBuffer[] buffers = new ByteBuffer[offsetIndex];
 
-        for (int i = 0; i < offsetIndex; ++i) {
-            buffers[i++] = references.get(i).preIndexByteBuffer();
+        int j = 0;
+        for (int i = 0; i < (offsetIndex - 1); ++i) {
+            BytesRef ref = references.get(i).toBytesRef();
+            buffers[j++] = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
         }
+        int bytesForLastRef = index - offsets[offsetIndex];
+        BytesRef lastRef = references.get(offsetIndex).toBytesRef();
+        buffers[j++] = ByteBuffer.wrap(lastRef.bytes, lastRef.offset + bytesForLastRef, bytesForLastRef);
 
         return buffers;
     }
 
-    @Override
     public ByteBuffer postIndexByteBuffer() {
-        return references.getLast().postIndexByteBuffer();
+        assert references.size() == 1 : "multiple buffers";
+        BytesRef last = references.getLast().toBytesRef();
+        return ByteBuffer.wrap(last.bytes, last.offset + index, last.length - index);
     }
 
-    @Override
     public ByteBuffer preIndexByteBuffer() {
-        return references.getLast().preIndexByteBuffer();
+        assert references.size() == 1: "multiple buffers";
+        BytesRef last = references.getLast().toBytesRef();
+        return ByteBuffer.wrap(last.bytes, last.offset, index);
     }
 
-    @Override
     public void close() {
-        for (ObjectCursor<NetworkBytesReference> reference : references) {
+        for (ObjectCursor<CloseableHeapBytes> reference : references) {
             reference.value.close();
         }
     }
 
-    @Override
-    public Iterator<NetworkBytesReference> iterator() {
+    public Iterator<CloseableHeapBytes> iterator() {
         return StreamSupport.stream(references.spliterator(), false).map(o -> o.value).iterator();
     }
 
@@ -245,27 +238,22 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
         return length;
     }
 
-    private int getOffsetIndex(int offset) {
+    int getOffsetIndex(int offset) {
         final int i = Arrays.binarySearch(offsets, offset);
         return i < 0 ? (-(i + 1)) - 1 : i;
     }
 
-    private void addBuffer0(NetworkBytesReference ref, int[] newOffsetArray, int offsetIndex) {
-        int refIndex = ref.getIndex();
-        validateReadAndWritesIndexes(refIndex);
-
+    private void addBuffer0(CloseableHeapBytes ref, int[] newOffsetArray, int offsetIndex) {
         newOffsetArray[offsetIndex] = length;
         this.references.addLast(ref);
         this.length += ref.length();
-        this.index += ref.getIndex();
     }
 
     private void removeAddedReferences(int initialReferenceCount) {
         int refsToDrop = references.size() - initialReferenceCount;
         for (int i = 0; i < refsToDrop; ++i) {
-            NetworkBytesReference reference = references.removeLast();
+            CloseableHeapBytes reference = references.removeLast();
             this.length -= reference.length();
-            this.index -= reference.getIndex();
         }
     }
 
@@ -276,7 +264,7 @@ public class ChannelBuffer implements NetworkBytes, Iterable<NetworkBytesReferen
     }
 
     public StreamInput streamInput() throws IOException {
-        Iterator<NetworkBytesReference> refIterator = iterator();
+        Iterator<CloseableHeapBytes> refIterator = iterator();
         return new BytesReferenceStreamInput(() -> {
             if (refIterator.hasNext()) {
                 return refIterator.next().toBytesRef();

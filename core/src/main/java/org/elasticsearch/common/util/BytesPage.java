@@ -21,10 +21,13 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.lease.Releasable;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public final class BytesPage implements Releasable {
 
     private final byte[] page;
     private final Releasable recycler;
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     public BytesPage(byte[] page, Releasable recycler) {
         this.page = page;
@@ -33,8 +36,12 @@ public final class BytesPage implements Releasable {
 
     @Override
     public void close() {
-        if (recycler != null) {
-            recycler.close();
+        if (isClosed.compareAndSet(false, true)) {
+            if (recycler != null) {
+                recycler.close();
+            }
+        } else {
+            throw new IllegalStateException("Attempting to close BytesPage that is already closed.");
         }
     }
 

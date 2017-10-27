@@ -27,20 +27,18 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BytesPage;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
 
-    private HeapNetworkBytes buffer;
+    private CloseableHeapBytes buffer;
 
     public void testBasicGetByte() {
         byte[] bytes = new byte[10];
         initializeBytes(bytes);
-        buffer = HeapNetworkBytes.wrap(new BytesArray(bytes));
+        buffer = CloseableHeapBytes.wrap(new BytesArray(bytes));
 
         assertEquals(10, buffer.length());
         for (int i = 0 ; i < bytes.length; ++i) {
@@ -51,7 +49,7 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
     public void testBasicGetByteWithOffset() {
         byte[] bytes = new byte[10];
         initializeBytes(bytes);
-        buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 2, 8));
+        buffer = CloseableHeapBytes.wrap(new BytesArray(bytes, 2, 8));
 
         assertEquals(8, buffer.length());
         for (int i = 2 ; i < bytes.length; ++i) {
@@ -62,7 +60,7 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
     public void testBasicGetByteWithOffsetAndLimit() {
         byte[] bytes = new byte[10];
         initializeBytes(bytes);
-        buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 2, 6));
+        buffer = CloseableHeapBytes.wrap(new BytesArray(bytes, 2, 6));
 
         assertEquals(6, buffer.length());
         for (int i = 2 ; i < bytes.length - 2; ++i) {
@@ -70,58 +68,11 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
         }
     }
 
-    public void testGetWriteBufferRespectsIndex() {
-        byte[] bytes = new byte[10];
-
-        buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 2, 8));
-
-        ByteBuffer writeByteBuffer = buffer.postIndexByteBuffer();
-
-        assertEquals(2, writeByteBuffer.position());
-        assertEquals(10, writeByteBuffer.limit());
-
-        buffer.incrementIndex(2);
-
-        writeByteBuffer = buffer.postIndexByteBuffer();
-        assertEquals(4, writeByteBuffer.position());
-        assertEquals(10, writeByteBuffer.limit());
-    }
-
-    public void testGetReadBufferRespectsReadIndex() {
-        byte[] bytes = new byte[10];
-
-        buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 3, 6));
-        buffer.incrementIndex(3);
-
-        ByteBuffer readByteBuffer = buffer.preIndexByteBuffer();
-
-        assertEquals(3, readByteBuffer.position());
-        assertEquals(6, readByteBuffer.limit());
-
-        buffer.incrementIndex(2);
-
-        readByteBuffer = buffer.preIndexByteBuffer();
-        assertEquals(3, readByteBuffer.position());
-        assertEquals(8, readByteBuffer.limit());
-    }
-
-    public void testWriteAndReadRemaining() {
-        byte[] bytes = new byte[10];
-
-        buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 2, 8));
-
-        assertEquals(8, buffer.getRemaining());
-
-        buffer.incrementIndex(3);
-
-        assertEquals(5, buffer.getRemaining());
-    }
-
     public void testBasicSlice() {
         byte[] bytes = new byte[20];
         initializeBytes(bytes);
 
-        buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 2, 18));
+        buffer = CloseableHeapBytes.wrap(new BytesArray(bytes, 2, 18));
 
         BytesReference slice = buffer.slice(4, 14);
 
@@ -132,62 +83,15 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
         }
     }
 
-    public void testSliceAndRetainRespectsReadAndWriteIndexes() {
-        byte[] bytes = new byte[20];
-        initializeBytes(bytes);
-
-        buffer = HeapNetworkBytes.wrap(new BytesArray(bytes, 2, 18));
-
-        buffer.incrementIndex(9);
-
-        NetworkBytesReference slice = buffer.sliceAndRetain(6, 12);
-
-        assertEquals(12, slice.length());
-        assertEquals(3, slice.getIndex());
-
-        for (int i = 8; i < 20; ++i) {
-            assertEquals(i, slice.get(i - 8));
-        }
-    }
-
     public void testClose() {
         byte[] bytes = new byte[20];
         initializeBytes(bytes);
         Releasable closer = mock(Releasable.class);
         BytesPage bytesPage = new BytesPage(bytes, closer);
 
-        HeapNetworkBytes heapNetworkBytes = HeapNetworkBytes.fromBytesPage(bytesPage);
+        CloseableHeapBytes heapNetworkBytes = CloseableHeapBytes.fromBytesPage(bytesPage);
 
         heapNetworkBytes.close();
-        verify(closer).close();
-    }
-
-    public void testCannotCloseTwice() {
-        byte[] bytes = new byte[20];
-        initializeBytes(bytes);
-        Releasable closer = mock(Releasable.class);
-        BytesPage bytesPage = new BytesPage(bytes, closer);
-
-        HeapNetworkBytes heapNetworkBytes = HeapNetworkBytes.fromBytesPage(bytesPage);
-
-        heapNetworkBytes.close();
-        IllegalStateException exception = expectThrows(IllegalStateException.class, heapNetworkBytes::close);
-        assertEquals("Attempting to close NetworkBytesReference that is already closed.",exception.getMessage());
-
-        verify(closer, times(1)).close();
-    }
-
-    public void testSliceAndRetainRetainsReleasable() {
-        byte[] bytes = new byte[20];
-        initializeBytes(bytes);
-        Releasable closer = mock(Releasable.class);
-        BytesPage bytesPage = new BytesPage(bytes, closer);
-
-        HeapNetworkBytes heapNetworkBytes = HeapNetworkBytes.fromBytesPage(bytesPage);
-
-        NetworkBytesReference child1 = heapNetworkBytes.sliceAndRetain(0, 8);
-
-        child1.close();
         verify(closer).close();
     }
 
@@ -199,18 +103,18 @@ public class HeapNetworkBytesTests extends AbstractBytesReferenceTestCase {
 
     @Override
     protected BytesReference newBytesReference(int length) throws IOException {
-        return HeapNetworkBytes.wrap(newBytesArrayReference(length, randomInt(length)));
+        return CloseableHeapBytes.wrap(newBytesArrayReference(length, randomInt(length)));
     }
 
     @Override
     protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
-        return HeapNetworkBytes.wrap(newBytesArrayReference(length, 0));
+        return CloseableHeapBytes.wrap(newBytesArrayReference(length, 0));
     }
 
     @Override
     public void testArrayOffset() throws IOException {
         int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
-        HeapNetworkBytes pbr = (HeapNetworkBytes) newBytesReferenceWithOffsetOfZero(length);
+        CloseableHeapBytes pbr = (CloseableHeapBytes) newBytesReferenceWithOffsetOfZero(length);
         assertEquals(0, pbr.iterator().next().offset);
     }
 

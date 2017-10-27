@@ -29,14 +29,9 @@ public class ChannelMessage implements Releasable {
     private final BytesReference content;
     private final Releasable[] closeables;
 
-    ChannelMessage(NetworkBytesReference[] messageReferences, boolean releaseLastReference) {
+    ChannelMessage(BytesReference[] messageReferences, Releasable[] closeables) {
         content = new CompositeBytesReference(messageReferences);
-        if (releaseLastReference == false) {
-            closeables = new Releasable[messageReferences.length - 1];
-        } else {
-            closeables = new Releasable[messageReferences.length];
-        }
-        System.arraycopy(messageReferences, 0, closeables, 0, closeables.length);
+        this.closeables = closeables;
     }
 
 

@@ -35,7 +35,7 @@ public class WriteOperation implements Releasable {
 
     private final NioSocketChannel channel;
     private final ActionListener<NioChannel> listener;
-    private final NetworkBytes bytes;
+    private final ChannelBuffer bytes;
 
     public WriteOperation(NioSocketChannel channel, BytesReference bytesReference, ActionListener<NioChannel> listener) {
         this.channel = channel;
@@ -43,7 +43,7 @@ public class WriteOperation implements Releasable {
         this.bytes = toNetworkBytes(bytesReference);
     }
 
-    public NetworkBytes getByteReferences() {
+    public ChannelBuffer getByteReferences() {
         return bytes;
     }
 
@@ -68,16 +68,16 @@ public class WriteOperation implements Releasable {
         bytes.close();
     }
 
-    private static NetworkBytes toNetworkBytes(BytesReference reference) {
+    private static ChannelBuffer toNetworkBytes(BytesReference reference) {
         BytesRefIterator byteRefIterator = reference.iterator();
         BytesRef r;
         try {
             // Most network messages are composed of three buffers
-            ArrayList<NetworkBytesReference> references = new ArrayList<>(3);
+            ArrayList<CloseableHeapBytes> references = new ArrayList<>(3);
             while ((r = byteRefIterator.next()) != null) {
-                references.add(HeapNetworkBytes.wrap(new BytesArray(r)));
+                references.add(CloseableHeapBytes.wrap(new BytesArray(r)));
             }
-            return new ReleaseOnReadChannelBuffer(references.toArray(new NetworkBytesReference[references.size()]));
+            return new ReleaseOnReadChannelBuffer(references.toArray(new CloseableHeapBytes[references.size()]));
 
         } catch (IOException e) {
             // this is really an error since we don't do IO in our bytesreferences

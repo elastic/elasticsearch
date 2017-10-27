@@ -34,8 +34,6 @@ public class Forecast implements ToXContentObject, Writeable {
     public static final ParseField FORECAST_ID = new ParseField("forecast_id");
     public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
     public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partition_field_value");
-    public static final ParseField OVER_FIELD_NAME = new ParseField("over_field_name");
-    public static final ParseField OVER_FIELD_VALUE = new ParseField("over_field_value");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
     public static final ParseField MODEL_FEATURE = new ParseField("model_feature");
@@ -43,9 +41,11 @@ public class Forecast implements ToXContentObject, Writeable {
     public static final ParseField FORECAST_UPPER = new ParseField("forecast_upper");
     public static final ParseField FORECAST_PREDICTION = new ParseField("forecast_prediction");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
+    public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
     public static final ConstructingObjectParser<Forecast, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new Forecast((String) a[0], (long) a[1], (Date) a[2], (long) a[3]));
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a ->
+            new Forecast((String) a[0], (long) a[1], (Date) a[2], (long) a[3], (int) a[4]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -60,11 +60,10 @@ public class Forecast implements ToXContentObject, Writeable {
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), DETECTOR_INDEX);
         PARSER.declareString((modelForecast, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareString(Forecast::setPartitionFieldName, PARTITION_FIELD_NAME);
         PARSER.declareString(Forecast::setPartitionFieldValue, PARTITION_FIELD_VALUE);
-        PARSER.declareString(Forecast::setOverFieldName, OVER_FIELD_NAME);
-        PARSER.declareString(Forecast::setOverFieldValue, OVER_FIELD_VALUE);
         PARSER.declareString(Forecast::setByFieldName, BY_FIELD_NAME);
         PARSER.declareString(Forecast::setByFieldValue, BY_FIELD_VALUE);
         PARSER.declareString(Forecast::setModelFeature, MODEL_FEATURE);
@@ -77,10 +76,9 @@ public class Forecast implements ToXContentObject, Writeable {
     private final long forecastId;
     private final Date timestamp;
     private final long bucketSpan;
+    private int detectorIndex;
     private String partitionFieldName;
     private String partitionFieldValue;
-    private String overFieldName;
-    private String overFieldValue;
     private String byFieldName;
     private String byFieldValue;
     private String modelFeature;
@@ -88,11 +86,12 @@ public class Forecast implements ToXContentObject, Writeable {
     private double forecastUpper;
     private double forecastPrediction;
 
-    public Forecast(String jobId, long forecastId, Date timestamp, long bucketSpan) {
+    public Forecast(String jobId, long forecastId, Date timestamp, long bucketSpan, int detectorIndex) {
         this.jobId = jobId;
         this.forecastId = forecastId;
         this.timestamp = timestamp;
         this.bucketSpan = bucketSpan;
+        this.detectorIndex = detectorIndex;
     }
 
     public Forecast(StreamInput in) throws IOException {
@@ -101,8 +100,6 @@ public class Forecast implements ToXContentObject, Writeable {
         timestamp = new Date(in.readLong());
         partitionFieldName = in.readOptionalString();
         partitionFieldValue = in.readOptionalString();
-        overFieldName = in.readOptionalString();
-        overFieldValue = in.readOptionalString();
         byFieldName = in.readOptionalString();
         byFieldValue = in.readOptionalString();
         modelFeature = in.readOptionalString();
@@ -110,6 +107,7 @@ public class Forecast implements ToXContentObject, Writeable {
         forecastUpper = in.readDouble();
         forecastPrediction = in.readDouble();
         bucketSpan = in.readLong();
+        detectorIndex = in.readInt();
     }
 
     @Override
@@ -119,8 +117,6 @@ public class Forecast implements ToXContentObject, Writeable {
         out.writeLong(timestamp.getTime());
         out.writeOptionalString(partitionFieldName);
         out.writeOptionalString(partitionFieldValue);
-        out.writeOptionalString(overFieldName);
-        out.writeOptionalString(overFieldValue);
         out.writeOptionalString(byFieldName);
         out.writeOptionalString(byFieldValue);
         out.writeOptionalString(modelFeature);
@@ -128,6 +124,7 @@ public class Forecast implements ToXContentObject, Writeable {
         out.writeDouble(forecastUpper);
         out.writeDouble(forecastPrediction);
         out.writeLong(bucketSpan);
+        out.writeInt(detectorIndex);
     }
 
     @Override
@@ -137,6 +134,7 @@ public class Forecast implements ToXContentObject, Writeable {
         builder.field(FORECAST_ID.getPreferredName(), forecastId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
+        builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         if (timestamp != null) {
             builder.dateField(Result.TIMESTAMP.getPreferredName(), 
                     Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
@@ -146,12 +144,6 @@ public class Forecast implements ToXContentObject, Writeable {
         }
         if (partitionFieldValue != null) {
             builder.field(PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue);
-        }
-        if (overFieldName != null) {
-            builder.field(OVER_FIELD_NAME.getPreferredName(), overFieldName);
-        }
-        if (overFieldValue != null) {
-            builder.field(OVER_FIELD_VALUE.getPreferredName(), overFieldValue);
         }
         if (byFieldName != null) {
             builder.field(BY_FIELD_NAME.getPreferredName(), byFieldName);
@@ -178,12 +170,12 @@ public class Forecast implements ToXContentObject, Writeable {
     }
 
     public String getId() {
-        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
+        int valuesHash = Objects.hash(byFieldValue, partitionFieldValue);
         int length = (byFieldValue == null ? 0 : byFieldValue.length()) +
-                (overFieldValue == null ? 0 : overFieldValue.length()) +
                 (partitionFieldValue == null ? 0 : partitionFieldValue.length());
-        return jobId + "_model_forecast_" + forecastId + "_" + timestamp.getTime() + "_" + bucketSpan + "_"
-                + (modelFeature == null ? "" : modelFeature) + "_" + valuesHash + "_" + length;
+        return jobId + "_model_forecast_" + forecastId + "_" + timestamp.getTime()
+                + "_" + bucketSpan + "_" + detectorIndex + "_"
+                + valuesHash + "_" + length;
     }
 
     public Date getTimestamp() {
@@ -202,28 +194,16 @@ public class Forecast implements ToXContentObject, Writeable {
         this.partitionFieldName = partitionFieldName;
     }
 
+    public int getDetectorIndex() {
+        return detectorIndex;
+    }
+
     public String getPartitionFieldValue() {
         return partitionFieldValue;
     }
 
     public void setPartitionFieldValue(String partitionFieldValue) {
         this.partitionFieldValue = partitionFieldValue;
-    }
-
-    public String getOverFieldName() {
-        return overFieldName;
-    }
-
-    public void setOverFieldName(String overFieldName) {
-        this.overFieldName = overFieldName;
-    }
-
-    public String getOverFieldValue() {
-        return overFieldValue;
-    }
-
-    public void setOverFieldValue(String overFieldValue) {
-        this.overFieldValue = overFieldValue;
     }
 
     public String getByFieldName() {
@@ -288,21 +268,20 @@ public class Forecast implements ToXContentObject, Writeable {
                 Objects.equals(this.timestamp, that.timestamp) &&
                 Objects.equals(this.partitionFieldValue, that.partitionFieldValue) &&
                 Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
-                Objects.equals(this.overFieldValue, that.overFieldValue) &&
-                Objects.equals(this.overFieldName, that.overFieldName) &&
                 Objects.equals(this.byFieldValue, that.byFieldValue) &&
                 Objects.equals(this.byFieldName, that.byFieldName) &&
                 Objects.equals(this.modelFeature, that.modelFeature) &&
                 this.forecastLower == that.forecastLower &&
                 this.forecastUpper == that.forecastUpper &&
                 this.forecastPrediction == that.forecastPrediction &&
-                this.bucketSpan ==  that.bucketSpan;
+                this.bucketSpan ==  that.bucketSpan &&
+                this.detectorIndex == that.detectorIndex;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, forecastId, timestamp, partitionFieldName, partitionFieldValue,
-                overFieldName, overFieldValue, byFieldName, byFieldValue,
-                modelFeature, forecastLower, forecastUpper, forecastPrediction, bucketSpan);
+                byFieldName, byFieldValue, modelFeature, forecastLower, forecastUpper,
+                forecastPrediction, bucketSpan, detectorIndex);
     }
 }

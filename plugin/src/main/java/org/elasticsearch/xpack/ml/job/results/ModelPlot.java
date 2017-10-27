@@ -44,9 +44,11 @@ public class ModelPlot implements ToXContentObject, Writeable {
     public static final ParseField MODEL_MEDIAN = new ParseField("model_median");
     public static final ParseField ACTUAL = new ParseField("actual");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
+    public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
     public static final ConstructingObjectParser<ModelPlot, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new ModelPlot((String) a[0], (Date) a[1], (long) a[2]));
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a ->
+            new ModelPlot((String) a[0], (Date) a[1], (long) a[2], (int) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -60,6 +62,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), DETECTOR_INDEX);
         PARSER.declareString((modelPlot, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareString(ModelPlot::setPartitionFieldName, PARTITION_FIELD_NAME);
         PARSER.declareString(ModelPlot::setPartitionFieldValue, PARTITION_FIELD_VALUE);
@@ -77,6 +80,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
     private final String jobId;
     private final Date timestamp;
     private final long bucketSpan;
+    private int detectorIndex;
     private String partitionFieldName;
     private String partitionFieldValue;
     private String overFieldName;
@@ -92,10 +96,11 @@ public class ModelPlot implements ToXContentObject, Writeable {
      */
     private Double actual;
 
-    public ModelPlot(String jobId, Date timestamp, long bucketSpan) {
+    public ModelPlot(String jobId, Date timestamp, long bucketSpan, int detectorIndex) {
         this.jobId = jobId;
         this.timestamp = timestamp;
         this.bucketSpan = bucketSpan;
+        this.detectorIndex = detectorIndex;
     }
 
     public ModelPlot(StreamInput in) throws IOException {
@@ -133,6 +138,12 @@ public class ModelPlot implements ToXContentObject, Writeable {
             bucketSpan = in.readLong();
         } else {
             bucketSpan = 0;
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            detectorIndex = in.readInt();
+        } else {
+            // default to -1 as marker for no detector index
+            detectorIndex = -1;
         }
     }
 
@@ -177,6 +188,9 @@ public class ModelPlot implements ToXContentObject, Writeable {
         if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             out.writeLong(bucketSpan);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeInt(detectorIndex);
+        }
     }
 
     @Override
@@ -185,6 +199,8 @@ public class ModelPlot implements ToXContentObject, Writeable {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
+        builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
+
         if (timestamp != null) {
             builder.dateField(Result.TIMESTAMP.getPreferredName(), 
                     Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
@@ -229,8 +245,8 @@ public class ModelPlot implements ToXContentObject, Writeable {
         int length = (byFieldValue == null ? 0 : byFieldValue.length()) +
                 (overFieldValue == null ? 0 : overFieldValue.length()) +
                 (partitionFieldValue == null ? 0 : partitionFieldValue.length());
-        return jobId + "_model_plot_" + timestamp.getTime() + "_" + bucketSpan + "_" +
-                (modelFeature == null ? "" : modelFeature) + "_" + valuesHash + "_" + length;
+        return jobId + "_model_plot_" + timestamp.getTime() + "_" + bucketSpan
+                + "_" + detectorIndex + "_" + valuesHash + "_" + length;
     }
 
     public Date getTimestamp() {
@@ -239,6 +255,10 @@ public class ModelPlot implements ToXContentObject, Writeable {
 
     public long getBucketSpan() {
         return bucketSpan;
+    }
+
+    public int getDetectorIndex() {
+        return detectorIndex;
     }
 
     public String getPartitionFieldName() {
@@ -351,13 +371,14 @@ public class ModelPlot implements ToXContentObject, Writeable {
                 this.modelUpper == that.modelUpper &&
                 this.modelMedian == that.modelMedian &&
                 Objects.equals(this.actual, that.actual) &&
-                this.bucketSpan ==  that.bucketSpan;
+                this.bucketSpan ==  that.bucketSpan &&
+                this.detectorIndex == that.detectorIndex;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, timestamp, partitionFieldName, partitionFieldValue,
                 overFieldName, overFieldValue, byFieldName, byFieldValue,
-                modelFeature, modelLower, modelUpper, modelMedian, actual, bucketSpan);
+                modelFeature, modelLower, modelUpper, modelMedian, actual, bucketSpan, detectorIndex);
     }
 }

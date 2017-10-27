@@ -183,7 +183,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
 
         JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo");
-        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456);
+        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
         for (int i=0; i<=JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
             bulkBuilder.persistModelPlot(modelPlot);
         }

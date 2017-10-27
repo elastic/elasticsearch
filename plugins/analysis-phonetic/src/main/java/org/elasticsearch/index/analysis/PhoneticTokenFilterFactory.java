@@ -116,11 +116,11 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         if (encoder == null) {
             if (ruletype != null && nametype != null) {
-                if (languageset != null) {
-                    final LanguageSet languages = LanguageSet.from(new HashSet<>(Arrays.asList(languageset)));
-                    return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true), languages);
+                LanguageSet langset = null;
+                if (languageset != null && languageset.length() > 0) {
+                    langset = LanguageSet.from(new HashSet<>(languageset));
                 }
-                return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true));
+                return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true), langset);
             }
             if (maxcodelength > 0) {
                 return new DoubleMetaphoneFilter(tokenStream, maxcodelength, !replace);

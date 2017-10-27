@@ -78,14 +78,14 @@ public class NioSocketChannelTests extends ESTestCase {
             ref.set(c);
             latch.countDown();
         };
-        socketChannel.getCloseFuture().addListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(socketChannel)));
+        socketChannel.addCloseListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(socketChannel)));
         CloseFuture closeFuture = socketChannel.getCloseFuture();
 
         assertFalse(closeFuture.isClosed());
         assertFalse(closedRawChannel.get());
         assertTrue(openChannels.getClientChannels().containsKey(socketChannel));
 
-        TcpChannelUtils.closeChannel(socketChannel, false, logger);
+        TcpChannelUtils.closeChannel(socketChannel, false);
 
         closeFuture.awaitClose(100, TimeUnit.SECONDS);
 

@@ -74,9 +74,8 @@ public abstract class EventHandler {
     void handleClose(NioChannel channel) {
         openChannels.channelClosed(channel);
         channel.closeFromSelector();
-        CloseFuture closeFuture = channel.getCloseFuture();
-        assert closeFuture.isDone() : "Should always be done as we are on the selector thread";
-        IOException closeException = closeFuture.getCloseException();
+        assert channel.isOpen() == false : "Should always be done as we are on the selector thread";
+        IOException closeException = channel.getCloseFuture().getCloseException();
         if (closeException != null) {
             closeException(channel, closeException);
         }

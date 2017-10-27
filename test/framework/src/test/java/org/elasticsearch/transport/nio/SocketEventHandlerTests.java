@@ -106,7 +106,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         when(nioSocketChannel.getReadContext()).thenReturn(readContext);
         when(readContext.read()).thenReturn(-1);
         when(nioSocketChannel.getCloseFuture()).thenReturn(closeFuture);
-        when(closeFuture.isDone()).thenReturn(true);
+        when(closeFuture.getCloseException()).thenReturn(null);
 
         handler.handleRead(nioSocketChannel);
 

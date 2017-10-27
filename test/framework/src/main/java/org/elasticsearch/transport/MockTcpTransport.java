@@ -394,8 +394,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
 
         @Override
-        public ListenableActionFuture<MockChannel> getCloseFuture() {
-            return closeFuture;
+        public void addCloseListener(ActionListener<MockChannel> listener) {
+            closeFuture.addListener(listener);
         }
 
         @Override

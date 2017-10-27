@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.nio.ESSelector;
 
 import java.io.IOException;
@@ -162,6 +163,11 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     @Override
     public CloseFuture getCloseFuture() {
         return closeFuture;
+    }
+
+    @Override
+    public void addCloseListener(ActionListener<NioChannel> listener) {
+        closeFuture.addListener(listener);
     }
 
     @Override

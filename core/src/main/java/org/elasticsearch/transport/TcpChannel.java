@@ -19,7 +19,9 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 
 import java.io.IOException;
 
@@ -27,10 +29,9 @@ public interface TcpChannel<C extends TcpChannel<C>> {
 
     ListenableActionFuture<C> closeAsync();
 
-    ListenableActionFuture<C> getCloseFuture();
+    void addCloseListener(ActionListener<C> listener);
 
     void setSoLinger(int value) throws IOException;
 
     boolean isOpen();
-
 }

@@ -98,7 +98,7 @@ public class OpenChannels implements Releasable {
     }
 
     public void closeServerChannels() {
-        TcpChannelUtils.closeChannels(new ArrayList<>(openServerChannels.keySet()), true, logger);
+        TcpChannelUtils.closeChannels(new ArrayList<>(openServerChannels.keySet()), true);
 
         openServerChannels.clear();
     }
@@ -106,7 +106,7 @@ public class OpenChannels implements Releasable {
     @Override
     public void close() {
         Stream<NioChannel> channels = Stream.concat(openClientChannels.keySet().stream(), openAcceptedChannels.keySet().stream());
-        TcpChannelUtils.closeChannels(channels.collect(Collectors.toList()), true, logger);
+        TcpChannelUtils.closeChannels(channels.collect(Collectors.toList()), true);
 
         openClientChannels.clear();
         openAcceptedChannels.clear();

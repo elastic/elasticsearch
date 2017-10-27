@@ -37,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -264,8 +265,7 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
-        public ListenableActionFuture<FakeChannel> getCloseFuture() {
-            return null;
+        public void addCloseListener(ActionListener<FakeChannel> listener) {
         }
 
         @Override

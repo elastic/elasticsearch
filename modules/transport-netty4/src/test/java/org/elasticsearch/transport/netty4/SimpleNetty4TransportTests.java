@@ -91,7 +91,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         final Netty4Transport t = (Netty4Transport) transport;
         @SuppressWarnings("unchecked")
         final TcpTransport<NettyTcpChannel>.NodeChannels channels = (TcpTransport<NettyTcpChannel>.NodeChannels) connection;
-        TcpChannelUtils.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, logger);
+        TcpChannelUtils.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {

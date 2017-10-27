@@ -78,7 +78,7 @@ public class NioServerSocketChannelTests extends ESTestCase {
         assertFalse(closeFuture.isClosed());
         assertFalse(closedRawChannel.get());
 
-        TcpChannelUtils.closeChannel(channel, false, logger);
+        TcpChannelUtils.closeChannel(channel, false);
 
         closeFuture.awaitClose(100, TimeUnit.SECONDS);
 

@@ -21,8 +21,10 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
@@ -37,26 +39,20 @@ import java.util.concurrent.TimeoutException;
 
 public class TcpChannelUtils {
 
-    public static <C extends TcpChannel<C>> void closeChannel(C channel, boolean blocking, Logger logger) {
+    public static <C extends TcpChannel<C>> void closeChannel(C channel, boolean blocking) {
         if (channel.isOpen()) {
             ListenableActionFuture<C> f = channel.closeAsync();
-            f.addListener(ActionListener.wrap(c -> {
-                },
-                e -> logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), e)));
             if (blocking) {
                 blockOnFutures(Collections.singletonList(f));
             }
         }
     }
 
-    public static <C extends TcpChannel<C>> void closeChannels(List<C> channels, boolean blocking, Logger logger) {
+    public static <C extends TcpChannel<C>> void closeChannels(List<C> channels, boolean blocking) {
         ArrayList<ListenableActionFuture<C>> futures = new ArrayList<>(channels.size());
         for (final C channel : channels) {
             if (channel.isOpen()) {
                 ListenableActionFuture<C> f = channel.closeAsync();
-                f.addListener(ActionListener.wrap(c -> {
-                    },
-                    e -> logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), e)));
                 futures.add(f);
             }
         }
@@ -126,7 +122,7 @@ public class TcpChannelUtils {
     }
 
     public static <Channel extends TcpChannel<Channel>> void addCloseExceptionListener(Channel channel, Logger logger) {
-        channel.getCloseFuture().addListener(ActionListener.wrap(c -> {},
-            e -> logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), e)));
+        channel.addCloseListener(ActionListener.wrap(c -> {}, e -> logger.debug(() ->
+            new ParameterizedMessage("exception while closing channel: {}", channel), e)));
     }
 }

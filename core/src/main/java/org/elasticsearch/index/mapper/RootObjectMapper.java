@@ -95,16 +95,13 @@ public class RootObjectMapper extends ObjectMapper {
                 if (mapper instanceof ObjectMapper.Builder) {
                     ObjectMapper.Builder child = (ObjectMapper.Builder) mapper;
                     Nested nested = child.nested;
-                    boolean included;
-                    if (parentIncluded) {
-                        included = nested.isNested() && nested.isIncludeInParent();
-                        if (included) {
-                            child.nested = Nested.newNested(true, false);
-                        }
-                    } else {
-                        included = nested.isNested() && nested.isIncludeInRoot();
+                    boolean isNested = nested.isNested();
+                    boolean includedInParent = parentIncluded && isNested && nested.isIncludeInParent();
+                    boolean includedInRoot = isNested && nested.isIncludeInRoot();
+                    if (includedInParent && includedInRoot) {
+                        child.nested = Nested.newNested(true, false);
                     }
-                    fixRedundantIncludes(child, included);
+                    fixRedundantIncludes(child, includedInParent || includedInRoot);
                 }
             }
         }

@@ -241,7 +241,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         long iota = 0L;
 
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
-        commonStats.getDocs().add(new DocsStats(++iota, no));
+        commonStats.getDocs().add(new DocsStats(++iota, no, randomNonNegativeLong()));
         commonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
         commonStats.getMerge().add(no, no, no, ++iota, no, no, no, no, no, no);
         commonStats.getQueryCache().add(new QueryCacheStats(++iota, ++iota, ++iota, ++iota, no));

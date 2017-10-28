@@ -62,8 +62,9 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
     @Override
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
         return new ScriptTemplate(format(Locale.ROOT, "(%s) %s (%s)", leftScript.template(), operation.symbol(), rightScript.template()),
-                paramsBuilder().script(leftScript.params()).script(rightScript.params()).build(), 
-                dataType());
+                paramsBuilder()
+                .script(leftScript.params()).script(rightScript.params())
+                .build(), dataType());
     }
 
     protected final BinaryArithmeticProcessorDefinition makeProcessorDefinition() {

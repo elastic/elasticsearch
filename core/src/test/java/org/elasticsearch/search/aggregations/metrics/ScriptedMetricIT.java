@@ -360,7 +360,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(totalCount, equalTo(numDocs));
     }
 
-    public void testMapWithParamsAndNoImplicitAggMap() {
+    public void testMapWithParamsAndImplicitAggMap() {
         Map<String, Object> params = new HashMap<>();
         // don't put any _agg map in params
         params.put("param1", "12");
@@ -385,7 +385,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
         List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
         assertThat(aggregationList.size(), equalTo(getNumShards("idx").numPrimaries));
-        long totalCount = 0;
+        int numShardsRun = 0;
         for (Object object : aggregationList) {
             assertThat(object, notNullValue());
             assertThat(object, instanceOf(Map.class));
@@ -400,10 +400,10 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(stringValue, equalTo("12"));
                 Number numberValue = (Number) entry.getValue();
                 assertThat(numberValue, equalTo((Number) 1));
-                totalCount += numberValue.longValue();
+                numShardsRun++;
             }
         }
-        assertThat(totalCount, equalTo(numDocs));
+        assertThat(numShardsRun, greaterThan(0));
     }
 
     public void testInitMapWithParams() {

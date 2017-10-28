@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.store.StoreStats;
 
 import java.io.IOException;
 
@@ -31,22 +33,25 @@ public class DocsStats implements Streamable, ToXContentFragment {
 
     long count = 0;
     long deleted = 0;
+    long totalSizeInBytes = 0;
 
     public DocsStats() {
 
     }
 
-    public DocsStats(long count, long deleted) {
+    public DocsStats(long count, long deleted, long totalSizeInBytes) {
         this.count = count;
         this.deleted = deleted;
+        this.totalSizeInBytes = totalSizeInBytes;
     }
 
-    public void add(DocsStats docsStats) {
-        if (docsStats == null) {
+    public void add(DocsStats other) {
+        if (other == null) {
             return;
         }
-        count += docsStats.count;
-        deleted += docsStats.deleted;
+        this.totalSizeInBytes += other.totalSizeInBytes;
+        this.count += other.count;
+        this.deleted += other.deleted;
     }
 
     public long getCount() {
@@ -57,16 +62,40 @@ public class DocsStats implements Streamable, ToXContentFragment {
         return this.deleted;
     }
 
+    /**
+     * Returns the total size in bytes of all documents in this stats.
+     * This value may be more reliable than {@link StoreStats#getSizeInBytes()} in estimating the index size.
+     */
+    public long getTotalSizeInBytes() {
+        return totalSizeInBytes;
+    }
+
+    /**
+     * Returns the average size in bytes of all documents in this stats.
+     */
+    public long getAverageSizeInBytes() {
+        long totalDocs = count + deleted;
+        return totalDocs == 0 ? 0 : totalSizeInBytes / totalDocs;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         count = in.readVLong();
         deleted = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            totalSizeInBytes = in.readVLong();
+        } else {
+            totalSizeInBytes = -1;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
         out.writeVLong(deleted);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVLong(totalSizeInBytes);
+        }
     }
 
     @Override

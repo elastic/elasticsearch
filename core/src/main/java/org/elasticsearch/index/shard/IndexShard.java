@@ -880,9 +880,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public DocsStats docStats() {
-        try (Engine.Searcher searcher = acquireSearcher("doc_stats")) {
-            return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
+        long numDocs = 0;
+        long numDeletedDocs = 0;
+        long sizeInBytes = 0;
+        List<Segment> segments = segments(false);
+        for (Segment segment : segments) {
+            if (segment.search) {
+                numDocs += segment.getNumDocs();
+                numDeletedDocs += segment.getDeletedDocs();
+                sizeInBytes += segment.getSizeInBytes();
+            }
         }
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
     /**

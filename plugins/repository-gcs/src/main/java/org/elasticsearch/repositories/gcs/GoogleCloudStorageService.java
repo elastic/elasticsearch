@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -54,10 +55,8 @@ import java.util.Set;
 
 interface GoogleCloudStorageService {
 
-    String SETTINGS_PREFIX = "gcs.client.";
-
     /** A json credentials file loaded from secure settings. */
-    Setting.AffixSetting<InputStream> CREDENTIALS_FILE_SETTING = Setting.affixKeySetting(SETTINGS_PREFIX, "credentials_file",
+    Setting.AffixSetting<InputStream> CREDENTIALS_FILE_SETTING = Setting.affixKeySetting("gcs.client.", "credentials_file",
         key -> SecureSetting.secureFile(key, null));
 
     /**
@@ -176,16 +175,15 @@ interface GoogleCloudStorageService {
 
     /** Load all secure credentials from the settings. */
     static Map<String, GoogleCredential> loadClientCredentials(Settings settings) {
-        Set<String> clientNames = settings.getGroups(SETTINGS_PREFIX).keySet();
         Map<String, GoogleCredential> credentials = new HashMap<>();
-        for (String clientName : clientNames) {
-            Setting<InputStream> concreteSetting = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName);
+        Iterable<Setting<InputStream>> iterable = CREDENTIALS_FILE_SETTING.getAllConcreteSettings(settings)::iterator;
+        for (Setting<InputStream> concreteSetting : iterable) {
             try (InputStream credStream = concreteSetting.get(settings)) {
                 GoogleCredential credential = GoogleCredential.fromStream(credStream);
                 if (credential.createScopedRequired()) {
                     credential = credential.createScoped(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
                 }
-                credentials.put(clientName, credential);
+                credentials.put(CREDENTIALS_FILE_SETTING.getNamespace(concreteSetting), credential);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

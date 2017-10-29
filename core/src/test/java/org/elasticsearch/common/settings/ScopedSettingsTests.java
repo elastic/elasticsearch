@@ -160,6 +160,24 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, consumer2.get());
     }
 
+    public void testDependentSettings() {
+        Setting.AffixSetting<String> stringSetting = Setting.affixKeySetting("foo.", "name",
+            (k) -> Setting.simpleString(k, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting("foo.", "bar",
+            (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope), stringSetting);
+
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(intSetting, stringSetting)));
+
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> service.validate(Settings.builder().put("foo.test.bar", 7).build()));
+        assertEquals("Missing required setting [foo.test.name] for setting [foo.test.bar]", iae.getMessage());
+
+        service.applySettings(Settings.builder()
+            .put("foo.test.name", "test")
+            .put("foo.test.bar", 7)
+            .build());
+    }
+
     public void testAddConsumerAffix() {
         Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting("foo.", "bar",
             (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));

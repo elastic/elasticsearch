@@ -290,7 +290,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * Validates that the setting is valid
      */
     public final void validate(String key, Settings settings) {
-        Setting setting = get(key);
+        Setting setting = getRaw(key);
         if (setting == null) {
             LevensteinDistance ld = new LevensteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
@@ -315,6 +315,20 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                     "settings";
             }
             throw new IllegalArgumentException(msg);
+        } else {
+            Set<String> settingsDependencies = setting.getSettingsDependencies(key);
+            if (setting.hasComplexMatcher()) {
+                setting = setting.getConcreteSetting(key);
+            }
+            if (settingsDependencies.isEmpty() == false) {
+                Set<String> settingKeys = settings.keySet();
+                for (String requiredSetting : settingsDependencies) {
+                    if (settingKeys.contains(requiredSetting) == false) {
+                        throw new IllegalArgumentException("Missing required setting ["
+                            + requiredSetting + "] for setting [" + setting.getKey() + "]");
+                    }
+                }
+            }
         }
         setting.get(settings);
     }
@@ -375,7 +389,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Returns the {@link Setting} for the given key or <code>null</code> if the setting can not be found.
      */
-    public Setting<?> get(String key) {
+    public final Setting<?> get(String key) {
+        Setting<?> raw = getRaw(key);
+        if (raw == null) {
+            return null;
+        } if (raw.hasComplexMatcher()) {
+            return raw.getConcreteSetting(key);
+        } else {
+            return raw;
+        }
+    }
+
+    private final Setting<?> getRaw(String key) {
         Setting<?> setting = keySettings.get(key);
         if (setting != null) {
             return setting;
@@ -383,7 +408,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
             if (entry.getValue().match(key)) {
                 assert assertMatcher(key, 1);
-                return entry.getValue().getConcreteSetting(key);
+                assert entry.getValue().hasComplexMatcher();
+                return entry.getValue();
             }
         }
         return null;

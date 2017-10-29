@@ -400,7 +400,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
     }
 
-    private final Setting<?> getRaw(String key) {
+    private Setting<?> getRaw(String key) {
         Setting<?> setting = keySettings.get(key);
         if (setting != null) {
             return setting;

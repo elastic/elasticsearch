@@ -343,7 +343,8 @@ public class MonitoringIT extends ESRestTestCase {
 
         final Map<String, Object> clusterState = (Map<String, Object>) source.get("cluster_state");
         assertThat(clusterState, notNullValue());
-        assertThat(clusterState.size(), equalTo(5));
+        assertThat(clusterState.size(), equalTo(6));
+        assertThat(clusterState.remove("nodes_hash"), notNullValue());
         assertThat(clusterState.remove("status"), notNullValue());
         assertThat(clusterState.remove("version"), notNullValue());
         assertThat(clusterState.remove("state_uuid"), notNullValue());

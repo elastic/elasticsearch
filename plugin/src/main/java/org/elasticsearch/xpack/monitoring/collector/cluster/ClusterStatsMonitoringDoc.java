@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -128,6 +130,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
 
         if (clusterState != null) {
             builder.startObject("cluster_state");
+            builder.field("nodes_hash", nodesHash(clusterState.nodes()));
             builder.field("status", status.name().toLowerCase(Locale.ROOT));
             clusterState.toXContent(builder, CLUSTER_STATS_PARAMS);
             builder.endObject();
@@ -146,6 +149,23 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
             }
             builder.endObject();
         }
+    }
+
+    /**
+     * Create a simple hash value that can be used to determine if the nodes listing has changed since the last report.
+     *
+     * @param nodes All nodes in the cluster state.
+     * @return A hash code value whose value can be used to determine if the node listing has changed (including node restarts).
+     */
+    public static int nodesHash(final DiscoveryNodes nodes) {
+        final StringBuilder temp = new StringBuilder();
+
+        // adds the Ephemeral ID (as opposed to the Persistent UUID) to catch node restarts, which is critical for 1 node clusters
+        for (final DiscoveryNode node : nodes) {
+            temp.append(node.getEphemeralId());
+        }
+
+        return temp.toString().hashCode();
     }
 
     public static String hash(License license, String clusterName) {

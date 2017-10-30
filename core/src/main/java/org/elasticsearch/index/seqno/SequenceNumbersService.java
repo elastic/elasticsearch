@@ -66,7 +66,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      *
      * @return the next assigned sequence number
      */
-    public long generateSeqNo() {
+    public final long generateSeqNo() {
         return localCheckpointTracker.generateSeqNo();
     }
 

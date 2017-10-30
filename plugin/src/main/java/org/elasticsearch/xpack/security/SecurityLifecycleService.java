@@ -88,7 +88,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         try {
             if (Security.indexAuditLoggingEnabled(settings) &&
                     indexAuditTrail.state() == IndexAuditTrail.State.INITIALIZED) {
-                if (indexAuditTrail.canStart(event, event.localNodeMaster())) {
+                if (indexAuditTrail.canStart(event)) {
                     threadPool.generic().execute(new AbstractRunnable() {
 
                         @Override
@@ -99,7 +99,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
 
                         @Override
                         public void doRun() {
-                            indexAuditTrail.start(event.localNodeMaster());
+                            indexAuditTrail.start();
                         }
                     });
                 }

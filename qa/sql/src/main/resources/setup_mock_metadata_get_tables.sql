@@ -8,4 +8,8 @@ CREATE TABLE mock (
   TYPE_NAME VARCHAR,
   SELF_REFERENCING_COL_NAME VARCHAR,
   REF_GENERATION VARCHAR
-) AS SELECT '', 'test', 'TABLE', '', null, null, null, null, null FROM DUAL;
+) AS
+SELECT '', 'test1', 'TABLE', '', null, null, null, null, null FROM DUAL
+UNION ALL
+SELECT '', 'test2', 'TABLE', '', null, null, null, null, null FROM DUAL
+;

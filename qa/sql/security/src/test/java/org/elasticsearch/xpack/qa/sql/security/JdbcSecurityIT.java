@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.xpack.qa.sql.jdbc.LocalH2;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -17,6 +19,7 @@ import java.util.Properties;
 
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcAssert.assertResultSets;
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcIntegrationTestCase.elasticsearchAddress;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 
 public class JdbcSecurityIT extends SqlSecurityTestCase {
@@ -31,6 +34,41 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
     static Connection es(Properties properties) throws SQLException {
         return DriverManager.getConnection("jdbc:es://" + elasticsearchAddress(), properties);
+    }
+
+    static Properties userProperties(String user) {
+        if (user == null) {
+            return adminProperties();
+        }
+        Properties prop = new Properties();
+        prop.put("user", user);
+        prop.put("pass", "testpass");
+        return prop;
+    }
+
+    static void expectActionMatchesAdmin(CheckedFunction<Connection, ResultSet, SQLException> adminAction,
+            String user, CheckedFunction<Connection, ResultSet, SQLException> userAction) throws Exception {
+        try (Connection adminConnection = es(adminProperties());
+                Connection userConnection = es(userProperties(user))) {
+            assertResultSets(adminAction.apply(adminConnection), userAction.apply(userConnection));
+        }
+    }
+
+    static void expectActionForbidden(String user, CheckedConsumer<Connection, SQLException> action) throws Exception {
+        SQLException e;
+        try (Connection connection = es(userProperties(user))) {
+            e = expectThrows(SQLException.class, () -> action.accept(connection));
+        }
+        assertThat(e.getMessage(), containsString("is unauthorized for user [" + user + "]"));
+    }
+
+    static void expectActionThrowsUnknownColumn(String user,
+            CheckedConsumer<Connection, SQLException> action, String column) throws Exception {
+        SQLException e;
+        try (Connection connection = es(userProperties(user))) {
+            e = expectThrows(SQLException.class, () -> action.accept(connection));
+        }
+        assertThat(e.getMessage(), containsString("Unknown column [" + column + "]"));
     }
 
     private static class JdbcActions implements Actions {
@@ -48,23 +86,26 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectMatchesAdmin(String adminSql, String user, String userSql) throws Exception {
-            try (Connection admin = es(adminProperties());
-                    Connection other = es(userProperties(user))) {
-                ResultSet expected = admin.createStatement().executeQuery(adminSql);
-                assertResultSets(expected, other.createStatement().executeQuery(userSql));
-            }
+            expectActionMatchesAdmin(
+                con -> con.createStatement().executeQuery(adminSql),
+                user,
+                con -> con.createStatement().executeQuery(userSql));
         }
 
         @Override
         public void expectScrollMatchesAdmin(String adminSql, String user, String userSql) throws Exception {
-            try (Connection admin = es(adminProperties());
-                    Connection other = es(userProperties(user))) {
-                Statement adminStatement = admin.createStatement();
-                adminStatement.setFetchSize(1);
-                Statement otherStatement = other.createStatement();
-                otherStatement.setFetchSize(1);
-                assertResultSets(adminStatement.executeQuery(adminSql), otherStatement.executeQuery(userSql));
-            }
+            expectActionMatchesAdmin(
+                con -> {
+                    Statement st = con.createStatement();
+                    st.setFetchSize(1);
+                    return st.executeQuery(adminSql);
+                },
+                user,
+                con -> {
+                    Statement st = con.createStatement();
+                    st.setFetchSize(1);
+                    return st.executeQuery(userSql);
+                });
         }
 
         @Override
@@ -117,34 +158,152 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectForbidden(String user, String sql) throws Exception {
-            SQLException e;
-            try (Connection connection = es(userProperties(user))) {
-                e = expectThrows(SQLException.class, () -> connection.createStatement().executeQuery(sql));
-            }
-            assertThat(e.getMessage(), containsString("is unauthorized for user [" + user + "]"));
+            expectActionForbidden(user, con -> con.createStatement().executeQuery(sql));
         }
 
         @Override
         public void expectUnknownColumn(String user, String sql, String column) throws Exception {
-            SQLException e;
-            try (Connection connection = es(userProperties(user))) {
-                e = expectThrows(SQLException.class, () -> connection.createStatement().executeQuery(sql));
-            }
-            assertThat(e.getMessage(), containsString("Unknown column [" + column + "]"));
-        }
-
-        private Properties userProperties(String user) {
-            if (user == null) {
-                return adminProperties();
-            }
-            Properties prop = new Properties();
-            prop.put("user", user);
-            prop.put("pass", "testpass");
-            return prop;
+            expectActionThrowsUnknownColumn(
+                user,
+                con -> con.createStatement().executeQuery(sql),
+                column);
         }
     }
 
     public JdbcSecurityIT() {
         super(new JdbcActions());
+    }
+
+    // Metadata methods only available to JDBC
+    public void testMetaDataGetTablesWithFullAccess() throws Exception {
+        createUser("full_access", "read_all");
+
+        expectActionMatchesAdmin(
+            con -> con.getMetaData().getTables("%", "%", "%", null),
+            "full_access",
+            con -> con.getMetaData().getTables("%", "%", "%", null));
+        new AuditLogAsserter()
+            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("bort", "test"))
+            .expect(true, SQL_INDICES_ACTION_NAME, "full_access", contains("bort", "test"))
+            .assertLogs();
+    }
+
+    public void testMetaDataGetTablesWithNoAccess() throws Exception {
+        createUser("no_access", "read_nothing");
+
+        expectActionForbidden("no_access", con -> con.getMetaData().getTables("%", "%", "%", null));
+        new AuditLogAsserter()
+            // TODO figure out why this generates *no* logs
+            // .expect(false, SQL_INDICES_ACTION_NAME, "no_access", contains("bort", "test"))
+            .assertLogs();
+    }
+
+    public void testMetaDataGetTablesWithLimitedAccess() throws Exception {
+        createUser("read_bort", "read_bort");
+
+        expectActionMatchesAdmin(
+            con -> con.getMetaData().getTables("%", "%", "bort", null),
+            "read_bort",
+            con -> con.getMetaData().getTables("%", "%", "%", null));
+        new AuditLogAsserter()
+            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("bort"))
+            .expect(true, SQL_INDICES_ACTION_NAME, "read_bort", contains("bort"))
+            .assertLogs();
+    }
+
+    public void testMetaDataGetTablesWithInAccessibleIndex() throws Exception {
+        createUser("read_bort", "read_bort");
+
+        expectActionMatchesAdmin(
+            con -> con.getMetaData().getTables("%", "%", "not_created", null),
+            "read_bort",
+            con -> con.getMetaData().getTables("%", "%", "test", null));
+        new AuditLogAsserter()
+            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("*", "-*"))
+            .expect(true, SQL_INDICES_ACTION_NAME, "read_bort", contains("*", "-*"))
+            .assertLogs();
+    }
+
+    public void testMetaDataGetColumnsWorksAsFullAccess() throws Exception {
+        createUser("full_access", "read_all");
+
+        expectActionMatchesAdmin(
+            con -> con.getMetaData().getColumns("%", "%", "%", "%"),
+            "full_access",
+            con -> con.getMetaData().getColumns("%", "%", "%", "%"));
+        new AuditLogAsserter()
+            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("bort", "test"))
+            .expect(true, SQL_INDICES_ACTION_NAME, "full_access", contains("bort", "test"))
+            .assertLogs();
+    }
+
+    public void testMetaDataGetColumnsWithNoAccess() throws Exception {
+        createUser("no_access", "read_nothing");
+
+        expectActionForbidden("no_access", con -> con.getMetaData().getColumns("%", "%", "%", "%"));
+        new AuditLogAsserter()
+            // TODO figure out why this generates *no* logs
+            // .expect(false, SQL_INDICES_ACTION_NAME, "no_access", contains("bort", "test"))
+            .assertLogs();
+    }
+
+    public void testMetaDataGetColumnsWithWrongAccess() throws Exception {
+        createUser("wrong_access", "read_something_else");
+
+        expectActionMatchesAdmin(
+            con -> con.getMetaData().getColumns("%", "%", "not_created", "%"),
+            "read_bort",
+            con -> con.getMetaData().getColumns("%", "%", "test", "%"));
+        new AuditLogAsserter()
+            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("*", "-*"))
+            .expect(true, SQL_INDICES_ACTION_NAME, "read_bort", contains("*", "-*"))
+            .assertLogs();
+    }
+
+    public void testMetaDataGetColumnsSingleFieldGranted() throws Exception {
+        createUser("only_a", "read_test_a");
+
+        expectActionMatchesAdmin(
+            con -> con.getMetaData().getColumns("%", "%", "test", "a"),
+            "only_a",
+            con -> con.getMetaData().getColumns("%", "%", "test", "%"));
+        new AuditLogAsserter()
+            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("test"))
+            .expect(true, SQL_INDICES_ACTION_NAME, "only_a", contains("test"))
+            .assertLogs();
+    }
+
+    public void testMetaDataGetColumnsSingleFieldExcepted() throws Exception {
+        createUser("not_c", "read_test_a_and_b");
+
+        /* Since there is no easy way to get a result from the admin side with
+         * both 'a' and 'b' we'll have to roll our own assertion here, but we
+         * are intentionally much less restrictive then the tests elsewhere. */
+        try (Connection con = es(userProperties("not_c"))) {
+            ResultSet result = con.getMetaData().getColumns("%", "%", "test", "%");
+            assertTrue(result.next());
+            String columnName = result.getString(4);
+            assertEquals("a", columnName);
+            assertTrue(result.next());
+            columnName = result.getString(4);
+            assertEquals("b", columnName);
+            assertFalse(result.next());
+        }
+        new AuditLogAsserter()
+            .expect(true, SQL_INDICES_ACTION_NAME, "not_c", contains("test"))
+            .assertLogs();
+    }
+
+    public void testMetaDataGetColumnsDocumentExcluded() throws Exception {
+        createUser("no_3s", "read_test_without_c_3");
+
+        expectActionMatchesAdmin(
+            con -> con.getMetaData().getColumns("%", "%", "test", "%"),
+            "no_3s",
+            con -> con.getMetaData().getColumns("%", "%", "test", "%"));
+        new AuditLogAsserter()
+            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("test"))
+            .expect(true, SQL_INDICES_ACTION_NAME, "no_3s", contains("test"))
+            .assertLogs();
     }
 }

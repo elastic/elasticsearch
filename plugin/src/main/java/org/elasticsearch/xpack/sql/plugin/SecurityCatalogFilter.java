@@ -28,7 +28,7 @@ import java.util.function.BiFunction;
  * Document level security is handled using the standard search mechanisms
  * but this class is required for SQL to respect field level security for
  * {@code SELECT} statements and index level security for metadata
- * statements like {@code SHOW TABLES} and {@code DESCRIBE TABLE}. 
+ * statements like {@code SHOW TABLES} and {@code DESCRIBE TABLE}.
  */
 public class SecurityCatalogFilter implements FilteredCatalog.Filter {
     private static final IndicesOptions OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
@@ -51,9 +51,17 @@ public class SecurityCatalogFilter implements FilteredCatalog.Filter {
             return delegateResult;
         }
         EsIndex index = delegateResult.get();
-        IndexAccessControl permissions = getAccessControlResolver()
-                .apply(OPTIONS, new String[] {index.name()})
-                .getIndexPermissions(index.name());
+        IndicesAccessControl control = getIndicesAccessControl();
+        if (control == null) {
+            // Looks like we're in a delayed response request so lets try that.
+            BiFunction<IndicesOptions, String[], IndicesAccessControl> resolver = getAccessControlResolver();
+            if (resolver == null) {
+                // Looks like we're borked.
+                throw new IllegalStateException("SQL request wasn't recognized properly by security");
+            }
+            control = resolver.apply(OPTIONS, new String[] {index.name()});
+        }
+        IndexAccessControl permissions = control.getIndexPermissions(index.name());
         /* Fetching the permissions always checks if they are granted. If they aren't
          * then it throws an exception. This is ok even for list requests because this
          * will only ever be called on indices that are authorized because of security's
@@ -70,12 +78,19 @@ public class SecurityCatalogFilter implements FilteredCatalog.Filter {
         return GetIndexResult.valid(new EsIndex(index.name(), filteredMapping, index.aliases(), index.settings()));
     }
 
+    /**
+     * Get the {@link IndicesAccessControl} for this request. This will return null for
+     * requests that are not indices requests, like SQL's main action.
+     */
+    private IndicesAccessControl getIndicesAccessControl() {
+        return threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_KEY);
+    }
+
+    /**
+     * Return a function that resolves permissions to the indices. This will return null
+     * all actions other than "delayed" actions like the main SQL action.
+     */
     private BiFunction<IndicesOptions, String[], IndicesAccessControl> getAccessControlResolver() {
-        BiFunction<IndicesOptions, String[], IndicesAccessControl> resolver =
-                threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_RESOLVER_KEY);
-        if (resolver == null) {
-            throw new IllegalStateException("SQL request wasn't recognized properly by security");
-        }
-        return resolver;
+        return threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_RESOLVER_KEY);
     }
 }

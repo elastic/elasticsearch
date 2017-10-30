@@ -471,9 +471,6 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         public AuditLogAsserter expectSqlWithAsyncLookup(String user, String... indices) {
             expect(true, SQL_ACTION_NAME, user, empty());
             expect(true, SQL_INDICES_ACTION_NAME, user, contains(indices));
-            for (String index : indices) {
-                expect(true, SQL_ACTION_NAME, user, hasItems(index));
-            }
             return this;
         }
 
@@ -610,6 +607,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         }
 
         private String logsMessage(List<Map<String, Object>> logs) {
+            if (logs.isEmpty()) {
+                return "  none!";
+            }
             StringBuilder logsMessage = new StringBuilder();
             for (Map<String, Object> log : logs) {
                 logsMessage.append('\n').append(log);

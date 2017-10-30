@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcAssert.assertResultSets;
 /**
  * Tests for our implementation of {@link DatabaseMetaData}.
  */
-public class DatabaseMetaDataIT extends JdbcIntegrationTestCase {
+public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
     /**
      * We do not support procedures so we return an empty set for
      * {@link DatabaseMetaData#getProcedures(String, String, String)}.
@@ -54,23 +54,29 @@ public class DatabaseMetaDataIT extends JdbcIntegrationTestCase {
     }
 
     public void testGetTables() throws Exception {
-        index("test", body -> body.field("name", "bob"));
+        index("test1", body -> body.field("name", "bob"));
+        index("test2", body -> body.field("name", "bob"));
 
         try (Connection h2 = LocalH2.anonymousDb();
                 Connection es = esJdbc()) {
             h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_tables.sql'");
 
-            CheckedSupplier<ResultSet, SQLException> expected = () ->
+            CheckedSupplier<ResultSet, SQLException> all = () ->
                 h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
-            assertResultSets(expected.get(), es.getMetaData().getTables("%", "%", "%", null));
-            assertResultSets(expected.get(), es.getMetaData().getTables("%", "%", "te%", null));
-            // types are stripped from the query so specifying them won't matter; H2 also doesn't support them
-            assertResultSets(expected.get(), es.getMetaData().getTables("%", "%", "test.d%", null));
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "%", null));
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "te%", null));
+            assertResultSets(
+                h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock WHERE TABLE_NAME = 'test1'"),
+                es.getMetaData().getTables("%", "%", "test1.d%", null));
         }
     }
 
     public void testColumns() throws Exception {
-        index("test", body -> body.field("name", "bob"));
+        index("test1", body -> body.field("name", "bob"));
+        index("test2", body -> {
+            body.field("number", 7);
+            body.field("date", "2017-01-01T01:01:01Z");
+        });
 
         try (Connection h2 = LocalH2.anonymousDb();
                 Connection es = esJdbc()) {
@@ -79,7 +85,5 @@ public class DatabaseMetaDataIT extends JdbcIntegrationTestCase {
             ResultSet expected = h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
             assertResultSets(expected, es.getMetaData().getColumns("%", "%", "%", null));
         }
-
-        // NOCOMMIT add some more tables and more columns and test that.
     }
 }

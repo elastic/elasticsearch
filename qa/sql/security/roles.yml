@@ -1,18 +1,22 @@
 read_all:
+  cluster:
+    - monitor # Used by JDBC's MetaData
   indices:
     - names: test
       privileges: [read]
     - names: bort
       privileges: [read]
 
-read_nothing:
-
 read_something_else:
+  cluster:
+    - monitor # Used by JDBC's MetaData
   indices:
     - names: something_that_isnt_test
       privileges: [read]
 
 read_test_a:
+  cluster:
+    - monitor # Used by JDBC's MetaData
   indices:
     - names: test
       privileges: [read]
@@ -20,6 +24,8 @@ read_test_a:
         grant: [a]
 
 read_test_a_and_b:
+  cluster:
+    - monitor # Used by JDBC's MetaData
   indices:
     - names: test
       privileges: [read]
@@ -28,6 +34,8 @@ read_test_a_and_b:
         except: [c]
 
 read_test_without_c_3:
+  cluster:
+    - monitor # Used by JDBC's MetaData
   indices:
     - names: test
       privileges: [read]
@@ -45,6 +53,8 @@ read_test_without_c_3:
         }
 
 read_bort:
+  cluster:
+    - monitor # Used by JDBC's MetaData
   indices:
     - names: bort
       privileges: [read]

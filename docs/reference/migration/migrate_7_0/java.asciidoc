@@ -1,9 +1,0 @@
-[[breaking_70_java_changes]]
-=== Java API changes
-
-=== `took` time added to `MultiSearchResponse`
-
-A new `took` field has been added to the `MultiSearchResponse`. The `took`
-field contains the time to process a `MultiSearchRequest`. This value can be
-retrived by `getTookTime()`. For more information refer to `BulkResponse` 
-and `SearchResponse` documentation.

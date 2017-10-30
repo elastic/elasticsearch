@@ -76,4 +76,22 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
         super.readFrom(in);
         masterNodeTimeout = new TimeValue(in);
     }
+
+    /**
+     * CAUTION: Use this method for the BWC purpose only.
+     * This method serializes a {@link MasterNodeRequest} as a {@link org.elasticsearch.transport.TransportRequest}
+     * without timeout. The master will have to use the default timeout setting.
+     */
+    protected final void readFromAsTransportRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
+    }
+
+    /**
+     * CAUTION: Use this method for the BWC purpose only.
+     * This method deserializes a {@link MasterNodeRequest} from a {@link org.elasticsearch.transport.TransportRequest}
+     * without timeout.  The master will have to use the default timeout setting.
+     */
+    protected final void writeToAsTransportRequest(StreamOutput out) throws IOException {
+        super.writeTo(out);
+    }
 }

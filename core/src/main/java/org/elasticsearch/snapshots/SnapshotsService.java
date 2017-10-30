@@ -628,7 +628,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             if (event.localNodeMaster()) {
-                if (event.nodesRemoved()) {
+                // We don't remove old master when master flips anymore. So, we need to check for change in master
+                if (event.nodesRemoved() || event.previousState().nodes().isLocalNodeElectedMaster() == false) {
                     processSnapshotsOnRemovedNodes(event);
                 }
                 if (event.routingTableChanged()) {

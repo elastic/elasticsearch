@@ -163,7 +163,7 @@ public class UpdateResponse extends DocWriteResponse {
             }
             if (getResult != null) {
                 update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(), update.getVersion(),
-                        getResult.isExists(),getResult.internalSourceRef(), getResult.getFields()));
+                        update.getPrimaryTerm(), getResult.isExists(),getResult.internalSourceRef(), getResult.getFields()));
             }
             update.setForcedRefresh(forcedRefresh);
             return update;

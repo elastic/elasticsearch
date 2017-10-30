@@ -62,6 +62,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -77,6 +78,8 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
@@ -99,6 +102,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -1804,6 +1808,41 @@ public class IndexShardTests extends IndexShardTestCase {
         getResult.release();
 
         closeShards(newShard);
+    }
+
+    public void testGetServiceReturnsPrimaryTerm() throws Exception {
+        IndexShard indexShard = newStartedShard();
+        final ShardGetService getService = indexShard.getService();
+        try {
+            int numDoc = between(10, 20);
+            for (int i = 0; i < numDoc; i++) {
+                String doc = XContentFactory.jsonBuilder()
+                    .startObject()
+                        .field("name", randomUnicodeOfLength(20))
+                        .field("count", randomInt())
+                    .endObject().string();
+                indexDoc(indexShard, "doc", Integer.toString(i), doc);
+            }
+            flushShard(indexShard);
+            indexShard.refresh("test");
+
+            // Existing docs
+            for (int i = 0; i < numDoc; i++) {
+                GetResult get = getService.get("doc", Integer.toString(i), new String[]{"name", "count"}, randomBoolean(),
+                    Versions.MATCH_ANY, VersionType.INTERNAL, new FetchSourceContext(randomBoolean()));
+                assertThat(get.isExists(), equalTo(true));
+                assertThat(get.getPrimaryTerm(), equalTo(indexShard.getPrimaryTerm()));
+            }
+            // Non-existing docs
+            for (int i = 0; i < numDoc; i++) {
+                GetResult get = getService.get("doc", "non-" + i, new String[]{"name", "count"}, randomBoolean(),
+                    Versions.MATCH_ANY, VersionType.INTERNAL, new FetchSourceContext(randomBoolean()));
+                assertThat(get.isExists(), equalTo(false));
+                assertThat(get.getPrimaryTerm(), equalTo(indexShard.getPrimaryTerm()));
+            }
+        } finally {
+            closeShards(indexShard);
+        }
     }
 
     public void testSearcherWrapperWorksWithGlobalOrdinals() throws IOException {

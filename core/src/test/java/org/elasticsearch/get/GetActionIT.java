@@ -47,12 +47,17 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -237,6 +242,12 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[4].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[4].getResponse().getIndex(), equalTo("test"));
         assertThat(response.getResponses()[4].getResponse().isExists(), equalTo(false));
+
+        Set<Long> allPrimaryTerms = Stream.of(response.getResponses())
+            .map(r -> r.getResponse().getPrimaryTerm())
+            .collect(Collectors.toSet());
+        assertThat(allPrimaryTerms, hasSize(1));
+        assertThat(allPrimaryTerms, everyItem(greaterThan(0L)));
 
         // multi get with specific field
         response = client().prepareMultiGet()

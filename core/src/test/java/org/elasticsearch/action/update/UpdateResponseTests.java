@@ -74,7 +74,7 @@ public class UpdateResponseTests extends ESTestCase {
 
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(3, 2),
                     new ShardId("books", "books_uuid", 2), "book", "1", 7, 17, 2, UPDATED);
-            updateResponse.setGetResult(new GetResult("books", "book", "1", 2, true, source, fields));
+            updateResponse.setGetResult(new GetResult("books", "book", "1", 2, 17, true, source, fields));
 
             String output = Strings.toString(updateResponse);
             assertEquals("{\"_index\":\"books\",\"_type\":\"book\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\"," +
@@ -161,8 +161,14 @@ public class UpdateResponseTests extends ESTestCase {
 
         // We also want small number values (randomNonNegativeLong() tend to generate high numbers)
         // in order to catch some conversion error that happen between int/long after parsing.
-        Long seqNo = randomFrom(randomNonNegativeLong(), (long) randomIntBetween(0, 10_000), null);
-        long primaryTerm = seqNo == null ? 0 : randomIntBetween(1, 16);
+        Long seqNo;
+        long primaryTerm = actualGetResult.getPrimaryTerm();
+        if (primaryTerm > 0){
+            seqNo = randomNonNegativeLong();
+        }else{
+            seqNo = randomFrom(randomNonNegativeLong(), (long) randomIntBetween(0, 10_000), null);
+            primaryTerm = seqNo == null ? 0 : randomIntBetween(1, 16);
+        }
 
         ShardId actualShardId = new ShardId(index, indexUUid, shardId);
         ShardId expectedShardId = new ShardId(index, INDEX_UUID_NA_VALUE, -1);

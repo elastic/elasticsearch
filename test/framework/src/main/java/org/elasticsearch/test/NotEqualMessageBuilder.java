@@ -150,11 +150,11 @@ public class NotEqualMessageBuilder {
             field(field, "same [" + expected + "]");
             return;
         }
-        String expectedString = expected.toString();
-        String actualString = actual.toString();
+        String expectedString = Objects.toString(expected);
+        String actualString = Objects.toString(actual);
         if (expectedString.equals(actualString)) {
-            expectedString += " (" + expected.getClass().getName() + ")";
-            actualString += " (" + actual.getClass().getName() + ")";
+            expectedString += " (" + (expected == null ? "null" : expected.getClass().getName()) + ")";
+            actualString += " (" + (actual == null ? "null" : actual.getClass().getName()) + ")";
         }
         field(field, "expected [" + expectedString + "] but was [" + actualString + "]");
     }

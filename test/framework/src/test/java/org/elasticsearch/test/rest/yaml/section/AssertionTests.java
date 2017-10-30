@@ -29,9 +29,11 @@ import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static java.util.Collections.singletonMap;
 
 public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseIsTrue() throws Exception {
@@ -153,5 +155,44 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         o = expectedValue.get("foo");
         assertThat(o, instanceOf(String.class));
         assertThat(o.toString(), equalTo("bar"));
+    }
+
+    public void testMatchFloats() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+                "{ bar: 1.0 }"
+        );
+
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
+        matchAssertion.doAssert(1.0f, matchAssertion.getExpectedValue());
+        matchAssertion.doAssert(1.0d, matchAssertion.getExpectedValue());
+        AssertionError e = expectThrows(AssertionError.class, () ->
+                matchAssertion.doAssert(2.0f, matchAssertion.getExpectedValue()));
+        assertThat(e.getMessage(), containsString("Expected: <1.0>"));
+        assertThat(e.getMessage(), containsString("but: was <2.0>"));
+    }
+
+    public void testMatchFloatsInMap() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+                "{ bar: { foo: 1.0 } }"
+        );
+
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
+        matchAssertion.doAssert(singletonMap("foo", 1.0f), matchAssertion.getExpectedValue());
+        matchAssertion.doAssert(singletonMap("foo", 1.0d), matchAssertion.getExpectedValue());
+        AssertionError e = expectThrows(AssertionError.class, () ->
+                matchAssertion.doAssert(singletonMap("foo", 2.0f), matchAssertion.getExpectedValue()));
+        assertThat(e.getMessage(), containsString("foo: expected [1.0] but was [2.0]"));
+    }
+
+    public void testMatchNullsInMap() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+                "{ bar: { foo: null } }"
+        );
+
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
+        matchAssertion.doAssert(singletonMap("foo", null), matchAssertion.getExpectedValue());
+        AssertionError e = expectThrows(AssertionError.class, () ->
+                matchAssertion.doAssert(singletonMap("foo", "bar"), matchAssertion.getExpectedValue()));
+        assertThat(e.getMessage(), containsString("foo: expected [null] but was [bar]"));
     }
 }

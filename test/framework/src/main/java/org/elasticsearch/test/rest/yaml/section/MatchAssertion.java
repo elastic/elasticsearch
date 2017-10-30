@@ -91,7 +91,7 @@ public class MatchAssertion extends Assertion {
     }
 
     /**
-     * Like {@link Map#equals(Object)} except it treats {@link Float}s as {@link Double}s.
+     * Like {@link Object#equals(Object)} except it treats {@link Float}s as {@link Double}s.
      */
     private boolean checkEquals(Object actualValue, Object expectedValue) {
         if (expectedValue instanceof Map) {
@@ -104,9 +104,18 @@ public class MatchAssertion extends Assertion {
                 return false;
             }
             for (Map.Entry<?, ?> e : expectedMap.entrySet()) {
-                Object a = actualMap.get(e.getKey());
-                if (a == null || false == checkEquals(a, e.getValue())) {
+                if (false == actualMap.containsKey(e.getKey())) {
                     return false;
+                }
+                Object a = actualMap.get(e.getKey());
+                if (e.getValue() == null) {
+                    if (a != null) {
+                        return false;
+                    }
+                } else {
+                    if (false == checkEquals(a, e.getValue())) {
+                        return false;
+                    }
                 }
             }
             return true;

@@ -90,14 +90,14 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     private static boolean useSSL;
     private static InternalTestCluster remoteCluster;
     private static Settings remoteSettings;
+    private static int numShards = -1;
+    private static int numReplicas = -1;
 
     private TransportAddress remoteAddress = buildNewFakeTransportAddress();
     private TransportAddress localAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 0);
     private IndexNameResolver.Rollover rollover;
     private IndexAuditTrail auditor;
     private SetOnce<Message> enqueuedMessage;
-    private int numShards;
-    private int numReplicas;
     private ThreadPool threadPool;
     private boolean includeRequestBody;
 
@@ -122,6 +122,22 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     @Override
     protected boolean transportSSLEnabled() {
         return useSSL;
+    }
+
+    @Override
+    public Settings nodeSettings(int nodeOrdinal) {
+        if (numShards == -1) {
+            numShards = numberOfShards();
+        }
+        if (numReplicas == -1) {
+            numReplicas = numberOfReplicas();
+        }
+
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("xpack.security.audit.index.settings.index.number_of_shards", numShards)
+                .put("xpack.security.audit.index.settings.index.number_of_replicas", numReplicas)
+                .build();
     }
 
     @Before
@@ -150,6 +166,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
+                        .put("xpack.security.audit.index.settings.index.number_of_shards", numShards)
+                        .put("xpack.security.audit.index.settings.index.number_of_replicas", numReplicas)
                         // Disable native ML autodetect_process as the c++ controller won't be available
                         .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                         .put(XPackSettings.SECURITY_ENABLED.getKey(), useSecurity);
@@ -284,8 +302,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
     private void initialize(String[] includes, String[] excludes) throws Exception {
         rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);
-        numReplicas = numberOfReplicas();
-        numShards = numberOfShards();
         includeRequestBody = randomBoolean();
         Settings.Builder builder = Settings.builder();
         if (remoteIndexing) {
@@ -328,7 +344,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                 return Arrays.asList(XPackPlugin.class, getTestTransportPlugin());
             }
         };
-        auditor.start(true);
+        auditor.start();
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

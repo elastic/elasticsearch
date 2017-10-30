@@ -47,7 +47,7 @@ public class JobRenormalizedResultsPersisterTests extends ESTestCase {
         Client client = new MockClientBuilder("cluster").bulk(bulkResponse).build();
         JobRenormalizedResultsPersister persister = new JobRenormalizedResultsPersister("foo", Settings.EMPTY, client);
 
-        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456);
+        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
         for (int i=0; i<=JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
             persister.updateResult("bar", "index-foo", modelPlot);
         }

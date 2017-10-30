@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
+import java.util.Map;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -55,6 +56,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -94,6 +96,15 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                          .expiryDate(timestamp + randomIntBetween(1, 10) * 1_000L)
                          .maxNodes(randomIntBetween(1, 5))
                          .build();
+
+        final DiscoveryNode masterNode = masterNode();
+        final DiscoveryNodes.Builder builder =
+                DiscoveryNodes.builder()
+                              .masterNodeId(masterNode.getId())
+                              .localNodeId(masterNode.getId())
+                              .add(masterNode);
+
+        when(clusterState.nodes()).thenReturn(builder.build());
     }
 
     @Override
@@ -134,6 +145,38 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
                         clusterName, version, null, license, usages, clusterStats, clusterState));
+    }
+
+    public void testNodesHash() {
+        final int nodeCount = randomIntBetween(0, 5);
+        final Map<String, String> emptyMap = emptyMap();
+        final DiscoveryNode masterNode = masterNode();
+        final DiscoveryNodes.Builder builder =
+                DiscoveryNodes.builder()
+                              .masterNodeId(masterNode.getId())
+                              .localNodeId(masterNode.getId());
+
+        for (int i = 0; i < nodeCount; ++i) {
+            builder.add(
+                new DiscoveryNode(randomAlphaOfLength(5),
+                                  randomAlphaOfLength(2 + i),
+                                  randomAlphaOfLength(5),
+                                  randomAlphaOfLength(5),
+                                  randomAlphaOfLength(5),
+                                  new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
+                                  randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
+                                  singleton(randomFrom(DiscoveryNode.Role.values())),
+                                  Version.CURRENT));
+        }
+
+        final DiscoveryNodes nodes = builder.build();
+        String ephemeralIds = "";
+
+        for (final DiscoveryNode node : nodes) {
+            ephemeralIds += node.getEphemeralId();
+        }
+
+        assertThat(ClusterStatsMonitoringDoc.nodesHash(nodes), equalTo(ephemeralIds.hashCode()));
     }
 
     public void testHash() {
@@ -475,6 +518,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "}"
                   + "},"
                   + "\"cluster_state\":{"
+                    + "\"nodes_hash\":1314980060,"
                     + "\"status\":\"green\","
                     + "\"version\":12,"
                     + "\"state_uuid\":\"_state_uuid\","
@@ -500,4 +544,17 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   + "}"
                 + "}" , xContent.utf8ToString());
     }
+
+    private DiscoveryNode masterNode() {
+        return new DiscoveryNode("_node_name",
+                                 "_node_id",
+                                 "_ephemeral_id",
+                                 "_host_name",
+                                 "_host_address",
+                                 new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+                                 singletonMap("attr", "value"),
+                                 singleton(DiscoveryNode.Role.MASTER),
+                                 Version.CURRENT);
+    }
+
 }

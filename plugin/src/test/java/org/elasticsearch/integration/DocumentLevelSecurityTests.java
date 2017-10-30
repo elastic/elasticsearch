@@ -6,6 +6,7 @@
 package org.elasticsearch.integration;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -20,10 +21,12 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -36,9 +39,18 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -66,7 +78,9 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
+@LuceneTestCase.SuppressCodecs("*") // suppress test codecs otherwise test using completion suggester fails
 public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
@@ -129,6 +143,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
+                .put(XPackSettings.AUDIT_ENABLED.getKey(), false) // Just to make logs less noisy
                 .build();
     }
 
@@ -942,6 +957,151 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("nested_field").getAt(0).getSourceAsString(),
                 equalTo("{\"field2\":\"value2\"}"));
+    }
+
+    public void testSuggesters() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                )
+                .addMapping("type1", "field1", "type=text", "suggest_field1", "type=text", "suggest_field2", "type=completion")
+        );
+
+        client().prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject()
+                        .field("field1", "value1")
+                        .field("suggest_field1", "value")
+                        .startObject("suggest_field2")
+                            .field("input", "value")
+                        .endObject()
+                        .endObject()).get();
+        // A document that is always included by role query of both roles:
+        client().prepareIndex("test", "type1", "2")
+                .setSource(jsonBuilder().startObject()
+                        .field("field1", "value1")
+                        .field("field2", "value2")
+                        .endObject()).get();
+        refresh("test");
+
+        // Term suggester:
+        SearchResponse response = client()
+                .prepareSearch("test")
+                .suggest(new SuggestBuilder()
+                        .setGlobalText("valeu")
+                        .addSuggestion("_name1", new TermSuggestionBuilder("suggest_field1"))
+                ).get();
+        assertNoFailures(response);
+
+        TermSuggestion termSuggestion = response.getSuggest().getSuggestion("_name1");
+        assertThat(termSuggestion, notNullValue());
+        assertThat(termSuggestion.getEntries().size(), equalTo(1));
+        assertThat(termSuggestion.getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(termSuggestion.getEntries().get(0).getOptions().get(0).getText().string(), equalTo("value"));
+
+        Exception e = expectThrows(ElasticsearchSecurityException.class, () -> client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .suggest(new SuggestBuilder()
+                        .setGlobalText("valeu")
+                        .addSuggestion("_name1", new TermSuggestionBuilder("suggest_field1"))
+                ).get());
+        assertThat(e.getMessage(), equalTo("Suggest isn't supported if document level security is enabled"));
+
+        // Phrase suggester:
+        response = client()
+                .prepareSearch("test")
+                .suggest(new SuggestBuilder()
+                        .setGlobalText("valeu")
+                        .addSuggestion("_name1", new PhraseSuggestionBuilder("suggest_field1"))
+                ).get();
+        assertNoFailures(response);
+
+        PhraseSuggestion phraseSuggestion = response.getSuggest().getSuggestion("_name1");
+        assertThat(phraseSuggestion, notNullValue());
+        assertThat(phraseSuggestion.getEntries().size(), equalTo(1));
+        assertThat(phraseSuggestion.getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(phraseSuggestion.getEntries().get(0).getOptions().get(0).getText().string(), equalTo("value"));
+
+        e = expectThrows(ElasticsearchSecurityException.class, () -> client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .suggest(new SuggestBuilder()
+                        .setGlobalText("valeu")
+                        .addSuggestion("_name1", new PhraseSuggestionBuilder("suggest_field1"))
+                ).get());
+        assertThat(e.getMessage(), equalTo("Suggest isn't supported if document level security is enabled"));
+
+        // Completion suggester:
+        response = client()
+                .prepareSearch("test")
+                .suggest(new SuggestBuilder()
+                        .setGlobalText("valu")
+                        .addSuggestion("_name1", new CompletionSuggestionBuilder("suggest_field2"))
+                ).get();
+        assertNoFailures(response);
+
+        CompletionSuggestion completionSuggestion = response.getSuggest().getSuggestion("_name1");
+        assertThat(completionSuggestion, notNullValue());
+        assertThat(completionSuggestion.getEntries().size(), equalTo(1));
+        assertThat(completionSuggestion.getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(completionSuggestion.getEntries().get(0).getOptions().get(0).getText().string(), equalTo("value"));
+
+        e = expectThrows(ElasticsearchSecurityException.class, () -> client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .suggest(new SuggestBuilder()
+                        .setGlobalText("valeu")
+                        .addSuggestion("_name1", new CompletionSuggestionBuilder("suggest_field2"))
+                ).get());
+        assertThat(e.getMessage(), equalTo("Suggest isn't supported if document level security is enabled"));
+    }
+
+    public void testProfile() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                )
+                .addMapping("type1", "field1", "type=text", "other_field", "type=text")
+        );
+
+        client().prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject()
+                        .field("field1", "value1")
+                        .field("other_field", "value")
+                        .endObject()).get();
+        // A document that is always included by role query of both roles:
+        client().prepareIndex("test", "type1", "2")
+                .setSource(jsonBuilder().startObject()
+                        .field("field1", "value1")
+                        .field("field2", "value2")
+                        .endObject()).get();
+        refresh("test");
+
+        SearchResponse response = client()
+                .prepareSearch("test")
+                .setProfile(true)
+                .setQuery(new FuzzyQueryBuilder("other_field", "valeu"))
+                .get();
+        assertNoFailures(response);
+
+        assertThat(response.getProfileResults().size(), equalTo(1));
+        ProfileShardResult shardResult = response.getProfileResults().get(response.getProfileResults().keySet().toArray()[0]);
+        assertThat(shardResult.getQueryProfileResults().size(), equalTo(1));
+        QueryProfileShardResult queryProfileShardResult = shardResult.getQueryProfileResults().get(0);
+        assertThat(queryProfileShardResult.getQueryResults().size(), equalTo(1));
+        logger.info("queryProfileShardResult=" + Strings.toString(queryProfileShardResult));
+//        ProfileResult profileResult = queryProfileShardResult.getQueryResults().get(0);
+//        assertThat(profileResult.getLuceneDescription(), equalTo("(other_field:value)^0.8"));
+
+        Exception e = expectThrows(ElasticsearchSecurityException.class, () -> client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setProfile(true)
+                .setQuery(new FuzzyQueryBuilder("other_field", "valeu"))
+                .get());
+        assertThat(e.getMessage(), equalTo("A search request cannot be profiled if document level security is enabled"));
     }
 
 }

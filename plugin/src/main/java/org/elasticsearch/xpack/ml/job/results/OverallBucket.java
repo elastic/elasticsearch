@@ -95,6 +95,10 @@ public class OverallBucket implements ToXContentObject, Writeable {
         return overallScore;
     }
 
+    public List<JobInfo> getJobs() {
+        return jobs;
+    }
+
     public boolean isInterim() {
         return isInterim;
     }
@@ -126,7 +130,7 @@ public class OverallBucket implements ToXContentObject, Writeable {
                 && this.isInterim == that.isInterim;
     }
 
-    public static class JobInfo implements ToXContentObject, Writeable {
+    public static class JobInfo implements ToXContentObject, Writeable, Comparable<JobInfo> {
 
         private static final ParseField MAX_ANOMALY_SCORE = new ParseField("max_anomaly_score");
 
@@ -141,6 +145,14 @@ public class OverallBucket implements ToXContentObject, Writeable {
         public JobInfo(StreamInput in) throws IOException {
             jobId = in.readString();
             maxAnomalyScore = in.readDouble();
+        }
+
+        public String getJobId() {
+            return jobId;
+        }
+
+        public double getMaxAnomalyScore() {
+            return maxAnomalyScore;
         }
 
         @Override
@@ -173,6 +185,15 @@ public class OverallBucket implements ToXContentObject, Writeable {
             }
             JobInfo that = (JobInfo) other;
             return Objects.equals(this.jobId, that.jobId) && this.maxAnomalyScore == that.maxAnomalyScore;
+        }
+
+        @Override
+        public int compareTo(JobInfo other) {
+            int result = this.jobId.compareTo(other.jobId);
+            if (result == 0) {
+                result = Double.compare(this.maxAnomalyScore, other.maxAnomalyScore);
+            }
+            return result;
         }
     }
 }

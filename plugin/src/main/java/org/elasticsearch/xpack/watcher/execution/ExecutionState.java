@@ -24,6 +24,9 @@ public enum ExecutionState {
     // an error in the condition or the execution of the input
     FAILED,
 
+    // a rejection due to a filled up threadpool
+    THREADPOOL_REJECTION,
+
     // the execution was scheduled, but in between the watch was deleted
     NOT_EXECUTED_WATCH_MISSING,
 

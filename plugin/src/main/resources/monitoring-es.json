@@ -411,6 +411,9 @@
             "version": {
               "type": "long"
             },
+            "nodes_hash": {
+              "type": "integer"
+            },
             "master_node": {
               "type": "keyword"
             },

@@ -31,6 +31,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -370,7 +371,7 @@ public class AuthorizationService extends AbstractComponent {
             assert request instanceof BulkShardRequest
                     : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
 
-            authorizeBulkItems(authentication, action, (BulkShardRequest) request, permission, metaData, localIndices);
+            authorizeBulkItems(authentication, (BulkShardRequest) request, permission, metaData, localIndices, authorizedIndices);
         }
 
         grant(authentication, action, originalRequest, null);
@@ -386,26 +387,46 @@ public class AuthorizationService extends AbstractComponent {
      * {@link DocWriteRequest.OpType types}, the number of distinct authorization checks that need to be performed is very small, but the
      * results must be cached, to avoid adding a high overhead to each bulk request.
      */
-    private void authorizeBulkItems(Authentication authentication, String action, BulkShardRequest request, Role permission,
-                                    MetaData metaData, Set<String> indices) {
-        if (indices.size() != 1) {
-            final String message = "Action " + action + " should operate on exactly 1 local index but was " + indices.size();
-            assert false : message;
-            throw new IllegalStateException(message);
-        }
-
-        final String index = indices.iterator().next();
-        final Map<String, Boolean> actionAuthority = new HashMap<>();
+    private void authorizeBulkItems(Authentication authentication, BulkShardRequest request, Role permission,
+                                    MetaData metaData, Set<String> indices, AuthorizedIndices authorizedIndices) {
+        // Maps original-index -> expanded-index-name (expands date-math, but not aliases)
+        final Map<String, String> resolvedIndexNames = new HashMap<>();
+        // Maps (resolved-index , action) -> is-granted
+        final Map<Tuple<String, String>, Boolean> indexActionAuthority = new HashMap<>();
         for (BulkItemRequest item : request.items()) {
-                final String itemAction = getAction(item);
-            final boolean granted = actionAuthority.computeIfAbsent(itemAction, key -> {
-                final IndicesAccessControl itemAccessControl = permission.authorize(itemAction, indices, metaData, fieldPermissionsCache);
+            String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
+                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.resolveIndicesAndAliases(item.request(), metaData,
+                        authorizedIndices);
+                if (resolvedIndices.getRemote().size() != 0) {
+                    throw illegalArgument("Bulk item should not write to remote indices, but request writes to "
+                            + String.join(",", resolvedIndices.getRemote()));
+                }
+                if (resolvedIndices.getLocal().size() != 1) {
+                    throw illegalArgument("Bulk item should write to exactly 1 index, but request writes to "
+                            + String.join(",", resolvedIndices.getLocal()));
+                }
+                final String resolved = resolvedIndices.getLocal().get(0);
+                if (indices.contains(resolved) == false) {
+                    throw illegalArgument("Found bulk item that writes to index " + resolved + " but the request writes to " + indices);
+                }
+                return resolved;
+            });
+            final String itemAction = getAction(item);
+            final Tuple<String, String> indexAndAction = new Tuple<>(resolvedIndex, itemAction);
+            final boolean granted = indexActionAuthority.computeIfAbsent(indexAndAction, key -> {
+                final IndicesAccessControl itemAccessControl = permission.authorize(itemAction, Collections.singleton(resolvedIndex),
+                        metaData, fieldPermissionsCache);
                 return itemAccessControl.isGranted();
             });
             if (granted == false) {
-                item.abort(index, denial(authentication, itemAction, request, null));
+                item.abort(resolvedIndex, denial(authentication, itemAction, request, null));
             }
         }
+    }
+
+    private IllegalArgumentException illegalArgument(String message) {
+        assert false : message;
+        return new IllegalArgumentException(message);
     }
 
     private static String getAction(BulkItemRequest item) {

@@ -62,6 +62,9 @@ When a user's role enables document level security for an index:
 ** The `terms` query with terms lookup isn't supported.
 ** The `geo_shape` query with indexed shapes isn't supported.
 ** The `percolate` query isn't supported.
+* If suggesters are specified and document level security is enabled then
+  the specified suggesters are ignored.
+* A search request cannot be profiled if document level security is enabled.
 
 [float]
 [[alias-limitations]]

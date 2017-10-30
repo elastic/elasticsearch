@@ -153,7 +153,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
 
     private CommonStats mockCommonStats() {
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
-        commonStats.getDocs().add(new DocsStats(1L, -1L));
+        commonStats.getDocs().add(new DocsStats(1L, -1L, randomNonNegativeLong()));
         commonStats.getStore().add(new StoreStats(2L));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, -1L, -1L, -1L, -1L, -1L, -1L, true, 5L);

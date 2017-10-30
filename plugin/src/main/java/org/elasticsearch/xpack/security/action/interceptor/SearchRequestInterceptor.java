@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.security.action.interceptor;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -25,6 +27,17 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     @Override
     public void disableFeatures(SearchRequest request, boolean fieldLevelSecurityEnabled, boolean documentLevelSecurityEnabled) {
         request.requestCache(false);
+
+        if (documentLevelSecurityEnabled) {
+            if (request.source() != null && request.source().suggest() != null) {
+                throw new ElasticsearchSecurityException("Suggest isn't supported if document level security is enabled",
+                        RestStatus.BAD_REQUEST);
+            }
+            if (request.source() != null && request.source().profile()) {
+                throw new ElasticsearchSecurityException("A search request cannot be profiled if document level security is enabled",
+                        RestStatus.BAD_REQUEST);
+            }
+        }
     }
 
     @Override

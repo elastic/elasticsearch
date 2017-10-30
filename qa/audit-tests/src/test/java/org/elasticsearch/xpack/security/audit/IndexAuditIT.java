@@ -37,15 +37,14 @@ public class IndexAuditIT extends ESIntegTestCase {
     private static final String USER = "test_user";
     private static final String PASS = "x-pack-test-password";
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2354")
-    public void testShieldIndexAuditTrailWorking() throws Exception {
+    public void testIndexAuditTrailWorking() throws Exception {
         Response response = getRestClient().performRequest("GET", "/",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()))));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
         final AtomicBoolean indexExists = new AtomicBoolean(false);
-        boolean found = awaitBusy(() -> {
+        final boolean found = awaitBusy(() -> {
             if (indexExists.get() == false) {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
                 lastClusterState.set(state);
@@ -63,22 +62,23 @@ public class IndexAuditIT extends ESIntegTestCase {
             }
 
             ensureYellow(".security_audit_log*");
+            logger.info("security audit log index is yellow");
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             lastClusterState.set(state);
-            client().admin().indices().prepareRefresh().get();
+
+            logger.info("refreshing audit indices");
+            client().admin().indices().prepareRefresh(".security_audit_log*").get();
+            logger.info("refreshed audit indices");
             return client().prepareSearch(".security_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER))
                     .get().getHits().getTotalHits() > 0;
-        }, 10L, TimeUnit.SECONDS);
+        }, 60L, TimeUnit.SECONDS);
 
-        if (!found) {
-            logger.info("current cluster state: {}", lastClusterState.get());
-        }
-        assertThat(found, is(true));
+        assertTrue("Did not find security audit index. Current cluster state:\n" + lastClusterState.get().toString(), found);
 
         SearchResponse searchResponse = client().prepareSearch(".security_audit_log*").setQuery(
                 QueryBuilders.matchQuery("principal", USER)).get();
         assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
-        assertThat((String) searchResponse.getHits().getAt(0).getSourceAsMap().get("principal"), is(USER));
+        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("principal"), is(USER));
     }
 
     public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {

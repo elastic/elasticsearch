@@ -27,7 +27,8 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     public ModelPlot createTestInstance(String jobId) {
-        ModelPlot modelPlot = new ModelPlot(jobId, new Date(randomLong()), randomNonNegativeLong());
+        ModelPlot modelPlot =
+                new ModelPlot(jobId, new Date(randomLong()), randomNonNegativeLong(), randomInt());
         if (randomBoolean()) {
             modelPlot.setByFieldName(randomAlphaOfLengthBetween(1, 20));
         }
@@ -69,13 +70,15 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     public void testEquals_GivenSameObject() {
-        ModelPlot modelPlot = new ModelPlot(randomAlphaOfLength(15), new Date(randomLong()), randomNonNegativeLong());
+        ModelPlot modelPlot =
+                new ModelPlot(randomAlphaOfLength(15), new Date(randomLong()), randomNonNegativeLong(), randomInt());
 
         assertTrue(modelPlot.equals(modelPlot));
     }
 
     public void testEquals_GivenObjectOfDifferentClass() {
-        ModelPlot modelPlot = new ModelPlot(randomAlphaOfLength(15), new Date(randomLong()), randomNonNegativeLong());
+        ModelPlot modelPlot =
+                new ModelPlot(randomAlphaOfLength(15), new Date(randomLong()), randomNonNegativeLong(), randomInt());
 
         assertFalse(modelPlot.equals("a string"));
     }
@@ -209,16 +212,13 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     public void testId() {
-        ModelPlot plot = new ModelPlot("job-foo", new Date(100L), 60L);
-
+        ModelPlot plot = new ModelPlot("job-foo", new Date(100L), 60L, 33);
         String byFieldValue = null;
         String overFieldValue = null;
         String partitionFieldValue = null;
 
         int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        assertEquals("job-foo_model_plot_100_60__" + valuesHash + "_0", plot.getId());
-        plot.setModelFeature("a-feature");
-        assertEquals("job-foo_model_plot_100_60_a-feature_" + valuesHash + "_0", plot.getId());
+        assertEquals("job-foo_model_plot_100_60_33_" + valuesHash + "_0", plot.getId());
 
         int length = 0;
         if (randomBoolean()) {
@@ -238,11 +238,11 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
         }
 
         valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        assertEquals("job-foo_model_plot_100_60_a-feature_" + valuesHash + "_" + length, plot.getId());
+        assertEquals("job-foo_model_plot_100_60_33_" + valuesHash + "_" + length, plot.getId());
     }
 
     private ModelPlot createFullyPopulated() {
-        ModelPlot modelPlot = new ModelPlot("foo", new Date(12345678L), 360L);
+        ModelPlot modelPlot = new ModelPlot("foo", new Date(12345678L), 360L, 22);
         modelPlot.setByFieldName("by");
         modelPlot.setByFieldValue("by_val");
         modelPlot.setPartitionFieldName("part");

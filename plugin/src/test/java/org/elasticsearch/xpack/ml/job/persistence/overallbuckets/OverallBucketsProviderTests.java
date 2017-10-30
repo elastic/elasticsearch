@@ -3,14 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.action;
+package org.elasticsearch.xpack.ml.job.persistence.overallbuckets;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.action.GetOverallBucketsAction.TransportAction.TopNScores;
+import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsProvider.TopNScores;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GetOverallBucketsActionTests extends ESTestCase {
+public class OverallBucketsProviderTests extends ESTestCase {
 
     public void testTopNScores() {
         TopNScores topNScores = new TopNScores(3);

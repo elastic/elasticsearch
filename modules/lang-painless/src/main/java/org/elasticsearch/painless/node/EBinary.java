@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
@@ -32,6 +31,8 @@ import org.elasticsearch.painless.WriterConstants;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Represents a binary math expression.
@@ -100,7 +101,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply multiply [*] to types " +
@@ -144,7 +145,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply divide [/] to types " +
@@ -193,7 +194,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply remainder [%] to types " +
@@ -242,7 +243,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = AnalyzerCaster.promoteAdd(left.actual, right.actual);
+        promote = variables.getDefinition().caster.promoteAdd(left.actual, right.actual);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply add [+] to types " +
@@ -302,7 +303,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
+        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply subtract [-] to types " +
@@ -347,22 +348,22 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        left.expected = Definition.STRING_TYPE;
-        right.expected = Definition.PATTERN_TYPE;
+        left.expected = variables.getDefinition().StringType;
+        right.expected = variables.getDefinition().PatternType;
 
         left = left.cast(variables);
         right = right.cast(variables);
 
-        promote = Definition.BOOLEAN_TYPE;
-        actual = Definition.BOOLEAN_TYPE;
+        promote = variables.getDefinition().booleanType;
+        actual = variables.getDefinition().booleanType;
     }
 
     private void analyzeLSH(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
-        Type rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
+        Type lhspromote = variables.getDefinition().caster.promoteNumeric(left.actual, false);
+        Type rhspromote = variables.getDefinition().caster.promoteNumeric(right.actual, false);
 
         if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply left shift [<<] to types " +
@@ -383,7 +384,7 @@ public final class EBinary extends AExpression {
             left.expected = lhspromote;
 
             if (rhspromote.clazz == long.class) {
-                right.expected = Definition.INT_TYPE;
+                right.expected = variables.getDefinition().intType;
                 right.explicit = true;
             } else {
                 right.expected = rhspromote;
@@ -410,8 +411,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
-        Type rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
+        Type lhspromote = variables.getDefinition().caster.promoteNumeric(left.actual, false);
+        Type rhspromote = variables.getDefinition().caster.promoteNumeric(right.actual, false);
 
         if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply right shift [>>] to types " +
@@ -432,7 +433,7 @@ public final class EBinary extends AExpression {
             left.expected = lhspromote;
 
             if (rhspromote.clazz == long.class) {
-                right.expected = Definition.INT_TYPE;
+                right.expected = variables.getDefinition().intType;
                 right.explicit = true;
             } else {
                 right.expected = rhspromote;
@@ -459,8 +460,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
-        Type rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
+        Type lhspromote = variables.getDefinition().caster.promoteNumeric(left.actual, false);
+        Type rhspromote = variables.getDefinition().caster.promoteNumeric(right.actual, false);
 
         actual = promote = lhspromote;
         shiftDistance = rhspromote;
@@ -481,7 +482,7 @@ public final class EBinary extends AExpression {
             left.expected = lhspromote;
 
             if (rhspromote.clazz == long.class) {
-                right.expected = Definition.INT_TYPE;
+                right.expected = variables.getDefinition().intType;
                 right.explicit = true;
             } else {
                 right.expected = rhspromote;
@@ -508,7 +509,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
+        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, false);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply and [&] to types " +
@@ -549,7 +550,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = AnalyzerCaster.promoteXor(left.actual, right.actual);
+        promote = variables.getDefinition().caster.promoteXor(left.actual, right.actual);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply xor [^] to types " +
@@ -591,7 +592,7 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
+        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, false);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply or [|] to types " +
@@ -654,12 +655,12 @@ public final class EBinary extends AExpression {
         } else if (operation == Operation.FIND || operation == Operation.MATCH) {
             right.write(writer, globals);
             left.write(writer, globals);
-            writer.invokeVirtual(Definition.PATTERN_TYPE.type, WriterConstants.PATTERN_MATCHER);
+            writer.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
 
             if (operation == Operation.FIND) {
-                writer.invokeVirtual(Definition.MATCHER_TYPE.type, WriterConstants.MATCHER_FIND);
+                writer.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_FIND);
             } else if (operation == Operation.MATCH) {
-                writer.invokeVirtual(Definition.MATCHER_TYPE.type, WriterConstants.MATCHER_MATCHES);
+                writer.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
             } else {
                 throw new IllegalStateException("Illegal tree structure.");
             }

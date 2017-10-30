@@ -83,12 +83,10 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()).execute().actionGet();
 
         waitForRelocation(ClusterHealthStatus.GREEN);
-        // flush, so we fetch it from the index (as see that we filter nested docs)
-        flush();
         GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
-
+        refresh();
         // check the numDocs
         assertDocumentCount("test", 3);
 
@@ -126,8 +124,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endArray()
                 .endObject()).execute().actionGet();
         waitForRelocation(ClusterHealthStatus.GREEN);
-        // flush, so we fetch it from the index (as see that we filter nested docs)
-        flush();
+        refresh();
         assertDocumentCount("test", 6);
 
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
@@ -151,8 +148,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
-        // flush, so we fetch it from the index (as see that we filter nested docs)
-        flush();
+        refresh();
         assertDocumentCount("test", 3);
 
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)).execute().actionGet();
@@ -179,11 +175,10 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endArray()
                 .endObject()).execute().actionGet();
 
-        // flush, so we fetch it from the index (as see that we filter nested docs)
-        flush();
         GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         waitForRelocation(ClusterHealthStatus.GREEN);
+        refresh();
         // check the numDocs
         assertDocumentCount("test", 7);
 

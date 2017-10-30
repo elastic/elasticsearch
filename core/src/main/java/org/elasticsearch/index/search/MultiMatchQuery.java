@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
+
 public class MultiMatchQuery extends MatchQuery {
 
     private Float groupTieBreaker = null;
@@ -204,7 +206,7 @@ public class MultiMatchQuery extends MatchQuery {
             for (int i = 0; i < terms.length; i++) {
                 values[i] = terms[i].bytes();
             }
-            return MultiMatchQuery.blendTerms(context, values, commonTermsCutoff, tieBreaker, blendedFields);
+            return MultiMatchQuery.blendTerms(context, values, commonTermsCutoff, tieBreaker, lenient, blendedFields);
         }
 
         @Override
@@ -212,7 +214,7 @@ public class MultiMatchQuery extends MatchQuery {
             if (blendedFields == null) {
                 return super.blendTerm(term, fieldType);
             }
-            return MultiMatchQuery.blendTerm(context, term.bytes(), commonTermsCutoff, tieBreaker, blendedFields);
+            return MultiMatchQuery.blendTerm(context, term.bytes(), commonTermsCutoff, tieBreaker, lenient, blendedFields);
         }
 
         @Override
@@ -227,12 +229,12 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     static Query blendTerm(QueryShardContext context, BytesRef value, Float commonTermsCutoff, float tieBreaker,
-                           FieldAndFieldType... blendedFields) {
-        return blendTerms(context, new BytesRef[] {value}, commonTermsCutoff, tieBreaker, blendedFields);
+                           boolean lenient, FieldAndFieldType... blendedFields) {
+        return blendTerms(context, new BytesRef[] {value}, commonTermsCutoff, tieBreaker, lenient, blendedFields);
     }
 
     static Query blendTerms(QueryShardContext context, BytesRef[] values, Float commonTermsCutoff, float tieBreaker,
-                            FieldAndFieldType... blendedFields) {
+                            boolean lenient, FieldAndFieldType... blendedFields) {
         List<Query> queries = new ArrayList<>();
         Term[] terms = new Term[blendedFields.length * values.length];
         float[] blendedBoost = new float[blendedFields.length * values.length];
@@ -242,19 +244,12 @@ public class MultiMatchQuery extends MatchQuery {
                 Query query;
                 try {
                     query = ft.fieldType.termQuery(term, context);
-                } catch (IllegalArgumentException e) {
-                    // the query expects a certain class of values such as numbers
-                    // of ip addresses and the value can't be parsed, so ignore this
-                    // field
-                    continue;
-                } catch (ElasticsearchParseException parseException) {
-                    // date fields throw an ElasticsearchParseException with the
-                    // underlying IAE as the cause, ignore this field if that is
-                    // the case
-                    if (parseException.getCause() instanceof IllegalArgumentException) {
-                        continue;
+                } catch (RuntimeException e) {
+                    if (lenient) {
+                        query = newLenientFieldQuery(ft.fieldType.name(), e);
+                    } else {
+                        throw e;
                     }
-                    throw parseException;
                 }
                 float boost = ft.boost;
                 while (query instanceof BoostQuery) {

@@ -1,0 +1,118 @@
+[[release-notes-6.0.0-rc2]]
+== 6.0.0-rc2 Release Notes
+
+Also see <<breaking-changes-6.0>>.
+
+[[breaking-6.0.0-rc2]]
+[float]
+=== Breaking changes
+
+Inner Hits::
+* Return the _source of inner hit nested as is without wrapping it into its full path context {pull}26982[#26982] (issues: {issue}26102[#26102], {issue}26944[#26944])
+
+
+
+[[enhancement-6.0.0-rc2]]
+[float]
+=== Enhancements
+
+Core::
+* Ignore .DS_Store files on macOS {pull}27108[#27108] (issue: {issue}23982[#23982])
+
+Index Templates::
+* Fix error message for a put index template request without index_patterns {pull}27102[#27102] (issue: {issue}27100[#27100])
+
+Mapping::
+* Don't detect source's XContentType in DocumentParser.parseDocument() {pull}26880[#26880]
+
+Network::
+* Add additional low-level logging handler {pull}26887[#26887]
+* Unwrap causes when maybe dying {pull}26884[#26884]
+
+Plugins::
+* Adjust SHA-512 supported format on plugin install {pull}27093[#27093]
+
+REST::
+* Cat shards bytes {pull}26952[#26952]
+
+
+
+[[bug-6.0.0-rc2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Create weights lazily in filter and filters aggregation {pull}26983[#26983]
+* Fix IndexOutOfBoundsException in histograms for NaN doubles (#26787) {pull}26856[#26856] (issue: {issue}26787[#26787])
+* Scripted_metric _agg parameter disappears if params are provided {pull}19863[#19863] (issue: {issue}19768[#19768])
+
+CAT API::
+* Fix NPE for /_cat/indices when no primary shard {pull}26953[#26953] (issue: {issue}26942[#26942])
+
+Cache::
+* Reduce the default number of cached queries. {pull}26949[#26949] (issue: {issue}26938[#26938])
+
+Core::
+* Timed runnable should delegate to abstract runnable {pull}27095[#27095] (issue: {issue}27069[#27069])
+* Stop invoking non-existent syscall {pull}27016[#27016] (issue: {issue}20179[#20179])
+* MetaData Builder doesn't properly prevent an alias with the same name as an index {pull}26804[#26804]
+
+Ingest::
+* date processor should not fail if timestamp is specified as json number {pull}26986[#26986] (issue: {issue}26967[#26967])
+* date_index_name processor should not fail if timestamp is specified as json number {pull}26910[#26910] (issue: {issue}26890[#26890])
+
+Internal::
+* Upgrade Lucene to version 7.0.1 {pull}26926[#26926]
+
+Java High Level REST Client::
+* Make ShardSearchTarget optional when parsing ShardSearchFailure {pull}27078[#27078] (issue: {issue}27055[#27055])
+
+Java REST Client::
+* rest-client-sniffer: configurable threadfactory {pull}26897[#26897]
+
+Mapping::
+* wrong link target for datatype murmur3 {pull}27143[#27143]
+
+Network::
+* Check for closed connection while opening {pull}26932[#26932]
+
+Packaging::
+* Fix handling of Windows paths containing parentheses {pull}26916[#26916] (issue: {issue}26454[#26454])
+
+Percolator::
+* Also support query extraction for queries wrapped inside a ESToParentBlockJoinQuery {pull}26754[#26754]
+
+Plugin Analysis Phonetic::
+* Fix beidermorse phonetic token filter for unspecified `languageset` {pull}27112[#27112] (issue: {issue}26771[#26771])
+
+Plugin Repository Azure::
+* Use Azure upload method instead of our own implementation {pull}26751[#26751]
+
+REST::
+* Fix inconsistencies in the rest api specs for cat.snapshots {pull}26996[#26996] (issues: {issue}25737[#25737], {issue}26923[#26923])
+* Fix inconsistencies in the rest api specs for *_script {pull}26971[#26971] (issue: {issue}26923[#26923])
+* exists template needs a template name {pull}25988[#25988]
+
+Reindex API::
+* Fix update_by_query's default size parameter {pull}26784[#26784] (issue: {issue}26761[#26761])
+
+Search::
+* Avoid stack overflow on search phases {pull}27069[#27069] (issue: {issue}27042[#27042])
+* Fix search_after with geo distance sorting {pull}26891[#26891]
+* Fix serialization errors when cross cluster search goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
+* Early termination with index sorting should not set terminated_early in the response {pull}26597[#26597] (issue: {issue}26408[#26408])
+* Format doc values fields. {pull}22146[#22146]
+
+Sequence IDs::
+* Fire global checkpoint sync under system context {pull}26984[#26984]
+
+Settings::
+* Emit settings deprecation logging on empty update {pull}27017[#27017] (issue: {issue}26419[#26419])
+* Fix filtering for ListSetting {pull}26914[#26914]
+
+Stats::
+* Keep cumulative elapsed scroll time in microseconds {pull}27068[#27068] (issue: {issue}27046[#27046])
+
+Suggesters::
+* Fix division by zero in phrase suggester that causes assertion to fail {pull}27149[#27149]
+

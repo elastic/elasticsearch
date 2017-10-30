@@ -22,6 +22,7 @@ import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
@@ -35,12 +36,18 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
@@ -93,7 +100,8 @@ public class CertUtils {
     private static final int SERIAL_BIT_LENGTH = 20 * 8;
     static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
 
-    private CertUtils() {}
+    private CertUtils() {
+    }
 
     /**
      * Resolves a path with or without an {@link Environment} as we may be running in a transport client where we do not have access to
@@ -108,15 +116,35 @@ public class CertUtils {
     }
 
     /**
+     * Creates a {@link KeyStore} from a PEM encoded certificate and key file
+     */
+    static KeyStore getKeyStoreFromPEM(Path certificatePath, Path keyPath, char[] keyPassword)
+            throws IOException, CertificateException, KeyStoreException, NoSuchAlgorithmException {
+        final PrivateKey key;
+        try (Reader reader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
+            key = CertUtils.readPrivateKey(reader, () -> keyPassword);
+        }
+        final Certificate[] certificates = readCertificates(Collections.singletonList(certificatePath));
+        return getKeyStore(certificates, key, keyPassword);
+    }
+
+
+    /**
      * Returns a {@link X509ExtendedKeyManager} that is built from the provided private key and certificate chain
      */
     public static X509ExtendedKeyManager keyManager(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
             throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException, IOException, CertificateException {
+        KeyStore keyStore = getKeyStore(certificateChain, privateKey, password);
+        return keyManager(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
+    }
+
+    private static KeyStore getKeyStore(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
+            throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
         KeyStore keyStore = KeyStore.getInstance("jks");
         keyStore.load(null, null);
         // password must be non-null for keystore...
         keyStore.setKeyEntry("key", privateKey, password, certificateChain);
-        return keyManager(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
+        return keyStore;
     }
 
     /**
@@ -137,12 +165,19 @@ public class CertUtils {
 
     /**
      * Creates a {@link X509ExtendedTrustManager} based on the provided certificates
+     *
      * @param certificates the certificates to trust
      * @return a trust manager that trusts the provided certificates
      */
     public static X509ExtendedTrustManager trustManager(Certificate[] certificates)
             throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException, IOException, CertificateException {
-        assert certificates != null : "Cannot create trust manager with null certificates";
+        KeyStore store = trustStore(certificates);
+        return trustManager(store, TrustManagerFactory.getDefaultAlgorithm());
+    }
+
+    static KeyStore trustStore(Certificate[] certificates)
+            throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
+        assert certificates != null : "Cannot create trust store with null certificates";
         KeyStore store = KeyStore.getInstance("jks");
         store.load(null, null);
         int counter = 0;
@@ -150,25 +185,32 @@ public class CertUtils {
             store.setCertificateEntry("cert" + counter, certificate);
             counter++;
         }
-        return trustManager(store, TrustManagerFactory.getDefaultAlgorithm());
+        return store;
     }
 
     /**
      * Loads the truststore and creates a {@link X509ExtendedTrustManager}
-     * @param trustStorePath the path to the truststore
-     * @param trustStorePassword the password to the truststore
+     *
+     * @param trustStorePath      the path to the truststore
+     * @param trustStorePassword  the password to the truststore
      * @param trustStoreAlgorithm the algorithm to use for the truststore
-     * @param env the environment to use for file resolution. May be {@code null}
+     * @param env                 the environment to use for file resolution. May be {@code null}
      * @return a trust manager with the trust material from the store
      */
     public static X509ExtendedTrustManager trustManager(String trustStorePath, String trustStoreType, char[] trustStorePassword,
                                                         String trustStoreAlgorithm, @Nullable Environment env)
             throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException, IOException, CertificateException {
-        try (InputStream in = Files.newInputStream(resolvePath(trustStorePath, env))) {
-            KeyStore trustStore = KeyStore.getInstance(trustStoreType);
-            assert trustStorePassword != null;
-            trustStore.load(in, trustStorePassword);
-            return trustManager(trustStore, trustStoreAlgorithm);
+        KeyStore trustStore = readKeyStore(resolvePath(trustStorePath, env), trustStoreType, trustStorePassword);
+        return trustManager(trustStore, trustStoreAlgorithm);
+    }
+
+    static KeyStore readKeyStore(Path path, String type, char[] password)
+            throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException {
+        try (InputStream in = Files.newInputStream(path)) {
+            KeyStore store = KeyStore.getInstance(type);
+            assert password != null;
+            store.load(in, password);
+            return store;
         }
     }
 
@@ -182,7 +224,7 @@ public class CertUtils {
         TrustManager[] trustManagers = tmf.getTrustManagers();
         for (TrustManager trustManager : trustManagers) {
             if (trustManager instanceof X509ExtendedTrustManager) {
-                return (X509ExtendedTrustManager) trustManager ;
+                return (X509ExtendedTrustManager) trustManager;
             }
         }
         throw new IllegalStateException("failed to find a X509ExtendedTrustManager");
@@ -190,16 +232,22 @@ public class CertUtils {
 
     /**
      * Reads the provided paths and parses them into {@link Certificate} objects
-     * @param certPaths the paths to the PEM encoded certificates
+     *
+     * @param certPaths   the paths to the PEM encoded certificates
      * @param environment the environment to resolve files against. May be {@code null}
      * @return an array of {@link Certificate} objects
      */
     public static Certificate[] readCertificates(List<String> certPaths, @Nullable Environment environment)
             throws CertificateException, IOException {
+        final List<Path> resolvedPaths = certPaths.stream().map(p -> resolvePath(p, environment)).collect(Collectors.toList());
+        return readCertificates(resolvedPaths);
+    }
+
+    static Certificate[] readCertificates(List<Path> certPaths) throws CertificateException, IOException {
         List<Certificate> certificates = new ArrayList<>(certPaths.size());
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        for (String path : certPaths) {
-            try (Reader reader = Files.newBufferedReader(resolvePath(path, environment), StandardCharsets.UTF_8)) {
+        for (Path path : certPaths) {
+            try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
                 readCertificates(reader, certificates, certFactory);
             }
         }
@@ -280,6 +328,30 @@ public class CertUtils {
 
         return privateKeyInfo;
     }
+
+    /**
+     * Read all certificate-key pairs from a PKCS#12 container.
+     *
+     * @param path        The path to the PKCS#12 container file.
+     * @param password    The password for the container file
+     * @param keyPassword A supplier for the password for each key. The key alias is supplied as an argument to the function, and it should
+     *                    return the password for that key. If it returns {@code null}, then the key-pair for that alias is not read.
+     */
+    static Map<Certificate, Key> readPkcs12KeyPairs(Path path, char[] password, Function<String, char[]> keyPassword, Environment env)
+            throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException, UnrecoverableKeyException {
+        final KeyStore store = readKeyStore(path, "PKCS12", password);
+        final Enumeration<String> enumeration = store.aliases();
+        final Map<Certificate, Key> map = new HashMap<>(store.size());
+        while (enumeration.hasMoreElements()) {
+            final String alias = enumeration.nextElement();
+            if (store.isKeyEntry(alias)) {
+                final char[] pass = keyPassword.apply(alias);
+                map.put(store.getCertificate(alias), store.getKey(alias, pass));
+            }
+        }
+        return map;
+    }
+
     /**
      * Generates a CA certificate
      */
@@ -292,24 +364,25 @@ public class CertUtils {
      * Generates a signed certificate using the provided CA private key and information from the CA certificate
      */
     public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                     X509Certificate caCert, PrivateKey caPrivKey, int days)
+                                                            X509Certificate caCert, PrivateKey caPrivKey, int days)
             throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
         return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days);
     }
 
     /**
      * Generates a signed certificate
-     * @param principal the principal of the certificate; commonly referred to as the distinguished name (DN)
+     *
+     * @param principal       the principal of the certificate; commonly referred to as the distinguished name (DN)
      * @param subjectAltNames the subject alternative names that should be added to the certificate as an X509v3 extension. May be
      *                        {@code null}
-     * @param keyPair the key pair that will be associated with the certificate
-     * @param caCert the CA certificate. If {@code null}, this results in a self signed certificate
-     * @param caPrivKey the CA private key. If {@code null}, this results in a self signed certificate
-     * @param isCa whether or not the generated certificate is a CA
+     * @param keyPair         the key pair that will be associated with the certificate
+     * @param caCert          the CA certificate. If {@code null}, this results in a self signed certificate
+     * @param caPrivKey       the CA private key. If {@code null}, this results in a self signed certificate
+     * @param isCa            whether or not the generated certificate is a CA
      * @return a signed {@link X509Certificate}
      */
     private static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                     X509Certificate caCert, PrivateKey caPrivKey, boolean isCa, int days)
+                                                             X509Certificate caCert, PrivateKey caPrivKey, boolean isCa, int days)
             throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
         final DateTime notBefore = new DateTime(DateTimeZone.UTC);
         if (days < 1) {
@@ -353,10 +426,11 @@ public class CertUtils {
 
     /**
      * Generates a certificate signing request
-     * @param keyPair the key pair that will be associated by the certificate generated from the certificate signing request
+     *
+     * @param keyPair   the key pair that will be associated by the certificate generated from the certificate signing request
      * @param principal the principal of the certificate; commonly referred to as the distinguished name (DN)
-     * @param sanList the subject alternative names that should be added to the certificate as an X509v3 extension. May be
-*                     {@code null}
+     * @param sanList   the subject alternative names that should be added to the certificate as an X509v3 extension. May be
+     *                  {@code null}
      * @return a certificate signing request
      */
     static PKCS10CertificationRequest generateCSR(KeyPair keyPair, X500Principal principal, GeneralNames sanList)

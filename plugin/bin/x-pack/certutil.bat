@@ -16,7 +16,7 @@ call "%~dp0x-pack-env.bat" || exit /b 1
   -Des.path.home="%ES_HOME%" ^
   -Des.path.conf="%ES_PATH_CONF%" ^
   -cp "%ES_CLASSPATH%" ^
-  org.elasticsearch.xpack.ssl.CertificateGenerateTool ^
+  org.elasticsearch.xpack.ssl.CertificateTool ^
   %*
 
 endlocal

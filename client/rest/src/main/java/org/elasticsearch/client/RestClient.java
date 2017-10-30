@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -91,8 +92,9 @@ public class RestClient implements Closeable {
     private static final Log logger = LogFactory.getLog(RestClient.class);
 
     private final CloseableHttpAsyncClient client;
-    //we don't rely on default headers supported by HttpAsyncClient as those cannot be replaced
-    private final Header[] defaultHeaders;
+    // We don't rely on default headers supported by HttpAsyncClient as those cannot be replaced.
+    // These are package private for tests.
+    final List<Header> defaultHeaders;
     private final long maxRetryTimeoutMillis;
     private final String pathPrefix;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
@@ -104,7 +106,7 @@ public class RestClient implements Closeable {
                HttpHost[] hosts, String pathPrefix, FailureListener failureListener) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
-        this.defaultHeaders = defaultHeaders;
+        this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
         setHosts(hosts);

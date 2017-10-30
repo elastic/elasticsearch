@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
+import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -32,6 +33,8 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
+import org.elasticsearch.node.AdaptiveSelectionStats;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -46,6 +49,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
@@ -278,6 +282,22 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(stats.getIngestCount(), deserializedStats.getIngestCount());
                     }
                 }
+                AdaptiveSelectionStats adaptiveStats = nodeStats.getAdaptiveSelectionStats();
+                AdaptiveSelectionStats deserializedAdaptiveStats = deserializedNodeStats.getAdaptiveSelectionStats();
+                if (adaptiveStats == null) {
+                    assertNull(deserializedAdaptiveStats);
+                } else {
+                    assertEquals(adaptiveStats.getOutgoingConnections(), deserializedAdaptiveStats.getOutgoingConnections());
+                    assertEquals(adaptiveStats.getRanks(), deserializedAdaptiveStats.getRanks());
+                    adaptiveStats.getComputedStats().forEach((k, v) -> {
+                        ResponseCollectorService.ComputedNodeStats aStats = adaptiveStats.getComputedStats().get(k);
+                        ResponseCollectorService.ComputedNodeStats bStats = deserializedAdaptiveStats.getComputedStats().get(k);
+                        assertEquals(aStats.nodeId, bStats.nodeId);
+                        assertEquals(aStats.queueSize, bStats.queueSize, 0.01);
+                        assertEquals(aStats.serviceTime, bStats.serviceTime, 0.01);
+                        assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
+                    });
+                }
             }
         }
     }
@@ -391,8 +411,18 @@ public class NodeStatsTests extends ESTestCase {
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
         ScriptStats scriptStats = frequently() ? new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
-        DiscoveryStats discoveryStats = frequently() ? new DiscoveryStats(randomBoolean() ? new PendingClusterStateStats(randomInt(),
-                randomInt(), randomInt()) : null) : null;
+        DiscoveryStats discoveryStats = frequently()
+            ? new DiscoveryStats(
+                randomBoolean()
+                ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt())
+                : null,
+                randomBoolean()
+                ? new PublishClusterStateStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong())
+                : null)
+            : null;
         IngestStats ingestStats = null;
         if (frequently()) {
             IngestStats.Stats totalStats = new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
@@ -406,8 +436,31 @@ public class NodeStatsTests extends ESTestCase {
             }
             ingestStats = new IngestStats(totalStats, statsPerPipeline);
         }
+        AdaptiveSelectionStats adaptiveSelectionStats = null;
+        if (frequently()) {
+            int numNodes = randomIntBetween(0,10);
+            Map<String, Long> nodeConnections = new HashMap<>();
+            Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats = new HashMap<>();
+            for (int i = 0; i < numNodes; i++) {
+                String nodeId = randomAlphaOfLengthBetween(3, 10);
+                // add outgoing connection info
+                if (frequently()) {
+                    nodeConnections.put(nodeId, randomLongBetween(0, 100));
+                }
+                // add node calculations
+                if (frequently()) {
+                    ResponseCollectorService.ComputedNodeStats stats = new ResponseCollectorService.ComputedNodeStats(nodeId,
+                            randomIntBetween(1,10), randomIntBetween(0, 2000),
+                            randomDoubleBetween(1.0, 10000000.0, true),
+                            randomDoubleBetween(1.0, 10000000.0, true));
+                    nodeStats.put(nodeId, stats);
+                }
+            }
+            adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
+        }
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
-        return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats, fsInfo,
-                transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats, ingestStats);
+        return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
+                fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
+                ingestStats, adaptiveSelectionStats);
     }
 }

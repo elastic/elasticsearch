@@ -192,7 +192,7 @@ public class LocalCheckpointTracker {
                  * The checkpoint always falls in the current bit set or we have already cleaned it; if it falls on the last bit of the
                  * current bit set, we can clean it.
                  */
-                if (checkpoint == (1 + bitArrayKey) * bitArraysSize - 1) {
+                if (checkpoint == lastSeqNoInBitArray(bitArrayKey)) {
                     assert current != null;
                     final FixedBitSet removed = processedSeqNo.remove(bitArrayKey);
                     assert removed == current;
@@ -203,6 +203,10 @@ public class LocalCheckpointTracker {
             // notifies waiters in waitForOpsToComplete
             this.notifyAll();
         }
+    }
+
+    private long lastSeqNoInBitArray(final long bitArrayKey) {
+        return (1 + bitArrayKey) * bitArraysSize - 1;
     }
 
     /**

@@ -104,6 +104,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
          * sequence numbers this could lead to excessive memory usage resulting in out of memory errors.
          */
         tracker.markSeqNoAsCompleted(randomNonNegativeLong());
+        assertThat(tracker.processedSeqNo.size(), equalTo(1));
     }
 
     public void testSimpleOverFlow() {

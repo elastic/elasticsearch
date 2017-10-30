@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -20,7 +21,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -53,21 +52,22 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authz.privilege.SystemPrivilege;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
+import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
+import org.elasticsearch.xpack.template.TemplateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -103,7 +103,7 @@ import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.res
 /**
  * Audit trail implementation that writes events into an index.
  */
-public class IndexAuditTrail extends AbstractComponent implements AuditTrail, ClusterStateListener {
+public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
     public static final String NAME = "index";
     public static final String INDEX_NAME_PREFIX = ".security_audit_log";
@@ -112,7 +112,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     private static final int DEFAULT_BULK_SIZE = 1000;
     private static final int MAX_BULK_SIZE = 10000;
-    private static final int DEFAULT_MAX_QUEUE_SIZE = 1000;
+    private static final int DEFAULT_MAX_QUEUE_SIZE = 10000;
     private static final TimeValue DEFAULT_FLUSH_INTERVAL = TimeValue.timeValueSeconds(1);
     private static final IndexNameResolver.Rollover DEFAULT_ROLLOVER = IndexNameResolver.Rollover.DAILY;
     private static final Setting<IndexNameResolver.Rollover> ROLLOVER_SETTING =
@@ -160,7 +160,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private final Client client;
     private final QueueConsumer queueConsumer;
     private final ThreadPool threadPool;
-    private final AtomicBoolean putTemplatePending = new AtomicBoolean(false);
     private final ClusterService clusterService;
     private final boolean indexToRemoteCluster;
     private final EnumSet<AuditLevel> events;
@@ -214,10 +213,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
      * </ol>
      *
      * @param event  the {@link ClusterChangedEvent} containing the up to date cluster state
-     * @param master flag indicating if the current node is the master
      * @return true if all requirements are met and the service can be started
      */
-    public boolean canStart(ClusterChangedEvent event, boolean master) {
+    public boolean canStart(ClusterChangedEvent event) {
         if (indexToRemoteCluster) {
             // just return true as we do not determine whether we can start or not based on the local cluster state, but must base it off
             // of the remote cluster state and this method is called on the cluster state update thread, so we do not really want to
@@ -225,11 +223,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             return true;
         }
         synchronized (this) {
-            return canStart(event.state(), master);
+            return canStart(event.state());
         }
     }
 
-    private boolean canStart(ClusterState clusterState, boolean master) {
+    private boolean canStart(ClusterState clusterState) {
         if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we think may not have audit indices
             // but they may not have been restored from the cluster state on disk
@@ -237,8 +235,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             return false;
         }
 
-        if (!master && clusterState.metaData().templates().get(INDEX_TEMPLATE_NAME) == null) {
-            logger.debug("security audit index template [{}] does not exist, so service cannot start", INDEX_TEMPLATE_NAME);
+        if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME, IndexLifecycleManager.SECURITY_VERSION_STRING,
+                clusterState, logger, Version.CURRENT::onOrAfter) == false) {
+            logger.debug("security audit index template [{}] is not up to date", INDEX_TEMPLATE_NAME);
             return false;
         }
 
@@ -266,10 +265,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
      * at the beginning of the method. The service's components are initialized and if the current node is the master, the index
      * template will be stored. The state is moved {@link org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.State#STARTED}
      * and before returning the queue of messages that came before the service started is drained.
-     *
-     * @param master flag indicating if the current node is master
      */
-    public void start(boolean master) {
+    public void start() {
         if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
             this.nodeHostName = clusterService.localNode().getHostName();
             this.nodeHostAddress = clusterService.localNode().getHostAddress();
@@ -277,55 +274,59 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 client.admin().cluster().prepareState().execute(new ActionListener<ClusterStateResponse>() {
                     @Override
                     public void onResponse(ClusterStateResponse clusterStateResponse) {
-                        final boolean currentMaster = clusterService.state().getNodes().isLocalNodeElectedMaster();
-                        if (canStart(clusterStateResponse.getState(), currentMaster)) {
-                            if (currentMaster) {
-                                putTemplate(customAuditIndexSettings(settings), ActionListener.wrap((v) -> innerStart(),
-                                        (e) -> state.set(State.FAILED)));
-                            } else {
-                                innerStart();
-                            }
+                        if (canStart(clusterStateResponse.getState())) {
+                            innerStart();
+                        } else if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME,
+                                IndexLifecycleManager.SECURITY_VERSION_STRING, clusterStateResponse.getState(), logger,
+                                Version.CURRENT::onOrAfter) == false) {
+                            putTemplate(customAuditIndexSettings(settings, logger), ActionListener.wrap((v) -> innerStart(),
+                                    (e) -> {
+                                        logger.error("failed to put audit trail template", e);
+                                        transitionStartingToInitialized();
+                                    }));
                         } else {
-                            if (state.compareAndSet(State.STARTING, State.INITIALIZED) == false) {
-                                throw new IllegalStateException("state transition from starting to initialized failed, current value: " +
-                                        state.get());
-                            }
                             // for some reason we can't start up since the remote cluster is not fully setup. in this case
                             // we try to wait for yellow status (all primaries started up) this will also wait for
                             // state recovery etc.
                             String indexName = getIndexName();
                             // if this index doesn't exists the call will fail with a not_found exception...
                             client.admin().cluster().prepareHealth().setIndices().setWaitForYellowStatus().execute(ActionListener.wrap(
-                                    (x) -> start(master),
-                                    (e) -> logger.error("failed to get wait for yellow status on index [" + indexName + "]", e))
-                            );
+                                    (x) -> start(),
+                                    (e) -> {
+                                        logger.error("failed to get wait for yellow status on index [" + indexName + "]", e);
+                                        transitionStartingToInitialized();
+                                    }));
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
+                        transitionStartingToInitialized();
                         logger.error("failed to get remote cluster state", e);
                     }
                 });
-            } else if (master) {
-                putTemplate(customAuditIndexSettings(settings), ActionListener.wrap((v) -> innerStart(),
-                        (e) -> {
-                            logger.error("failed to put audit trail template", e);
-                            state.set(State.FAILED);
-                        }));
             } else {
                 innerStart();
             }
         }
     }
 
-    private void innerStart() {
-        if (indexToRemoteCluster == false) {
-            this.clusterService.addListener(this);
+    private void transitionStartingToInitialized() {
+        if (state.compareAndSet(State.STARTING, State.INITIALIZED) == false) {
+            final String message = "state transition from starting to initialized failed, current value: " + state.get();
+            assert false : message;
+            logger.error(message);
         }
+    }
+
+    private void innerStart() {
         initializeBulkProcessor();
         queueConsumer.start();
-        state.set(State.STARTED);
+        if (state.compareAndSet(State.STARTING, State.STARTED) == false) {
+            final String message = "state transition from starting to start ed failed, current value: " + state.get();
+            assert false : message;
+            logger.error(message);
+        }
     }
 
     public synchronized void stop() {
@@ -825,7 +826,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         return transportClient;
     }
 
-    Settings customAuditIndexSettings(Settings nodeSettings) {
+    public static Settings customAuditIndexSettings(Settings nodeSettings, Logger logger) {
         Settings newSettings = Settings.builder()
                 .put(INDEX_SETTINGS.get(nodeSettings), false)
                 .build();
@@ -847,10 +848,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     void putTemplate(Settings customSettings, ActionListener<Void> listener) {
-        try (InputStream is = getClass().getResourceAsStream("/" + INDEX_TEMPLATE_NAME + ".json")) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            Streams.copy(is, out);
-            final byte[] template = out.toByteArray();
+        try {
+            final byte[] template = TemplateUtils.loadTemplate("/" + INDEX_TEMPLATE_NAME + ".json",
+                    Version.CURRENT.toString(), IndexLifecycleManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
             final PutIndexTemplateRequest request = new PutIndexTemplateRequest(INDEX_TEMPLATE_NAME).source(template, XContentType.JSON);
             if (customSettings != null && customSettings.names().size() > 0) {
                 Settings updatedSettings = Settings.builder()
@@ -940,33 +940,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 .setFlushInterval(interval)
                 .setConcurrentRequests(1)
                 .build();
-    }
-
-    // this could be handled by a template registry service but adding that is extra complexity until we actually need it
-    @Override
-    public void clusterChanged(ClusterChangedEvent clusterChangedEvent) {
-        assert indexToRemoteCluster == false;
-        if (state() == State.STARTED
-                && clusterChangedEvent.localNodeMaster()
-                && clusterChangedEvent.state().metaData().templates().get(INDEX_TEMPLATE_NAME) == null
-                && putTemplatePending.compareAndSet(false, true)) {
-            logger.debug("security audit index template [{}] does not exist. it may have been deleted - putting the template",
-                    INDEX_TEMPLATE_NAME);
-
-            putTemplate(customAuditIndexSettings(settings), new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void aVoid) {
-                    putTemplatePending.set(false);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    putTemplatePending.set(false);
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to update security audit index template [{}]", INDEX_TEMPLATE_NAME), e);
-                }
-            });
-        }
     }
 
     // method for testing to allow different plugins such as mock transport...
@@ -1097,7 +1070,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         STARTING,
         STARTED,
         STOPPING,
-        STOPPED,
-        FAILED
+        STOPPED
     }
 }

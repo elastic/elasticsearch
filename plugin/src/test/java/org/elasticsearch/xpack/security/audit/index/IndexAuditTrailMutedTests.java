@@ -26,7 +26,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.State;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
@@ -314,7 +313,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
                 };
             }
         };
-        auditTrail.start(true);
+        auditTrail.start();
         assertThat(auditTrail.state(), is(State.STARTED));
         return auditTrail;
     }

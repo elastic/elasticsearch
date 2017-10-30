@@ -52,7 +52,7 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     public static final String INTERNAL_SECURITY_INDEX = ".security-v6";
     public static final int INTERNAL_INDEX_FORMAT = 6;
-    private static final String SECURITY_VERSION_STRING = "security-version";
+    public static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${security.template.version}");
     public static int NEW_INDEX_VERSION = IndexUpgradeCheck.UPRADE_VERSION;

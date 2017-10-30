@@ -44,21 +44,21 @@ GET my_index/_search
     }
   },
   "sort": {
-    "city.raw": "asc" <3>
+    "city.keyword": "asc" <3>
   },
   "aggs": {
     "Cities": {
       "terms": {
-        "field": "city.raw" <3>
+        "field": "city.keyword" <3>
       }
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
-<1> The `city.raw` field is a `keyword` version of the `city` field.
+<1> The `city.keyword` field is a `keyword` version of the `city` field.
 <2> The `city` field can be used for full text search.
-<3> The `city.raw` field can be used for sorting and aggregations
+<3> The `city.keyword` field can be used for sorting and aggregations
 
 NOTE: Multi-fields do not change the original `_source` field.
 

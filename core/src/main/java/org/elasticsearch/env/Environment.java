@@ -82,14 +82,20 @@ public class Environment {
     /** Path to the PID file (can be null if no PID file is configured) **/
     private final Path pidFile;
 
-    /** Path to the temporary file directory used by the JDK */
-    private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
+    /** Path to the temporary file directory */
+    private final Path tmpFile;
 
+    /** Convenience method for tests - do not use in production code */
     public Environment(Settings settings) {
         this(settings, null);
     }
 
-    public Environment(final Settings settings, final Path configPath) {
+    /** Convenience method for tests - do not use in production code */
+    public Environment(Settings settings, Path configPath) {
+        this(settings, configPath, PathUtils.get(System.getProperty("java.io.tmpdir")));
+    }
+
+    public Environment(final Settings settings, final Path configPath, final Path tmpPath) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
             homeFile = PathUtils.get(PATH_HOME_SETTING.get(settings)).normalize();
@@ -102,6 +108,8 @@ public class Environment {
         } else {
             configFile = homeFile.resolve("config");
         }
+
+        tmpFile = Objects.requireNonNull(tmpPath);
 
         pluginsFile = homeFile.resolve("plugins");
 

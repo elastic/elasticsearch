@@ -35,6 +35,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -56,10 +58,14 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -239,12 +245,13 @@ final class Bootstrap {
         return keystore;
     }
 
+    @SuppressForbidden(reason = "gets java.io.tmpdir")
     private static Environment createEnvironment(
             final boolean foreground,
             final Path pidFile,
             final SecureSettings secureSettings,
             final Settings initialSettings,
-            final Path configPath) {
+            final Path configPath) throws IOException {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
@@ -254,7 +261,22 @@ final class Bootstrap {
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap(), configPath);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap(), configPath,
+            makeSecureTmpPath(PathUtils.get(System.getProperty("java.io.tmpdir"))));
+    }
+
+    static Path makeSecureTmpPath(Path baseDir) throws IOException {
+        try {
+            // On POSIX file systems everyone can see the contents of the /tmp directory, so create a
+            // sub-directory under it that only the user running Elasticsearch can list the contents of.
+            Set<PosixFilePermission> attrs = Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE,
+                PosixFilePermission.OWNER_EXECUTE);
+            return Files.createTempDirectory(baseDir, "elasticsearch", PosixFilePermissions.asFileAttribute(attrs));
+        } catch (UnsupportedOperationException e) {
+            // Assume this isn't a POSIX file system.  On Windows each user's %TEMP% directory is visible only to
+            // them and administrators, so the exact permissions of this sub-directory are less important.
+            return Files.createTempDirectory(baseDir, "elasticsearch");
+        }
     }
 
     private void start() throws NodeValidationException {
@@ -285,8 +307,9 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         final SecureSettings keystore = loadSecureSettings(initialEnv);
-        final Environment environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
+        final Environment environment;
         try {
+            environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
             LogConfigurator.configure(environment);
         } catch (IOException e) {
             throw new BootstrapException(e);

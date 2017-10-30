@@ -21,6 +21,7 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -181,7 +182,8 @@ public class InternalSettingsPreparerTests extends ESTestCase {
 
     public void testDefaultPropertiesDoNothing() throws Exception {
         Map<String, String> props = Collections.singletonMap("default.setting", "foo");
-        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props, null);
+        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props, null,
+            PathUtils.get(System.getProperty("java.io.tmpdir")));
         assertEquals("foo", env.settings().get("default.setting"));
         assertNull(env.settings().get("setting"));
     }

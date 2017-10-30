@@ -23,6 +23,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.InternalSettingsPreparer;
@@ -70,12 +71,14 @@ public abstract class EnvironmentAwareCommand extends Command {
     }
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */
+    @SuppressForbidden(reason = "gets java.io.tmpdir")
     protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) throws UserException {
         final String esPathConf = System.getProperty("es.path.conf");
         if (esPathConf == null) {
             throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
         }
-        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, getConfigPath(esPathConf));
+        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, getConfigPath(esPathConf),
+            PathUtils.get(System.getProperty("java.io.tmpdir")));
     }
 
     @SuppressForbidden(reason = "need path to construct environment")

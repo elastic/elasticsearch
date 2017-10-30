@@ -31,7 +31,9 @@ import java.util.function.Function;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -62,8 +64,10 @@ public class InternalSettingsPreparer {
      * @param terminal the Terminal to use for input/output
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
+    @SuppressForbidden(reason = "gets java.io.tmpdir")
     public static Environment prepareEnvironment(Settings input, Terminal terminal) {
-        return prepareEnvironment(input, terminal, Collections.emptyMap(), null);
+        return prepareEnvironment(input, terminal, Collections.emptyMap(), null,
+                PathUtils.get(System.getProperty("java.io.tmpdir")));
     }
 
     /**
@@ -76,13 +80,15 @@ public class InternalSettingsPreparer {
      * @param terminal   the Terminal to use for input/output
      * @param properties map of properties key/value pairs (usually from the command-line)
      * @param configPath path to config directory; (use null to indicate the default)
+     * @param tmpPath    path to use for temporary files
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
-    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties, Path configPath) {
+    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties, Path configPath,
+                                                 Path tmpPath) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, properties);
-        Environment environment = new Environment(output.build(), configPath);
+        Environment environment = new Environment(output.build(), configPath, tmpPath);
 
         if (Files.exists(environment.configFile().resolve("elasticsearch.yaml"))) {
             throw new SettingsException("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml");
@@ -106,11 +112,11 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         finalizeSettings(output, terminal);
 
-        environment = new Environment(output.build(), configPath);
+        environment = new Environment(output.build(), configPath, tmpPath);
 
         // we put back the path.logs so we can use it in the logging configuration file
         output.put(Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile().toAbsolutePath().normalize().toString());
-        return new Environment(output.build(), configPath);
+        return new Environment(output.build(), configPath, tmpPath);
     }
 
     /**

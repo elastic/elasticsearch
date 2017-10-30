@@ -1,32 +1,52 @@
 [[docker]]
 === Install Elasticsearch with Docker
 
-Elasticsearch is also available as a Docker image.
-The image is built with {xpack-ref}/index.html[X-Pack] and uses https://hub.docker.com/_/centos/[centos:7] as the base image.
-The source code can be found on https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
+Elasticsearch is also available as Docker images.
+The images use https://hub.docker.com/_/centos/[centos:7] as the base image and
+are available with {xpack-ref}/index.html[X-Pack].  The source code can be found
+on https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
 
-==== Security note
+==== Image types
 
-NOTE: {xpack-ref}/index.html[X-Pack] is preinstalled in this image.
-Please take a few minutes to familiarize yourself with {xpack-ref}/security-getting-started.html[X-Pack Security] and how to change default passwords. The default password for the `elastic` user is `changeme`.
+The images are available in three different configurations or "flavours". The
+`basic` flavour, which is the default, ships with X-Pack Basic features
+pre-installed and automatically activated with a free licence. The `platinum`
+flavour features all X-Pack functionally under a 30-day trial licence. The `oss`
+flavour does not include X-Pack, and contains only open-source Elasticsearch.
 
-NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the https://www.elastic.co/subscriptions[available subscriptions] or {ref}/security-settings.html[disable Security]. The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
+NOTE: {xpack-ref}/xpack-security.html[X-Pack Security] is enabled in the `platinum`
+image. To access your cluster, it's necessary to set an initial password for the
+`elastic` user. The initial password can be set at start up time via the
+`ELASTIC_PASSWORD` environment variable:
+
+["source","txt",subs="attributes"]
+--------------------------------------------
+docker run -e ELASTIC_PASSWORD=MagicWord {docker-repo}-platinum:{version}
+--------------------------------------------
+
+NOTE: The `platinum` image includes a trial license for 30 days. After that, you
+can obtain one of the https://www.elastic.co/subscriptions[available
+subscriptions] or revert to a Basic licence. The Basic license is free and
+includes a selection of X-Pack features.
 
 Obtaining Elasticsearch for Docker is as simple as issuing a +docker pull+ command against the Elastic Docker registry.
 
 ifeval::["{release-state}"=="unreleased"]
 
-WARNING: Version {version} of Elasticsearch has not yet been released, so no Docker image is currently available for this version.
+WARNING: Version {version} of Elasticsearch has not yet been released, so no
+Docker image is currently available for this version.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The Docker image can be retrieved with the following command:
+Docker images can be retrieved with the following commands:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-docker pull {docker-image}
+docker pull {docker-repo}:{version}
+docker pull {docker-repo}-platinum:{version}
+docker pull {docker-repo}-oss:{version}
 --------------------------------------------
 
 endif::[]
@@ -49,7 +69,7 @@ Elasticsearch can be quickly started for development or testing use with the fol
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-image}
+docker run -p 9200:9200 -e "discovery.type=single-node" {docker-image}
 --------------------------------------------
 
 endif::[]
@@ -97,7 +117,7 @@ sysctl -w vm.max_map_count=262144
 +
 The `vm.max_map_count` setting must be set via docker-machine:
 +
-["source","sh"]
+["source","txt"]
 --------------------------------------------
 docker-machine ssh
 sudo sysctl -w vm.max_map_count=262144
@@ -109,7 +129,8 @@ To bring up the cluster, use the <<docker-prod-cluster-composefile,`docker-compo
 
 ifeval::["{release-state}"=="unreleased"]
 
-WARNING: Version {version} of the Elasticsearch Docker image has not yet been released, so a `docker-compose.yml` is not available for this version.
+WARNING: Version {version} of the Elasticsearch has not yet been released, so a
+`docker-compose.yml` is not available for this version.
 
 endif::[]
 
@@ -124,9 +145,11 @@ endif::[]
 
 [NOTE]
 `docker-compose` is not pre-installed with Docker on Linux.
-Instructions for installing it can be found on the https://docs.docker.com/compose/install/#install-using-pip[docker-compose webpage].
+Instructions for installing it can be found on the
+https://docs.docker.com/compose/install/#install-using-pip[Docker Compose webpage].
 
-The node `elasticsearch1` listens on `localhost:9200` while `elasticsearch2` talks to `elasticsearch1` over a Docker network.
+The node `elasticsearch` listens on `localhost:9200` while `elasticsearch2`
+talks to `elasticsearch` over a Docker network.
 
 This example also uses https://docs.docker.com/engine/tutorials/dockervolumes[Docker named volumes], called `esdata1` and `esdata2` which will be created if not already present.
 
@@ -134,7 +157,8 @@ This example also uses https://docs.docker.com/engine/tutorials/dockervolumes[Do
 `docker-compose.yml`:
 ifeval::["{release-state}"=="unreleased"]
 
-WARNING: Version {version} of the Elasticsearch Docker image has not yet been released, so a `docker-compose.yml` is not available for this version.
+WARNING: Version {version} of Elasticsearch has not yet been released, so a
+`docker-compose.yml` is not available for this version.
 
 endif::[]
 
@@ -143,9 +167,9 @@ ifeval::["{release-state}"!="unreleased"]
 --------------------------------------------
 version: '2'
 services:
-  elasticsearch1:
-    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
-    container_name: elasticsearch1
+  elasticsearch:
+    image: {docker-image}
+    container_name: elasticsearch
     environment:
       - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
@@ -154,7 +178,6 @@ services:
       memlock:
         soft: -1
         hard: -1
-    mem_limit: 1g
     volumes:
       - esdata1:/usr/share/elasticsearch/data
     ports:
@@ -162,17 +185,17 @@ services:
     networks:
       - esnet
   elasticsearch2:
-    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
+    image: {docker-image}
+    container_name: elasticsearch2
     environment:
       - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - "discovery.zen.ping.unicast.hosts=elasticsearch1"
+      - "discovery.zen.ping.unicast.hosts=elasticsearch"
     ulimits:
       memlock:
         soft: -1
         hard: -1
-    mem_limit: 1g
     volumes:
       - esdata2:/usr/share/elasticsearch/data
     networks:
@@ -190,20 +213,16 @@ networks:
 endif::[]
 
 To stop the cluster, type `docker-compose down`. Data volumes will persist, so it's possible to start the cluster again with the same data using `docker-compose up`.
-To destroy the cluster **and the data volumes** just type `docker-compose down -v`.
+To destroy the cluster **and the data volumes**, just type `docker-compose down -v`.
 
 ===== Inspect status of cluster:
 
-["source","sh"]
+["source","txt"]
 --------------------------------------------
-curl -u elastic http://127.0.0.1:9200/_cat/health
-Enter host password for user 'elastic':
+curl http://127.0.0.1:9200/_cat/health
 1472225929 15:38:49 docker-cluster green 2 2 4 2 0 0 0 0 - 100.0%
 --------------------------------------------
 // NOTCONSOLE
-// This is demonstrating curl. Console will prompt you for a username and
-// password so no need to demonstrate that. Converting this would not show the
-// important `-u elastic` parameters for `curl`.
 
 Log messages go to the console and are handled by the configured Docker logging driver. By default you can access logs with `docker logs`.
 
@@ -233,10 +252,7 @@ In some environments, it may make more sense to prepare a custom image containin
 ["source","sh",subs="attributes"]
 --------------------------------------------
 FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
-ADD elasticsearch.yml /usr/share/elasticsearch/config/
-USER root
-RUN chown elasticsearch:elasticsearch config/elasticsearch.yml
-USER elasticsearch
+COPY --chown=elasticsearch:elasticsearch elasticsearch.yml /usr/share/elasticsearch/config/
 --------------------------------------------
 
 You could then build and try the image with something like:
@@ -263,7 +279,10 @@ We have collected a number of best practices for production use.
 
 NOTE: Any Docker parameters mentioned below assume the use of `docker run`.
 
-. Elasticsearch runs inside the container as user `elasticsearch` using uid:gid `1000:1000`. If you are bind-mounting a local directory or file, ensure it is readable by this user, while the <<path-settings,data and log dirs>> additionally require write access.
+. By default, Elasticsearch runs inside the container as user `elasticsearch`
+using uid:gid `1000:1000`. If you are bind-mounting a local directory or file,
+ensure it is readable by this user, while the <<path-settings,data and log
+dirs>> additionally require write access.
 +
 . It is important to ensure increased ulimits for <<setting-system-settings,nofile>> and <<max-number-threads-check,nproc>> are available for the Elasticsearch containers. Verify the https://github.com/moby/moby/tree/ea4d1243953e6b652082305a9c3cda8656edab26/contrib/init[init system] for the Docker daemon is already setting those to acceptable values and, if needed, adjust them in the Daemon, or override them per container, for example using `docker run`:
 +
@@ -273,13 +292,22 @@ NOTE: One way of checking the Docker daemon defaults for the aforementioned ulim
 +
   docker run --rm centos:7 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
 +
-. Swapping needs to be disabled for performance and node stability. This can be achieved through any of the methods mentioned in the <<setup-configuration-memory,Elasticsearch docs>>. If you opt for the `bootstrap.memory_lock: true` approach, apart from defining it through any of the <<docker-configuration-methods,configuration methods>>, you will additionally need the `memlock: true` ulimit, either defined in the https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Docker Daemon] or specifically set for the container. This has been demonstrated earlier in the <<docker-prod-cluster-composefile,docker-compose.yml>>, or using `docker run`:
+. Swapping needs to be disabled for performance and node stability. This can be
+achieved through any of the methods mentioned in the
+<<setup-configuration-memory,Elasticsearch docs>>. If you opt for the
+`bootstrap.memory_lock: true` approach, apart from defining it through any of
+the <<docker-configuration-methods,configuration methods>>, you will
+additionally need the `memlock: true` ulimit, either defined in the
+https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Docker
+Daemon] or specifically set for the container. This is demonstrated above in the
+<<docker-prod-cluster-composefile,docker-compose.yml>>. If using `docker run`:
 +
   -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
 +
 . The image https://docs.docker.com/engine/reference/builder/#/expose[exposes] TCP ports 9200 and 9300. For clusters it is recommended to randomize the published ports with `--publish-all`, unless you are pinning one container per host.
 +
-. Use the `ES_JAVA_OPTS` environment variable to set heap size, e.g. to use 16GB use `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. It is also recommended to set a https://docs.docker.com/engine/reference/run/#user-memory-constraints[memory limit] for the container.
+. Use the `ES_JAVA_OPTS` environment variable to set heap size, e.g. to use 16GB
+use `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`.
 +
 . Pin your deployments to a specific version of the Elasticsearch Docker image, e.g. +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
 +

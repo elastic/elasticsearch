@@ -73,7 +73,7 @@ public class TransportShrinkActionTests extends ESTestCase {
         assertTrue(
             expectThrows(IllegalStateException.class, () ->
             TransportShrinkAction.prepareCreateIndexRequest(new ShrinkRequest("target", "source"), state,
-                (i) -> new DocsStats(Integer.MAX_VALUE, randomIntBetween(1, 1000)), new IndexNameExpressionResolver(Settings.EMPTY))
+                (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)), new IndexNameExpressionResolver(Settings.EMPTY))
         ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
 
 
@@ -84,7 +84,7 @@ public class TransportShrinkActionTests extends ESTestCase {
                 ClusterState clusterState = createClusterState("source", 8, 1,
                     Settings.builder().put("index.blocks.write", true).build());
                     TransportShrinkAction.prepareCreateIndexRequest(req, clusterState,
-                        (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE/2, randomIntBetween(1, 1000)) : null,
+                        (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null,
                         new IndexNameExpressionResolver(Settings.EMPTY));
                 }
             ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
@@ -106,7 +106,7 @@ public class TransportShrinkActionTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         TransportShrinkAction.prepareCreateIndexRequest(new ShrinkRequest("target", "source"), clusterState,
-            (i) -> new DocsStats(randomIntBetween(1, 1000), randomIntBetween(1, 1000)), new IndexNameExpressionResolver(Settings.EMPTY));
+            (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000)), new IndexNameExpressionResolver(Settings.EMPTY));
     }
 
     public void testShrinkIndexSettings() {
@@ -128,7 +128,7 @@ public class TransportShrinkActionTests extends ESTestCase {
             routingTable.index(indexName).shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int numSourceShards = clusterState.metaData().index(indexName).getNumberOfShards();
-        DocsStats stats = new DocsStats(randomIntBetween(0, (IndexWriter.MAX_DOCS) / numSourceShards), randomIntBetween(1, 1000));
+        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
         ShrinkRequest target = new ShrinkRequest("target", indexName);
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         target.setWaitForActiveShards(activeShardCount);

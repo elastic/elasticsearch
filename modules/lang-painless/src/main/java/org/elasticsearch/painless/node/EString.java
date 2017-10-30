@@ -50,7 +50,7 @@ public final class EString extends AExpression {
             throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
         }
 
-        actual = Definition.STRING_TYPE;
+        actual = locals.getDefinition().StringType;
     }
 
     @Override

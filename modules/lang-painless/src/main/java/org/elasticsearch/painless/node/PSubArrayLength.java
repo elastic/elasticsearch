@@ -56,7 +56,7 @@ final class PSubArrayLength extends AStoreable {
                 throw createError(new IllegalArgumentException("Cannot write to read-only field [length] for an array."));
             }
 
-            actual = Definition.INT_TYPE;
+            actual = locals.getDefinition().intType;
         } else {
             throw createError(new IllegalArgumentException("Field [" + value + "] does not exist for type [" + type + "]."));
         }

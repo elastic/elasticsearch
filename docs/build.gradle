@@ -76,7 +76,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/get-record.asciidoc',
         'en/rest-api/ml/open-job.asciidoc',
         'en/rest-api/ml/preview-datafeed.asciidoc',
-        'en/rest-api/ml/put-datafeed.asciidoc',
         'en/rest-api/ml/start-datafeed.asciidoc',
         'en/rest-api/ml/stop-datafeed.asciidoc',
         'en/rest-api/ml/update-datafeed.asciidoc',
@@ -201,3 +200,55 @@ setups['my_inactive_watch'] = '''
 '''
 setups['my_active_watch'] = setups['my_inactive_watch'].replace(
         'active: false', 'active: true')
+setups['server_metrics_index'] = '''
+  - do:
+        indices.create:
+          index: server-metrics
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              metric:
+                properties:
+                  timestamp:
+                    type: date
+                  total:
+                    type: long
+'''
+setups['server_metrics_job'] = '''
+  - do:
+      indices.create:
+        index: server-metrics
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            metric:
+              properties:
+                timestamp:
+                  type: date
+                total:
+                  type: long
+  - do:
+      xpack.ml.put_job:
+        job_id: "total-requests"
+        body:  >
+          {
+            "description" : "Total sum of requests",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "detector_description": "Sum of total",
+                "function": "sum",
+                "field_name": "total"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''

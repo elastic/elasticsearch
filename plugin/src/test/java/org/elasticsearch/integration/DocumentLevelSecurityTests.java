@@ -963,8 +963,6 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(Settings.builder()
                         .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-                        .put("index.refresh_interval", -1)
                 )
                 .addMapping("type1", "field1", "type=text", "suggest_field1", "type=text", "suggest_field2", "type=completion")
         );

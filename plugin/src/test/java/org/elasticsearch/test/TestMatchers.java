@@ -16,7 +16,7 @@ import org.hamcrest.Matchers;
 public class TestMatchers extends Matchers {
 
     public static Matcher<Path> pathExists(Path path, LinkOption... options) {
-        return new CustomMatcher<Path>("Path " + path + " doesn't exist") {
+        return new CustomMatcher<Path>("Path " + path + " exists") {
             @Override
             public boolean matches(Object item) {
                 return Files.exists(path, options);

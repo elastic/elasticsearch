@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.client.shared.ObjectUtils;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.util.Version;
-import org.elasticsearch.xpack.sql.net.client.util.ObjectUtils;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -21,8 +21,6 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.xpack.sql.net.client.util.StringUtils.EMPTY;
 
 /**
  * Implementation of {@link DatabaseMetaData} for Elasticsearch. Draws inspiration
@@ -687,14 +685,14 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         // null means catalog info is irrelevant
         // % means return all catalogs
         // "" means return those without a catalog
-        return catalog == null || catalog.equals(EMPTY) || catalog.equals("%") || catalog.equals(defaultCatalog());
+        return catalog == null || catalog.equals("") || catalog.equals("%") || catalog.equals(defaultCatalog());
     }
 
     private boolean isDefaultSchema(String schema) {
         // null means schema info is irrelevant
-        // % means return all schemas
+        // % means return all schemas`
         // "" means return those without a schema
-        return schema == null || schema.equals(EMPTY) || schema.equals("%");
+        return schema == null || schema.equals("") || schema.equals("%");
     }
 
     @Override
@@ -724,10 +722,10 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             Object[] row = data[i];
 
             row[0] = cat;
-            row[1] = EMPTY;
+            row[1] = "";
             row[2] = tables.get(i);
             row[3] = "TABLE";
-            row[4] = EMPTY;
+            row[4] = "";
             row[5] = null;
             row[6] = null;
             row[7] = null;
@@ -739,7 +737,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSchemas() throws SQLException {
-        Object[][] data = { { EMPTY, defaultCatalog() } };
+        Object[][] data = { { "", defaultCatalog() } };
         return memorySet(con.cfg, columnInfo("SCHEMATA",
                                     "TABLE_SCHEM", 
                                     "TABLE_CATALOG"), data);
@@ -753,7 +751,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
             return emptySet(con.cfg, info);
         }
-        Object[][] data = { { EMPTY, defaultCatalog() } };
+        Object[][] data = { { "", defaultCatalog() } };
         return memorySet(con.cfg, info, data);
     }
 
@@ -816,7 +814,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             MetaColumnInfo col = columns.get(i);
             
             row[ 0] = cat;
-            row[ 1] = EMPTY;
+            row[ 1] = "";
             row[ 2] = col.table;
             row[ 3] = col.name;
             row[ 4] = col.type.getVendorTypeNumber();
@@ -832,13 +830,13 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             row[14] = null;
             row[15] = null;
             row[16] = col.position;
-            row[17] = EMPTY;
+            row[17] = "";
             row[18] = null;
             row[19] = null;
             row[20] = null;
             row[21] = null;
-            row[22] = EMPTY;
-            row[23] = EMPTY;
+            row[22] = "";
+            row[23] = "";
         }
         return memorySet(con.cfg, info, data);
     }
@@ -1201,7 +1199,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                     }
                     // it's not, use the default and move on
                 }
-                columns.add(new ColumnInfo(name, type, tableName, "INFORMATION_SCHEMA", EMPTY, EMPTY, 0));
+                columns.add(new ColumnInfo(name, type, tableName, "INFORMATION_SCHEMA", "", "", 0));
             }
             else {
                 throw new JdbcSQLException("Invalid metadata schema definition");

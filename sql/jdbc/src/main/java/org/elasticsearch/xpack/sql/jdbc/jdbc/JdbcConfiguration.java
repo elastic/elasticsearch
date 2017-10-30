@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
+import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
-import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
 import java.net.MalformedURLException;
 import java.net.URL;

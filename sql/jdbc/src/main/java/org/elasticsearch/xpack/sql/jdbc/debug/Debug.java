@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.debug;
 
+import org.elasticsearch.xpack.sql.client.shared.SuppressForbidden;
 import org.elasticsearch.xpack.sql.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;

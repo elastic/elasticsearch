@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.ResponseType;
-import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
-import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+import org.elasticsearch.xpack.sql.client.shared.IOUtils;
+import org.elasticsearch.xpack.sql.client.shared.SuppressForbidden;
+import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.jline.reader.EndOfFileException;

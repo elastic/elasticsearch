@@ -8,7 +8,7 @@ forbiddenApisMain {
 }
 
 dependencies {
-  compile project(':x-pack-elasticsearch:sql:net-client')
+  compile project(':x-pack-elasticsearch:sql:shared-client')
   compile project(':x-pack-elasticsearch:sql:jdbc-proto')
   compile project(':x-pack-elasticsearch:sql:shared-proto')
   /* We want to limit these dependencies so do not add anything to this list
@@ -17,11 +17,11 @@ dependencies {
 
 dependencyLicenses {
   mapping from: /jdbc-proto.*/, to: 'elasticsearch'
+  mapping from: /shared-client.*/, to: 'elasticsearch'
   mapping from: /shared-proto.*/, to: 'elasticsearch'
-  mapping from: /net-client.*/, to: 'elasticsearch'
   ignoreSha 'jdbc-proto'
+  ignoreSha 'shared-client'
   ignoreSha 'shared-proto'
-  ignoreSha 'net-client'
 }
 
 jar {

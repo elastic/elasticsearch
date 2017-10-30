@@ -1,4 +1,4 @@
-description = 'Request and response objects shared by the cli and jdbc.'
+description = 'Request and response objects shared by the cli and jdbc and the server.'
 
 dependencies {
   testCompile project(':x-pack-elasticsearch:sql:test-utils')

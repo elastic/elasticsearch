@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
 import org.elasticsearch.xpack.sql.jdbc.net.client.JdbcHttpClient;
 

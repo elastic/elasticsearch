@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageRequest;
-import org.elasticsearch.xpack.sql.net.client.util.Bytes;
+import org.elasticsearch.xpack.sql.client.shared.Bytes;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;

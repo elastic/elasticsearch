@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.util;
 
-import org.elasticsearch.xpack.sql.net.client.util.Bytes;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+import org.elasticsearch.xpack.sql.client.shared.Bytes;
+import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;

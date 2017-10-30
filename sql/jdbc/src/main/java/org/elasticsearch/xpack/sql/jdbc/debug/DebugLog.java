@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.debug;
 
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 
 import java.io.PrintWriter;
 import java.lang.reflect.Array;

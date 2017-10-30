@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.xpack.sql.net.client.ClientException;
-import org.elasticsearch.xpack.sql.net.client.JreHttpUrlConnection;
-import org.elasticsearch.xpack.sql.net.client.util.Bytes;
-import org.elasticsearch.xpack.sql.net.client.util.CheckedConsumer;
+import org.elasticsearch.xpack.sql.client.shared.Bytes;
+import org.elasticsearch.xpack.sql.client.shared.CheckedConsumer;
+import org.elasticsearch.xpack.sql.client.shared.ClientException;
+import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 
 import java.io.DataOutput;
 import java.io.IOException;

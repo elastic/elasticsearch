@@ -6,7 +6,7 @@ description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
   compile "org.jline:jline:3.3.1"
-  compile project(':x-pack-elasticsearch:sql:net-client')
+  compile project(':x-pack-elasticsearch:sql:shared-client')
   compile project(':x-pack-elasticsearch:sql:cli-proto')
   compile project(':x-pack-elasticsearch:sql:shared-proto')
 
@@ -16,11 +16,11 @@ dependencies {
 
 dependencyLicenses {
   mapping from: /cli-proto.*/, to: 'elasticsearch'
+  mapping from: /shared-client.*/, to: 'elasticsearch'
   mapping from: /shared-proto.*/, to: 'elasticsearch'
-  mapping from: /net.*/, to: 'elasticsearch'
   ignoreSha 'cli-proto'
+  ignoreSha 'shared-client'
   ignoreSha 'shared-proto'
-  ignoreSha 'net-client'
 }
 
 forbiddenApisMain {

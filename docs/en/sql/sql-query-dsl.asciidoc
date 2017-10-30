@@ -9,5 +9,5 @@ Example!
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{jdbc-tests}/select.sql-spec[wildcardWithOrder]
+include-tagged::{sql-spec}/select.sql-spec[wildcardWithOrder]
 --------------------------------------------------

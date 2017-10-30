@@ -36,7 +36,8 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
 
     public SqlResponse(Cursor cursor, long size, int columnCount, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
         this.cursor = cursor;
-        this.size = size;
+        this.size = size; // NOCOMMIT Probably should be removed.
+        // Size isn't the total number of results like ES uses, it is the size of the rows list.
         this.columnCount = columnCount;
         this.columns = columns;
         this.rows = rows;
@@ -218,14 +219,14 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
         }
 
         /**
-         * The type of the column as it would be returned by a JDBC driver. 
+         * The type of the column as it would be returned by a JDBC driver.
          */
         public JDBCType jdbcType() {
             return jdbcType;
         }
 
         /**
-         * Used by JDBC 
+         * Used by JDBC
          */
         public int displaySize() {
             return displaySize;

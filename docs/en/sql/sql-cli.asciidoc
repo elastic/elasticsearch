@@ -2,4 +2,38 @@
 [[sql-cli]]
 == SQL CLI
 
-Content
+The SQL CLI is a stand alone Java application for quick interaction
+with X-Pack SQL. You can run it like this:
+
+["source","bash",subs="attributes,callouts"]
+--------------------------------------------------
+$ java -jar cli-{version}.jar
+--------------------------------------------------
+
+You can pass the URL of the Elasticsearch instance to connect to as
+the first parameter:
+
+["source","bash",subs="attributes,callouts"]
+--------------------------------------------------
+$ java -jar cli-{version}.jar https://some.server:9200
+--------------------------------------------------
+
+The cli jar is entirely stand alone and can be moved whereever it is
+needed.
+
+Once the CLI is running you can use any <<sql-query-dsl,query>> that
+Elasticsearch supports:
+
+[source,sqlcli]
+--------------------------------------------------
+sql> SELECT * FROM library WHERE page_count > 500 ORDER BY page_count DESC;
+           author           |         name          |  page_count
+----------------------------+-----------------------+---------------
+Victor Hugo                 |Les Misérables         |1463
+Miguel De Cervantes Saavedra|Don Quixote            |1072
+Miguel De Cervantes Saavedra|Don Quixote            |1072
+Herman Melville             |Moby-Dick or, The Whale|720
+Charles Dickens             |Oliver Twist           |608
+--------------------------------------------------
+// TODO it'd be lovely to be able to assert that this is correct but
+// that is probably more work then it is worth right now.

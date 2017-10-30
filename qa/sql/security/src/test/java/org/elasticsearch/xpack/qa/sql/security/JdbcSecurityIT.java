@@ -21,17 +21,23 @@ import static org.hamcrest.Matchers.containsString;
 
 public class JdbcSecurityIT extends SqlSecurityTestCase {
     static Properties adminProperties() {
-        Properties prop = new Properties();
-        prop.put("user", "test_admin");
-        prop.put("pass", "x-pack-test-password");
-        return prop;
+        // tag::admin_properties
+        Properties properties = new Properties();
+        properties.put("user", "test_admin");
+        properties.put("pass", "x-pack-test-password");
+        // end::admin_properties
+        return properties;
+    }
+
+    static Connection es(Properties properties) throws SQLException {
+        return DriverManager.getConnection("jdbc:es://" + elasticsearchAddress(), properties);
     }
 
     private static class JdbcActions implements Actions {
         @Override
         public void queryWorksAsAdmin() throws Exception {
             try (Connection h2 = LocalH2.anonymousDb();
-                    Connection es = DriverManager.getConnection(elasticsearchAddress(), adminProperties())) {
+                    Connection es = es(adminProperties())) {
                 h2.createStatement().executeUpdate("CREATE TABLE test (a BIGINT, b BIGINT, c BIGINT)");
                 h2.createStatement().executeUpdate("INSERT INTO test (a, b, c) VALUES (1, 2, 3), (4, 5, 6)");
 
@@ -42,8 +48,8 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectMatchesAdmin(String adminSql, String user, String userSql) throws Exception {
-            try (Connection admin = DriverManager.getConnection(elasticsearchAddress(), adminProperties());
-                    Connection other = DriverManager.getConnection(elasticsearchAddress(), userProperties(user))) {
+            try (Connection admin = es(adminProperties());
+                    Connection other = es(userProperties(user))) {
                 ResultSet expected = admin.createStatement().executeQuery(adminSql);
                 assertResultSets(expected, other.createStatement().executeQuery(userSql));
             }
@@ -51,8 +57,8 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectScrollMatchesAdmin(String adminSql, String user, String userSql) throws Exception {
-            try (Connection admin = DriverManager.getConnection(elasticsearchAddress(), adminProperties());
-                    Connection other = DriverManager.getConnection(elasticsearchAddress(), userProperties(user))) {
+            try (Connection admin = es(adminProperties());
+                    Connection other = es(userProperties(user))) {
                 Statement adminStatement = admin.createStatement();
                 adminStatement.setFetchSize(1);
                 Statement otherStatement = other.createStatement();
@@ -64,7 +70,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectDescribe(Map<String, String> columns, String user) throws Exception {
             try (Connection h2 = LocalH2.anonymousDb();
-                    Connection es = DriverManager.getConnection(elasticsearchAddress(), userProperties(user))) {
+                    Connection es = es(userProperties(user))) {
                 // h2 doesn't have the same sort of DESCRIBE that we have so we emulate it
                 h2.createStatement().executeUpdate("CREATE TABLE mock (column VARCHAR, type VARCHAR)");
                 StringBuilder insert = new StringBuilder();
@@ -88,7 +94,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectShowTables(List<String> tables, String user) throws Exception {
             try (Connection h2 = LocalH2.anonymousDb();
-                    Connection es = DriverManager.getConnection(elasticsearchAddress(), userProperties(user))) {
+                    Connection es = es(userProperties(user))) {
                 // h2 doesn't spit out the same columns we do so we emulate
                 h2.createStatement().executeUpdate("CREATE TABLE mock (table VARCHAR)");
                 StringBuilder insert = new StringBuilder();
@@ -112,7 +118,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectForbidden(String user, String sql) throws Exception {
             SQLException e;
-            try (Connection connection = DriverManager.getConnection(elasticsearchAddress(), userProperties(user))) {
+            try (Connection connection = es(userProperties(user))) {
                 e = expectThrows(SQLException.class, () -> connection.createStatement().executeQuery(sql));
             }
             assertThat(e.getMessage(), containsString("is unauthorized for user [" + user + "]"));
@@ -121,7 +127,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectUnknownColumn(String user, String sql, String column) throws Exception {
             SQLException e;
-            try (Connection connection = DriverManager.getConnection(elasticsearchAddress(), userProperties(user))) {
+            try (Connection connection = es(userProperties(user))) {
                 e = expectThrows(SQLException.class, () -> connection.createStatement().executeQuery(sql));
             }
             assertThat(e.getMessage(), containsString("Unknown column [" + column + "]"));

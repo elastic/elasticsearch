@@ -48,14 +48,20 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     public static String elasticsearchAddress() {
         String cluster = System.getProperty("tests.rest.cluster");
         // JDBC only supports a single node at a time so we just give it one.
-        return "jdbc:es://" + cluster.split(",")[0];
+        return cluster.split(",")[0];
+        /* This doesn't include "jdbc:es://" because we want the example in
+         * esJdbc to be obvious. */
     }
 
     public Connection esJdbc() throws SQLException {
         if (EMBED_SQL) {
             return EMBEDDED_SERVER.connection();
         }
-        return DriverManager.getConnection(elasticsearchAddress(), connectionProperties());
+        // tag::connect
+        String address = "jdbc:es://" + elasticsearchAddress();   // <1>
+        Properties connectionProperties = connectionProperties(); // <2>
+        return DriverManager.getConnection(address, connectionProperties);
+        // end::connect
     }
 
     public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {

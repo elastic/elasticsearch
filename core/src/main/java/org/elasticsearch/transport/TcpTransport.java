@@ -693,6 +693,13 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
         }
     }
 
+    /**
+     * Disconnects from a node if a channel is found as part of that nodes channels.
+     */
+    protected final void closeChannelWhileHandlingExceptions(final Channel channel) {
+        TcpChannelUtils.closeChannel(channel, false);
+    }
+
     @Override
     public NodeChannels getConnection(DiscoveryNode node) {
         NodeChannels nodeChannels = connectedNodes.get(node);

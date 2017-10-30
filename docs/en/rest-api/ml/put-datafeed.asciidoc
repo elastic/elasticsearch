@@ -86,43 +86,37 @@ For more information, see
 
 ==== Examples
 
-The following example creates the `datafeed-it-ops-kpi` {dfeed}:
+The following example creates the `datafeed-total-requests` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/datafeeds/datafeed-it-ops-kpi
+PUT _xpack/ml/datafeeds/datafeed-total-requests
 {
-  "job_id": "it-ops-kpi",
-  "indices": ["it_ops_metrics"],
-  "types": ["kpi","network","sql"],
-  "query": {
-    "match_all": {
-          "boost": 1
-    }
-  }
+  "job_id": "total-requests",
+  "indices": ["server-metrics"],
+  "types": ["metric"],
+  "scroll_size": 1000
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[setup:server_metrics_job]
 
 When the {dfeed} is created, you receive the following results:
 [source,js]
 ----
 {
-  "datafeed_id": "datafeed-it-ops-kpi",
-  "job_id": "it-ops-kpi",
-  "query_delay": "1m",
+  "datafeed_id": "datafeed-total-requests",
+  "job_id": "total-requests",
+  "query_delay": "83474ms",
   "indices": [
-    "it_ops_metrics"
+    "server-metrics"
   ],
   "types": [
-    "kpi",
-    "network",
-    "sql"
+    "metric"
   ],
   "query": {
     "match_all": {
-      "boost": 1
+      "boost": 1.0
     }
   },
   "scroll_size": 1000,
@@ -131,3 +125,4 @@ When the {dfeed} is created, you receive the following results:
   }
 }
 ----
+//TESTRESPONSE[s/"query_delay": "83474ms"/"query_delay": $body.query_delay/]

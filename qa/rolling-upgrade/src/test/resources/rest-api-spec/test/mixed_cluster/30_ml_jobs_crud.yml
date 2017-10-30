@@ -1,12 +1,24 @@
 ---
 setup:
- - do:
-     cluster.health:
+  - do:
+      cluster.health:
         wait_for_status: yellow
         wait_for_nodes: 2
 
 ---
 "Test get old cluster job":
+
+  - do:
+      indices.exists:
+        index: ".ml-state"
+  - is_true: ''
+
+  - do:
+      count:
+        index: ".ml-state"
+  - gt: {count: 0}
+
+
   - do:
       xpack.ml.get_jobs:
         job_id: old-cluster-job
@@ -44,6 +56,17 @@ setup:
 
 ---
 "Create a job in the mixed cluster and write some data":
+  - do:
+      indices.exists:
+        index: ".ml-state"
+  - is_true: ''
+
+  - do:
+      count:
+        index: ".ml-state"
+  - gt: {count: 0}
+
+
   - do:
       xpack.ml.put_job:
         job_id: mixed-cluster-job

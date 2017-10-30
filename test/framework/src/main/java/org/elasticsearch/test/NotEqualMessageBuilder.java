@@ -153,8 +153,12 @@ public class NotEqualMessageBuilder {
         String expectedString = Objects.toString(expected);
         String actualString = Objects.toString(actual);
         if (expectedString.equals(actualString)) {
-            expectedString += " (" + (expected == null ? "null" : expected.getClass().getName()) + ")";
-            actualString += " (" + (actual == null ? "null" : actual.getClass().getName()) + ")";
+            if (expected != null) {
+                expectedString += " (" + expected.getClass().getName() + ")";
+            }
+            if (actual != null) {
+                actualString += " (" + actual.getClass().getName() + ")";
+            }
         }
         field(field, "expected [" + expectedString + "] but was [" + actualString + "]");
     }

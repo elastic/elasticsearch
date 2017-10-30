@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -34,12 +33,9 @@ import java.net.URL;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -87,38 +83,7 @@ public class Environment {
     private final Path pidFile;
 
     /** Path to the temporary file directory used by the JDK */
-    private static final Path systemTmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
-
-    /**
-     * Path to the temporary file directory used by Elasticsearch.
-     * This will be a sub-directory that is created under the JDK temporary directory.
-     */
-    private static final Path tmpFile;
-
-    /**
-     * Creates a secure temporary directory whose contents can only be seen by the user
-     * that Elasticsearch is running as.  This is static so that only one such directory
-     * is created, even when many instances of {@link Environment} are created.
-     */
-    static {
-        Path createdTmpFile;
-        try {
-            try {
-                // On POSIX file systems everyone can see the contents of the /tmp directory, so create a
-                // sub-directory under it that only the user running Elasticsearch can list the contents of.
-                Set<PosixFilePermission> attrs = Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE,
-                    PosixFilePermission.OWNER_EXECUTE);
-                createdTmpFile = Files.createTempDirectory(systemTmpFile, "elasticsearch", PosixFilePermissions.asFileAttribute(attrs));
-            } catch (UnsupportedOperationException e) {
-                // Assume this isn't a POSIX file system.  On Windows each user's %TEMP% directory is visible only to
-                // them and administrators, so the exact permissions of this sub-directory are less important.
-                createdTmpFile = Files.createTempDirectory(systemTmpFile, "elasticsearch");
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to create secure temp directory", e);
-        }
-        tmpFile = createdTmpFile;
-    }
+    private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
 
     public Environment(Settings settings) {
         this(settings, null);
@@ -324,14 +289,6 @@ public class Environment {
     }
 
     /** Path to the default temp directory used by the JDK */
-    public Path systemTmpFile() {
-        return systemTmpFile;
-    }
-
-    /**
-     * Path to the temporary file directory used by Elasticsearch.
-     * This will be a sub-directory that is created under the JDK temporary directory.
-     */
     public Path tmpFile() {
         return tmpFile;
     }
@@ -360,7 +317,4 @@ public class Environment {
     private static void assertEquals(Object actual, Object expected, String name) {
         assert Objects.deepEquals(actual, expected) : "actual " + name + " [" + actual + "] is different than [ " + expected + "]";
     }
-
-    // does nothing, just easy way to make sure the class is loaded.
-    public static void ensureClassLoaded() {}
 }

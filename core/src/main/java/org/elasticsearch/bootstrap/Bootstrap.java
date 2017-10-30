@@ -56,15 +56,11 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Collections;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.stream.Collectors;
 
 /**
  * Internal startup code.
@@ -189,7 +185,6 @@ final class Bootstrap {
                         IOUtils.close(node, spawner);
                         LoggerContext context = (LoggerContext) LogManager.getContext(false);
                         Configurator.shutdown(context);
-                        cleanTmpFiles(environment.tmpFile());
                     } catch (IOException ex) {
                         throw new ElasticsearchException("failed to stop node", ex);
                     }
@@ -267,17 +262,9 @@ final class Bootstrap {
         keepAliveThread.start();
     }
 
-    /**
-     * This is used for graceful shutdown on Windows when triggered by
-     * CTRL-C or the service control manager.
-     */
     static void stop() throws IOException {
         try {
             IOUtils.close(INSTANCE.node, INSTANCE.spawner);
-            // TODO: should the logger be shut down here like it is for the shutdown hook?
-            if (INSTANCE.node != null) {
-                cleanTmpFiles(INSTANCE.node.getEnvironment().tmpFile());
-            }
         } finally {
             INSTANCE.keepAliveLatch.countDown();
         }
@@ -408,10 +395,4 @@ final class Bootstrap {
         }
     }
 
-    static void cleanTmpFiles(Path tmpFile) throws IOException {
-        List<Path> toDelete = Files.walk(tmpFile).sorted(Comparator.reverseOrder()).collect(Collectors.toList());
-        for (Path path : toDelete) {
-            Files.delete(path);
-        }
-    }
 }

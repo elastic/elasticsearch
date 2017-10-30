@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -34,15 +33,12 @@ import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public class BootstrapTests extends ESTestCase {
-    private Environment env;
-    private List<FileSystem> fileSystems = new ArrayList<>();
+    Environment env;
+    List<FileSystem> fileSystems = new ArrayList<>();
 
     @After
     public void closeMockFileSystems() throws IOException {
@@ -69,25 +65,5 @@ public class BootstrapTests extends ESTestCase {
             assertEquals(seedAfterLoad.toString(), seed.toString());
             assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
         }
-    }
-
-    public void testCleanTmpFiles() throws IOException {
-        Path testBaseDir = createTempDir();
-        Path createdTmpFile;
-        try {
-            Set<PosixFilePermission> attrs = Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE,
-                PosixFilePermission.OWNER_EXECUTE);
-            createdTmpFile = Files.createTempDirectory(testBaseDir, "BootstrapTests", PosixFilePermissions.asFileAttribute(attrs));
-        } catch (UnsupportedOperationException e) {
-            // Assume this isn't a POSIX file system
-            createdTmpFile = Files.createTempDirectory(testBaseDir, "BootstrapTests");
-        }
-        assertTrue(Files.isDirectory(createdTmpFile));
-        Files.createTempFile(createdTmpFile, "some", "junk");
-        Files.createTempFile(createdTmpFile, "more", "junk");
-        Path nested = Files.createTempDirectory(createdTmpFile, "nested");
-        Files.createTempFile(nested, "nested", "junk");
-        Bootstrap.cleanTmpFiles(createdTmpFile);
-        assertFalse(Files.exists(createdTmpFile));
     }
 }

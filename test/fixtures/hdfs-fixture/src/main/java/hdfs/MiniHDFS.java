@@ -41,6 +41,8 @@ import org.apache.hadoop.fs.permission.AclEntryType;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.MiniDFSNNTopology;
+import org.apache.hadoop.hdfs.server.namenode.ha.HATestUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 
 /**
@@ -102,12 +104,32 @@ public class MiniHDFS {
         } else {
             builder.nameNodePort(9999);
         }
+
+        // Configure HA mode
+        String haNameService = System.getProperty("ha-nameservice");
+        boolean haEnabled = haNameService != null;
+        if (haEnabled) {
+            MiniDFSNNTopology.NNConf nn1 = new MiniDFSNNTopology.NNConf("nn1").setIpcPort(10001);
+            MiniDFSNNTopology.NNConf nn2 = new MiniDFSNNTopology.NNConf("nn2").setIpcPort(10002);
+            MiniDFSNNTopology.NSConf nameservice = new MiniDFSNNTopology.NSConf(haNameService).addNN(nn1).addNN(nn2);
+            MiniDFSNNTopology namenodeTopology = new MiniDFSNNTopology().addNameservice(nameservice);
+            builder.nnTopology(namenodeTopology);
+        }
+
         MiniDFSCluster dfs = builder.build();
 
         // Configure contents of the filesystem
         org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path("/user/elasticsearch");
-        try (FileSystem fs = dfs.getFileSystem()) {
 
+        FileSystem fs;
+        if (haEnabled) {
+            dfs.transitionToActive(0);
+            fs = HATestUtil.configureFailoverFs(dfs, new Configuration());
+        } else {
+            fs = dfs.getFileSystem();
+        }
+
+        try {
             // Set the elasticsearch user directory up
             fs.mkdirs(esUserPath);
             if (UserGroupInformation.isSecurityEnabled()) {
@@ -133,6 +155,8 @@ public class MiniHDFS {
 
                 FileUtils.deleteDirectory(tempDirectory.toFile());
             }
+        } finally {
+            fs.close();
         }
 
         // write our PID file
@@ -142,8 +166,12 @@ public class MiniHDFS {
         Files.move(tmp, baseDir.resolve(PID_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
 
         // write our port file
+        String portFileContent = Integer.toString(dfs.getNameNodePort(0));
+        if (haEnabled) {
+            portFileContent = portFileContent + "\n" + Integer.toString(dfs.getNameNodePort(1));
+        }
         tmp = Files.createTempFile(baseDir, null, null);
-        Files.write(tmp, Integer.toString(dfs.getNameNodePort()).getBytes(StandardCharsets.UTF_8));
+        Files.write(tmp, portFileContent.getBytes(StandardCharsets.UTF_8));
         Files.move(tmp, baseDir.resolve(PORT_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
     }
 }

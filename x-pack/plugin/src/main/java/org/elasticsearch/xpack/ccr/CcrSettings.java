@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * Container class for CCR settings.
  */
-final class CcrSettings {
+public final class CcrSettings {
 
     // prevent construction
     private CcrSettings() {
@@ -30,7 +30,7 @@ final class CcrSettings {
     /**
      * Index setting for a following index.
      */
-    static final Setting<Boolean> CCR_FOLLOWING_INDEX_SETTING =
+    public static final Setting<Boolean> CCR_FOLLOWING_INDEX_SETTING =
             Setting.boolSetting("index.xpack.ccr.following_index", false, Setting.Property.IndexScope);
 
     /**

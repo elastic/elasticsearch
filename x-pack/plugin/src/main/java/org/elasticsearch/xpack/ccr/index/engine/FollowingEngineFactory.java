@@ -13,12 +13,11 @@ import org.elasticsearch.index.engine.InternalEngine;
 /**
  * An engine factory for following engines.
  */
-public class FollowingEngineFactory implements EngineFactory {
+public final class FollowingEngineFactory implements EngineFactory {
 
     @Override
     public Engine newReadWriteEngine(final EngineConfig config) {
-        // TODO: implement following engine
-        return new InternalEngine(config);
+        return new FollowingEngine(config);
     }
 
 }

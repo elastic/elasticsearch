@@ -43,6 +43,12 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
+/**
+ * Builds a pipeline aggregation that allows sorting the buckets of its parent
+ * aggregation. The bucket {@code _key}, {@code _count} or sub-aggregations may be used as sort
+ * keys. Parameters {@code from} and {@code size} may also be set in order to truncate the
+ * result bucket list.
+ */
 public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketSortPipelineAggregationBuilder> {
     public static final String NAME = "bucket_sort";
 

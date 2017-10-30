@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -133,6 +131,10 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
 
         private final MultiBucketsAggregation parentAgg;
         private final InternalMultiBucketAggregation.InternalBucket internalBucket;
+
+        /**
+         * Whether the bucket should be skipped due to the gap policy
+         */
         private boolean skip = false;
 
         private ComparableBucket(MultiBucketsAggregation parentAgg, InternalMultiBucketAggregation.InternalBucket internalBucket) {

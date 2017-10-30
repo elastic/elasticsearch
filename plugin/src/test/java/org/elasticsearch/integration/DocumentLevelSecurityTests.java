@@ -21,6 +21,7 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -963,6 +964,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(Settings.builder()
                         .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
                 )
                 .addMapping("type1", "field1", "type=text", "suggest_field1", "type=text", "suggest_field2", "type=completion")
         );
@@ -1058,7 +1060,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testProfile() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setSettings(Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                )
                 .addMapping("type1", "field1", "type=text", "other_field", "type=text")
         );
 
@@ -1087,6 +1092,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(shardResult.getQueryProfileResults().size(), equalTo(1));
         QueryProfileShardResult queryProfileShardResult = shardResult.getQueryProfileResults().get(0);
         assertThat(queryProfileShardResult.getQueryResults().size(), equalTo(1));
+        logger.info("queryProfileShardResult=" + Strings.toString(queryProfileShardResult));
         ProfileResult profileResult = queryProfileShardResult.getQueryResults().get(0);
         assertThat(profileResult.getLuceneDescription(), equalTo("(other_field:value)^0.8"));
 

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.client.shared;
 
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;

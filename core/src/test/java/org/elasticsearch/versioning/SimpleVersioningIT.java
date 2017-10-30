@@ -20,10 +20,12 @@ package org.elasticsearch.versioning;
 
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -45,7 +47,12 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SimpleVersioningIT extends ESIntegTestCase {
@@ -784,5 +791,57 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         .actionGet()
                         .getVersion(),
                 equalTo(-1L));
+    }
+
+    public void testGetReturnsPrimaryTerm() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        Set<Long> primaryTerms = new HashSet<>();
+        int numDoc = between(10, 100);
+        for (int i = 0; i < numDoc; i++) {
+            IndexResponse indexResponse = index("test", "doc", Integer.toString(i));
+            primaryTerms.add(indexResponse.getPrimaryTerm());
+        }
+        assertThat(primaryTerms, hasSize(1));
+        refresh("test");
+
+        for (int i = 0; i < numDoc; i++) {
+            GetResponse getResponse = get("test", "type", Integer.toString(i));
+            assertThat(getResponse.getPrimaryTerm(), greaterThan(0L));
+            assertThat(primaryTerms, contains(getResponse.getPrimaryTerm()));
+        }
+        internalCluster().wipeIndices("test");
+    }
+
+    public void testRestartClusterPrimaryTermMonotonicallyIncreased() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        Set<Long> primaryTerms = new HashSet<>();
+
+        int numDoc = between(100, 200);
+        for (int i = 0; i < numDoc; i++) {
+            IndexResponse indexResponse = index("test", "doc", Integer.toString(i));
+            assertThat(indexResponse.getPrimaryTerm(), greaterThan(0L));
+            assertThat(primaryTerms, everyItem(lessThan(indexResponse.getPrimaryTerm())));
+        }
+        flush("test");
+        refresh("test");
+
+        int partitionTimes = between(3, 10);
+        for (int i = 0; i < partitionTimes; i++) {
+            internalCluster().fullRestart();
+            ensureGreen();
+            GetResponse get = get("test", "doc", "id");
+            assertThat(primaryTerms, everyItem(lessThan(get.getPrimaryTerm())));
+            primaryTerms.add(get.getPrimaryTerm());
+
+            MultiGetResponse mget = client().prepareMultiGet()
+                .add("test", "doc", Integer.toString(between(0, 50)))
+                .add("test", "doc", Integer.toString(between(50, 100)))
+                .get();
+
+            assertThat(mget.getResponses()[0].getResponse().getPrimaryTerm(), equalTo(get.getPrimaryTerm()));
+            assertThat(mget.getResponses()[1].getResponse().getPrimaryTerm(), equalTo(get.getPrimaryTerm()));
+        }
     }
 }

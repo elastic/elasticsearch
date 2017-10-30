@@ -20,6 +20,7 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
@@ -51,6 +52,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     public static final String _TYPE = "_type";
     public static final String _ID = "_id";
     private static final String _VERSION = "_version";
+    private static final String _PRIMARY_TERM = "_primary_term";
     private static final String FOUND = "found";
     private static final String FIELDS = "fields";
 
@@ -58,6 +60,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     private String type;
     private String id;
     private long version;
+    private long primaryTerm = -1L;
     private boolean exists;
     private Map<String, DocumentField> fields;
     private Map<String, Object> sourceAsMap;
@@ -67,12 +70,13 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     GetResult() {
     }
 
-    public GetResult(String index, String type, String id, long version, boolean exists, BytesReference source,
+    public GetResult(String index, String type, String id, long version, long primaryTerm, boolean exists, BytesReference source,
                      Map<String, DocumentField> fields) {
         this.index = index;
         this.type = type;
         this.id = id;
         this.version = version;
+        this.primaryTerm = primaryTerm;
         this.exists = exists;
         this.source = source;
         this.fields = fields;
@@ -114,6 +118,13 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
      */
     public long getVersion() {
         return version;
+    }
+
+    /**
+     * The current primary term of the cluster.
+     */
+    public long getPrimaryTerm() {
+        return primaryTerm;
     }
 
     /**
@@ -258,6 +269,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
             if (version != -1) {
                 builder.field(_VERSION, version);
             }
+            builder.field(_PRIMARY_TERM, primaryTerm);
             toXContentEmbedded(builder, params);
         } else {
             builder.field(FOUND, false);
@@ -273,6 +285,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         String currentFieldName = parser.currentName();
         String index = null, type = null, id = null;
         long version = -1;
+        long primaryTerm = -1;
         Boolean found = null;
         BytesReference source = null;
         Map<String, DocumentField> fields = new HashMap<>();
@@ -288,6 +301,8 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                     id = parser.text();
                 }  else if (_VERSION.equals(currentFieldName)) {
                     version = parser.longValue();
+                } else if (_PRIMARY_TERM.equals(currentFieldName)) {
+                    primaryTerm = parser.longValue();
                 } else if (FOUND.equals(currentFieldName)) {
                     found = parser.booleanValue();
                 } else {
@@ -313,7 +328,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 parser.skipChildren(); // skip potential inner arrays for forward compatibility
             }
         }
-        return new GetResult(index, type, id, version, found, source, fields);
+        return new GetResult(index, type, id, version, primaryTerm, found, source, fields);
     }
 
     public static GetResult fromXContent(XContentParser parser) throws IOException {
@@ -352,6 +367,9 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 }
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            primaryTerm = in.readVLong();
+        }
     }
 
     @Override
@@ -372,6 +390,9 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 }
             }
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVLong(primaryTerm);
+        }
     }
 
     @Override
@@ -384,6 +405,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         }
         GetResult getResult = (GetResult) o;
         return version == getResult.version &&
+                primaryTerm == getResult.primaryTerm &&
                 exists == getResult.exists &&
                 Objects.equals(index, getResult.index) &&
                 Objects.equals(type, getResult.type) &&

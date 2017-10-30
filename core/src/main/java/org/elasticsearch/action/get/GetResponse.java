@@ -91,6 +91,13 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     }
 
     /**
+     * The current primary term of the cluster.
+     */
+    public long getPrimaryTerm() {
+        return getResult.getPrimaryTerm();
+    }
+
+    /**
      * The source of the document if exists.
      */
     public byte[] getSourceAsBytes() {

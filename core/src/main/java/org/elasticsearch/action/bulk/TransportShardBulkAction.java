@@ -298,7 +298,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 final Tuple<XContentType, Map<String, Object>> sourceAndContent =
                         XContentHelper.convertToMap(indexSourceAsBytes, true, updateIndexRequest.getContentType());
                 updateResponse.setGetResult(UpdateHelper.extractGetResult(updateRequest, concreteIndex,
-                                indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
+                                indexResponse.getVersion(), primary.getPrimaryTerm(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
             }
             // set translated request as replica request
             replicaRequest = new BulkItemRequest(bulkReqId, updateIndexRequest);
@@ -311,11 +311,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     result.getSeqNo(), primary.getPrimaryTerm(), result.getVersion(), ((Engine.DeleteResult) result).isFound());
 
             updateResponse = new UpdateResponse(deleteResponse.getShardInfo(), deleteResponse.getShardId(),
-                    deleteResponse.getType(), deleteResponse.getId(), deleteResponse.getSeqNo(), deleteResponse.getPrimaryTerm(),
+                    deleteResponse.getType(), deleteResponse.getId(), deleteResponse.getSeqNo(), primary.getPrimaryTerm(),
                     deleteResponse.getVersion(), deleteResponse.getResult());
 
             final GetResult getResult = UpdateHelper.extractGetResult(updateRequest, concreteIndex, deleteResponse.getVersion(),
-                    translate.updatedSourceAsMap(), translate.updateSourceContentType(), null);
+                    primary.getPrimaryTerm(), translate.updatedSourceAsMap(), translate.updateSourceContentType(), null);
 
             updateResponse.setGetResult(getResult);
             // set translated request as replica request

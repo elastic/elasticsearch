@@ -91,15 +91,15 @@ public class GetResponseTests extends ESTestCase {
 
     public void testToXContent() {
         {
-            GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " +
+            GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, 4,true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), Collections.singletonMap("field1", new DocumentField("field1",
                     Collections.singletonList("value1")))));
             String output = Strings.toString(getResponse);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" " +
-                    ": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", output);
+            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"_primary_term\":4,\"found\":true," +
+                "\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", output);
         }
         {
-            GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, false, null, null));
+            GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, 4, false, null, null));
             String output = Strings.toString(getResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
@@ -107,10 +107,10 @@ public class GetResponseTests extends ESTestCase {
 
     public void testToString() {
         GetResponse getResponse = new GetResponse(
-                new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
+                new GetResult("index", "type", "id", 1, 101, true, new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
                         Collections.singletonMap("field1", new DocumentField("field1", Collections.singletonList("value1")))));
-        assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" "
-                + ": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", getResponse.toString());
+        assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"_primary_term\":101,\"found\":true," +
+            "\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", getResponse.toString());
     }
 
     public void testEqualsAndHashcode() {
@@ -119,7 +119,8 @@ public class GetResponseTests extends ESTestCase {
     }
 
     public void testFromXContentThrowsParsingException() throws IOException {
-        GetResponse getResponse = new GetResponse(new GetResult(null, null, null, randomIntBetween(1, 5), randomBoolean(), null, null));
+        GetResponse getResponse = new GetResponse(new GetResult(null, null, null, randomIntBetween(1, 5), randomNonNegativeLong(),
+            randomBoolean(), null, null));
 
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(getResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());

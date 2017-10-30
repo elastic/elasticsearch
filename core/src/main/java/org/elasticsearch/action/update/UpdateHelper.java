@@ -227,8 +227,8 @@ public class UpdateHelper extends AbstractComponent {
         if (detectNoop && noop) {
             UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
                     getResult.getVersion(), DocWriteResponse.Result.NOOP);
-            update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap,
-                            updateSourceContentType, getResult.internalSourceRef()));
+            update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), getResult.getPrimaryTerm(),
+                    updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
@@ -289,8 +289,8 @@ public class UpdateHelper extends AbstractComponent {
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
                 UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
                         getResult.getVersion(), DocWriteResponse.Result.NOOP);
-                update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap,
-                                updateSourceContentType, getResult.internalSourceRef()));
+                update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), getResult.getPrimaryTerm(),
+                        updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
                 return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
 
         }
@@ -314,7 +314,7 @@ public class UpdateHelper extends AbstractComponent {
      * Applies {@link UpdateRequest#fetchSource()} to the _source of the updated document to be returned in a update response.
      * For BWC this function also extracts the {@link UpdateRequest#fields()} from the updated document to be returned in a update response
      */
-    public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long version,
+    public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long version, long primaryTerm,
                                              final Map<String, Object> source, XContentType sourceContentType,
                                              @Nullable final BytesReference sourceAsBytes) {
         if ((request.fields() == null || request.fields().length == 0) &&
@@ -365,7 +365,7 @@ public class UpdateHelper extends AbstractComponent {
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
-        return new GetResult(concreteIndex, request.type(), request.id(), version, true,
+        return new GetResult(concreteIndex, request.type(), request.id(), version, primaryTerm, true,
                 sourceRequested ? sourceFilteredAsBytes : null, fields);
     }
 

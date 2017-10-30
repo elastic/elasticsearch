@@ -162,12 +162,12 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertThat(getRequest.version(), Matchers.equalTo(indexedDocumentVersion));
         if (indexedDocumentExists) {
             return new GetResponse(
-                    new GetResult(indexedDocumentIndex, indexedDocumentType, indexedDocumentId, 0L, true,
+                    new GetResult(indexedDocumentIndex, indexedDocumentType, indexedDocumentId, 0L, randomNonNegativeLong(), true,
                             documentSource.iterator().next(), Collections.emptyMap())
             );
         } else {
-            return new GetResponse(
-                    new GetResult(indexedDocumentIndex, indexedDocumentType, indexedDocumentId, -1, false, null, Collections.emptyMap())
+            return new GetResponse(new GetResult(indexedDocumentIndex, indexedDocumentType, indexedDocumentId, -1,
+                    randomNonNegativeLong(), false, null, Collections.emptyMap())
             );
         }
     }

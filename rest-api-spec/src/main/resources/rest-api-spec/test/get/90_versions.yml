@@ -87,3 +87,24 @@
           version: 1
           version_type: external_gte
 
+---
+"Primary Term":
+
+  - skip:
+      version: " - 6.99.99"
+      reason: "Get requests return the primary term in v7"
+
+  - do:
+      index:
+          index:  test_1
+          type:   doc
+          id:     1
+          body:   { foo: bar }
+  - gt: { _primary_term: 0}
+
+  - do:
+      get:
+          index:  test_1
+          type:   doc
+          id:     1
+  - gt: { _primary_term: 0}

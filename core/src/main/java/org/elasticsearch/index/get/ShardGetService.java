@@ -100,7 +100,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      */
     public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext) {
         if (!engineGetResult.exists()) {
-            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, -1, indexShard.getPrimaryTerm(), false, null, null);
         }
 
         currentMetric.inc();
@@ -162,7 +162,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         if (get == null || get.exists() == false) {
-            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, -1, indexShard.getPrimaryTerm(), false, null, null);
         }
 
         try {
@@ -233,7 +233,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        return new GetResult(shardId.getIndexName(), type, id, get.version(), get.exists(), source, fields);
+        return new GetResult(shardId.getIndexName(), type, id, get.version(), indexShard.getPrimaryTerm(), get.exists(), source, fields);
     }
 
     private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {

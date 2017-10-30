@@ -637,6 +637,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                                 }
                             },
                     null,
+                    null,
                     config);
         }
 

@@ -50,8 +50,10 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
+import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -916,7 +918,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().relocatingNodeId(), equalTo("node2"));
     }
 
-    public void testForSingleDataNode() {
+    public void testForClusterInProductionMode() {
         Settings diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), true)
@@ -945,9 +947,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .build();
 
         logger.info("--> adding one master node, one data node");
-        DiscoveryNode discoveryNode1 = new DiscoveryNode("", "node1", buildNewFakeTransportAddress(), emptyMap(),
+        DiscoveryNode discoveryNode1 = new DiscoveryNode("", "node1", randomLoopbackTransportAddress(), emptyMap(),
                 singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
-        DiscoveryNode discoveryNode2 = new DiscoveryNode("", "node2", buildNewFakeTransportAddress(), emptyMap(),
+        DiscoveryNode discoveryNode2 = new DiscoveryNode("", "node2", randomLoopbackTransportAddress(), emptyMap(),
                 singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build();
@@ -957,7 +959,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .nodes(discoveryNodes)
                 .build();
 
-        // Two shards consumes 80% of disk space in data node, but we have only one data node, shards should remain.
+        // Two shards consumes 80% of disk space in data node, but we are running two nodes on loopback interfaces, shards should remain.
         ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, true, ShardRoutingState.STARTED);
         ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", null, true, ShardRoutingState.STARTED);
         RoutingNode firstRoutingNode = new RoutingNode("node2", discoveryNode2, firstRouting, secondRouting);
@@ -981,7 +983,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         // Two shards should start happily
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(((Decision.Single) decision).getExplanation(), containsString("there is only a single data node present"));
+        assertThat(decision.getExplanation(), containsString("running in non-production mode"));
         ClusterInfoService cis = new ClusterInfoService() {
             @Override
             public ClusterInfo getClusterInfo() {
@@ -1039,7 +1041,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         routingAllocation.debugDecision(true);
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(((Decision.Single) decision).getExplanation(), containsString(
+        assertThat(decision.getExplanation(), containsString(
             "there is enough disk on this node for the shard to remain, free: [60b]"));
 
         result = strategy.reroute(clusterState, "reroute");
@@ -1049,6 +1051,130 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().state(), equalTo(RELOCATING));
         assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().currentNodeId(), equalTo("node2"));
         assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().relocatingNodeId(), equalTo("node3"));
+    }
+
+    public void testMultipleNodesNonProductionCluster(){
+        // Setup a non-production cluster including multiple nodes and these nodes are not enough disk space for shards.
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
+        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
+        int numberOfNodes = randomIntBetween(1, 10);
+        for(int i = 1; i <= numberOfNodes; i++){
+            String node = "node"+i;
+            discoveryNodesBuilder.add(new DiscoveryNode(node, node, randomLoopbackTransportAddress(), emptyMap(),
+                MASTER_DATA_ROLES, Version.CURRENT));
+            usagesBuilder.put(node, new DiskUsage(node, node, "/dev/null", 100, randomIntBetween(0, 5)));
+        }
+
+        DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
+        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+
+        ImmutableOpenMap<String, Long> shardSizes = ImmutableOpenMap.<String, Long>builder()
+            .fPut("[test][0][p]", 95L)
+            .fPut("[test][1][p]", 95L)
+            .build();
+
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
+
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+            .build();
+
+        RoutingTable initialRoutingTable = RoutingTable.builder()
+            .addAsNew(metaData.index("test"))
+            .build();
+
+        ClusterState baseClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData)
+            .routingTable(initialRoutingTable)
+            .nodes(discoveryNodes)
+            .build();
+
+        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
+        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, true, ShardRoutingState.STARTED);
+        RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNodes.get("node1"), firstRouting, secondRouting);
+
+        RoutingTable.Builder builder = RoutingTable.builder().add(
+            IndexRoutingTable.builder(firstRouting.index())
+                .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId())
+                    .addShard(firstRouting)
+                    .build()
+                )
+                .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId())
+                    .addShard(secondRouting)
+                    .build()
+                )
+        );
+
+        ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo,
+            System.nanoTime());
+        routingAllocation.debugDecision(true);
+
+        // DiskThresholdDecider is disabled in a non-production cluster, allocation is always allowed.
+        DiskThresholdDecider diskThresholdDecider = makeDecider(Settings.EMPTY);
+        Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), containsString("running in non-production mode"));
+
+        // DiskThresholdDecider is enabled if allow_bypass_nonproduction=false
+        Settings diskSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_ALLOW_BYPASS_NONPRODUCTION_SETTING.getKey(), false)
+            .build();
+        diskThresholdDecider = makeDecider(diskSettings);
+        decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
+        assertThat(decision.type(), equalTo(Decision.Type.NO));
+        assertThat(decision.getExplanation(), containsString("it is above the high watermark cluster setting"));
+    }
+
+    public void testSingleNodeProductionCluster() {
+        ImmutableOpenMap<String, DiskUsage> usages = ImmutableOpenMap.<String, DiskUsage>builder()
+            .fPut("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 5))
+            .build();
+
+        ImmutableOpenMap<String, Long> shardSizes = ImmutableOpenMap.<String, Long> builder().fPut("[test][0][p]", 200L).build();
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
+
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
+
+        RoutingTable initialRoutingTable = RoutingTable.builder()
+            .addAsNew(metaData.index("test"))
+            .build();
+
+        DiscoveryNode node1 = new DiscoveryNode("", "node1", buildNewFakeTransportAddress(), emptyMap(),
+            MASTER_DATA_ROLES, Version.CURRENT);
+
+        ClusterState baseClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData)
+            .routingTable(initialRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).build())
+            .build();
+
+        ShardRouting shardRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
+        RoutingNode firstRoutingNode = new RoutingNode("node1", node1, shardRouting);
+
+        RoutingTable.Builder builder = RoutingTable.builder().add(
+            IndexRoutingTable.builder(shardRouting.index())
+                .addIndexShard(new IndexShardRoutingTable.Builder(shardRouting.shardId())
+                    .addShard(shardRouting)
+                    .build()
+                )
+        );
+
+        ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), clusterState, clusterInfo,
+            System.nanoTime());
+        routingAllocation.debugDecision(true);
+
+        // A production cluster (even with a single node) does not have enough disk space, we should not allow allocation.
+        Settings diskSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_ALLOW_BYPASS_NONPRODUCTION_SETTING.getKey(), randomBoolean())
+            .build();
+        DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings);
+        Decision decision = diskThresholdDecider.canRemain(shardRouting, firstRoutingNode, routingAllocation);
+        assertThat(decision.type(), equalTo(Decision.Type.NO));
+        assertThat(decision.getExplanation(), containsString("it is above the high watermark cluster setting"));
     }
 
     public void logShardStates(ClusterState state) {
@@ -1064,5 +1190,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 rn.shardsWithState(INITIALIZING),
                 rn.shardsWithState(RELOCATING),
                 rn.shardsWithState(STARTED));
+    }
+
+    TransportAddress randomLoopbackTransportAddress() {
+        return new TransportAddress(InetAddress.getLoopbackAddress(), randomInt(0xFFFF));
     }
 }

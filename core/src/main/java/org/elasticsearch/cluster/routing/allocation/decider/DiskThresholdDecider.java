@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import java.util.Set;
-
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
@@ -39,6 +37,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.util.Set;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
@@ -369,12 +370,18 @@ public class DiskThresholdDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "the disk threshold decider is disabled");
         }
 
-        // Allow allocation regardless if only a single data node is available
-        if (allocation.nodes().getDataNodes().size() <= 1) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("only a single data node is present, allowing allocation");
+        // We consider a cluster running in development mode if all nodes have its transport address bound to loopback interfaces.
+        // In the development mode, allocation is always allowed.
+        if(diskThresholdSettings.allowBypassNonProductionMode()){
+            boolean developmentMode = StreamSupport.stream(allocation.nodes().spliterator(), false)
+                .map(node -> node.getAddress().address().getAddress())
+                .allMatch(inetAddress -> inetAddress.isLinkLocalAddress() || inetAddress.isLoopbackAddress());
+            if (developmentMode) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("running in non-production mode, allowing allocation.");
+                }
+                return allocation.decision(Decision.YES, NAME, "running in non-production mode");
             }
-            return allocation.decision(Decision.YES, NAME, "there is only a single data node present");
         }
 
         // Fail open there is no info available

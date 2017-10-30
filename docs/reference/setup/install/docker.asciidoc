@@ -3,7 +3,9 @@
 
 Elasticsearch is also available as Docker images.
 The images use https://hub.docker.com/_/centos/[centos:7] as the base image and
-are available with {xpack-ref}/index.html[X-Pack].  The source code can be found
+are available with {xpack-ref}/index.html[X-Pack].
+
+A list of all published Docker images and tags can be found in https://www.docker.elastic.co[www.docker.elastic.co]. The source code can be found
 on https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
 
 ==== Image types
@@ -96,7 +98,7 @@ vm.max_map_count=262144
 +
 To apply the setting on a live system type: `sysctl -w vm.max_map_count=262144`
 +
-* OSX with https://docs.docker.com/engine/installation/mac/#/docker-for-mac[Docker for Mac]
+* macOS with https://docs.docker.com/engine/installation/mac/#/docker-for-mac[Docker for Mac]
 +
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 +
@@ -113,7 +115,7 @@ Then configure the `sysctl` setting as you would for Linux:
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
 +
-* OSX with https://docs.docker.com/engine/installation/mac/#docker-toolbox[Docker Toolbox]
+* Windows and macOS with https://www.docker.com/products/docker-toolbox[Docker Toolbox]
 +
 The `vm.max_map_count` setting must be set via docker-machine:
 +
@@ -165,7 +167,7 @@ endif::[]
 ifeval::["{release-state}"!="unreleased"]
 ["source","yaml",subs="attributes"]
 --------------------------------------------
-version: '2'
+version: 2.2
 services:
   elasticsearch:
     image: {docker-image}
@@ -244,7 +246,7 @@ For example, bind-mounting a `custom_elasticsearch.yml` with `docker run` can be
 --------------------------------------------
 -v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 --------------------------------------------
-IMPORTANT: The container **runs Elasticsearch as user `elasticsearch` using uid:gid `1000:1000`**. Bind mounted host directories and files, such as `custom_elasticsearch.yml` above, **need to be accessible by this user**. For the https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#path-settings[data and log dirs], such as `/usr/share/elasticsearch/data`, write access is required as well.
+IMPORTANT: The container **runs Elasticsearch as user `elasticsearch` using uid:gid `1000:1000`**. Bind mounted host directories and files, such as `custom_elasticsearch.yml` above, **need to be accessible by this user**. For the https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#path-settings[data and log dirs], such as `/usr/share/elasticsearch/data`, write access is required as well. Also see note 1 below.
 
 ===== C. Customized image
 In some environments, it may make more sense to prepare a custom image containing your configuration. A `Dockerfile` to achieve this may be as simple as:
@@ -276,13 +278,19 @@ docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclusternam
 ==== Notes for production use and defaults
 
 We have collected a number of best practices for production use.
+Any Docker parameters mentioned below assume the use of `docker run`.
 
-NOTE: Any Docker parameters mentioned below assume the use of `docker run`.
-
-. By default, Elasticsearch runs inside the container as user `elasticsearch`
-using uid:gid `1000:1000`. If you are bind-mounting a local directory or file,
-ensure it is readable by this user, while the <<path-settings,data and log
-dirs>> additionally require write access.
+. By default, Elasticsearch runs inside the container as user `elasticsearch` using uid:gid `1000:1000`.
++
+CAUTION: One exception is https://docs.openshift.com/container-platform/3.6/creating_images/guidelines.html#openshift-specific-guidelines[Openshift] which runs containers using an arbitrarily assigned user ID. Openshift will present persistent volumes with the gid set to `0` which will work without any adjustments.
++
+If you are bind-mounting a local directory or file, ensure it is readable by this user, while the <<path-settings,data and log dirs>> additionally require write access. A good strategy is to grant group access to gid `1000` or `0` for the local directory. As an example, to prepare a local directory for storing data through a bind-mount:
++
+  mkdir esdatadir
+  chmod g+rwx esdatadir
+  chgrp 1000 esdatadir
++
+As a last resort, you can also force the container to mutate the ownership of any bind-mounts used for the <<path-settings,data and log dirs>> through the environment variable `TAKE_FILE_OWNERSHIP`; in this case they will be owned by uid:gid `1000:0` providing read/write access to the elasticsearch process as required.
 +
 . It is important to ensure increased ulimits for <<setting-system-settings,nofile>> and <<max-number-threads-check,nproc>> are available for the Elasticsearch containers. Verify the https://github.com/moby/moby/tree/ea4d1243953e6b652082305a9c3cda8656edab26/contrib/init[init system] for the Docker daemon is already setting those to acceptable values and, if needed, adjust them in the Daemon, or override them per container, for example using `docker run`:
 +
@@ -317,7 +325,7 @@ use `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`.
 .. Elasticsearch is I/O sensitive and the Docker storage driver is not ideal for fast I/O
 .. It allows the use of advanced https://docs.docker.com/engine/extend/plugins/#volume-plugins[Docker volume plugins]
 +
-. If you are using the devicemapper storage driver (default on at least RedHat (rpm) based distributions) make sure you are not using the default `loop-lvm` mode. Configure docker-engine to use https://docs.docker.com/engine/userguide/storagedriver/device-mapper-driver/#configure-docker-with-devicemapper[direct-lvm] instead.
+. If you are using the devicemapper storage driver make sure you are not using the default `loop-lvm` mode. Configure docker-engine to use https://docs.docker.com/engine/userguide/storagedriver/device-mapper-driver/#configure-docker-with-devicemapper[direct-lvm] instead.
 +
 . Consider centralizing your logs by using a different https://docs.docker.com/engine/admin/logging/overview/[logging driver]. Also note that the default json-file logging driver is not ideally suited for production use.
 

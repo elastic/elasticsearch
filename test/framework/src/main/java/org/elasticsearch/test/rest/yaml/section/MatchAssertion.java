@@ -26,6 +26,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
@@ -81,10 +83,71 @@ public class MatchAssertion extends Assertion {
             }
         }
 
-        if (expectedValue.equals(actualValue) == false) {
+        if (checkEquals(actualValue, expectedValue) == false) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compare(getField(), actualValue, expectedValue);
             throw new AssertionError(getField() + " didn't match expected value:\n" + message);
         }
+    }
+
+    /**
+     * Like {@link Map#equals(Object)} except it treats {@link Float}s as {@link Double}s.
+     */
+    private boolean checkEquals(Object actualValue, Object expectedValue) {
+        if (expectedValue instanceof Map) {
+            if (false == actualValue instanceof Map) {
+                return false;
+            }
+            Map<?, ?> actualMap = (Map<?, ?>) actualValue;
+            Map<?, ?> expectedMap = (Map<?, ?>) expectedValue;
+            if (actualMap.size() != expectedMap.size()) {
+                return false;
+            }
+            for (Map.Entry<?, ?> e : expectedMap.entrySet()) {
+                Object a = actualMap.get(e.getKey());
+                if (a == null || false == checkEquals(a, e.getValue())) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (expectedValue instanceof List) {
+            if (false == actualValue instanceof List) {
+                return false;
+            }
+            List<?> actualList = (List<?>) actualValue;
+            List<?> expectedList = (List<?>) expectedValue;
+            if (actualList.size() != expectedList.size()) {
+                return false;
+            }
+            for (int i = 0; i < expectedList.size(); i++) {
+                if (false == checkEquals(actualList.get(i), expectedList.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (expectedValue instanceof Double) {
+            Double expectedDouble = (Double) expectedValue;
+            if (actualValue instanceof Float) {
+                /*
+                 * We only ever parse doubles in expected values but
+                 * some xcontent types return floats in some fields.
+                 * So we compare with the precision we have. The truth
+                 * is that those types actually have higher fidelity.
+                 * The xcontent types that return doubles have rounded
+                 * real floats to doubles as part of the serialization
+                 * process.
+                 */
+                float actualFloat = (Float) actualValue;
+                return actualFloat == expectedDouble.floatValue();
+            }
+            if (actualValue instanceof Double) {
+                double actualDouble = (Double) actualValue;
+                return actualDouble == expectedDouble;
+            }
+            return false;
+        }
+        return expectedValue.equals(actualValue);
     }
 }

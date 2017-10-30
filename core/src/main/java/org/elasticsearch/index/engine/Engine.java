@@ -572,7 +572,11 @@ public abstract class Engine implements Closeable {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
-    /** get the sequence number service */
+    /**
+     * The sequence number service for this engine.
+     *
+     * @return the sequence number service
+     */
     public abstract SequenceNumbersService seqNoService();
 
     /**

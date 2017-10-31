@@ -12,6 +12,7 @@ The following numeric types are supported:
 `float`::        A single-precision 32-bit IEEE 754 floating point.
 `half_float`::   A half-precision 16-bit IEEE 754 floating point.
 `scaled_float`:: A floating point that is backed by a `long` and a fixed scaling factor.
+`custom_float`:: A floating-point number whose format is configurable.
 
 Below is an example of configuring a mapping with numeric fields:
 
@@ -140,3 +141,41 @@ The following parameters are accepted by numeric types:
     sorting) will behave as if the document had a value of +2.3+. High values
     of `scaling_factor` improve accuracy but also increase space requirements.
     This parameter is required.
+
+[[custom-float-params]]
+==== Parameters for `custom_float`
+
+experimental[The `custom_float` type is new and we'd like to get feedback about it before stabilizing the API.]
+
+`custom_float` uses a format that is similar to `float` and `double` except that
+the number of bits that you wish to spend on the mantissa and the exponent are
+configurable.
+
+One use-case that this field can help with is storing large numbers efficiently
+while only preserving the most significant bits. We believe that this may be
+useful for instance in order to store latencies or numbers of bytes, since the
+order of magnitude for these quantities is usually much more important than
+the accurate values. If this is your use-case, you could store such values
+efficiently while preserving 10 significant bits (\~3 significant digits) by
+setting `num_significant_bits` to +10+ and `zero_exponent` to +8+.
+
+`custom_float` accepts an additional parameter:
+
+[horizontal]
+
+`num_significant_bits`::
+
+    The number of significant bits to keep. Higher values increase accuracy of
+    the representation but also increase storage requirements. Must be in 1..53,
+    default value is 53.
+    If you want to preserve x significant digits, you will need about
+    ceil(log2(10x)) bits. For instance for 3 significant digits, this gives 10
+    significant bits.
+
+`zero_exponent`::
+
+    This setting is more expert and represents the exponent that is represented
+    by 0 in the float representation. Must be in -1023..1023, default value is
+    -1023.
+    Fields that will only store integers in practice can set this value to
+    `num_significant_bits - 2` in order to save space.

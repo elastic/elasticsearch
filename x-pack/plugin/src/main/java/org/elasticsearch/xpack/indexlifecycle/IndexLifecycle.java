@@ -87,8 +87,9 @@ public class IndexLifecycle implements ActionPlugin {
     public void onIndexModule(IndexModule indexModule) {
         ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN").error("onIndexModule");
         Index index = indexModule.getIndex();
+        long creationDate = settings.getAsLong("index.creation_date", -1L);
         indexModule.addSettingsUpdateConsumer(LIFECYCLE_TIMESERIES_SETTING,
-            (Settings s) -> indexLifecycleInitialisationService.get().setLifecycleSettings(index, s));
+            (Settings s) -> indexLifecycleInitialisationService.get().setLifecycleSettings(index, creationDate, s));
         indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
     }
 

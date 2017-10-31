@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.Version.V_5_3_0;
-import static org.elasticsearch.Version.V_6_0_0_beta1;
 import static org.elasticsearch.Version.V_6_0_0_beta2;
 import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.elasticsearch.test.VersionUtils.randomVersion;

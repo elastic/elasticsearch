@@ -13,6 +13,9 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -84,15 +87,29 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final String clusterUUID = UUID.randomUUID().toString();
         whenClusterStateWithUUID(clusterUUID);
 
+        final RoutingTable routingTable = mock(RoutingTable.class);
+        when(clusterState.routingTable()).thenReturn(routingTable);
+
         final MonitoringDoc.Node node = randomMonitoringNode(random());
 
-        final Map<String, IndexStats> indicesStats = new HashMap<>();
         final int indices = randomIntBetween(0, 10);
+        final Map<String, IndexStats> indicesStats = new HashMap<>(indices);
+        final Map<String, IndexMetaData> indicesMetaData = new HashMap<>(indices);
+        final Map<String, IndexRoutingTable> indicesRoutingTable = new HashMap<>(indices);
+
         for (int i = 0; i < indices; i++) {
-            String index = "_index_" + i;
-            IndexStats indexStats = mock(IndexStats.class);
-            when(indexStats.getIndex()).thenReturn(index);
+            final String index = "_index_" + i;
+            final IndexStats indexStats = mock(IndexStats.class);
+            final IndexMetaData indexMetaData = mock(IndexMetaData.class);
+            final IndexRoutingTable indexRoutingTable = mock(IndexRoutingTable.class);
+
             indicesStats.put(index, indexStats);
+            indicesMetaData.put(index, indexMetaData);
+            indicesRoutingTable.put(index, indexRoutingTable);
+
+            when(indexStats.getIndex()).thenReturn(index);
+            when(metaData.index(index)).thenReturn(indexMetaData);
+            when(routingTable.index(index)).thenReturn(indexRoutingTable);
         }
 
         final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
@@ -121,7 +138,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         assertEquals(1 + indices, results.size());
 
-        for (MonitoringDoc document : results) {
+        for (final MonitoringDoc document : results) {
             assertThat(document.getCluster(), equalTo(clusterUUID));
             assertThat(document.getTimestamp(), greaterThan(0L));
             assertThat(document.getIntervalMillis(), equalTo(interval));
@@ -135,8 +152,12 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
             } else {
                 assertThat(document.getType(), equalTo(IndexStatsMonitoringDoc.TYPE));
 
-                IndexStats indexStats = ((IndexStatsMonitoringDoc) document).getIndexStats();
-                assertThat(indexStats, is(indicesStats.get(indexStats.getIndex())));
+                final IndexStatsMonitoringDoc indexStatsDocument = (IndexStatsMonitoringDoc)document;
+                final String index = indexStatsDocument.getIndexStats().getIndex();
+
+                assertThat(indexStatsDocument.getIndexStats(), is(indicesStats.get(index)));
+                assertThat(indexStatsDocument.getIndexMetaData(), is(indicesMetaData.get(index)));
+                assertThat(indexStatsDocument.getIndexRoutingTable(), is(indicesRoutingTable.get(index)));
             }
         }
     }

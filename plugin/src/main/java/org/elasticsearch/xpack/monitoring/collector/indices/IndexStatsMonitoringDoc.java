@@ -7,6 +7,10 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -14,6 +18,7 @@ import org.elasticsearch.xpack.monitoring.exporter.FilteredMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -25,42 +30,94 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
     public static final String TYPE = "index_stats";
 
     private final IndexStats indexStats;
+    private final IndexMetaData metaData;
+    private final IndexRoutingTable routingTable;
 
     IndexStatsMonitoringDoc(final String cluster,
                             final long timestamp,
                             final long intervalMillis,
                             final MonitoringDoc.Node node,
-                            final IndexStats indexStats) {
+                            @Nullable final IndexStats indexStats,
+                            final IndexMetaData metaData,
+                            final IndexRoutingTable routingTable) {
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null, XCONTENT_FILTERS);
-        this.indexStats = Objects.requireNonNull(indexStats);
+        this.indexStats = indexStats;
+        this.metaData = Objects.requireNonNull(metaData);
+        this.routingTable = Objects.requireNonNull(routingTable);
     }
 
     IndexStats getIndexStats() {
         return indexStats;
     }
 
+    IndexMetaData getIndexMetaData() {
+        return metaData;
+    }
+
+    IndexRoutingTable getIndexRoutingTable() {
+        return routingTable;
+    }
+
     @Override
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        final ClusterIndexHealth health = new ClusterIndexHealth(metaData, routingTable);
+
         builder.startObject(TYPE);
         {
-            builder.field("index", indexStats.getIndex());
+            builder.field("index", metaData.getIndex().getName());
+            builder.field("uuid", metaData.getIndexUUID());
+            builder.field("created", metaData.getCreationDate());
+            builder.field("status", health.getStatus().name().toLowerCase(Locale.ROOT));
 
-            final CommonStats totalStats = indexStats.getTotal();
-            if (totalStats != null) {
-                builder.startObject("total");
-                {
-                    totalStats.toXContent(builder, params);
-                }
-                builder.endObject();
+            builder.startObject("version");
+            {
+                builder.field("created", metaData.getCreationVersion());
+                builder.field("upgraded", metaData.getUpgradedVersion());
             }
+            builder.endObject();
 
-            final CommonStats primariesStats = indexStats.getPrimaries();
-            if (primariesStats != null) {
-                builder.startObject("primaries");
-                {
-                    primariesStats.toXContent(builder, params);
+            builder.startObject("shards");
+            {
+                final int total = metaData.getTotalNumberOfShards();
+                final int primaries = metaData.getNumberOfShards();
+                final int activeTotal = health.getActiveShards();
+                final int activePrimaries = health.getActivePrimaryShards();
+                final int unassignedTotal = health.getUnassignedShards() + health.getInitializingShards();
+                final int unassignedPrimaries = primaries - health.getActivePrimaryShards();
+
+                builder.field("total", total);
+                builder.field("primaries", primaries);
+                builder.field("replicas", metaData.getNumberOfReplicas());
+                builder.field("active_total", activeTotal);
+                builder.field("active_primaries", activePrimaries);
+                builder.field("active_replicas", activeTotal - activePrimaries);
+                builder.field("unassigned_total", unassignedTotal);
+                builder.field("unassigned_primaries", unassignedPrimaries);
+                builder.field("unassigned_replicas", unassignedTotal - unassignedPrimaries);
+                builder.field("initializing", health.getInitializingShards());
+                builder.field("relocating", health.getRelocatingShards());
+            }
+            builder.endObject();
+
+            // when an index is completely red, then we don't get stats for it
+            if (indexStats != null) {
+                final CommonStats totalStats = indexStats.getTotal();
+                if (totalStats != null) {
+                    builder.startObject("total");
+                    {
+                        totalStats.toXContent(builder, params);
+                    }
+                    builder.endObject();
                 }
-                builder.endObject();
+
+                final CommonStats primariesStats = indexStats.getPrimaries();
+                if (primariesStats != null) {
+                    builder.startObject("primaries");
+                    {
+                        primariesStats.toXContent(builder, params);
+                    }
+                    builder.endObject();
+                }
             }
         }
         builder.endObject();
@@ -68,6 +125,22 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
 
     public static final Set<String> XCONTENT_FILTERS =
         Sets.newHashSet("index_stats.index",
+                        "index_stats.uuid",
+                        "index_stats.created",
+                        "index_stats.status",
+                        "index_stats.version.created",
+                        "index_stats.version.upgraded",
+                        "index_stats.shards.total",
+                        "index_stats.shards.primaries",
+                        "index_stats.shards.replicas",
+                        "index_stats.shards.active_total",
+                        "index_stats.shards.active_primaries",
+                        "index_stats.shards.active_replicas",
+                        "index_stats.shards.unassigned_total",
+                        "index_stats.shards.unassigned_primaries",
+                        "index_stats.shards.unassigned_replicas",
+                        "index_stats.shards.initializing",
+                        "index_stats.shards.relocating",
                         "index_stats.primaries.docs.count",
                         "index_stats.primaries.fielddata.memory_size_in_bytes",
                         "index_stats.primaries.fielddata.evictions",

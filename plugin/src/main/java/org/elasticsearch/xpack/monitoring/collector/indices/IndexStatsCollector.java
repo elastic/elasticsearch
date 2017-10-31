@@ -9,6 +9,9 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -71,13 +74,18 @@ public class IndexStatsCollector extends Collector {
 
         final long timestamp = timestamp();
         final String clusterUuid = clusterUUID();
+        final ClusterState clusterState = clusterService.state();
 
         // add the indices stats that we use to collect the index stats
         results.add(new IndicesStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indicesStats));
 
         // collect each index stats document
-        for (IndexStats indexStats : indicesStats.getIndices().values()) {
-            results.add(new IndexStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indexStats));
+        for (final IndexStats indexStats : indicesStats.getIndices().values()) {
+            final String index = indexStats.getIndex();
+            final IndexMetaData metaData = clusterState.metaData().index(index);
+            final IndexRoutingTable routingTable = clusterState.routingTable().index(index);
+
+            results.add(new IndexStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indexStats, metaData, routingTable));
         }
 
         return Collections.unmodifiableCollection(results);

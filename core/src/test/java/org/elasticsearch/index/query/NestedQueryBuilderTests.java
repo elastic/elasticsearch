@@ -358,4 +358,9 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         nestedContextBuilder.build(searchContext, innerHitsContext);
         assertThat(innerHitsContext.getInnerHits().size(), Matchers.equalTo(0));
     }
+
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
 }

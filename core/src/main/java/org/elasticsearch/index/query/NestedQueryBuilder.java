@@ -37,6 +37,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,6 +60,10 @@ import java.util.Optional;
 import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(NestedQueryBuilder.class));
+
     public static final String NAME = "nested";
     /**
      * The default value for ignore_unmapped.
@@ -85,6 +91,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         this.query = requireValue(query, "[" + NAME + "] requires 'query' field");
         this.scoreMode = requireValue(scoreMode, "[" + NAME + "] requires 'score_mode' field");
         this.innerHitBuilder = innerHitBuilder;
+        warnAboutNestedSourceFiltering(innerHitBuilder);
     }
 
     /**
@@ -133,6 +140,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     public NestedQueryBuilder innerHit(InnerHitBuilder innerHitBuilder) {
         this.innerHitBuilder = innerHitBuilder;
+        warnAboutNestedSourceFiltering(innerHitBuilder);
         return this;
     }
 
@@ -329,6 +337,17 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             InnerHitContextBuilder innerHitContextBuilder = new NestedInnerHitContextBuilder(path, query, innerHitBuilder, children);
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : path;
             innerHits.put(name, innerHitContextBuilder);
+        }
+    }
+
+    private static void warnAboutNestedSourceFiltering(InnerHitBuilder innerHitBuilder) {
+        if (innerHitBuilder != null && innerHitBuilder.getFetchSourceContext() != null) {
+            if (innerHitBuilder.getFetchSourceContext().includes().length > 0 ||
+                innerHitBuilder.getFetchSourceContext().excludes().length > 0) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("nested_inner_hits_source_filtering",
+                    "The format of filtered _source inside a nested inner hit has changed from 6.0 and beyond. " +
+                        "All field paths will be relative to the nested path.");
+            }
         }
     }
 

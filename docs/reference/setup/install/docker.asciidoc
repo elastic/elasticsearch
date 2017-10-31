@@ -325,7 +325,10 @@ use `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`.
 .. Elasticsearch is I/O sensitive and the Docker storage driver is not ideal for fast I/O
 .. It allows the use of advanced https://docs.docker.com/engine/extend/plugins/#volume-plugins[Docker volume plugins]
 +
-. If you are using the devicemapper storage driver make sure you are not using the default `loop-lvm` mode. Configure docker-engine to use https://docs.docker.com/engine/userguide/storagedriver/device-mapper-driver/#configure-docker-with-devicemapper[direct-lvm] instead.
+. If you are using the devicemapper storage driver, make sure you are not using
+the default `loop-lvm` mode. Configure docker-engine to use
+https://docs.docker.com/engine/userguide/storagedriver/device-mapper-driver/#configure-docker-with-devicemapper[direct-lvm]
+instead.
 +
 . Consider centralizing your logs by using a different https://docs.docker.com/engine/admin/logging/overview/[logging driver]. Also note that the default json-file logging driver is not ideally suited for production use.
 

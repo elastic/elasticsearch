@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -331,6 +334,67 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.docs().get(6).get("field"), equalTo("value"));
         assertThat(doc.docs().get(6).get("nested1.field1"), nullValue());
         assertThat(doc.docs().get(6).getFields("nested1.nested2.field2").length, equalTo(4));
+    }
+
+    /**
+     * Checks that multiple levels of nested includes where a node is both directly and transitively
+     * included in root by {@code include_in_root} and a chain of {@code include_in_parent} does not
+     * lead to duplicate fields on the root document.
+     */
+    public void testMultipleLevelsIncludeRoot1() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject().startObject("type").startObject("properties")
+            .startObject("nested1").field("type", "nested").field("include_in_root", true).field("include_in_parent", true).startObject("properties")
+            .startObject("nested2").field("type", "nested").field("include_in_root", true).field("include_in_parent", true)
+            .endObject().endObject().endObject()
+            .endObject().endObject().endObject().string();
+
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().startArray("nested1")
+                .startObject().startArray("nested2").startObject().field("foo", "bar")
+                .endObject().endArray().endObject().endArray()
+                .endObject()
+                .bytes(),
+            XContentType.JSON));
+
+        final Collection<IndexableField> fields = doc.rootDoc().getFields();
+        assertThat(fields.size(), equalTo(new HashSet<>(fields).size()));
+    }
+
+    /**
+     * Same as {@link NestedObjectMapperTests#testMultipleLevelsIncludeRoot1()} but tests for the
+     * case where the transitive {@code include_in_parent} and redundant {@code include_in_root}
+     * happen on a chain of nodes that starts from a parent node that is not directly connected to
+     * root by a chain of {@code include_in_parent}, i.e. that has {@code include_in_parent} set to
+     * {@code false} and {@code include_in_root} set to {@code true}.
+     */
+    public void testMultipleLevelsIncludeRoot2() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject().startObject("type").startObject("properties")
+            .startObject("nested1").field("type", "nested")
+            .field("include_in_root", true).field("include_in_parent", true).startObject("properties")
+            .startObject("nested2").field("type", "nested")
+            .field("include_in_root", true).field("include_in_parent", false).startObject("properties")
+            .startObject("nested3").field("type", "nested")
+            .field("include_in_root", true).field("include_in_parent", true)
+            .endObject().endObject().endObject().endObject().endObject()
+            .endObject().endObject().endObject().string();
+
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().startArray("nested1")
+                .startObject().startArray("nested2")
+                .startObject().startArray("nested3").startObject().field("foo", "bar")
+                .endObject().endArray().endObject().endArray().endObject().endArray()
+                .endObject()
+                .bytes(),
+            XContentType.JSON));
+
+        final Collection<IndexableField> fields = doc.rootDoc().getFields();
+        assertThat(fields.size(), equalTo(new HashSet<>(fields).size()));
     }
 
     public void testNestedArrayStrict() throws Exception {

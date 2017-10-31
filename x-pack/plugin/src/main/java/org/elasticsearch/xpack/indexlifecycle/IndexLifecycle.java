@@ -29,7 +29,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -55,12 +54,9 @@ public class IndexLifecycle implements ActionPlugin {
     private boolean tribeNodeClient;
 
     public static final Setting LIFECYCLE_TIMESERIES_SETTING = Setting.groupSetting("index.lifecycle.timeseries.", (settings) -> {
-        ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN").error("validating setting internally");
+        ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN").error("validating setting internally: " + settings);
         if (settings.size() == 0) {
             return;
-        }
-        if (settings.size() != 2 && (settings.get("new") == null || settings.get("delete") == null)) {
-            throw new IllegalArgumentException("you have invalid lifecycle settings, cmon!");
         }
     }, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
@@ -85,8 +81,8 @@ public class IndexLifecycle implements ActionPlugin {
     }
 
     public void onIndexModule(IndexModule indexModule) {
-        ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN").error("onIndexModule");
         Index index = indexModule.getIndex();
+        ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN").error("onIndexModule: " + index.getName());
         long creationDate = settings.getAsLong("index.creation_date", -1L);
         indexModule.addSettingsUpdateConsumer(LIFECYCLE_TIMESERIES_SETTING,
             (Settings s) -> indexLifecycleInitialisationService.get().setLifecycleSettings(index, creationDate, s));

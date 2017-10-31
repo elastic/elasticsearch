@@ -43,7 +43,6 @@ import static org.mockito.Mockito.when;
 
 public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
 
-
     public void testFilterSizeLimitation() throws Exception {
         // filter size grater than max size should thrown a exception
         QueryShardContext queryShardContext = mock(QueryShardContext.class);

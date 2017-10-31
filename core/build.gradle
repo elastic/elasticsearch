@@ -58,11 +58,12 @@ dependencies {
   compile 'org.elasticsearch:securesm:1.1'
 
   // utilities
-  compile "org.elasticsearch:elasticsearch-cli:${version}"
+  provided "org.elasticsearch:elasticsearch-cli:${version}"
   compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
+  compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
   compile 'joda-time:joda-time:2.9.5'
 
   // json and yaml

@@ -105,7 +105,7 @@ public abstract class EnvironmentAwareCommand extends Command {
     }
 
     @Override
-    protected void beforeExecute() {
+    protected final void beforeExecute() {
         if (shouldConfigureLoggingWithoutConfig()) {
             // initialize default for es.logger.level because we will not read the log4j2.properties
             final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());

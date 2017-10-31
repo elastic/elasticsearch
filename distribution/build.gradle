@@ -164,6 +164,7 @@ configure(distributions) {
       from project(':core').jar
       from project(':core').configurations.runtime
       // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
+      from { from project(':core:cli').jar }
       from { project(':distribution:tools:java-version-checker').jar }
       from { project(':distribution:tools:plugin-cli').jar }
     }

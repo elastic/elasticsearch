@@ -23,7 +23,6 @@ import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.apache.lucene.util.SetOnce;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -51,12 +50,13 @@ public abstract class Command implements Closeable {
         this.description = description;
     }
 
-    final SetOnce<Thread> shutdownHookThread = new SetOnce<>();
+    private Thread shutdownHookThread;
 
     /** Parses options for this command from args and executes it. */
     public final int main(String[] args, Terminal terminal) throws Exception {
         if (addShutdownHook()) {
-            shutdownHookThread.set(new Thread(() -> {
+
+            shutdownHookThread = new Thread(() -> {
                 try {
                     this.close();
                 } catch (final IOException e) {
@@ -71,8 +71,8 @@ public abstract class Command implements Closeable {
                         throw new AssertionError(impossible);
                     }
                 }
-            }));
-            Runtime.getRuntime().addShutdownHook(shutdownHookThread.get());
+            });
+            Runtime.getRuntime().addShutdownHook(shutdownHookThread);
         }
 
         beforeExecute();
@@ -151,6 +151,11 @@ public abstract class Command implements Closeable {
      */
     protected boolean addShutdownHook() {
         return true;
+    }
+
+    /** Gets the shutdown hook thread if it exists **/
+    public Thread getShutdownHookThread() {
+        return shutdownHookThread;
     }
 
     @Override

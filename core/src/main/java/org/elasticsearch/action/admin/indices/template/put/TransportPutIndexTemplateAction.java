@@ -66,7 +66,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
 
     @Override
     protected ClusterBlockException checkBlock(PutIndexTemplateRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

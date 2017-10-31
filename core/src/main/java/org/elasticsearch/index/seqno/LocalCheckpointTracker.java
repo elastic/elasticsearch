@@ -227,7 +227,7 @@ public class LocalCheckpointTracker {
         if (processedSeqNo.indexExists(index) == false) {
             processedSeqNo.indexInsert(index, bitArrayKey, new FixedBitSet(bitArraysSize));
         }
-        return processedSeqNo.indexGet(index);
+        return processedSeqNo.get(bitArrayKey);
     }
 
     /**

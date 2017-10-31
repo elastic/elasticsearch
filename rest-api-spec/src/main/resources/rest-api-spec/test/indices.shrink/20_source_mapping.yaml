@@ -39,7 +39,7 @@
         indices.put_template:
           name: tpl1
           body:
-            index_patterns: targ*
+            template: targ*
             mappings:
               test:
                 properties:

@@ -3,18 +3,18 @@
 
 Elasticsearch is also available as Docker images.
 The images use https://hub.docker.com/_/centos/[centos:7] as the base image and
-are available with {xpack-ref}/index.html[X-Pack].
+are available with {xpack-ref}/xpack-introduction.html[X-Pack].
 
 A list of all published Docker images and tags can be found in https://www.docker.elastic.co[www.docker.elastic.co]. The source code can be found
 on https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
 
 ==== Image types
 
-The images are available in three different configurations or "flavours". The
-`basic` flavour, which is the default, ships with X-Pack Basic features
+The images are available in three different configurations or "flavors". The
+`basic` flavor, which is the default, ships with X-Pack Basic features
 pre-installed and automatically activated with a free licence. The `platinum`
-flavour features all X-Pack functionally under a 30-day trial licence. The `oss`
-flavour does not include X-Pack, and contains only open-source Elasticsearch.
+flavor features all X-Pack functionally under a 30-day trial licence. The `oss`
+flavor does not include X-Pack, and contains only open-source Elasticsearch.
 
 NOTE: {xpack-ref}/xpack-security.html[X-Pack Security] is enabled in the `platinum`
 image. To access your cluster, it's necessary to set an initial password for the

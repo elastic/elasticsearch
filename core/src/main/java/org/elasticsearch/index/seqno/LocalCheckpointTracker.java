@@ -224,10 +224,14 @@ public class LocalCheckpointTracker {
         assert Thread.holdsLock(this);
         final long bitArrayKey = getBitArrayKey(seqNo);
         final int index = processedSeqNo.indexOf(bitArrayKey);
-        if (processedSeqNo.indexExists(index) == false) {
-            processedSeqNo.indexInsert(index, bitArrayKey, new FixedBitSet(bitArraysSize));
+        final FixedBitSet bitArray;
+        if (processedSeqNo.indexExists(index)) {
+            bitArray = processedSeqNo.indexGet(index);
+        } else {
+            bitArray = new FixedBitSet(bitArraysSize);
+            processedSeqNo.indexInsert(index, bitArrayKey, bitArray);
         }
-        return processedSeqNo.get(bitArrayKey);
+        return bitArray;
     }
 
     /**

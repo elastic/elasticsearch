@@ -131,7 +131,7 @@ To bring up the cluster, use the <<docker-prod-cluster-composefile,`docker-compo
 
 ifeval::["{release-state}"=="unreleased"]
 
-WARNING: Version {version} of the Elasticsearch has not yet been released, so a
+WARNING: Version {version} of Elasticsearch has not yet been released, so a
 `docker-compose.yml` is not available for this version.
 
 endif::[]

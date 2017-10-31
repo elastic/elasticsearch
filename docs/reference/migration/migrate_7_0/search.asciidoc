@@ -22,3 +22,7 @@ PUT /_cluster/settings
 --------------------------------------------------
 // CONSOLE
 
+=== `_search/scroll` returns `400` for invalid requests
+
+The `/_search/scroll` endpoint returns `400 - Bad request` when the request invalid, while it would previously 
+return `500 - Internal Server Error` in such case.

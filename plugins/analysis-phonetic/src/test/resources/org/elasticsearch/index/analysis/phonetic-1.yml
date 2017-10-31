@@ -19,6 +19,10 @@ index:
       beidermorsefilter:
         type: phonetic
         encoder: beidermorse
+      beidermorsefilterfrench:
+        type: phonetic
+        encoder: beidermorse
+        languageset : [ "french" ]
       koelnerphonetikfilter:
         type: phonetic
         encoder: koelnerphonetik

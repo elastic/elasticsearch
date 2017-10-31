@@ -49,16 +49,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
     private static final int SMALL_CHUNK_SIZE = 4;
 
     public static LocalCheckpointTracker createEmptyTracker() {
-        return new LocalCheckpointTracker(
-            IndexSettingsModule.newIndexSettings(
-                "test",
-                Settings
-                    .builder()
-                    .put(LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
-                    .build()),
-            SequenceNumbers.NO_OPS_PERFORMED,
-            SequenceNumbers.NO_OPS_PERFORMED
-        );
+        return new LocalCheckpointTracker(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
     }
 
     @Override

@@ -44,12 +44,12 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
 
     @Override
     protected ClusterBlockException checkBlock(GetLicenseRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, "");
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
-    protected void masterOperation(final GetLicenseRequest request, ClusterState state, final ActionListener<GetLicenseResponse>
-            listener) throws ElasticsearchException {
+    protected void masterOperation(final GetLicenseRequest request, ClusterState state,
+                                   final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
         listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
     }
 }

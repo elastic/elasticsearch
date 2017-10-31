@@ -397,11 +397,21 @@ public class MonitoringIT extends ESRestTestCase {
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
         assertEquals(6, source.size());
 
+        // particular field values checked in the index stats tests
         final Map<String, Object> indexStats = (Map<String, Object>) source.get(IndexStatsMonitoringDoc.TYPE);
-        assertEquals(3, indexStats.size());
+        assertEquals(8, indexStats.size());
+        assertThat((String) indexStats.get("index"), not(isEmptyOrNullString()));
+        assertThat((String) indexStats.get("uuid"), not(isEmptyOrNullString()));
+        assertThat((Long) indexStats.get("created"), notNullValue());
+        assertThat((String) indexStats.get("status"), not(isEmptyOrNullString()));
+        assertThat(indexStats.get("version"), notNullValue());
+        final Map<String, Object> version = (Map<String, Object>) indexStats.get("version");
+        assertEquals(2, version.size());
+        assertThat(indexStats.get("shards"), notNullValue());
+        final Map<String, Object> shards = (Map<String, Object>) indexStats.get("shards");
+        assertEquals(11, shards.size());
         assertThat(indexStats.get("primaries"), notNullValue());
         assertThat(indexStats.get("total"), notNullValue());
-        assertThat((String) indexStats.get("index"), not(isEmptyOrNullString()));
 
         IndexStatsMonitoringDoc.XCONTENT_FILTERS.forEach(filter ->
                 assertThat(filter + " must not be null in the monitoring document", extractValue(filter, source), notNullValue()));

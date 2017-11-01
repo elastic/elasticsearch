@@ -21,47 +21,50 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
 
-import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.function.Supplier;
 
 /** Common implementation for array lists that slice data into fixed-size blocks. */
-abstract class AbstractBigArray extends AbstractArray {
+abstract class AbstractBigArray<V> extends AbstractArray {
 
+    protected Recycler.V<V>[] pages;
+    private final Supplier<Recycler.V<V>> pageSupplier;
     private final PageCacheRecycler recycler;
-    private Recycler.V<?>[] cache;
 
+    protected long size;
+    protected int offset;
     private final int pageShift;
     private final int pageMask;
-    protected long size;
+    private int tailPage;
 
-    protected AbstractBigArray(int pageSize, BigArrays bigArrays, boolean clearOnResize) {
+    @SuppressWarnings("unchecked")
+    protected AbstractBigArray(long size, int pageSize, Supplier<Recycler.V<V>> pageSupplier, BigArrays bigArrays, boolean clearOnResize) {
         super(bigArrays, clearOnResize);
-        this.recycler = bigArrays.recycler;
         if (pageSize < 128) {
             throw new IllegalArgumentException("pageSize must be >= 128");
         }
         if ((pageSize & (pageSize - 1)) != 0) {
             throw new IllegalArgumentException("pageSize must be a power of two");
         }
+
+        this.size = size;
+        this.offset = 0;
+        this.pageSupplier = pageSupplier;
+        this.recycler = bigArrays.recycler;
         this.pageShift = Integer.numberOfTrailingZeros(pageSize);
         this.pageMask = pageSize - 1;
-        size = 0;
-        if (this.recycler != null) {
-            cache = new Recycler.V<?>[16];
-        } else {
-            cache = null;
+        this.pages = new Recycler.V[numPages(size)];
+        for (int i = 0; i < pages.length; ++i) {
+            pages[i] = newPage();
         }
     }
 
-    final int numPages(long capacity) {
-        final long numPages = (capacity + pageMask) >>> pageShift;
-        if (numPages > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("pageSize=" + (pageMask + 1) + " is too small for such as capacity: " + capacity);
-        }
-        return (int) numPages;
+    final V getPage(int pageIndex) {
+        return pages[pageIndex].v();
     }
 
     final int pageSize() {
@@ -69,11 +72,13 @@ abstract class AbstractBigArray extends AbstractArray {
     }
 
     final int pageIndex(long index) {
-        return (int) (index >>> pageShift);
+        long indexWithOffset = index + offset;
+        return (int) (indexWithOffset >>> pageShift);
     }
 
     final int indexInPage(long index) {
-        return (int) (index & pageMask);
+        long indexWithOffset = index + offset;
+        return (int) (indexWithOffset & pageMask);
     }
 
     @Override
@@ -81,7 +86,71 @@ abstract class AbstractBigArray extends AbstractArray {
         return size;
     }
 
-    public abstract void resize(long newSize);
+    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
+    public void resize(long newSize) {
+        final int numPages = numPages(newSize + offset);
+        if (numPages > pages.length) {
+            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+        }
+        for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
+            pages[i] = newPage();
+        }
+        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
+            pages[i].close();
+            pages[i] = null;
+        }
+        this.size = newSize;
+    }
+
+    public void shrink(long dropFromHead) {
+        if (dropFromHead > size) {
+            throw new IllegalArgumentException("");
+        }
+
+        int numberInFirstPage = pageSize() - offset;
+
+        if (numberInFirstPage > dropFromHead) {
+            offset += dropFromHead;
+            size -= dropFromHead;
+            return;
+        }
+
+        int newOffset = indexInPage(dropFromHead - numberInFirstPage);
+
+        int newFirstPage = pageIndex(dropFromHead + offset);
+
+        dropPagesFromHead(newFirstPage);
+
+        offset = newOffset;
+        size -= dropFromHead;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void dropPagesFromHead(int n) {
+        for (int i = 0; i < n; ++i) {
+            pages[i].close();
+            pages[i] = null;
+        }
+
+        int newTail = (tailPage - n);
+        int numPages = newTail + 1;
+
+        int oversize = ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+
+        Recycler.V<V>[] newPages;
+        if (oversize == pages.length) {
+            newPages = pages;
+        } else {
+            newPages = new Recycler.V[oversize];
+        }
+        System.arraycopy(pages, n, newPages, 0, numPages);
+
+        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
+            pages[i] = null;
+        }
+
+        tailPage = newTail;
+    }
 
     protected abstract int numBytesPerElement();
 
@@ -96,71 +165,80 @@ abstract class AbstractBigArray extends AbstractArray {
         return ((long) pageIndex(size - 1) + 1) * pageSize() * numBytesPerElement();
     }
 
-    private static <T> T[] grow(T[] array, int minSize) {
-        if (array.length < minSize) {
-            final int newLen = ArrayUtil.oversize(minSize, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-            array = Arrays.copyOf(array, newLen);
+    private int numPages(long capacity) {
+        final long numPages = (capacity + pageMask) >>> pageShift;
+        if (numPages > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("pageSize=" + (pageMask + 1) + " is too small for such as capacity: " + capacity);
         }
-        return array;
+        return (int) numPages;
     }
 
-    private <T> T registerNewPage(Recycler.V<T> v, int page, int expectedSize) {
-        cache = grow(cache, page + 1);
-        assert cache[page] == null;
-        cache[page] = v;
-        assert Array.getLength(v.v()) == expectedSize;
-        return v.v();
-      }
+    private Recycler.V<V> newPage() {
+        return pageSupplier.get();
+    }
 
-    protected final byte[] newBytePage(int page) {
-        if (recycler != null) {
-            final Recycler.V<byte[]> v = recycler.bytePage(clearOnResize);
-            return registerNewPage(v, page, BigArrays.BYTE_PAGE_SIZE);
+    static Supplier<Recycler.V<long[]>> createLongSupplier(BigArrays bigArrays, boolean clearOnResize) {
+        if (bigArrays.recycler == null) {
+            return () -> new NonRecycledPage<>(new long[BigArrays.LONG_PAGE_SIZE]);
         } else {
-            return new byte[BigArrays.BYTE_PAGE_SIZE];
+            return () -> bigArrays.recycler.longPage(clearOnResize);
         }
     }
 
-    protected final int[] newIntPage(int page) {
-        if (recycler != null) {
-            final Recycler.V<int[]> v = recycler.intPage(clearOnResize);
-            return registerNewPage(v, page, BigArrays.INT_PAGE_SIZE);
+    static Supplier<Recycler.V<Object[]>> createObjectSupplier(BigArrays bigArrays) {
+        if (bigArrays.recycler == null) {
+            return () -> new NonRecycledPage<>(new Object[BigArrays.OBJECT_PAGE_SIZE]);
         } else {
-            return new int[BigArrays.INT_PAGE_SIZE];
+            return bigArrays.recycler::objectPage;
         }
     }
 
-    protected final long[] newLongPage(int page) {
-        if (recycler != null) {
-            final Recycler.V<long[]> v = recycler.longPage(clearOnResize);
-            return registerNewPage(v, page, BigArrays.LONG_PAGE_SIZE);
+    static Supplier<Recycler.V<int[]>> createIntSupplier(BigArrays bigArrays, boolean clearOnResize) {
+        if (bigArrays.recycler == null) {
+            return () -> new NonRecycledPage<>(new int[BigArrays.INT_PAGE_SIZE]);
         } else {
-            return new long[BigArrays.LONG_PAGE_SIZE];
+            return () -> bigArrays.recycler.intPage(clearOnResize);
         }
     }
 
-    protected final Object[] newObjectPage(int page) {
-        if (recycler != null) {
-            final Recycler.V<Object[]> v = recycler.objectPage();
-            return registerNewPage(v, page, BigArrays.OBJECT_PAGE_SIZE);
+    static Supplier<Recycler.V<byte[]>> createByteSupplier(BigArrays bigArrays, boolean clearOnResize) {
+        if (bigArrays.recycler == null) {
+            return () -> new NonRecycledPage<>(new byte[BigArrays.BYTE_PAGE_SIZE]);
         } else {
-            return new Object[BigArrays.OBJECT_PAGE_SIZE];
-        }
-    }
-
-    protected final void releasePage(int page) {
-        if (recycler != null) {
-            cache[page].close();
-            cache[page] = null;
+            return () -> bigArrays.recycler.bytePage(clearOnResize);
         }
     }
 
     @Override
     protected final void doClose() {
         if (recycler != null) {
-            Releasables.close(cache);
-            cache = null;
+            Releasables.close(pages);
+            pages = null;
         }
     }
 
+    static class NonRecycledPage<V> implements Recycler.V<V> {
+
+        private final V value;
+        private final Releasable releasable;
+
+        NonRecycledPage(V value) {
+            this.value = value;
+            this.releasable = () -> {};
+        }
+
+        public V v() {
+            return value;
+        }
+
+        @Override
+        public boolean isRecycled() {
+            return false;
+        }
+
+        @Override
+        public void close() {
+            releasable.close();
+        }
+    }
 }

@@ -650,7 +650,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void contextScrollKeepAlive(SearchContext context, long keepAlive) throws IOException {
         if (keepAlive > maxKeepAlive) {
-            throw new QueryPhaseExecutionException(context,
+            throw new IllegalArgumentException(
                 "Keep alive for scroll (" + TimeValue.timeValueMillis(keepAlive).format() + ") is too large. " +
                     "It must be less than (" + TimeValue.timeValueMillis(maxKeepAlive).format() + "). " +
                     "This limit can be set by changing the [" + MAX_KEEPALIVE_SETTING.getKey() + "] cluster level setting.");

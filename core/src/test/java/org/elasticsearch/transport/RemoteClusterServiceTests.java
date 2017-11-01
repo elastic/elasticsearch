@@ -81,7 +81,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testSettingsAreRegistered() {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS));
-        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterAware.REMOTE_CLUSTER_SKIP_IF_DISCONNECTED));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterAware.REMOTE_CLUSTER_SKIP_UNAVAILABLE));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_NODE_ATTRIBUTE));
@@ -524,9 +524,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         assertThat(failure.get().getMessage(), containsString("unable to communicate with remote cluster"));
                     }
 
-                    //setting skip_if_disconnected to true for all the disconnected clusters will make the request succeed again
+                    //setting skip_unavailable to true for all the disconnected clusters will make the request succeed again
                     for (int i : disconnectedNodesIndices) {
-                        remoteClusterService.updateSkipIfDisconnected("remote" + i, true);
+                        remoteClusterService.updateSkipUnavailable("remote" + i, true);
                     }
                     {
                         final CountDownLatch latch = new CountDownLatch(1);
@@ -559,7 +559,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         for (int i : disconnectedNodesIndices) {
                             if (randomBoolean()) {
-                                remoteClusterService.updateSkipIfDisconnected("remote" + i, true);
+                                remoteClusterService.updateSkipUnavailable("remote" + i, true);
                             }
 
                         }
@@ -591,17 +591,17 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testRemoteClusterSkipIfDisconnectedSetting() {
-        //TODO this should be changed so that skip_if_disconnected can only be set for registered clusters with at least one seed
+    public void testRemoteClusterSkipUnavailableSetting() {
+        //TODO this should be changed so that skip_unavailable can only be set for registered clusters with at least one seed
         Settings settings = Settings.builder()
-                .put("search.remote.foo.skip_if_disconnected", true)
-                .put("search.remote.bar.skip_if_disconnected", false).build();
-        RemoteClusterAware.REMOTE_CLUSTER_SKIP_IF_DISCONNECTED.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+                .put("search.remote.foo.skip_unavailable", true)
+                .put("search.remote.bar.skip_unavailable", false).build();
+        RemoteClusterAware.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
 
         Settings brokenSettings = Settings.builder()
-                .put("search.remote.foo.skip_if_disconnected", "broken").build();
+                .put("search.remote.foo.skip_unavailable", "broken").build();
         expectThrows(IllegalArgumentException.class, () ->
-                RemoteClusterAware.REMOTE_CLUSTER_SKIP_IF_DISCONNECTED.getAllConcreteSettings(brokenSettings)
+                RemoteClusterAware.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(brokenSettings)
                         .forEach(setting -> setting.get(brokenSettings)));
     }
 }

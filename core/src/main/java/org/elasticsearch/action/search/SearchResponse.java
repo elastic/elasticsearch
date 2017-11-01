@@ -360,7 +360,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 shardFailures[i] = readShardSearchFailure(in);
             }
         }
-        if (!in.getVersion().before(Version.V_6_1_0)) {
+        //TODO update version once backported
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             clusters = new Clusters(in);
         }
         scrollId = in.readOptionalString();
@@ -381,7 +382,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         for (ShardSearchFailure shardSearchFailure : shardFailures) {
             shardSearchFailure.writeTo(out);
         }
-        if (!out.getVersion().before(Version.V_6_1_0)) {
+        //TODO update version once backported
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             clusters.writeTo(out);
         }
         out.writeOptionalString(scrollId);
@@ -414,11 +416,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         private final int skipped;
 
         Clusters(int total, int successful, int skipped) {
+            assert total >= 0 && successful >= 0 && skipped >= 0
+                    : "total: " + total + " successful: " + successful + " skipped: " + skipped;
+            assert successful <= total && skipped == total - successful
+                    : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
-            assert successful <= total && skipped == total - successful
-                    : "total: " + total + " successful: " + successful + " skipped: " + skipped;
         }
 
         private Clusters(StreamInput in) throws IOException {

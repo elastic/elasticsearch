@@ -178,11 +178,11 @@
   - match: { hits.hits.0._index: "my_remote_cluster:single_doc_index"}
 
 ---
-"Search against disconnected cluster with skip_if_disconnected setting":
+"Search against disconnected cluster with skip_unavailable setting":
 
   - skip:
       version: " - 6.0.99"
-      reason: "skip_if_disconnected is only supported from 6.1.0 on"
+      reason: "skip_unavailable is only supported from 6.1.0 on"
 
   - do:
       cluster.put_settings:
@@ -204,9 +204,9 @@
         body:
           transient:
             search.remote.disconnected_remote_cluster:
-              skip_if_disconnected: true
+              skip_unavailable: true
 
-  - is_true: transient.search.remote.disconnected_remote_cluster.skip_if_disconnected
+  - is_true: transient.search.remote.disconnected_remote_cluster.skip_unavailable
 
   - do:
       search:
@@ -224,9 +224,9 @@
         body:
           transient:
             search.remote.disconnected_remote_cluster:
-              skip_if_disconnected: false
+              skip_unavailable: false
 
-  - is_false: transient.search.remote.disconnected_remote_cluster.skip_if_disconnected
+  - is_false: transient.search.remote.disconnected_remote_cluster.skip_unavailable
 
   - do:
       catch: /ConnectTransportException/

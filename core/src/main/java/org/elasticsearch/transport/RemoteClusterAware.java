@@ -56,8 +56,8 @@ public abstract class RemoteClusterAware extends AbstractComponent {
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 
-    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_IF_DISCONNECTED =
-            Setting.affixKeySetting("search.remote.", "skip_if_disconnected",
+    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =
+            Setting.affixKeySetting("search.remote.", "skip_unavailable",
                     key -> boolSetting(key, false, Setting.Property.NodeScope, Setting.Property.Dynamic));
 
     protected final ClusterNameExpressionResolver clusterNameResolver;

@@ -42,10 +42,10 @@
         scroll_id: $scroll_id
 
 ---
-"Scroll against disconnected cluster with skip_if_disconnected setting":
+"Scroll against disconnected cluster with skip_unavailable setting":
   - skip:
       version: " - 6.0.99"
-      reason: "skip_if_disconnected is only supported from 6.1.0 on"
+      reason: "skip_unavailable is only supported from 6.1.0 on"
 
   - do:
       cluster.put_settings:
@@ -69,9 +69,9 @@
         body:
           transient:
             search.remote.disconnected_scroll_cluster:
-              skip_if_disconnected: true
+              skip_unavailable: true
 
-  - is_true: transient.search.remote.disconnected_scroll_cluster.skip_if_disconnected
+  - is_true: transient.search.remote.disconnected_scroll_cluster.skip_unavailable
 
   - do:
       search:

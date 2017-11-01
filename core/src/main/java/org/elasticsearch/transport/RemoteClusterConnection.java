@@ -88,7 +88,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
     private volatile List<DiscoveryNode> seedNodes;
-    private volatile boolean skipIfDisconnected;
+    private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
     private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
 
@@ -119,7 +119,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         remoteProfile = builder.build();
         connectedNodes = new ConnectedNodes(clusterAlias);
         this.seedNodes = Collections.unmodifiableList(seedNodes);
-        this.skipIfDisconnected = RemoteClusterAware.REMOTE_CLUSTER_SKIP_IF_DISCONNECTED
+        this.skipUnavailable = RemoteClusterAware.REMOTE_CLUSTER_SKIP_UNAVAILABLE
                 .getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.connectHandler = new ConnectHandler();
         transportService.addConnectionListener(this);
@@ -134,10 +134,10 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     }
 
     /**
-     * Updates the skipIfDisconnected flag that can be dynamically set for each remote cluster
+     * Updates the skipUnavailable flag that can be dynamically set for each remote cluster
      */
-    synchronized void updateSkipIfDisconnected(boolean skipIfDisconnected) {
-        this.skipIfDisconnected = skipIfDisconnected;
+    void updateSkipUnavailable(boolean skipUnavailable) {
+        this.skipUnavailable = skipUnavailable;
     }
 
     @Override
@@ -157,7 +157,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
         final ActionListener<ClusterSearchShardsResponse> searchShardsListener;
         final Consumer<Exception> onConnectFailure;
-        if (skipIfDisconnected) {
+        if (skipUnavailable) {
             onConnectFailure = (exception) -> listener.onResponse(ClusterSearchShardsResponse.EMPTY);
             searchShardsListener = ActionListener.wrap(listener::onResponse, (e) -> listener.onResponse(ClusterSearchShardsResponse.EMPTY));
         } else {
@@ -165,7 +165,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             searchShardsListener = listener;
         }
         // in case we have no connected nodes we try to connect and if we fail we either notify the listener or not depending on
-        // the skip_if_disconnected setting
+        // the skip_unavailable setting
         ensureConnected(ActionListener.wrap((x) -> fetchShardsInternal(searchRequest, searchShardsListener), onConnectFailure));
     }
 
@@ -610,7 +610,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             // not connected we return immediately
             RemoteConnectionInfo remoteConnectionStats = new RemoteConnectionInfo(clusterAlias,
                 Collections.emptyList(), Collections.emptyList(), maxNumRemoteConnections, 0,
-                RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipIfDisconnected);
+                RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipUnavailable);
             listener.onResponse(remoteConnectionStats);
         } else {
             NodesInfoRequest request = new NodesInfoRequest();
@@ -646,7 +646,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                     RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(clusterAlias,
                         seedNodes.stream().map(DiscoveryNode::getAddress).collect(Collectors.toList()), new ArrayList<>(httpAddresses),
                         maxNumRemoteConnections, connectedNodes.size(),
-                        RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipIfDisconnected);
+                        RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipUnavailable);
                     listener.onResponse(remoteConnectionInfo);
                 }
 

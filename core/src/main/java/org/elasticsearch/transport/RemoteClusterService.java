@@ -287,20 +287,20 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     public void listenForUpdates(ClusterSettings clusterSettings) {
         super.listenForUpdates(clusterSettings);
-        clusterSettings.addAffixUpdateConsumer(RemoteClusterAware.REMOTE_CLUSTER_SKIP_IF_DISCONNECTED, this::updateSkipIfDisconnected,
+        clusterSettings.addAffixUpdateConsumer(RemoteClusterAware.REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable,
                 (clusterAlias, value) -> {});
     }
 
-    synchronized void updateSkipIfDisconnected(String clusterAlias, Boolean skipIfDisconnected) {
+    synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
         //assert remote != null : "remote cluster [" + clusterAlias + "] not registered";
-        //this happens if skip_if_disconnected is provided for a remote cluster that is not registered.
-        //for instance if you set seeds to null in the same call where you set skip_if_disconnected to null, the latter will not find
+        //this happens if skip_unavaialble is provided for a remote cluster that is not registered.
+        //for instance if you set seeds to null in the same call where you set skip_unavailable to null, the latter will not find
         //the remote cluster.
         //TODO it should be possible to remove the if and uncomment the assertion above once we accept
-        //the skip_if_disconnected setting only for registered remote clusters.
+        //the skip_unavailable setting only for registered remote clusters.
         if (remote != null) {
-            remote.updateSkipIfDisconnected(skipIfDisconnected);
+            remote.updateSkipUnavailable(skipUnavailable);
         }
     }
 

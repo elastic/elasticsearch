@@ -57,51 +57,51 @@
   - match: { test_remote_cluster.initial_connect_timeout: "30s" }
 
 ---
-"skip_if_disconnected is returned as part of _remote/info response":
+"skip_unavailable is returned as part of _remote/info response":
   - skip:
       version: " - 6.0.99"
-      reason: "skip_if_disconnected is only returned from 6.1.0 on"
+      reason: "skip_unavailable is only returned from 6.1.0 on"
 
   - do:
       remote.info: {}
-  - is_false: my_remote_cluster.skip_if_disconnected
+  - is_false: my_remote_cluster.skip_unavailable
 
   - do:
       cluster.put_settings:
         body:
           transient:
-            search.remote.my_remote_cluster.skip_if_disconnected: true
+            search.remote.my_remote_cluster.skip_unavailable: true
 
-  - is_true: transient.search.remote.my_remote_cluster.skip_if_disconnected
+  - is_true: transient.search.remote.my_remote_cluster.skip_unavailable
 
   - do:
       remote.info: {}
 
-  - is_true: my_remote_cluster.skip_if_disconnected
+  - is_true: my_remote_cluster.skip_unavailable
 
   - do:
       cluster.put_settings:
         body:
           transient:
-            search.remote.my_remote_cluster.skip_if_disconnected: false
+            search.remote.my_remote_cluster.skip_unavailable: false
 
-  - is_false: transient.search.remote.my_remote_cluster.skip_if_disconnected
+  - is_false: transient.search.remote.my_remote_cluster.skip_unavailable
 
   - do:
       remote.info: {}
 
-  - is_false: my_remote_cluster.skip_if_disconnected
+  - is_false: my_remote_cluster.skip_unavailable
 
   - do:
       cluster.put_settings:
         body:
           transient:
-            search.remote.my_remote_cluster.skip_if_disconnected: null
+            search.remote.my_remote_cluster.skip_unavailable: null
 
   - match: {transient: {}}
 
   - do:
       remote.info: {}
 
-  - is_false: my_remote_cluster.skip_if_disconnected
+  - is_false: my_remote_cluster.skip_unavailable
 

@@ -184,7 +184,7 @@ will be prefixed with their remote cluster name:
 By default all remote clusters that are searched via Cross Cluster Search need to be available when
 the search request is executed, otherwise the whole request fails and no search results are returned
 despite some of the clusters are available. Remote clusters can be made optional through the
-boolean `skip_if_disconnected` setting, set to `false` by default.
+boolean `skip_unavailable` setting, set to `false` by default.
 
 [source,js]
 --------------------------------
@@ -194,7 +194,7 @@ PUT _cluster/settings
     "search": {
       "remote": {
         "cluster_one": {
-          "skip_if_disconnected": true <1>
+          "skip_unavailable": true <1>
         }
       }
     }
@@ -281,7 +281,7 @@ POST /cluster_one:twitter,twitter/tweet/_search
   remote clusters. Cross-cluster search requests must be sent to a node that
   is allowed to act as a cross-cluster client.
 
-`search.remote.${cluster_alias}.skip_if_disconnected`::
+`search.remote.${cluster_alias}.skip_unavailable`::
 
   Per cluster boolean setting that allows to skip specific clusters when no
   nodes belonging to them are available and they are searched as part of a

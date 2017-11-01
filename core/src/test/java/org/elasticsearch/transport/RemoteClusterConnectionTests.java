@@ -376,7 +376,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         updateSeedNodes(connection, nodes);
                     }
                     if (randomBoolean()) {
-                        connection.updateSkipIfDisconnected(randomBoolean());
+                        connection.updateSkipUnavailable(randomBoolean());
                     }
                     SearchRequest request = new SearchRequest("test-index");
                     CountDownLatch responseLatch = new CountDownLatch(1);
@@ -398,7 +398,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    public void testFetchShardsSkipIfDisconnected() throws Exception {
+    public void testFetchShardsSkipUnavailable() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
@@ -440,7 +440,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     service.addFailToSendNoConnectRule(seedTransport);
 
                     if (randomBoolean()) {
-                        connection.updateSkipIfDisconnected(false);
+                        connection.updateSkipUnavailable(false);
                     }
                     {
                         CountDownLatch responseLatch = new CountDownLatch(1);
@@ -454,7 +454,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         assertThat(failReference.get(), instanceOf(TransportException.class));
                     }
 
-                    connection.updateSkipIfDisconnected(true);
+                    connection.updateSkipUnavailable(true);
                     {
                         CountDownLatch responseLatch = new CountDownLatch(1);
                         AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
@@ -473,7 +473,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(disconnectedLatch.await(1, TimeUnit.SECONDS));
 
                     if (randomBoolean()) {
-                        connection.updateSkipIfDisconnected(false);
+                        connection.updateSkipUnavailable(false);
                     }
 
                     service.clearAllRules();
@@ -815,7 +815,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         builder.endObject();
         assertEquals("{\"test_cluster\":{\"seeds\":[\"0.0.0.0:1\"],\"http_addresses\":[\"0.0.0.0:80\"],\"connected\":true," +
             "\"num_nodes_connected\":3,\"max_connections_per_cluster\":4,\"initial_connect_timeout\":\"30m\"," +
-                "\"skip_if_disconnected\":true}}", builder.string());
+                "\"skip_unavailable\":true}}", builder.string());
 
         stats = new RemoteConnectionInfo("some_other_cluster",
             Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,1), new TransportAddress(TransportAddress.META_ADDRESS,2)),
@@ -828,7 +828,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         builder.endObject();
         assertEquals("{\"some_other_cluster\":{\"seeds\":[\"0.0.0.0:1\",\"0.0.0.0:2\"],\"http_addresses\":[\"0.0.0.0:80\",\"0.0.0.0:81\"],"
                 + "\"connected\":false,\"num_nodes_connected\":0,\"max_connections_per_cluster\":2,\"initial_connect_timeout\":\"30s\"," +
-                "\"skip_if_disconnected\":false}}", builder.string());
+                "\"skip_unavailable\":false}}", builder.string());
     }
 
     private RemoteConnectionInfo getRemoteConnectionInfo(RemoteClusterConnection connection) throws Exception {

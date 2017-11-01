@@ -42,19 +42,19 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     final TimeValue initialConnectionTimeout;
     final int numNodesConnected;
     final String clusterAlias;
-    final boolean skipIfDisconnected;
+    final boolean skipUnavailable;
 
     RemoteConnectionInfo(String clusterAlias, List<TransportAddress> seedNodes,
                          List<TransportAddress> httpAddresses,
                          int connectionsPerCluster, int numNodesConnected,
-                         TimeValue initialConnectionTimeout, boolean skipIfDisconnected) {
+                         TimeValue initialConnectionTimeout, boolean skipUnavailable) {
         this.clusterAlias = clusterAlias;
         this.seedNodes = seedNodes;
         this.httpAddresses = httpAddresses;
         this.connectionsPerCluster = connectionsPerCluster;
         this.numNodesConnected = numNodesConnected;
         this.initialConnectionTimeout = initialConnectionTimeout;
-        this.skipIfDisconnected = skipIfDisconnected;
+        this.skipUnavailable = skipUnavailable;
     }
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
@@ -64,10 +64,11 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         initialConnectionTimeout = new TimeValue(input);
         numNodesConnected = input.readVInt();
         clusterAlias = input.readString();
-        if (input.getVersion().before(Version.V_6_1_0)) {
-            skipIfDisconnected = false;
+        //TODO update version once backported
+        if (input.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            skipUnavailable = false;
         } else {
-            skipIfDisconnected = input.readBoolean();
+            skipUnavailable = input.readBoolean();
         }
     }
 
@@ -89,7 +90,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
             builder.field("num_nodes_connected", numNodesConnected);
             builder.field("max_connections_per_cluster", connectionsPerCluster);
             builder.field("initial_connect_timeout", initialConnectionTimeout);
-            builder.field("skip_if_disconnected", skipIfDisconnected);
+            builder.field("skip_unavailable", skipUnavailable);
         }
         builder.endObject();
         return builder;
@@ -103,8 +104,9 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         initialConnectionTimeout.writeTo(out);
         out.writeVInt(numNodesConnected);
         out.writeString(clusterAlias);
-        if (!out.getVersion().before(Version.V_6_1_0)) {
-            out.writeBoolean(skipIfDisconnected);
+        //TODO update version once backported
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(skipUnavailable);
         }
     }
 
@@ -119,12 +121,12 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
             Objects.equals(httpAddresses, that.httpAddresses) &&
             Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout) &&
             Objects.equals(clusterAlias, that.clusterAlias) &&
-            skipIfDisconnected == that.skipIfDisconnected;
+            skipUnavailable == that.skipUnavailable;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(seedNodes, httpAddresses, connectionsPerCluster, initialConnectionTimeout,
-                numNodesConnected, clusterAlias, skipIfDisconnected);
+                numNodesConnected, clusterAlias, skipUnavailable);
     }
 }

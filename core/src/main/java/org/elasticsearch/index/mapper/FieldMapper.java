@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 
@@ -284,6 +286,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * Parse the field value and populate <code>fields</code>.
      */
     protected abstract void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException;
+
+    protected void createFieldNamesField(ParseContext context, List<IndexableField> fields) {
+        FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context.docMapper()
+                .metadataMapper(FieldNamesFieldMapper.class).fieldType();
+        if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
+            for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
+                fields.add(new Field(FieldNamesFieldMapper.NAME, fieldName, fieldNamesFieldType));
+            }
+        }
+    }
 
     @Override
     public Iterator<Mapper> iterator() {

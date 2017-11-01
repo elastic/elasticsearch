@@ -176,6 +176,8 @@ public class RestHighLevelClient implements Closeable {
     private final NamedXContentRegistry registry;
     private final CheckedConsumer<RestClient, IOException> doClose;
 
+    private final IndicesClient indicesClient = new IndicesClient(this);
+
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
      * {@link RestClient} to be used to perform requests.
@@ -218,6 +220,15 @@ public class RestHighLevelClient implements Closeable {
     @Override
     public final void close() throws IOException {
         doClose.accept(client);
+    }
+
+    /**
+     * Provides an {@link IndicesClient} which can be used to access the Indices API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
+     */
+    public IndicesClient indices() {
+        return indicesClient;
     }
 
     /**
@@ -327,7 +338,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Deletes a document by id using the Delete api
+     * Deletes a document by id using the Delete API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
      */
@@ -337,7 +348,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously deletes a document by id using the Delete api
+     * Asynchronously deletes a document by id using the Delete API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
      */
@@ -347,7 +358,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a search using the Search api
+     * Executes a search using the Search API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
      */
@@ -356,7 +367,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously executes a search using the Search api
+     * Asynchronously executes a search using the Search API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
      */
@@ -365,7 +376,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a search using the Search Scroll api
+     * Executes a search using the Search Scroll API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
      * API on elastic.co</a>
@@ -375,7 +386,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously executes a search using the Search Scroll api
+     * Asynchronously executes a search using the Search Scroll API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
      * API on elastic.co</a>
@@ -386,7 +397,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Clears one or more scroll ids using the Clear Scroll api
+     * Clears one or more scroll ids using the Clear Scroll API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>
@@ -397,7 +408,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Asynchronously clears one or more scroll ids using the Clear Scroll api
+     * Asynchronously clears one or more scroll ids using the Clear Scroll API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>

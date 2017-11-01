@@ -25,6 +25,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -36,6 +37,8 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -44,6 +47,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -74,6 +78,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Request.enforceSameContentType;
@@ -139,7 +144,7 @@ public class RequestTests extends ESTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
 
-        setRandomTimeout(deleteRequest, expectedParams);
+        setRandomTimeout(deleteRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomRefreshPolicy(deleteRequest, expectedParams);
         setRandomVersion(deleteRequest, expectedParams);
         setRandomVersionType(deleteRequest, expectedParams);
@@ -240,6 +245,30 @@ public class RequestTests extends ESTestCase {
         assertEquals(method, request.getMethod());
     }
 
+    public void testDeleteIndex() throws IOException {
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
+
+        int numIndices = randomIntBetween(0, 5);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        deleteIndexRequest.indices(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomTimeout(deleteIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(deleteIndexRequest, expectedParams);
+
+        setRandomIndicesOptions(deleteIndexRequest::indicesOptions, deleteIndexRequest::indicesOptions, expectedParams);
+
+        Request request = Request.deleteIndex(deleteIndexRequest);
+        assertEquals("/" + String.join(",", indices), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals("DELETE", request.getMethod());
+        assertNull(request.getEntity());
+    }
+
     public void testIndex() throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
         String type = randomAlphaOfLengthBetween(3, 10);
@@ -258,7 +287,7 @@ public class RequestTests extends ESTestCase {
             }
         }
 
-        setRandomTimeout(indexRequest, expectedParams);
+        setRandomTimeout(indexRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomRefreshPolicy(indexRequest, expectedParams);
 
         // There is some logic around _create endpoint and version/version type
@@ -678,20 +707,7 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }
 
-        if (randomBoolean()) {
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
-        }
-        expectedParams.put("ignore_unavailable", Boolean.toString(searchRequest.indicesOptions().ignoreUnavailable()));
-        expectedParams.put("allow_no_indices", Boolean.toString(searchRequest.indicesOptions().allowNoIndices()));
-        if (searchRequest.indicesOptions().expandWildcardsOpen() && searchRequest.indicesOptions().expandWildcardsClosed()) {
-            expectedParams.put("expand_wildcards", "open,closed");
-        } else if (searchRequest.indicesOptions().expandWildcardsOpen()) {
-            expectedParams.put("expand_wildcards", "open");
-        } else if (searchRequest.indicesOptions().expandWildcardsClosed()) {
-            expectedParams.put("expand_wildcards", "closed");
-        } else {
-            expectedParams.put("expand_wildcards", "none");
-        }
+        setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
 
         SearchSourceBuilder searchSourceBuilder = null;
         if (frequently()) {
@@ -903,13 +919,43 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private static void setRandomTimeout(ReplicationRequest<?> request, Map<String, String> expectedParams) {
+    private static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
+                                                Map<String, String> expectedParams) {
+
+        if (randomBoolean()) {
+            setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+                randomBoolean()));
+        }
+        expectedParams.put("ignore_unavailable", Boolean.toString(getter.get().ignoreUnavailable()));
+        expectedParams.put("allow_no_indices", Boolean.toString(getter.get().allowNoIndices()));
+        if (getter.get().expandWildcardsOpen() && getter.get().expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "open,closed");
+        } else if (getter.get().expandWildcardsOpen()) {
+            expectedParams.put("expand_wildcards", "open");
+        } else if (getter.get().expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "closed");
+        } else {
+            expectedParams.put("expand_wildcards", "none");
+        }
+    }
+
+    private static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String timeout = randomTimeValue();
-            request.timeout(timeout);
+            setter.accept(timeout);
             expectedParams.put("timeout", timeout);
         } else {
-            expectedParams.put("timeout", ReplicationRequest.DEFAULT_TIMEOUT.getStringRep());
+            expectedParams.put("timeout", defaultTimeout.getStringRep());
+        }
+    }
+
+    private static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            String masterTimeout = randomTimeValue();
+            request.masterNodeTimeout(masterTimeout);
+            expectedParams.put("master_timeout", masterTimeout);
+        } else {
+            expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
         }
     }
 

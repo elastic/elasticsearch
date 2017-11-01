@@ -131,7 +131,8 @@ public class ShardSearchFailure implements ShardOperationFailedException {
 
     @Override
     public String toString() {
-        return "shard [" + (shardTarget == null ? "_na" : shardTarget) + "], reason [" + reason + "], cause [" + (cause == null ? "_na" : ExceptionsHelper.stackTrace(cause)) + "]";
+        return "shard [" + (shardTarget == null ? "_na" : shardTarget) + "], reason [" + reason + "], cause [" +
+                (cause == null ? "_na" : ExceptionsHelper.stackTrace(cause)) + "]";
     }
 
     public static ShardSearchFailure readShardSearchFailure(StreamInput in) throws IOException {
@@ -210,9 +211,12 @@ public class ShardSearchFailure implements ShardOperationFailedException {
                 parser.skipChildren();
             }
         }
-        return new ShardSearchFailure(exception,
-                new SearchShardTarget(nodeId,
-                        new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), null, OriginalIndices.NONE));
+        SearchShardTarget searchShardTarget = null;
+        if (nodeId != null) {
+            searchShardTarget = new SearchShardTarget(nodeId,
+                    new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), null, OriginalIndices.NONE);
+        }
+        return new ShardSearchFailure(exception, searchShardTarget);
     }
 
     @Override

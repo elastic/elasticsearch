@@ -19,6 +19,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -222,6 +227,15 @@ public class FieldTypeLookupTests extends ESTestCase {
         @Override
         public String typeName() {
             return "otherfaketype";
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
         }
     }
 }

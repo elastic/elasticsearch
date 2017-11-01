@@ -100,9 +100,17 @@ public class VersionUtils {
 
         Version unreleased = versions.remove(unreleasedIndex);
         if (unreleased.revision == 0) {
-            /* If the last unreleased version is itself a patch release then gradle enforces
-             * that there is yet another unreleased version before that. */
-            unreleasedIndex--;
+            /*
+             * If the last unreleased version is itself a patch release then Gradle enforces that there is yet another unreleased version
+             * before that. However, we have to skip alpha/betas/RCs too (e.g., consider when the version constants are ..., 5.6.3, 5.6.4,
+             * 6.0.0-alpha1, ..., 6.0.0-rc1, 6.0.0-rc2, 6.0.0, 6.1.0 on the 6.x branch. In this case, we will have pruned 6.0.0 and 6.1.0 as
+             * unreleased versions, but we also need to prune 5.6.4. At this point though, unreleasedIndex will be pointing to 6.0.0-rc2, so
+             * we have to skip backwards until we find a non-alpha/beta/RC again. Then we can prune that version as an unreleased version
+             * too.
+             */
+            do {
+                unreleasedIndex--;
+            } while (versions.get(unreleasedIndex).isRelease() == false);
             Version earlierUnreleased = versions.remove(unreleasedIndex);
             return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierUnreleased, unreleased, current)));
         }

@@ -116,7 +116,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
-    private final ThreadPool threadPool;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
@@ -132,7 +131,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
-        this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -221,10 +219,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request,
                                  final ActionListener<ClusterStateUpdateResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.builder();
-        updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
-        indexScopedSettings.validate(updatedSettingsBuilder);
-        request.settings(updatedSettingsBuilder.build());
-
+        Settings build = updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+        indexScopedSettings.validate(build, true); // we do validate here - index setting must be consistent
+        request.settings(build);
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
             new IndexCreationTask(logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, settings,
                 this::validate));
@@ -415,7 +412,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         tmpImdBuilder.primaryTerm(shardId, primaryTerm);
                     }
                 }
-
                 // Set up everything, now locally create the index to see that things are ok, and apply
                 final IndexMetaData tmpImd = tmpImdBuilder.build();
                 ActiveShardCount waitForActiveShards = request.waitForActiveShards();

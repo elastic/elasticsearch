@@ -122,7 +122,7 @@ public class ScopedSettingsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         Settings updates = Settings.builder().putNull("index.routing.allocation.require._ip")
             .put("index.some.dyn.setting", 1).build();
-        settings.validate(updates);
+        settings.validate(updates, false);
         settings.updateDynamicSettings(updates,
             Settings.builder().put(currentSettings), builder, "node");
         currentSettings = builder.build();
@@ -169,13 +169,15 @@ public class ScopedSettingsTests extends ESTestCase {
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(intSetting, stringSetting)));
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-            () -> service.validate(Settings.builder().put("foo.test.bar", 7).build()));
+            () -> service.validate(Settings.builder().put("foo.test.bar", 7).build(), true));
         assertEquals("Missing required setting [foo.test.name] for setting [foo.test.bar]", iae.getMessage());
 
-        service.applySettings(Settings.builder()
+        service.validate(Settings.builder()
             .put("foo.test.name", "test")
             .put("foo.test.bar", 7)
-            .build());
+            .build(), true);
+
+        service.validate(Settings.builder().put("foo.test.bar", 7).build(), false);
     }
 
     public void testAddConsumerAffix() {
@@ -603,7 +605,7 @@ public class ScopedSettingsTests extends ESTestCase {
             Settings.EMPTY,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-            () -> settings.validate(Settings.builder().put("index.numbe_of_replica", "1").build()));
+            () -> settings.validate(Settings.builder().put("index.numbe_of_replica", "1").build(), false));
         assertEquals(iae.getMessage(), "unknown setting [index.numbe_of_replica] did you mean [index.number_of_replicas]?");
     }
 
@@ -613,26 +615,23 @@ public class ScopedSettingsTests extends ESTestCase {
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         String unknownMsgSuffix = " please check that any required plugins are installed, or check the breaking changes documentation for" +
             " removed settings";
-        settings.validate(Settings.builder().put("index.store.type", "boom"));
-        settings.validate(Settings.builder().put("index.store.type", "boom").build());
+        settings.validate(Settings.builder().put("index.store.type", "boom").build(), false);
+
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom").put("i.am.not.a.setting", true)));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("i.am.not.a.setting", true).build(), false));
         assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom").put("i.am.not.a.setting", true).build()));
-        assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build()));
+            settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build(), false));
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build()));
+            settings.validate("index.number_of_replicas", Settings.builder().put("index.number_of_replicas", "true").build(), false));
         assertEquals("Failed to parse value [true] for setting [index.number_of_replicas]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build()));
+            settings.validate("index.similarity.classic.type", Settings.builder().put("index.similarity.classic.type", "mine").build(),
+                false));
         assertEquals("illegal value for [index.similarity.classic] cannot redefine built-in similarity", e.getMessage());
     }
 
@@ -642,12 +641,12 @@ public class ScopedSettingsTests extends ESTestCase {
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, Collections.emptySet());
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
         assertThat(e.getMessage(), startsWith("unknown secure setting [some.secure.setting]"));
 
         ClusterSettings clusterSettings2 = new ClusterSettings(settings,
             Collections.singleton(SecureSetting.secureString("some.secure.setting", null)));
-        clusterSettings2.validate(settings);
+        clusterSettings2.validate(settings, false);
     }
 
     public void testDiffSecureSettings() {
@@ -740,7 +739,7 @@ public class ScopedSettingsTests extends ESTestCase {
             IllegalArgumentException ex =
                 expectThrows(
                     IllegalArgumentException.class,
-                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build()));
+                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), false));
             assertEquals("Unknown level constant [BOOM].", ex.getMessage());
             assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());

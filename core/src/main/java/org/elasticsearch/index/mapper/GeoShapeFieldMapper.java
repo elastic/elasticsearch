@@ -36,6 +36,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -468,7 +469,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         try {
             Shape shape = context.parseExternalValue(Shape.class);
             if (shape == null) {
-                ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser(), this);
+                ShapeBuilder shapeBuilder = ShapeParser.parse(context.parser(), this);
                 if (shapeBuilder == null) {
                     return null;
                 }
@@ -476,7 +477,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
             }
             if (fieldType().pointsOnly() && !(shape instanceof Point)) {
                 throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
-                        ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
+                    ((shape instanceof JtsGeometry) ? ((JtsGeometry) shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
             }
             List<IndexableField> fields = new ArrayList<>(Arrays.asList(fieldType().defaultStrategy().createIndexableFields(shape)));
             createFieldNamesField(context, fields);

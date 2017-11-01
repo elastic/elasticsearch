@@ -571,6 +571,9 @@ setup:
 
 ---
 "Test exists query on _id field":
+  - skip:
+      version: " - 6.0.99"
+      reason: exists on _source not supported prior to 6.1.0
   - do:
       search:
           index: test
@@ -640,6 +643,9 @@ setup:
 
 ---
 "Test exists query on _seq_no field":
+  - skip:
+      version: " - 6.0.99"
+      reason: exists on _seq_no not supported prior to 6.1.0
   - do:
       search:
           index: test

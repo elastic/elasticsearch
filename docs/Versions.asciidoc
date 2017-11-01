@@ -14,7 +14,8 @@ release-state can be: released | prerelease | unreleased
 :issue:           https://github.com/elastic/elasticsearch/issues/
 :pull:            https://github.com/elastic/elasticsearch/pull/
 
-:docker-image:    docker.elastic.co/elasticsearch/elasticsearch:{version}
+:docker-repo:     docker.elastic.co/elasticsearch/elasticsearch
+:docker-image:    {docker-repo}:{version}
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
 
 ///////

@@ -53,14 +53,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  * Tests snapshot operations during disruptions.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
-//@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @TestLogging("org.elasticsearch.snapshot:TRACE")
 public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
 
-    public void testIndicesDeleted() throws Exception {
+    public void testDisruptionOnSnapshotInitialization() throws Exception {
         final Settings settings = Settings.builder()
             .put(DEFAULT_SETTINGS)
-            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait on isolated data node
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // wait till cluster state is committed
             .build();
         final String idxName = "test";
@@ -77,6 +75,13 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
                 .put("location", randomRepoPath())
                 .put("compress", randomBoolean())
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        // Writing incompatible snapshot can cause this test to fail due to a race condition in repo initialization
+        // by the current master and the former master. It is not causing any issues in real life scenario, but
+        // might make this test to fail. We are going to complete initialization of the snapshot to prevent this failures.
+        logger.info("-->  initializing the repository");
+        assertEquals(SnapshotState.SUCCESS, client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+            .setWaitForCompletion(true).setIndices(idxName).get().getSnapshotInfo().state());
 
         final String masterNode1 = internalCluster().getMasterName();
         Set<String> otherNodes = new HashSet<>();
@@ -109,39 +114,46 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("--> starting snapshot");
         try {
-            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setMasterNodeTimeout("0s").setIndices(idxName).get();
+            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(false)
+                .setMasterNodeTimeout("5s").setIndices(idxName).get();
         } catch (Exception ex) {
-            logger.info("Got exception", ex);
+            logger.info("--> got exception from hanged master", ex);
         }
 
         logger.info("--> waiting for disruption to start");
         assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
 
         logger.info("--> wait until the snapshot is done");
-
         assertBusy(() -> {
             SnapshotsInProgress snapshots = dataNodeClient().admin().cluster().prepareState().setLocal(true).get().getState()
                 .custom(SnapshotsInProgress.TYPE);
             if (snapshots != null && snapshots.entries().size() > 0) {
                 logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
-                assertTrue(snapshots.entries().get(0).state().completed());
+                fail("Snapshot is still running");
             } else {
                 logger.info("Snapshot is no longer in the cluster state");
             }
         }, 1, TimeUnit.MINUTES);
 
         logger.info("--> verify that snapshot was successful or no longer exist");
-        try {
-            GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
-            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-            assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
-            assertEquals(0, snapshotInfo.failedShards());
-            logger.info("--> done verifying");
-        } catch (SnapshotMissingException exception) {
-            logger.info("--> snapshot doesn't exist");
-        }
+        assertBusy(() -> {
+            try {
+                GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots("test-repo")
+                    .setSnapshots("test-snap-2").get();
+                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+                assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+                assertEquals(0, snapshotInfo.failedShards());
+                logger.info("--> done verifying");
+            } catch (SnapshotMissingException exception) {
+                logger.info("--> snapshot doesn't exist");
+            }
+        }, 1, TimeUnit.MINUTES);
 
+        logger.info("--> stopping disrupting");
+        networkDisruption.stopDisrupting();
+        ensureStableCluster(4, masterNode1);
+        logger.info("--> done");
     }
 
     private void createRandomIndex(String idxName) throws ExecutionException, InterruptedException {
@@ -154,7 +166,5 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
             builders[i] = client().prepareIndex(idxName, "type1", Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
-
     }
-
 }

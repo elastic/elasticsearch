@@ -426,6 +426,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
                 @Override
+                public void onNoLongerMaster(String source) {
+                    // We are not longer a master - we shouldn't try to do any cleanup
+                    // The new master will take care of it
+                    logger.warn("[{}] failed to create snapshot - no longer a master", snapshot.snapshot().getSnapshotId());
+                    userCreateSnapshotListener.onFailure(
+                        new SnapshotException(snapshot.snapshot(), "master changed during snapshot initialization"));
+                }
+
+                @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     // The userCreateSnapshotListener.onResponse() notifies caller that the snapshot was accepted
                     // for processing. If client wants to wait for the snapshot completion, it can register snapshot
@@ -471,6 +480,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         public void onFailure(Exception e) {
             e.addSuppressed(this.e);
             cleanupAfterError(e);
+        }
+
+        public void onNoLongerMaster(String source) {
+            userCreateSnapshotListener.onFailure(e);
         }
 
         private void cleanupAfterError(Exception exception) {
@@ -982,7 +995,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener   listener to notify when snapshot information is removed from the cluster state
      */
     private void removeSnapshotFromClusterState(final Snapshot snapshot, final SnapshotInfo snapshotInfo, final Exception failure,
-                                                @Nullable ActionListener<SnapshotInfo> listener) {
+                                                @Nullable CleanupAfterErrorListener listener) {
         clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
 
             @Override
@@ -1012,6 +1025,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (listener != null) {
                     listener.onFailure(e);
                 }
+            }
+
+            @Override
+            public void onNoLongerMaster(String source) {
+                listener.onNoLongerMaster(source);
             }
 
             @Override
@@ -1184,9 +1202,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             if (completedSnapshot.equals(snapshot)) {
                                 logger.debug("deleted snapshot completed - deleting files");
                                 removeListener(this);
-                                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() ->
-                                    deleteSnapshot(completedSnapshot.getRepository(), completedSnapshot.getSnapshotId().getName(),
-                                        listener, true)
+                                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                        try {
+                                            deleteSnapshot(completedSnapshot.getRepository(), completedSnapshot.getSnapshotId().getName(),
+                                                listener, true);
+
+                                        } catch (Exception ex) {
+                                            logger.warn((Supplier<?>) () ->
+                                                new ParameterizedMessage("[{}] failed to delete snapshot", snapshot), ex);
+                                        }
+                                    }
                                 );
                             }
                         }

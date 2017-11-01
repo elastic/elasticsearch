@@ -37,7 +37,9 @@ Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
 
 `docker`::
 
-An image is available for running Elasticsearch as a Docker container. It ships with {xpack-ref}/index.html[X-Pack] pre-installed and may be downloaded from the Elastic Docker Registry.
+Images are available for running Elasticsearch as Docker containers. They may be
+downloaded from the Elastic Docker Registry. The default image ships with
+{xpack-ref}/index.html[X-Pack] pre-installed.
 +
 <<docker>>
 

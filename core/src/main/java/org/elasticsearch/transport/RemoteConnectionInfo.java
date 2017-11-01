@@ -66,9 +66,9 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         clusterAlias = input.readString();
         //TODO update version once backported
         if (input.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            skipUnavailable = false;
-        } else {
             skipUnavailable = input.readBoolean();
+        } else {
+            skipUnavailable = false;
         }
     }
 

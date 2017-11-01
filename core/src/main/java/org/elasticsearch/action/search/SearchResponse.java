@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -73,7 +74,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
     private ShardSearchFailure[] shardFailures;
 
-    private Clusters clusters = Clusters.LOCAL_ONLY;
+    private Clusters clusters;
 
     private long tookInMillis;
 
@@ -81,10 +82,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
-                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters) {
+                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, @Nullable Clusters clusters) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
-        assert clusters != null : "clusters must not be null";
         this.clusters = clusters;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
@@ -235,7 +235,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getSkippedShards(),
             getFailedShards(), getShardFailures());
-        clusters.toXContent(builder, params);
+        if (clusters != null) {
+            clusters.toXContent(builder, params);
+        }
         internalResponse.toXContent(builder, params);
         return builder;
     }
@@ -257,7 +259,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         int skippedShards = 0; // 0 for BWC
         String scrollId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
-        Clusters clusters = Clusters.LOCAL_ONLY;
+        Clusters clusters = null;
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -362,7 +364,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         //TODO update version once backported
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            clusters = new Clusters(in);
+            clusters = in.readOptionalWriteable(Clusters::new);
         }
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
@@ -384,7 +386,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         //TODO update version once backported
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            clusters.writeTo(out);
+            out.writeOptionalWriteable(clusters);
         }
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
@@ -403,8 +405,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * and how many of them were skipped.
      */
     public static class Clusters implements ToXContent, Writeable {
-
-        public static Clusters LOCAL_ONLY = new Clusters(1, 1, 0);
 
         static final ParseField _CLUSTERS_FIELD = new ParseField("_clusters");
         static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
@@ -432,25 +432,20 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            //we print the _clusters section out only when something is abnormal. There are a couple of problems
-            //with printing it out all the time: 1) the section doesn't make much sense outside the context of CCS
-            //2) /_search/scroll uses SearchResponse too but the clusters section doesn't reflect reality there.
-            if (total > successful) {
-                builder.startObject(_CLUSTERS_FIELD.getPreferredName());
-                builder.field(TOTAL_FIELD.getPreferredName(), total);
-                builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
-                builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
-                builder.endObject();
-            }
-            return builder;
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(_CLUSTERS_FIELD.getPreferredName());
+            builder.field(TOTAL_FIELD.getPreferredName(), total);
+            builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
+            builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
+            builder.endObject();
+            return builder;
         }
 
         /**
@@ -472,6 +467,30 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
          */
         public int getSkipped() {
             return skipped;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Clusters clusters = (Clusters) o;
+            return total == clusters.total &&
+                    successful == clusters.successful &&
+                    skipped == clusters.skipped;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(total, successful, skipped);
+        }
+
+        @Override
+        public String toString() {
+            return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
         }
     }
 }

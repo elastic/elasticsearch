@@ -165,8 +165,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testSearchScroll() throws IOException {
         Header[] headers = randomHeaders(random(), "Header");
         SearchResponse mockSearchResponse = new SearchResponse(new SearchResponseSections(SearchHits.empty(), InternalAggregations.EMPTY,
-                null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.LOCAL_ONLY);
+                null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, ShardSearchFailure.EMPTY_ARRAY, null);
         mockResponse(mockSearchResponse);
         SearchResponse searchResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)),
                 headers);

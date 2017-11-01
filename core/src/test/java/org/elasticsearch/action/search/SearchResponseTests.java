@@ -126,7 +126,7 @@ public class SearchResponseTests extends ESTestCase {
         }
 
         return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, skippedShards, tookInMillis,
-            shardSearchFailures, randomClusters());
+            shardSearchFailures, randomBoolean() ? randomClusters() : null);
     }
 
     private static SearchResponse.Clusters randomClusters() {
@@ -216,7 +216,7 @@ public class SearchResponseTests extends ESTestCase {
         {
             SearchResponse response = new SearchResponse(
                     new InternalSearchResponse(new SearchHits(hits, 100, 1.5f), null, null, null, false, null, 1), null, 0, 0, 0, 0,
-                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.LOCAL_ONLY);
+                    ShardSearchFailure.EMPTY_ARRAY, null);
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -287,9 +287,7 @@ public class SearchResponseTests extends ESTestCase {
             assertEquals(searchResponse.getFailedShards(), serialized.getFailedShards());
             assertEquals(searchResponse.getTotalShards(), serialized.getTotalShards());
             assertEquals(searchResponse.getSkippedShards(), serialized.getSkippedShards());
-            assertEquals(searchResponse.getClusters().getTotal(), serialized.getClusters().getTotal());
-            assertEquals(searchResponse.getClusters().getSuccessful(), serialized.getClusters().getSuccessful());
-            assertEquals(searchResponse.getClusters().getSkipped(), serialized.getClusters().getSkipped());
+            assertEquals(searchResponse.getClusters(), serialized.getClusters());
         }
     }
 
@@ -300,9 +298,7 @@ public class SearchResponseTests extends ESTestCase {
             in.setVersion(version);
             SearchResponse deserialized = new SearchResponse();
             deserialized.readFrom(in);
-            assertEquals(SearchResponse.Clusters.LOCAL_ONLY.getTotal(), deserialized.getClusters().getTotal());
-            assertEquals(SearchResponse.Clusters.LOCAL_ONLY.getSuccessful(), deserialized.getClusters().getSuccessful());
-            assertEquals(SearchResponse.Clusters.LOCAL_ONLY.getSkipped(), deserialized.getClusters().getSkipped());
+            assertNull(deserialized.getClusters());
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(version);
@@ -311,10 +307,8 @@ public class SearchResponseTests extends ESTestCase {
                         namedWriteableRegistry)) {
                     in2.setVersion(version);
                     SearchResponse deserialized2 = new SearchResponse();
-                    deserialized.readFrom(in2);
-                    assertEquals(SearchResponse.Clusters.LOCAL_ONLY.getTotal(), deserialized.getClusters().getTotal());
-                    assertEquals(SearchResponse.Clusters.LOCAL_ONLY.getSuccessful(), deserialized.getClusters().getSuccessful());
-                    assertEquals(SearchResponse.Clusters.LOCAL_ONLY.getSkipped(), deserialized.getClusters().getSkipped());
+                    deserialized2.readFrom(in2);
+                    assertNull(deserialized2.getClusters());
                 }
             }
         }

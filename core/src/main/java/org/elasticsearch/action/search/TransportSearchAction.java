@@ -192,7 +192,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (remoteClusterIndices.isEmpty()) {
                 executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, remoteClusterIndices, Collections.emptyList(),
                     (clusterName, nodeId) -> null, clusterState, Collections.emptyMap(), listener, clusterState.getNodes()
-                        .getDataNodes().size(), SearchResponse.Clusters.LOCAL_ONLY);
+                        .getDataNodes().size(), null);
             } else {
                 remoteClusterService.collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(),
                     searchRequest.routing(), remoteClusterIndices, ActionListener.wrap((searchShardsResponses) -> {

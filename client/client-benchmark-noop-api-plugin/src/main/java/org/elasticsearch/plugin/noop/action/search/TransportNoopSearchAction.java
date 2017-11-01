@@ -53,7 +53,6 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
                 new SearchHit[0], 0L, 0.0f),
             new InternalAggregations(Collections.emptyList()),
             new Suggest(Collections.emptyList()),
-            new SearchProfileShardResults(Collections.emptyMap()), false, false, 1), "", 1, 1, 0, 0, new ShardSearchFailure[0],
-                SearchResponse.Clusters.LOCAL_ONLY));
+            new SearchProfileShardResults(Collections.emptyMap()), false, false, 1), "", 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null));
     }
 }

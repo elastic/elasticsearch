@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.InternalClient;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,7 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class IndexLifecycle implements ActionPlugin {
+public class IndexLifecycle extends Plugin {
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
     public static final String NAME = "index_lifecycle";
     public static final String BASE_PATH = "/_xpack/index_lifecycle/";
@@ -80,6 +82,7 @@ public class IndexLifecycle implements ActionPlugin {
         return modules;
     }
 
+    @Override
     public void onIndexModule(IndexModule indexModule) {
         Index index = indexModule.getIndex();
         ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN").error("onIndexModule: " + index.getName());
@@ -89,85 +92,19 @@ public class IndexLifecycle implements ActionPlugin {
         indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
     }
 
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(LIFECYCLE_TIMESERIES_SETTING);
+    }
+
     public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, Clock clock) {
         indexLifecycleInitialisationService.set(new IndexLifecycleInitialisationService(settings, internalClient, clusterService, clock));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
     }
 
-    public List<Setting<?>> getSettings() {
-        return Arrays.asList(LIFECYCLE_TIMESERIES_SETTING);
-    }
-
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
-        if (!enabled || tribeNodeClient) {
-            return Collections.emptyList();
-        }
-
-        return Arrays.asList(
-//                new RestLifecycleStatusAction(settings, restController)
-        );
-
+    public void close() throws IOException {
+        indexLifecycleInitialisationService.get().close();
     }
 
-    @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (!enabled) {
-            return Collections.emptyList();
-        }
-        return Arrays.asList(
-//                new ActionHandler<>(LifecycleStatusAction.INSTANCE, LifecycleStatusAction.TransportAction.class)
-        );
-    }
-
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled || tribeNode || tribeNodeClient || transportClientMode) {
-            return Collections.emptyList();
-        }
-
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, IndexLifecycle.THREAD_POOL_NAME, 4, 4,
-                "xpack.index_lifecycle.thread_pool");
-
-        return Collections.singletonList(indexing);
-    }
-
-//    public Collection<PersistentTasksExecutor<?>> getPersistentTasksExecutors(InternalClient client,
-//                                                                              ClusterService clusterService,
-//                                                                              SchedulerEngine schedulerEngine) {
-//        return Collections.singletonList(
-//                new IndexLifecycleTask.IndexLifecycleJobPersistentTasksExecutor(settings, client, clusterService, schedulerEngine));
-//    }
-
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Arrays.asList(
-//                // Metadata
-//                new NamedWriteableRegistry.Entry(MetaData.Custom.class, "rollup", RollupMetadata::new),
-//                new NamedWriteableRegistry.Entry(NamedDiff.class, "rollup", RollupMetadata.RollupMetadataDiff::new),
-//
-//                // Persistent action requests
-//                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, RollupJobTask.TASK_NAME,
-//                        RollupJob::new),
-//
-//                // Task statuses
-//                new NamedWriteableRegistry.Entry(Task.Status.class, RollupJobStatus.NAME, RollupJobStatus::new)
-        );
-    }
-
-    public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return Arrays.asList(
-//                // Custom metadata
-//                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("rollup"),
-//                        parser -> RollupMetadata.METADATA_PARSER.parse(parser, null).build()),
-//
-//                // Persistent action requests
-//                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(RollupJobTask.TASK_NAME),
-//                        parser -> RollupJob.Builder.fromXContent(parser).build())
-//
-//                // Task statuses
-//                //new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(RollupJobStatus.NAME), RollupJobStatus::fromXContent)
-        );
-    }
 }

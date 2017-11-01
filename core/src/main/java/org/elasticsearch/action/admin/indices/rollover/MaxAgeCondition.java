@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -47,11 +46,6 @@ public class MaxAgeCondition extends Condition<TimeValue> {
     public Result evaluate(final Stats stats) {
         long indexAge = System.currentTimeMillis() - stats.indexCreated;
         return new Result(this, this.value.getMillis() <= indexAge);
-    }
-
-    @Override
-    boolean includedInVersion(Version version) {
-        return true;
     }
 
     @Override

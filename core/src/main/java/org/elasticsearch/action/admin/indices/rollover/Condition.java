@@ -58,7 +58,9 @@ public abstract class Condition<T> implements NamedWriteable {
      * Checks if this condition is available in a specific version.
      * This makes sure BWC when introducing a new condition which is not recognized by older versions.
      */
-    abstract boolean includedInVersion(Version version);
+    boolean includedInVersion(Version version) {
+        return true;
+    }
 
     @Override
     public final String toString() {

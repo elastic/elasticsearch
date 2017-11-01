@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -45,11 +44,6 @@ public class MaxDocsCondition extends Condition<Long> {
     @Override
     public Result evaluate(final Stats stats) {
         return new Result(this, this.value <= stats.numDocs);
-    }
-
-    @Override
-    boolean includedInVersion(Version version) {
-        return true;
     }
 
     @Override

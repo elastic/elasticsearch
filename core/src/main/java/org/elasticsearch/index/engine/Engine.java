@@ -187,6 +187,7 @@ public abstract class Engine implements Closeable {
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
 
+    /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
 
     /**

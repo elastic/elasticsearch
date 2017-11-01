@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -66,6 +67,8 @@ public class Phase extends SchedulerEngine.Job implements ToXContentObject, Sche
         System.out.println(settings);
         TimeValue after = AFTER_SETTING.get(settings);
         SchedulerEngine.Schedule schedule = (startTime, now) -> {
+            ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN")
+                .error("calculating schedule with creationTime:" + creationDate + ", and now:" + now);
             if (startTime == now) {
                 return creationDate + after.getMillis();
             } else {

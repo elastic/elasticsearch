@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -20,8 +19,8 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -37,6 +36,8 @@ import static org.hamcrest.core.IsNull.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
+    private Settings settings;
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
@@ -46,6 +47,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         return settings.build();
     }
 
@@ -58,6 +60,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         return settings.build();
     }
 
@@ -71,16 +74,58 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         return nodePlugins();
     }
 
-    public void test() throws IOException {
-        Settings settings = Settings.builder()
+    @Before
+    public void init() {
+        settings = Settings.builder()
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.lifecycle.timeseries.new.after", "1s")
+            .put("index.lifecycle.timeseries.new.after", "1s")
             .put("index.lifecycle.timeseries.delete.after", "3s")
-                .put("index.lifecycle.timeseries.delete.actions.delete.what", "me")
+            .put("index.lifecycle.timeseries.delete.actions.delete.what", "me")
             .build();
+    }
 
+    public void testSingleNodeCluster() throws Exception {
+        // start master node
+        logger.info("Starting sever1");
+        final String server_1 = internalCluster().startNode();
+        final String node1 = getLocalNodeId(server_1);
+        logger.info("Creating index [test]");
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings)).actionGet();
+        assertAcked(createIndexResponse);
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
+        assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
+        assertBusy(() -> {
+            assertEquals(false, client().admin().indices().prepareExists("test").get().isExists());
+        });
+    }
+
+    public void testMasterDedicatedDataDedicated() throws Exception {
+        // start master node
+        logger.info("Starting sever1");
+        final String server_1 = internalCluster().startMasterOnlyNode();
+        final String node1 = getLocalNodeId(server_1);
+        // start data node
+        logger.info("Starting sever1");
+        final String server_2 = internalCluster().startDataOnlyNode();
+        final String node2 = getLocalNodeId(server_2);
+
+        logger.info("Creating index [test]");
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings)).actionGet();
+        assertAcked(createIndexResponse);
+
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node2);
+        assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
+
+        assertBusy(() -> {
+          assertEquals(false, client().admin().indices().prepareExists("test").get().isExists());
+        });
+    }
+
+    public void testMasterFailover() throws Exception {
         // start one server
         logger.info("Starting sever1");
         final String server_1 = internalCluster().startNode();
@@ -105,35 +150,14 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        final String node2 = getLocalNodeId(server_2);
-
-        // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-        client().admin().cluster().prepareReroute().execute().actionGet();
-
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2").waitForNoRelocatingShards(true)).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(2));
-        assertThat(clusterHealth.getInitializingShards(), equalTo(0));
-        assertThat(clusterHealth.getUnassignedShards(), equalTo(0));
-        assertThat(clusterHealth.getRelocatingShards(), equalTo(0));
-        assertThat(clusterHealth.getActiveShards(), equalTo(1));
-        assertThat(clusterHealth.getActivePrimaryShards(), equalTo(1));
 
         logger.info("Closing server1");
         // kill the first server
         internalCluster().stopCurrentMasterNode();
-        // verify health
-        logger.info("Running Cluster Health");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()
-            .waitForNodes("1").waitForActiveShards(0)).actionGet();
-        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        assertThat(clusterHealth.getNumberOfNodes(), equalTo(1));
-        assertThat(clusterHealth.getActivePrimaryShards(), equalTo(0));
-        expectThrows(IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices("test").get());
+
+        assertBusy(() -> {
+            assertEquals(false, client().admin().indices().prepareExists("test").get().isExists());
+        });
     }
 
     private String getLocalNodeId(String name) {

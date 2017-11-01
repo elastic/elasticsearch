@@ -42,6 +42,7 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.MiniDFSNNTopology;
+import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
 import org.apache.hadoop.hdfs.server.namenode.ha.HATestUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 
@@ -93,6 +94,8 @@ public class MiniHDFS {
             cfg.set(DFSConfigKeys.DFS_NAMENODE_ACLS_ENABLED_KEY, "true");
             cfg.set(DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY, "true");
             cfg.set(DFSConfigKeys.IGNORE_SECURE_PORTS_FOR_TESTING_KEY, "true");
+            cfg.set(HdfsClientConfigKeys.DFS_DATA_TRANSFER_PROTECTION_KEY, "authentication");
+            cfg.set(DFSConfigKeys.DFS_ENCRYPT_DATA_TRANSFER_KEY, "false");
         }
 
         UserGroupInformation.setConfiguration(cfg);
@@ -124,7 +127,7 @@ public class MiniHDFS {
         FileSystem fs;
         if (haEnabled) {
             dfs.transitionToActive(0);
-            fs = HATestUtil.configureFailoverFs(dfs, new Configuration());
+            fs = HATestUtil.configureFailoverFs(dfs, cfg);
         } else {
             fs = dfs.getFileSystem();
         }

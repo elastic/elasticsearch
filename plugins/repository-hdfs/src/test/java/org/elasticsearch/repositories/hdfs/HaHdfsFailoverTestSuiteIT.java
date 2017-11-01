@@ -94,6 +94,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
             // set principal names
             hdfsConfiguration.set("dfs.namenode.kerberos.principal", hdfsKerberosPrincipal);
             hdfsConfiguration.set("dfs.datanode.kerberos.principal", hdfsKerberosPrincipal);
+            hdfsConfiguration.set("dfs.data.transfer.protection", "authentication");
         }
 
         AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
@@ -150,7 +151,8 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
 
     private String securityCredentials(boolean securityEnabled, String kerberosPrincipal) {
         if (securityEnabled) {
-            return "\"security.principal\": \""+kerberosPrincipal+"\",";
+            return "\"security.principal\": \""+kerberosPrincipal+"\"," +
+                "\"conf.dfs.data.transfer.protection\": \"authentication\",";
         } else {
             return "";
         }

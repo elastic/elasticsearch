@@ -16,6 +16,7 @@
             security:
               principal: "elasticsearch@BUILD.ELASTIC.CO"
             readonly: true
+            conf.dfs.data.transfer.protection: "authentication"
 
   # List snapshot info
   - do:

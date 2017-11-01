@@ -16,6 +16,7 @@
             path: "/user/elasticsearch/test/restore"
             security:
               principal: "elasticsearch@BUILD.ELASTIC.CO"
+            conf.dfs.data.transfer.protection: "authentication"
 
   # Create index
   - do:

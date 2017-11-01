@@ -318,12 +318,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Sort getIndexSort() {
         return indexSortSupplier.get();
     }
-    /**
-     * returns true if this shard supports indexing (i.e., write) operations.
-     */
-    public boolean canIndex() {
-        return true;
-    }
 
     public ShardGetService getService() {
         return this.getService;
@@ -834,15 +828,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void refresh(String source) {
         verifyNotClosed();
-
-        if (canIndex()) {
-
-        } else {
-            if (logger.isTraceEnabled()) {
-                logger.trace("refresh with source [{}]", source);
-            }
-            getEngine().refresh(source);
+        if (logger.isTraceEnabled()) {
+            logger.trace("refresh with source [{}]", source);
         }
+        getEngine().refresh(source);
     }
 
     /**
@@ -1658,9 +1647,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Called when our shard is using too much heap and should move buffered indexed/deleted documents to disk.
      */
     public void writeIndexingBuffer() {
-        if (canIndex() == false) {
-            throw new UnsupportedOperationException();
-        }
         try {
             Engine engine = getEngine();
             engine.writeIndexingBuffer();

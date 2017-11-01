@@ -415,9 +415,7 @@ public class InternalEngine extends Engine {
         return historyUUID;
     }
 
-    /**
-     * Returns how many bytes we are currently moving from heap to disk
-     */
+    /** Returns how many bytes we are currently moving from indexing buffer to segments on disk */
     @Override
     public long getWritingBytes() {
         return writingBytes.get();

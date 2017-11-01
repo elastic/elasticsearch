@@ -274,8 +274,11 @@ public class CertUtils {
                     X509TrustedCertificateBlock certificateBlock = (X509TrustedCertificateBlock) parsed;
                     holder = certificateBlock.getCertificateHolder();
                 } else {
-                    throw new IllegalArgumentException("parsed an unsupported object [" +
-                            parsed.getClass().getSimpleName() + "]");
+                    String msg = "parsed an unsupported object [" + parsed.getClass().getSimpleName() + "]";
+                    if (parsed instanceof PEMEncryptedKeyPair || parsed instanceof PEMKeyPair || parsed instanceof PrivateKeyInfo) {
+                        msg = msg + ". Encountered a PEM Key while expecting a PEM certificate.";
+                    }
+                    throw new IllegalArgumentException(msg);
                 }
                 certificates.add(certFactory.generateCertificate(new ByteArrayInputStream(holder.getEncoded())));
                 parsed = pemParser.readObject();
@@ -323,7 +326,11 @@ public class CertUtils {
             // skip this object and recurse into this method again to read the next object
             return innerReadPrivateKey(parser, passwordSupplier);
         } else {
-            throw new IllegalArgumentException("parsed an unsupported object [" + parsed.getClass().getSimpleName() + "]");
+            String msg = "parsed an unsupported object [" + parsed.getClass().getSimpleName() + "]";
+            if (parsed instanceof X509CertificateHolder || parsed instanceof X509TrustedCertificateBlock) {
+                msg = msg + ". Encountered a PEM Certificate while expecting a PEM Key.";
+            }
+            throw new IllegalArgumentException(msg);
         }
 
         return privateKeyInfo;

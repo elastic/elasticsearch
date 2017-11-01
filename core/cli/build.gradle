@@ -28,6 +28,7 @@ dependencies {
     provided 'net.sf.jopt-simple:jopt-simple:5.0.2'
 }
 
+test.enabled = false
 dependencyLicenses.enabled = false // need to chat about this
 jarHell.enabled = false // need to chat about this
 

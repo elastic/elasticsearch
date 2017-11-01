@@ -137,6 +137,9 @@ public abstract class AbstractXContentParser implements XContentParser {
 
             double doubleValue = Double.parseDouble(text());
 
+            if (doubleValue % 1 != 0) {
+                throw new IllegalArgumentException("Value [" + text() + "] has a decimal part");
+            }
             if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
                 throw new IllegalArgumentException("Value [" + text() + "] is out of range for a short");
             }
@@ -162,6 +165,9 @@ public abstract class AbstractXContentParser implements XContentParser {
             checkCoerceString(coerce, Integer.class);
             double doubleValue = Double.parseDouble(text());
 
+            if (doubleValue % 1 != 0) {
+                throw new IllegalArgumentException("Value [" + text() + "] has a decimal part");
+            }
             if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("Value [" + text() + "] is out of range for an integer");
             }
@@ -185,7 +191,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            return Numbers.toLong(text(), coerce);
+            return Numbers.toLong(text());
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);

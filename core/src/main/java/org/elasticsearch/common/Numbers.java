@@ -209,9 +209,9 @@ public final class Numbers {
     }
 
     /** Return the long that {@code stringValue} stores or throws an exception if the
-     *  stored value cannot be converted to a long that stores the exact same
-     *  value and {@code coerce} is false. */
-    public static long toLong(String stringValue, boolean coerce) {
+     *  stored value cannot be converted to a long that stores the exact same value
+     */
+    public static long toLong(String stringValue) {
         try {
             return Long.parseLong(stringValue);
         } catch (NumberFormatException e) {
@@ -221,7 +221,7 @@ public final class Numbers {
         final BigInteger bigIntegerValue;
         try {
             BigDecimal bigDecimalValue = new BigDecimal(stringValue);
-            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+            bigIntegerValue = bigDecimalValue.toBigIntegerExact();
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
         } catch (NumberFormatException e) {

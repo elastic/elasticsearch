@@ -284,28 +284,26 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping.string(), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(GT_FIELD.getPreferredName(), "2.34")
-            .field(LT_FIELD.getPreferredName(), "5.67")
-            .endObject()
-            .endObject().bytes(),
-            XContentType.JSON));
-
-        ParsedDocument doc2 = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(GT_FIELD.getPreferredName(), "2")
             .field(LT_FIELD.getPreferredName(), "5")
             .endObject()
             .endObject().bytes(),
-            XContentType.JSON));
-
-        IndexableField[] fields1 = doc1.rootDoc().getFields("field");
-        IndexableField[] fields2 = doc2.rootDoc().getFields("field");
-
-        assertEquals(fields1[1].binaryValue(), fields2[1].binaryValue());
+            XContentType.JSON)));
+        assertEquals("Value [2.34] has a decimal part", e.getCause().getMessage());
+        e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("field")
+                    .field(GT_FIELD.getPreferredName(), "2")
+                    .field(LT_FIELD.getPreferredName(), "5.67")
+                    .endObject()
+                    .endObject().bytes(),
+                XContentType.JSON)));
+        assertEquals("Value [5.67] has a decimal part", e.getCause().getMessage());
     }
 
     @Override

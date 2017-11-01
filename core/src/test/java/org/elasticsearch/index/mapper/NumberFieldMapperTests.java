@@ -202,16 +202,14 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "7.89")
                 .endObject()
                 .bytes(),
-                XContentType.JSON));
-
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        IndexableField pointField = fields[0];
-        assertEquals(7, pointField.numericValue().doubleValue(), 0d);
+                XContentType.JSON)));
+        assertEquals("Value [7.89] has a decimal part", e.getCause().getMessage());
     }
 
     public void testIgnoreMalformed() throws Exception {

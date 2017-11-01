@@ -24,14 +24,13 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.locationtech.spatial4j.io.GeohashUtils;
-import org.locationtech.spatial4j.shape.Rectangle;
+import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 
@@ -45,37 +44,25 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     @Override
     protected GeoBoundingBoxQueryBuilder doCreateTestQueryBuilder() {
+        GeoPoint p1 = RandomGeoGenerator.randomPoint(random());
+        GeoPoint p2 = RandomGeoGenerator.randomPoint(random());
+        GeoPoint topLeft = new GeoPoint(Math.max(p1.getLat(), p2.getLat()), p1.getLon());
+        GeoPoint bottomRight = new GeoPoint(Math.min(p1.getLat(), p2.getLat()), p2.getLon());
+        
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(GEO_POINT_FIELD_NAME);
-        Rectangle box = RandomShapeGenerator.xRandomRectangle(random(), RandomShapeGenerator.xRandomPoint(random()));
 
-        if (randomBoolean()) {
-            // check the top-left/bottom-right combination of setters
-            int path = randomIntBetween(0, 2);
-            switch (path) {
-            case 0:
-                builder.setCorners(
-                        new GeoPoint(box.getMaxY(), box.getMinX()),
-                        new GeoPoint(box.getMinY(), box.getMaxX()));
-                break;
-            case 1:
-                builder.setCorners(
-                        GeohashUtils.encodeLatLon(box.getMaxY(), box.getMinX()),
-                        GeohashUtils.encodeLatLon(box.getMinY(), box.getMaxX()));
-                break;
-            default:
-                builder.setCorners(box.getMaxY(), box.getMinX(), box.getMinY(), box.getMaxX());
-            }
-        } else {
-            // check the bottom-left/ top-right combination of setters
-            if (randomBoolean()) {
-                builder.setCornersOGC(
-                        new GeoPoint(box.getMinY(), box.getMinX()),
-                        new GeoPoint(box.getMaxY(), box.getMaxX()));
-            } else {
-                builder.setCornersOGC(
-                        GeohashUtils.encodeLatLon(box.getMinY(), box.getMinX()),
-                        GeohashUtils.encodeLatLon(box.getMaxY(), box.getMaxX()));
-            }
+        int path = randomIntBetween(0, 2);
+        switch (path) {
+        case 0:
+            builder.setCorners(topLeft, bottomRight);
+            break;
+        case 1:
+            builder.setCorners(
+                    GeoHashUtils.stringEncode(topLeft.getLon(), topLeft.getLat()),
+                    GeoHashUtils.stringEncode(bottomRight.getLon(), bottomRight.getLat()));
+            break;
+        default:
+            builder.setCorners(topLeft.getLat(), topLeft.getLon(), bottomRight.getLat(), bottomRight.getLon());
         }
 
         if (randomBoolean()) {

@@ -22,15 +22,12 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
@@ -618,74 +615,6 @@ public final class QueryBuilders {
      */
     public static GeoPolygonQueryBuilder geoPolygonQuery(String name, List<GeoPoint> points) {
         return new GeoPolygonQueryBuilder(name, points);
-    }
-
-    /**
-     * A filter based on the relationship of a shape and indexed shapes
-     *
-     * @param name  The shape field name
-     * @param shape Shape to use in the filter
-     */
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
-        return new GeoShapeQueryBuilder(name, shape);
-    }
-
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType);
-    }
-
-    /**
-     * A filter to filter indexed shapes intersecting with shapes
-     *
-     * @param name  The shape field name
-     * @param shape Shape to use in the filter
-     */
-    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder shape) throws IOException {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
-        builder.relation(ShapeRelation.INTERSECTS);
-        return builder;
-    }
-
-    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
-        builder.relation(ShapeRelation.INTERSECTS);
-        return builder;
-    }
-
-    /**
-     * A filter to filter indexed shapes that are contained by a shape
-     *
-     * @param name  The shape field name
-     * @param shape Shape to use in the filter
-     */
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder shape) throws IOException {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
-        builder.relation(ShapeRelation.WITHIN);
-        return builder;
-    }
-
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
-        builder.relation(ShapeRelation.WITHIN);
-        return builder;
-    }
-
-    /**
-     * A filter to filter indexed shapes that are not intersection with the query shape
-     *
-     * @param name  The shape field name
-     * @param shape Shape to use in the filter
-     */
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder shape) throws IOException {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
-        builder.relation(ShapeRelation.DISJOINT);
-        return builder;
-    }
-
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
-        builder.relation(ShapeRelation.DISJOINT);
-        return builder;
     }
 
     /**

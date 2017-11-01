@@ -26,12 +26,10 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.locationtech.spatial4j.shape.Point;
+import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 
@@ -62,8 +60,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 break;
         }
 
-        Point p = RandomShapeGenerator.xRandomPoint(random());
-        qb.point(new GeoPoint(p.getY(), p.getX()));
+        qb.point(RandomGeoGenerator.randomPoint(random()));
 
         if (randomBoolean()) {
             qb.setValidationMethod(randomFrom(GeoValidationMethod.values()));

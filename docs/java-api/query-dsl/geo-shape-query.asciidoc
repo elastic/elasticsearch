@@ -3,6 +3,15 @@
 
 See {ref}/query-dsl-geo-shape-query.html[Geo Shape Query]
 
+When using the `geo_shape` query it is important to use the `PreBuiltTransportClient` instead of the regular client:
+
+[source,java]
+--------------------------------------------------
+Settings settings = Settings.builder().put("cluster.name", "elasticsearch").build();
+TransportClient client = new PreBuiltTransportClient(settings);
+client.addTransportAddress(new InetSocketTransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300)));
+--------------------------------------------------
+
 Note: the `geo_shape` type uses `Spatial4J` and `JTS`, both of which are
 optional dependencies. Consequently you must add `Spatial4J` and `JTS`
 to your classpath in order to use this type:

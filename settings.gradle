@@ -35,6 +35,7 @@ List projects = [
   'modules:lang-expression',
   'modules:lang-mustache',
   'modules:lang-painless',
+  'modules:legacy-geo',
   'modules:mapper-extras',
   'modules:parent-join',
   'modules:percolator',

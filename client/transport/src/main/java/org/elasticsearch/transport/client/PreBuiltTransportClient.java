@@ -25,6 +25,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.legacygeo.LegacyGeoPlugin;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.percolator.PercolatorPlugin;
@@ -88,7 +89,8 @@ public class PreBuiltTransportClient extends TransportClient {
                 ReindexPlugin.class,
                 PercolatorPlugin.class,
                 MustachePlugin.class,
-                ParentJoinPlugin.class));
+                ParentJoinPlugin.class,
+                LegacyGeoPlugin.class));
 
     /**
      * Creates a new transport client with pre-installed plugins.

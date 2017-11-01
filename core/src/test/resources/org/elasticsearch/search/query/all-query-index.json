@@ -51,8 +51,7 @@
         "f_ip": {"type": "ip"},
         "f_binary": {"type": "binary"},
         "f_suggest": {"type": "completion"},
-        "f_geop": {"type": "geo_point"},
-        "f_geos": {"type": "geo_shape"}
+        "f_geop": {"type": "geo_point"}
       }
     }
   }

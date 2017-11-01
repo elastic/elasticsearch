@@ -36,7 +36,7 @@ public class LocalCheckpointTracker {
      * We keep a bit for each sequence number that is still pending. To optimize allocation, we do so in multiple arrays allocating them on
      * demand and cleaning up while completed. This constant controls the size of the arrays.
      */
-    private static final int BIT_ARRAYS_SIZE = 1024;
+    static final int BIT_ARRAYS_SIZE = 1024;
 
     /**
      * An ordered list of bit arrays representing pending sequence numbers. The list is "anchored" in {@link #firstProcessedSeqNo} which

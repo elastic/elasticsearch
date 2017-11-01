@@ -157,6 +157,7 @@ public class IndexMetaDataTests extends ESTestCase {
                 .put("index.number_of_replicas", 0)
                 .build())
             .creationDate(randomLong())
+            .setRoutingNumShards(4)
             .build();
         ShardId shardId = IndexMetaData.selectSplitShard(0, metaData, 4);
         assertEquals(0, shardId.getId());
@@ -169,6 +170,9 @@ public class IndexMetaDataTests extends ESTestCase {
 
         assertEquals("the number of target shards (0) must be greater than the shard id: 0",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 0)).getMessage());
+
+        assertEquals("the number of source shards [2] must be a must be a factor of [3]",
+            expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 3)).getMessage());
     }
 
     public void testIndexFormat() {

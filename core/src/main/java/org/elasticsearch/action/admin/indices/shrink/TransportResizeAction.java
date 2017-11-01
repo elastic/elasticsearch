@@ -133,9 +133,12 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         }
         final Settings targetIndexSettings = Settings.builder().put(targetIndex.settings())
             .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
-        int numShards = 1;
+        final int numShards;
         if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             numShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
+        } else {
+            assert resizeRequest.getResizeType() == ResizeType.SHRINK : "split must specify the number of shards explicitly";
+            numShards = 1;
         }
 
         for (int i = 0; i < numShards; i++) {
@@ -161,6 +164,9 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         if (IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
             throw new IllegalArgumentException("cannot provide a routing partition size value when resizing an index");
         }
+        if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(targetIndexSettings)) {
+            throw new IllegalArgumentException("cannot provide index.number_of_routing_shards on resize");
+        }
         String cause = resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT) + "_index";
         targetIndex.cause(cause);
         Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);
@@ -169,7 +175,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
 
         return new CreateIndexClusterStateUpdateRequest(targetIndex,
             cause, targetIndex.index(), targetIndexName, true)
-            // mappings are updated on the node when merging in the shards, this prevents race-conditions since all mapping must be
+            // mappings are updated on the node when creating in the shards, this prevents race-conditions since all mapping must be
             // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we miss
             // the mappings for everything is corrupted and hard to debug
             .ackTimeout(targetIndex.timeout())

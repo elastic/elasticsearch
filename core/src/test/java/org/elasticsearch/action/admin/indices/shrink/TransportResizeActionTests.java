@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -72,7 +71,7 @@ public class TransportResizeActionTests extends ESTestCase {
             Settings.builder().put("index.blocks.write", true).build());
         assertTrue(
             expectThrows(IllegalStateException.class, () ->
-            TransportShrinkAction.prepareCreateIndexRequest(new ResizeRequest("target", "source"), state,
+                TransportResizeAction.prepareCreateIndexRequest(new ResizeRequest("target", "source"), state,
                 (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)), "source", "target")
         ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
 
@@ -83,7 +82,7 @@ public class TransportResizeActionTests extends ESTestCase {
                 req.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4));
                 ClusterState clusterState = createClusterState("source", 8, 1,
                     Settings.builder().put("index.blocks.write", true).build());
-                    TransportShrinkAction.prepareCreateIndexRequest(req, clusterState,
+                    TransportResizeAction.prepareCreateIndexRequest(req, clusterState,
                         (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null
                         , "source", "target");
                 }
@@ -105,7 +104,7 @@ public class TransportResizeActionTests extends ESTestCase {
             routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        TransportShrinkAction.prepareCreateIndexRequest(new ResizeRequest("target", "source"), clusterState,
+        TransportResizeAction.prepareCreateIndexRequest(new ResizeRequest("target", "source"), clusterState,
             (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000)), "source", "target");
     }
 

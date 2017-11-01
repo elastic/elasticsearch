@@ -104,8 +104,8 @@ Indices can only be split if they satisfy the following requirements:
 
 * The index must have less primary shards than the target index.
 
-* The number of primary shards in the target index must be a power of two
-  factor of the number of primary shards in the source index.
+* The number of primary shards in the target index must be a factor of the
+  number of primary shards in the source index.
 
 * The node handling the split process must have sufficient free disk space to
   accommodate a second copy of the existing index.

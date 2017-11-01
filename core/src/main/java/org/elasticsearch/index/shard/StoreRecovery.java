@@ -108,15 +108,15 @@ final class StoreRecovery {
             if (indices.size() > 1) {
                 throw new IllegalArgumentException("can't add shards from more than one index");
             }
-            IndexMetaData indexMetaData = shards.get(0).getIndexMetaData();
-            for (ObjectObjectCursor<String, MappingMetaData> mapping : indexMetaData.getMappings()) {
+            IndexMetaData sourceMetaData = shards.get(0).getIndexMetaData();
+            for (ObjectObjectCursor<String, MappingMetaData> mapping : sourceMetaData.getMappings()) {
                 mappingUpdateConsumer.accept(mapping.key, mapping.value);
             }
-            indexShard.mapperService().merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
+            indexShard.mapperService().merge(sourceMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             // now that the mapping is merged we can validate the index sort configuration.
             Sort indexSort = indexShard.getIndexSort();
-            final boolean isSplit = indexMetaData.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
-            assert isSplit == false || indexMetaData.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1) : "for split we require a " +
+            final boolean isSplit = sourceMetaData.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
+            assert isSplit == false || sourceMetaData.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1) : "for split we require a " +
                 "single type but the index is created before 6.0.0";
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from local shards {}", shards);

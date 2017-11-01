@@ -2079,7 +2079,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (numShards == -1) {
                         e = new IndexNotFoundException(resizeSourceIndex);
                     } else {
-                        e = new IllegalStateException("not all shards from index " + resizeSourceIndex
+                        e = new IllegalStateException("not all required shards of index " + resizeSourceIndex
                             + " are started yet, expected " + numShards + " found " + startedShards.size() + " can't recover shard "
                             + shardId());
                     }

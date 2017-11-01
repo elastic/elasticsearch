@@ -105,8 +105,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             if (useRouting) {
                 String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
                 if (useMixedRouting && randomBoolean()) {
-                    routingValue[i] = routing;
-
+                    routingValue[i] = null;
                 } else {
                     routingValue[i] = routing;
                 }

@@ -124,6 +124,22 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         IOUtils.close(reader, dir);
     }
 
+    public void testRoundsUpperBoundCorrectly() {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType();
+        ft.setName("scaled_float");
+        ft.setScalingFactor(100.0);
+        Query scaledFloatQ = ft.rangeQuery(null, 0.1, true, false, null);
+        assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
+    }
+
+    public void testRoundsLowerBoundCorrectly() {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType();
+        ft.setName("scaled_float");
+        ft.setScalingFactor(100.0);
+        Query scaledFloatQ = ft.rangeQuery(-0.1, null, false, true, null);
+        assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
+    }
+
     public void testValueForSearch() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType();
         ft.setName("scaled_float");

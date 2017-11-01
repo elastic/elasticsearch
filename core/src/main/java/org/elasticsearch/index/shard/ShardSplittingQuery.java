@@ -85,12 +85,12 @@ final class ShardSplittingQuery extends Query {
                     return shardId == targetShardId;
                 };
                 if (terms == null) { // this is the common case - no partitioning and no _routing values
+                    assert indexMetaData.isRoutingPartitionedIndex() == false;
                     findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, bitSet::set);
                 } else {
                     if (indexMetaData.isRoutingPartitionedIndex()) {
                         // this is the heaviest invariant. Here we have to visit all docs stored fields do extract _id and _routing
                         // this this index is routing partitioned.
-                        Bits liveDocs = leafReader.getLiveDocs();
                         Visitor visitor = new Visitor();
                         return new ConstantScoreScorer(this, score(),
                             new RoutingPartitionedDocIdSetIterator(leafReader, visitor));
@@ -142,7 +142,7 @@ final class ShardSplittingQuery extends Query {
     public int hashCode() {
         int result = indexMetaData.hashCode();
         result = 31 * result + shardId;
-        return result;
+        return classHash() ^ result;
     }
 
     private static void findSplitDocs(String idField, Predicate<BytesRef> includeInShard,

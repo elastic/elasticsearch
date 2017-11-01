@@ -140,6 +140,12 @@ public class InternalEngine extends Engine {
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
+    /**
+     * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
+     * across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
+     * being indexed/deleted.
+     */
+    private final AtomicLong writingBytes = new AtomicLong();
 
     @Nullable
     private final String historyUUID;
@@ -407,6 +413,14 @@ public class InternalEngine extends Engine {
     @Override
     public String getHistoryUUID() {
         return historyUUID;
+    }
+
+    /**
+     * Returns how many bytes we are currently moving from heap to disk
+     */
+    @Override
+    public long getWritingBytes() {
+        return writingBytes.get();
     }
 
     /**
@@ -1217,21 +1231,26 @@ public class InternalEngine extends Engine {
     }
 
     final void refresh(String source, SearcherScope scope) throws EngineException {
+        long bytes = 0;
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
+            bytes = indexWriter.ramBytesUsed();
             switch (scope) {
                 case EXTERNAL:
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
                     // the second refresh will only do the extra work we have to do for warming caches etc.
+                    writingBytes.addAndGet(bytes);
                     externalSearcherManager.maybeRefreshBlocking();
                     // the break here is intentional we never refresh both internal / external together
                     break;
                 case INTERNAL:
+                    final long versionMapBytes = versionMap.ramBytesUsedForRefresh();
+                    bytes += versionMapBytes;
+                    writingBytes.addAndGet(bytes);
                     internalSearcherManager.maybeRefreshBlocking();
                     break;
-
                 default:
                     throw new IllegalArgumentException("unknown scope: " + scope);
             }
@@ -1245,6 +1264,8 @@ public class InternalEngine extends Engine {
                 e.addSuppressed(inner);
             }
             throw new RefreshFailedEngineException(shardId, e);
+        }  finally {
+            writingBytes.addAndGet(-bytes);
         }
 
         // TODO: maybe we should just put a scheduled job in threadPool?
@@ -1258,24 +1279,7 @@ public class InternalEngine extends Engine {
     public void writeIndexingBuffer() throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are writing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            final long versionMapBytes = versionMap.ramBytesUsedForRefresh();
-            final long indexingBufferBytes = indexWriter.ramBytesUsed();
-            logger.debug("use refresh to write indexing buffer (heap size=[{}]), to also clear version map (heap size=[{}])",
-                    new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
-            refresh("write indexing buffer", SearcherScope.INTERNAL);
-        } catch (AlreadyClosedException e) {
-            failOnTragicEvent(e);
-            throw e;
-        } catch (Exception e) {
-            try {
-                failEngine("writeIndexingBuffer failed", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new RefreshFailedEngineException(shardId, e);
-        }
+        refresh("write indexing buffer", SearcherScope.INTERNAL);
     }
 
     @Override

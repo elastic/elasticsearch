@@ -857,7 +857,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         // Check that the template was restored successfully
         map = toMap(client().performRequest("GET", "/_template/test_template"));
         expected = new HashMap<>();
-        if (runningAgainstOldCluster) {
+        if (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_0_0_beta1)) {
             expected.put("template", "evil_*");
         } else {
             expected.put("index_patterns", singletonList("evil_*"));

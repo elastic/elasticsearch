@@ -302,15 +302,22 @@ comma separated list of nodes to connect to (e.g. localhost:9300). A transport c
 be created based on that and used for all the before|after test operations, and to extract
 the http addresses of the nodes so that REST requests can be sent to them.
 
-== Testing scripts
+== Testing distributions and packaging
 
-The simplest way to test scripts and the packaged distributions is to use
-Vagrant. You can get started by following there five easy steps:
+The packaging tests use Vagrant virtual machines to verify that installing
+and running elasticsearch distributions works correctly on supported operating systems.
+These tests should really only be run in vagrant vms because they're destructive.
+
+The existing packaging tests are written with https://github.com/sstephenson/bats[Bats]
+and run on Linux boxes. These tests are being ported to a Groovy project that will
+run on all boxes.
+
+To set up your environment and run the packaging tests, follow these steps:
 
 . Install Virtual Box and Vagrant.
 
-. (Optional) Install vagrant-cachier to squeeze a bit more performance out of
-the process:
+. (Optional) Install https://github.com/fgrehm/vagrant-cachier[vagrant-cachier] to squeeze
+a bit more performance out of the process:
 
 --------------------------------------
 vagrant plugin install vagrant-cachier
@@ -322,10 +329,9 @@ vagrant plugin install vagrant-cachier
 gradle :qa:vagrant:vagrantCheckVersion
 -------------------------------------
 
-. Download and smoke test the VMs with `gradle vagrantSmokeTest` or
-`gradle -Pvagrant.boxes=all vagrantSmokeTest`. The first time you run this it will
-download the base images and provision the boxes and immediately quit. If you
-you this again it'll skip the download step.
+. Download and smoke test the VMs with `gradle vagrantSmokeTest`. The first time
+you run this it will download the base images and provision the boxes and immediately
+quit. If run again it will use the boxes already downloaded.
 
 . Run the tests with `gradle packagingTest`. This will cause gradle to build
 the tar, zip, and deb packages and all the plugins. It will then run the tests
@@ -343,7 +349,7 @@ All the regular vagrant commands should just work so you can get a shell in a
 VM running trusty by running
 `vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404`.
 
-These are the linux flavors the Vagrantfile currently supports:
+These are the linux flavors supported, all of which have boxes provided
 
 * ubuntu-1404 aka trusty
 * ubuntu-1604 aka xenial
@@ -363,12 +369,42 @@ quality boxes available in vagrant atlas:
 
 * sles-11
 
-We're missing the following because our tests are very linux/bash centric:
+=== Testing packaging on Windows
 
-* Windows Server 2012
+The packaging tests also support Windows Server 2012R2 and Windows Server 2016.
+Unfortunately we're not able to provide boxes for them in open source use
+because of licensing issues. Any Virtualbox image that has WinRM enabled
+for remote management and supports Powershell for remote users should work.
 
-It's important to think of VMs like cattle. If they become lame you just shoot
-them and let vagrant reprovision them. Say you've hosed your precise VM:
+Testing on Windows requires the https://github.com/criteo/vagrant-winrm[vagrant-winrm] plugin.
+
+------------------------------------
+vagrant plugin install vagrant-winrm
+------------------------------------
+
+To specify the Windows boxes to use, pass the project properties to gradle:
+
+* `-Pvagrant.windows.2012r2.box`
+* `-Pvagrant.windows.2016.box`
+
+These properties are required for Windows support in all gradle tasks that
+handle packaging tests. Either or both may be specified. Remember that to run tests
+on these boxes, they still need to be included in the value of `-Pvagrant.boxes`.
+When these properties are present, passing `-Pvagrant.boxes=all` will include the
+Windows boxes. You can also use `-Pvagrant.boxes=windows-all` to only test on Windows boxes.
+
+If running vagrant directly, pass the box names in the environment variables:
+
+* `VAGRANT_WINDOWS_2012R2_BOX`
+* `VAGRANT_WINDOWS_2016_BOX`
+
+=== Testing VMs are disposable
+
+If your testing VM gets into a bad state, just destroy it and let Vagrant
+create a new one. It only takes a minute or two and Vagrant handles all
+the provisioning for you.
+
+Let's say you've hosed your Ubuntu Precise VM:
 
 ----------------------------------------------------
 vagrant ssh ubuntu-1404 -c 'sudo rm -rf /bin'; echo oops
@@ -379,9 +415,6 @@ All you've got to do to get another one is
 ----------------------------------------------
 vagrant destroy -f ubuntu-1404 && vagrant up ubuntu-1404 --provider virtualbox
 ----------------------------------------------
-
-The whole process takes a minute and a half on a modern laptop, two and a half
-without vagrant-cachier.
 
 Its possible that some downloads will fail and it'll be impossible to restart
 them. This is a bug in vagrant. See the instructions here for how to work
@@ -398,58 +431,72 @@ vagrant destroy -f
 `vagrant up` would normally start all the VMs but we've prevented that because
 that'd consume a ton of ram.
 
-== Testing scripts more directly
+=== Running packaging tests more directly
 
-In general its best to stick to testing in vagrant because the bats scripts are
-destructive. When working with a single package it's generally faster to run its
-tests in a tighter loop than gradle provides. In one window:
+Gradle's full packaging test build takes a while, but you can iterate faster
+by managing the VM and running the tests yourself.
+
+To get the build ready for the packaging tests, run (on the host)
 
 --------------------------------
-gradle :distribution:rpm:assemble
+gradle :qa:vagrant:setupPackaging :qa:vagrant:prepareGradleBuild
 --------------------------------
 
-and in another window:
+and in another window, run the gradle task to bring up the VM. In this
+example let's test on Centos 7
+
+-------------------------------------------------
+gradle :qa:vagrant:vagrantCentos7#up
+-------------------------------------------------
+
+This task is available for all boxes specified with `-Pvagrant.boxes` -
+to see what's available, run `gradle :qa:vagrant:tasks --all`.
+
+Then in another terminal, ssh into the VM
 
 ----------------------------------------------------
-vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
+vagrant ssh centos-7
+----------------------------------------------------
+
+To run the Bats tests for just the RPM package (on the guest)
+
+----------------------------------------------------
 cd $BATS_ARCHIVES
 sudo -E bats $BATS_TESTS/*rpm*.bats
 ----------------------------------------------------
 
-If you wanted to retest all the release artifacts on a single VM you could:
+Or to retest all the release artifacts on a single VM (on the guest)
 
 -------------------------------------------------
-gradle setupBats
-cd qa/vagrant; vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
 cd $BATS_ARCHIVES
 sudo -E bats $BATS_TESTS/*.bats
 -------------------------------------------------
 
-You can also use Gradle to prepare the test environment and then starts a single VM:
+To run the Groovy packaging tests, run (on the guest)
 
--------------------------------------------------
-gradle vagrantFedora27#up
--------------------------------------------------
+------------------------------------------------
+cd ~/.elasticsearch && gradle :qa:packaging:run
+------------------------------------------------
 
-Or any of vagrantCentos6#up, vagrantCentos7#up, vagrantDebian8#up,
-vagrantDebian9#up, vagrantFedora26#up, vagrantFedora27#up, vagrantOel6#up, vagrantOel7#up,
-vagrantOpensuse42#up,vagrantSles12#up, vagrantUbuntu1404#up, vagrantUbuntu1604#up.
+=== Testing plugins in packaging tests
 
-Once up, you can then connect to the VM using SSH from the elasticsearch directory:
+If you're building plugins in an `elasticsearch-extra` directory, the Vagrantfile
+will mount that directory to the VM so it's included in the VM's gradle build. If
+your plugin's build needs some additional setup steps before it runs, you can add
+task dependencies to the `#prepareGradleBuild` tasks. For example
 
--------------------------------------------------
-vagrant ssh fedora-27
--------------------------------------------------
-
-Or from another directory:
-
--------------------------------------------------
-VAGRANT_CWD=/path/to/elasticsearch vagrant ssh fedora-27
--------------------------------------------------
-
-Note: Starting vagrant VM outside of the elasticsearch folder requires to
-indicates the folder that contains the Vagrantfile using the VAGRANT_CWD
-environment variable.
+[source, groovy]
+----------------------------------------
+project(':qa:vagrant).tasks.findAll { t -> t.name.endsWith('prepareGradleBuild') }.each { task ->
+  Task myPluginSetupTask = project.tasks.create(task.replace('prepareGradleBuild, 'mySetup')) {
+    doLast {
+      String vagrantBox = task.ext.box
+      // vagrant command to setup box
+    }
+  }
+  task.dependsOn(myPluginSetupTask)
+}
+----------------------------------------
 
 == Testing backwards compatibility
 

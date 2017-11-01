@@ -22,8 +22,15 @@ import org.gradle.api.tasks.Input
 
 class VagrantPropertiesExtension {
 
+    /** The boxes that we will actually run the tests on - not all boxes **/
     @Input
     List<String> boxes
+
+    @Input
+    Map<String, String> vagrantEnvVars
+
+    @Input
+    String testTask
 
     @Input
     String upgradeFromVersion
@@ -43,13 +50,16 @@ class VagrantPropertiesExtension {
     @Input
     Boolean inheritTestUtils
 
-    VagrantPropertiesExtension(List<String> availableBoxes) {
-        this.boxes = availableBoxes
+    VagrantPropertiesExtension() {
         this.batsDir = 'src/test/resources/packaging'
     }
 
     void boxes(String... boxes) {
         this.boxes = Arrays.asList(boxes)
+    }
+
+    void setTestTask(String testTask) {
+        this.testTask = testTask
     }
 
     void setBatsDir(String batsDir) {

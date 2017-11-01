@@ -152,6 +152,9 @@ An example of a response snippet that could be generated from the above search r
               "max_score": 1.0,
               "hits": [
                 {
+                  "_index": "test",
+                  "_type": "doc",
+                  "_id": "1",
                   "_nested": {
                     "field": "comments",
                     "offset": 1
@@ -278,6 +281,9 @@ Response not included in text but tested for completeness sake.
               "max_score": 1.0444683,
               "hits": [
                 {
+                  "_index": "test",
+                  "_type": "doc",
+                  "_id": "1",
                   "_nested": {
                     "field": "comments",
                     "offset": 1
@@ -394,6 +400,9 @@ Which would look like:
               "max_score": 0.6931472,
               "hits": [
                 {
+                  "_index": "test",
+                  "_type": "doc",
+                  "_id": "1",
                   "_nested": {
                     "field": "comments",
                     "offset": 1,
@@ -505,6 +514,7 @@ An example of a response snippet that could be generated from the above search r
                             "max_score": 1.0,
                             "hits": [
                                 {
+                                    "_index": "test",
                                     "_type": "doc",
                                     "_id": "2",
                                     "_score": 1.0,

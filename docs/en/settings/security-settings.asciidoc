@@ -8,9 +8,9 @@
 You configure `xpack.security` settings  to
 <<anonymous-access-settings, enable anonymous access>>
 and perform message authentication,
-<<field-document-security-settings, set up document and field
-level security>>, <<realm-settings, configure realms>>,
-and  <<ssl-tls-settings, encrypt communications with SSL>>.
+<<field-document-security-settings, set up document and field level security>>,
+<<realm-settings, configure realms>>, and
+<<ssl-tls-settings, encrypt communications with SSL>>.
 
 All of these settings can be added to the `elasticsearch.yml` configuration file,
 with the exception of the secure settings, which you add to the {es} keystore.
@@ -29,6 +29,13 @@ need to disable {security} in those `kibana.yml` files. For more information
 about disabling {security} in specific {kib} instances, see
 {kibana-ref}/security-settings-kb.html[{kib} Security Settings].
 
+`xpack.security.hide_settings`::
+A comma-separated list of settings that are omitted from the results of the
+<<cluster-nodes-info,cluster nodes info API>>. You can use wildcards to include
+multiple settings in the list.  For example, the following value hides all the
+settings for the ad1 realm: `xpack.security.authc.realms.ad1.*`. The API already
+omits all `ssl` settings, `bind_dn`, and `bind_password` due to the
+sensitive nature of the information.
 
 [float]
 [[password-security-settings]]

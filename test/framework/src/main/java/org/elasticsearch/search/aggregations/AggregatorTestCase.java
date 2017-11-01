@@ -91,6 +91,7 @@ import static org.mockito.Mockito.when;
 public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
+    private static final String TYPE_NAME = "type";
 
     /** Create a factory for the given aggregation builder. */
     protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
@@ -104,6 +105,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MapperService mapperService = mapperServiceMock();
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
+        when(mapperService.types()).thenReturn(Collections.singleton(TYPE_NAME));
         when(searchContext.mapperService()).thenReturn(mapperService);
         IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
                 new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
@@ -115,7 +117,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         });
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField, new String[]{"type"});
+        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField, new String[]{TYPE_NAME});
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext = queryShardContextMock(mapperService, fieldTypes, circuitBreakerService);

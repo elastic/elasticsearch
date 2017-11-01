@@ -103,8 +103,12 @@ setup:
 
 ---
 "Sliced scroll with invalid arguments":
+  - skip:
+      version: " - 6.99.99"
+      reason: Prior versions return 500 rather than 404
+
   - do:
-        catch:  /query_phase_execution_exception.*The number of slices.*index.max_slices_per_scroll/
+        catch: bad_request
         search:
           index: test_sliced_scroll
           size: 1

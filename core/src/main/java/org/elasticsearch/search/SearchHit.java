@@ -477,6 +477,14 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
     }
 
     public void shard(SearchShardTarget target) {
+        if (innerHits != null) {
+            for (SearchHits innerHits : innerHits.values()) {
+                for (SearchHit innerHit : innerHits) {
+                    innerHit.shard(target);
+                }
+            }
+        }
+
         this.shard = target;
         if (target != null) {
             this.index = target.getIndex();
@@ -572,18 +580,17 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
             builder.field(Fields._SHARD, shard.getShardId());
             builder.field(Fields._NODE, shard.getNodeIdText());
         }
+        if (index != null) {
+            builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
+        }
+        if (type != null) {
+            builder.field(Fields._TYPE, type);
+        }
+        if (id != null) {
+            builder.field(Fields._ID, id);
+        }
         if (nestedIdentity != null) {
             nestedIdentity.toXContent(builder, params);
-        } else {
-            if (index != null) {
-                builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
-            }
-            if (type != null) {
-                builder.field(Fields._TYPE, type);
-            }
-            if (id != null) {
-                builder.field(Fields._ID, id);
-            }
         }
         if (version != -1) {
             builder.field(Fields._VERSION, version);
@@ -982,9 +989,9 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
         private static final String FIELD = "field";
         private static final String OFFSET = "offset";
 
-        private Text field;
-        private int offset;
-        private NestedIdentity child;
+        private final Text field;
+        private final int offset;
+        private final NestedIdentity child;
 
         public NestedIdentity(String field, int offset, NestedIdentity child) {
             this.field = new Text(field);

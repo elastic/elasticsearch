@@ -119,7 +119,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         remoteProfile = builder.build();
         connectedNodes = new ConnectedNodes(clusterAlias);
         this.seedNodes = Collections.unmodifiableList(seedNodes);
-        this.skipUnavailable = RemoteClusterAware.REMOTE_CLUSTER_SKIP_UNAVAILABLE
+        this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
                 .getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.connectHandler = new ConnectHandler();
         transportService.addConnectionListener(this);

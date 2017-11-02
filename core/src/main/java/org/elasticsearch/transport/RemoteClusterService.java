@@ -55,6 +55,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.settings.Setting.boolSetting;
+
 /**
  * Basic service for accessing remote clusters via gateway nodes
  */
@@ -89,6 +91,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     public static final Setting<Boolean> ENABLE_REMOTE_CLUSTERS = Setting.boolSetting("search.remote.connect", true,
         Setting.Property.NodeScope);
+
+    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =
+            Setting.affixKeySetting("search.remote.", "skip_unavailable",
+                    key -> boolSetting(key, false, Setting.Property.NodeScope, Setting.Property.Dynamic));
 
     private final TransportService transportService;
     private final int numRemoteConnections;
@@ -287,7 +293,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     public void listenForUpdates(ClusterSettings clusterSettings) {
         super.listenForUpdates(clusterSettings);
-        clusterSettings.addAffixUpdateConsumer(RemoteClusterAware.REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable,
+        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable,
                 (clusterAlias, value) -> {});
     }
 

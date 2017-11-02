@@ -81,7 +81,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testSettingsAreRegistered() {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS));
-        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterAware.REMOTE_CLUSTER_SKIP_UNAVAILABLE));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_NODE_ATTRIBUTE));
@@ -596,12 +596,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("search.remote.foo.skip_unavailable", true)
                 .put("search.remote.bar.skip_unavailable", false).build();
-        RemoteClusterAware.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+        RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
 
         Settings brokenSettings = Settings.builder()
                 .put("search.remote.foo.skip_unavailable", "broken").build();
         expectThrows(IllegalArgumentException.class, () ->
-                RemoteClusterAware.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(brokenSettings)
+                RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(brokenSettings)
                         .forEach(setting -> setting.get(brokenSettings)));
     }
 }

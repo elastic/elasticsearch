@@ -1029,7 +1029,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onNoLongerMaster(String source) {
-                listener.onNoLongerMaster(source);
+                if (listener != null) {
+                    listener.onNoLongerMaster(source);
+                }
             }
 
             @Override

@@ -18,27 +18,23 @@
  */
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.discovery.AbstractDisruptionTestCase;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -48,6 +44,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests snapshot operations during disruptions.
@@ -81,7 +78,7 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
         // might make this test to fail. We are going to complete initialization of the snapshot to prevent this failures.
         logger.info("-->  initializing the repository");
         assertEquals(SnapshotState.SUCCESS, client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
-            .setWaitForCompletion(true).setIndices(idxName).get().getSnapshotInfo().state());
+            .setWaitForCompletion(true).setIncludeGlobalState(true).setIndices().get().getSnapshotInfo().state());
 
         final String masterNode1 = internalCluster().getMasterName();
         Set<String> otherNodes = new HashSet<>();
@@ -113,12 +110,8 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         logger.info("--> starting snapshot");
-        try {
-            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(false)
-                .setMasterNodeTimeout("5s").setIndices(idxName).get();
-        } catch (Exception ex) {
-            logger.info("--> got exception from hanged master", ex);
-        }
+        ActionFuture<CreateSnapshotResponse> future = client(masterNode1).admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(false).setIndices(idxName).execute();
 
         logger.info("--> waiting for disruption to start");
         assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
@@ -154,6 +147,16 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
         networkDisruption.stopDisrupting();
         ensureStableCluster(4, masterNode1);
         logger.info("--> done");
+
+        try {
+            future.get();
+        } catch (Exception ex) {
+            logger.info("--> got exception from hanged master", ex);
+            Throwable cause = ex.getCause();
+            assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
+            cause = cause.getCause();
+            assertThat(cause, instanceOf(Discovery.FailedToCommitClusterStateException.class));
+        }
     }
 
     private void createRandomIndex(String idxName) throws ExecutionException, InterruptedException {

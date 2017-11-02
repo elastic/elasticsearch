@@ -153,6 +153,10 @@ public class SliceBuilderTests extends ESTestCase {
                 public Query termQuery(Object value, @Nullable QueryShardContext context) {
                     return null;
                 }
+
+                public Query existsQuery(QueryShardContext context) {
+                    return null;
+                }
             };
             fieldType.setName(UidFieldMapper.NAME);
             fieldType.setHasDocValues(false);
@@ -191,6 +195,10 @@ public class SliceBuilderTests extends ESTestCase {
 
                 @Override
                 public Query termQuery(Object value, @Nullable QueryShardContext context) {
+                    return null;
+                }
+
+                public Query existsQuery(QueryShardContext context) {
                     return null;
                 }
             };
@@ -287,6 +295,10 @@ public class SliceBuilderTests extends ESTestCase {
 
                 @Override
                 public Query termQuery(Object value, @Nullable QueryShardContext context) {
+                    return null;
+                }
+
+                public Query existsQuery(QueryShardContext context) {
                     return null;
                 }
             };

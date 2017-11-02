@@ -22,8 +22,6 @@ package org.elasticsearch.index.seqno;
 import com.carrotsearch.hppc.LongObjectHashMap;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.index.IndexSettings;
 
 /**
  * This class generates sequences numbers and keeps track of the so-called "local checkpoint" which is the highest number for which all
@@ -32,22 +30,16 @@ import org.elasticsearch.index.IndexSettings;
 public class LocalCheckpointTracker {
 
     /**
-     * We keep a bit for each sequence number that is still pending. To optimize allocation, we do so in multiple arrays allocating them on
-     * demand and cleaning up while completed. This setting controls the size of the arrays.
+     * We keep a bit for each sequence number that is still pending. To optimize allocation, we do so in multiple sets allocating them on
+     * demand and cleaning up while completed. This constant controls the size of the sets.
      */
-    public static Setting<Integer> SETTINGS_BIT_ARRAYS_SIZE =
-        Setting.intSetting("index.seq_no.checkpoint.bit_arrays_size", 1024, 4, Setting.Property.IndexScope);
+    static final int BIT_SET_SIZE = 1024;
 
     /**
-     * A collection of bit arrays representing pending sequence numbers. Each sequence number is mapped to a bit array by dividing by the
+     * A collection of bit sets representing pending sequence numbers. Each sequence number is mapped to a bit set by dividing by the
      * bit set size.
      */
     final LongObjectHashMap<FixedBitSet> processedSeqNo = new LongObjectHashMap<>();
-
-    /**
-     * The size of each bit set representing processed sequence numbers.
-     */
-    private final int bitArraysSize;
 
     /**
      * The current local checkpoint, i.e., all sequence numbers no more than this number have been completed.
@@ -64,11 +56,10 @@ public class LocalCheckpointTracker {
      * {@link SequenceNumbers#NO_OPS_PERFORMED} and {@code localCheckpoint} should be set to the last known local checkpoint,
      * or {@link SequenceNumbers#NO_OPS_PERFORMED}.
      *
-     * @param indexSettings   the index settings
      * @param maxSeqNo        the last sequence number assigned, or {@link SequenceNumbers#NO_OPS_PERFORMED}
      * @param localCheckpoint the last known local checkpoint, or {@link SequenceNumbers#NO_OPS_PERFORMED}
      */
-    public LocalCheckpointTracker(final IndexSettings indexSettings, final long maxSeqNo, final long localCheckpoint) {
+    public LocalCheckpointTracker(final long maxSeqNo, final long localCheckpoint) {
         if (localCheckpoint < 0 && localCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
                 "local checkpoint must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] "
@@ -78,7 +69,6 @@ public class LocalCheckpointTracker {
             throw new IllegalArgumentException(
                 "max seq. no. must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]");
         }
-        bitArraysSize = SETTINGS_BIT_ARRAYS_SIZE.get(indexSettings.getSettings());
         nextSeqNo = maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
         checkpoint = localCheckpoint;
     }
@@ -106,9 +96,9 @@ public class LocalCheckpointTracker {
             // this is possible during recovery where we might replay an operation that was also replicated
             return;
         }
-        final FixedBitSet bitArray = getBitArrayForSeqNo(seqNo);
-        final int offset = seqNoToBitArrayOffset(seqNo);
-        bitArray.set(offset);
+        final FixedBitSet bitSet = getBitSetForSeqNo(seqNo);
+        final int offset = seqNoToBitSetOffset(seqNo);
+        bitSet.set(offset);
         if (seqNo == checkpoint + 1) {
             updateCheckpoint();
         }
@@ -175,16 +165,16 @@ public class LocalCheckpointTracker {
     @SuppressForbidden(reason = "Object#notifyAll")
     private void updateCheckpoint() {
         assert Thread.holdsLock(this);
-        assert getBitArrayForSeqNo(checkpoint + 1).get(seqNoToBitArrayOffset(checkpoint + 1)) :
+        assert getBitSetForSeqNo(checkpoint + 1).get(seqNoToBitSetOffset(checkpoint + 1)) :
             "updateCheckpoint is called but the bit following the checkpoint is not set";
         try {
             // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
-            long bitArrayKey = getBitArrayKey(checkpoint);
-            FixedBitSet current = processedSeqNo.get(bitArrayKey);
+            long bitSetKey = getBitSetKey(checkpoint);
+            FixedBitSet current = processedSeqNo.get(bitSetKey);
             if (current == null) {
                 // the bit set corresponding to the checkpoint has already been removed, set ourselves up for the next bit set
-                assert checkpoint % bitArraysSize == bitArraysSize - 1;
-                current = processedSeqNo.get(++bitArrayKey);
+                assert checkpoint % BIT_SET_SIZE == BIT_SET_SIZE - 1;
+                current = processedSeqNo.get(++bitSetKey);
             }
             do {
                 checkpoint++;
@@ -192,58 +182,58 @@ public class LocalCheckpointTracker {
                  * The checkpoint always falls in the current bit set or we have already cleaned it; if it falls on the last bit of the
                  * current bit set, we can clean it.
                  */
-                if (checkpoint == lastSeqNoInBitArray(bitArrayKey)) {
+                if (checkpoint == lastSeqNoInBitSet(bitSetKey)) {
                     assert current != null;
-                    final FixedBitSet removed = processedSeqNo.remove(bitArrayKey);
+                    final FixedBitSet removed = processedSeqNo.remove(bitSetKey);
                     assert removed == current;
-                    current = processedSeqNo.get(++bitArrayKey);
+                    current = processedSeqNo.get(++bitSetKey);
                 }
-            } while (current != null && current.get(seqNoToBitArrayOffset(checkpoint + 1)));
+            } while (current != null && current.get(seqNoToBitSetOffset(checkpoint + 1)));
         } finally {
             // notifies waiters in waitForOpsToComplete
             this.notifyAll();
         }
     }
 
-    private long lastSeqNoInBitArray(final long bitArrayKey) {
-        return (1 + bitArrayKey) * bitArraysSize - 1;
+    private long lastSeqNoInBitSet(final long bitSetKey) {
+        return (1 + bitSetKey) * BIT_SET_SIZE - 1;
     }
 
     /**
-     * Return the bit array for the provided sequence number, possibly allocating a new array if needed.
+     * Return the bit set for the provided sequence number, possibly allocating a new set if needed.
      *
-     * @param seqNo the sequence number to obtain the bit array for
-     * @return the bit array corresponding to the provided sequence number
+     * @param seqNo the sequence number to obtain the bit set for
+     * @return the bit set corresponding to the provided sequence number
      */
-    private long getBitArrayKey(final long seqNo) {
+    private long getBitSetKey(final long seqNo) {
         assert Thread.holdsLock(this);
-        return seqNo / bitArraysSize;
+        return seqNo / BIT_SET_SIZE;
     }
 
-    private FixedBitSet getBitArrayForSeqNo(final long seqNo) {
+    private FixedBitSet getBitSetForSeqNo(final long seqNo) {
         assert Thread.holdsLock(this);
-        final long bitArrayKey = getBitArrayKey(seqNo);
-        final int index = processedSeqNo.indexOf(bitArrayKey);
-        final FixedBitSet bitArray;
+        final long bitSetKey = getBitSetKey(seqNo);
+        final int index = processedSeqNo.indexOf(bitSetKey);
+        final FixedBitSet bitSet;
         if (processedSeqNo.indexExists(index)) {
-            bitArray = processedSeqNo.indexGet(index);
+            bitSet = processedSeqNo.indexGet(index);
         } else {
-            bitArray = new FixedBitSet(bitArraysSize);
-            processedSeqNo.indexInsert(index, bitArrayKey, bitArray);
+            bitSet = new FixedBitSet(BIT_SET_SIZE);
+            processedSeqNo.indexInsert(index, bitSetKey, bitSet);
         }
-        return bitArray;
+        return bitSet;
     }
 
     /**
-     * Obtain the position in the bit array corresponding to the provided sequence number. The bit array corresponding to the sequence
-     * number can be obtained via {@link #getBitArrayForSeqNo(long)}.
+     * Obtain the position in the bit set corresponding to the provided sequence number. The bit set corresponding to the sequence number
+     * can be obtained via {@link #getBitSetForSeqNo(long)}.
      *
      * @param seqNo the sequence number to obtain the position for
-     * @return the position in the bit array corresponding to the provided sequence number
+     * @return the position in the bit set corresponding to the provided sequence number
      */
-    private int seqNoToBitArrayOffset(final long seqNo) {
+    private int seqNoToBitSetOffset(final long seqNo) {
         assert Thread.holdsLock(this);
-        return Math.toIntExact(seqNo % bitArraysSize);
+        return Math.toIntExact(seqNo % BIT_SET_SIZE);
     }
 
 }

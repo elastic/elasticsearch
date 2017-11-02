@@ -23,10 +23,8 @@ import com.carrotsearch.hppc.LongObjectHashMap;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.junit.Before;
@@ -42,6 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.seqno.LocalCheckpointTracker.BIT_SET_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
 
@@ -49,19 +48,8 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
 
     private LocalCheckpointTracker tracker;
 
-    private static final int SMALL_CHUNK_SIZE = 4;
-
     public static LocalCheckpointTracker createEmptyTracker() {
-        return new LocalCheckpointTracker(
-            IndexSettingsModule.newIndexSettings(
-                "test",
-                Settings
-                    .builder()
-                    .put(LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
-                    .build()),
-            SequenceNumbers.NO_OPS_PERFORMED,
-            SequenceNumbers.NO_OPS_PERFORMED
-        );
+        return new LocalCheckpointTracker(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
     }
 
     @Override
@@ -110,7 +98,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
     public void testSimpleOverFlow() {
         List<Integer> seqNoList = new ArrayList<>();
         final boolean aligned = randomBoolean();
-        final int maxOps = SMALL_CHUNK_SIZE * randomIntBetween(1, 5) + (aligned ? 0 : randomIntBetween(1, SMALL_CHUNK_SIZE - 1));
+        final int maxOps = BIT_SET_SIZE * randomIntBetween(1, 5) + (aligned ? 0 : randomIntBetween(1, BIT_SET_SIZE - 1));
 
         for (int i = 0; i < maxOps; i++) {
             seqNoList.add(i);
@@ -122,7 +110,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.checkpoint, equalTo(maxOps - 1L));
         assertThat(tracker.processedSeqNo.size(), equalTo(aligned ? 0 : 1));
         if (aligned == false) {
-            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.checkpoint / SMALL_CHUNK_SIZE));
+            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.checkpoint / BIT_SET_SIZE));
         }
     }
 
@@ -165,7 +153,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getCheckpoint(), equalTo(maxOps - 1L));
         assertThat(tracker.processedSeqNo.size(), isOneOf(0, 1));
         if (tracker.processedSeqNo.size() == 1) {
-            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.checkpoint / SMALL_CHUNK_SIZE));
+            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.checkpoint / BIT_SET_SIZE));
         }
     }
 
@@ -216,7 +204,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getCheckpoint(), equalTo(maxOps - 1L));
         assertThat(tracker.processedSeqNo.size(), isOneOf(0, 1));
         if (tracker.processedSeqNo.size() == 1) {
-            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.checkpoint / SMALL_CHUNK_SIZE));
+            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.checkpoint / BIT_SET_SIZE));
         }
     }
 

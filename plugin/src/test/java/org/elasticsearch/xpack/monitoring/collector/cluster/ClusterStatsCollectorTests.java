@@ -29,9 +29,12 @@ import org.elasticsearch.xpack.monitoring.collector.BaseCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.util.Collection;
+import java.util.Locale;
 import java.util.UUID;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.XPackSettings.SECURITY_ENABLED;
+import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
 import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -80,6 +83,36 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testDoCollect() throws Exception {
+        final Settings.Builder settings = Settings.builder();
+        final License.OperationMode mode =
+                randomValueOtherThan(License.OperationMode.MISSING, () -> randomFrom(License.OperationMode.values()));
+        final boolean securityEnabled = randomBoolean();
+        final boolean transportTLSEnabled;
+
+        if (securityEnabled) {
+            switch (mode) {
+                case TRIAL:
+                    transportTLSEnabled = randomBoolean();
+                    break;
+                case BASIC:
+                    transportTLSEnabled = false;
+                    break;
+                case STANDARD:
+                case GOLD:
+                case PLATINUM:
+                    transportTLSEnabled = true;
+                    break;
+                default:
+                    throw new AssertionError("Unknown mode [" + mode + "]");
+            }
+
+            settings.put(TRANSPORT_SSL_ENABLED.getKey(), transportTLSEnabled);
+        } else {
+            transportTLSEnabled = false;
+
+            settings.put(SECURITY_ENABLED.getKey(), false);
+        }
+
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
         withCollectionTimeout(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT, timeout);
 
@@ -95,7 +128,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         final License license = License.builder()
                                         .uid(UUID.randomUUID().toString())
-                                        .type("trial")
+                                        .type(mode.name().toLowerCase(Locale.ROOT))
                                         .issuer("elasticsearch")
                                         .issuedTo("elastic")
                                         .issueDate(System.currentTimeMillis())
@@ -160,6 +193,9 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(document.getLicense(), equalTo(license));
         assertThat(document.getStatus(), equalTo(clusterStatus));
+
+        assertThat(document.getClusterNeedsTLSEnabled(),
+                   equalTo(mode == License.OperationMode.TRIAL && securityEnabled && transportTLSEnabled == false));
 
         assertThat(document.getClusterStats(), notNullValue());
         assertThat(document.getClusterStats().getStatus(), equalTo(clusterStatus));

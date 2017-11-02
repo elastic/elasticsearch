@@ -55,6 +55,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
     private final ClusterStatsResponse clusterStats;
     private final ClusterState clusterState;
     private final ClusterHealthStatus status;
+    private final boolean clusterNeedsTLSEnabled;
 
     ClusterStatsMonitoringDoc(final String cluster,
                               final long timestamp,
@@ -66,7 +67,8 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                               @Nullable final License license,
                               @Nullable final List<XPackFeatureSet.Usage> usages,
                               @Nullable final ClusterStatsResponse clusterStats,
-                              @Nullable final ClusterState clusterState) {
+                              @Nullable final ClusterState clusterState,
+                              final boolean clusterNeedsTLSEnabled) {
 
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
         this.clusterName = Objects.requireNonNull(clusterName);
@@ -76,6 +78,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         this.usages = usages;
         this.clusterStats = clusterStats;
         this.clusterState = clusterState;
+        this.clusterNeedsTLSEnabled = clusterNeedsTLSEnabled;
     }
 
     String getClusterName() {
@@ -106,6 +109,10 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         return status;
     }
 
+    boolean getClusterNeedsTLSEnabled() {
+        return clusterNeedsTLSEnabled;
+    }
+
     @Override
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("cluster_name", clusterName);
@@ -119,6 +126,9 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
             params = new ToXContent.DelegatingMapParams(extraParams, params);
             license.toInnerXContent(builder, params);
             builder.field("hkey", hash(license, getCluster()));
+            if (clusterNeedsTLSEnabled) {
+                builder.field("cluster_needs_tls", true);
+            }
             builder.endObject();
         }
 

@@ -9,7 +9,10 @@ After you install {es}, you can optionally obtain and install {xpack}.
 For more information about how to obtain {xpack},
 see https://www.elastic.co/products/x-pack.
 
-You must run the version of {xpack} that matches the version of {es} you are running.
+You must run the version of {xpack} that matches the version of {es} you are
+running. See the
+https://www.elastic.co/support/matrix#matrix_compatibility[Elastic Support Matrix]
+for more information about product compatibility. 
 
 IMPORTANT: If you are installing {xpack} for the first time on an existing
 cluster, you must perform a full cluster restart. Installing {xpack} enables
@@ -189,7 +192,7 @@ node key file.
 <2> Alternatively, specify the full path to the node certificate.
 <3> Alternatively specify the full path to the CA certificate.
 <4> This setting is optional. It enables SSL on the HTTP layer to ensure that
-communication between HTTP clients and the cluster is encrypted. 
+communication between HTTP clients and the cluster is encrypted.
 --
 
 .. Start {es}.

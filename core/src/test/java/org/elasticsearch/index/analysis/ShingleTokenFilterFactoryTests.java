@@ -118,9 +118,9 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals(
-                "The difference between max_shingle_size and min_shingle_size in Shingle Token Filter must be less than or equal to: ["
-                    + maxAllowedShingleDiff + "] but was [" + shingleDiff + "]. This limit can be set by changing the ["
-                    + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey() + "] index level setting.",
+                "In Shingle TokenFilter the difference between max_shingle_size and min_shingle_size (and +1 if outputting unigrams)"
+                    + " must be less than or equal to: [" + maxAllowedShingleDiff + "] but was [" + shingleDiff + "]. This limit"
+                    + " can be set by changing the [" + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey() + "] index level setting.",
                 ex.getMessage());
         }
     }

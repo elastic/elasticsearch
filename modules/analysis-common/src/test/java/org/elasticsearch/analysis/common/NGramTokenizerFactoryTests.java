@@ -169,16 +169,13 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         int max_gram = min_gram + ngramDiff;
 
         final Settings settings = newAnalysisSettingsBuilder().put("min_gram", min_gram).put("max_gram", max_gram).build();
-        try {
-            new NGramTokenizerFactory(indexProperties, null, name, settings).create();
-            fail();
-        } catch (IllegalArgumentException ex) {
-            assertEquals(
-                "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: [" + maxAllowedNgramDiff
-                    + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
-                    + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.",
-                ex.getMessage());
-        }
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            new NGramTokenizerFactory(indexProperties, null, name, settings).create());
+        assertEquals(
+            "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
+                + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
+                + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.",
+            ex.getMessage());
     }
 
     private Version randomVersion(Random random) throws IllegalArgumentException, IllegalAccessException {

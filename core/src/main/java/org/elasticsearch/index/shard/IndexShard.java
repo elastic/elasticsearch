@@ -183,12 +183,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final QueryCachingPolicy cachingPolicy;
     private final Supplier<Sort> indexSortSupplier;
 
-    /**
-     * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
-     * across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
-     * being indexed/deleted.
-     */
-    private final AtomicLong writingBytes = new AtomicLong();
     private final SearchOperationListener searchOperationListener;
 
     protected volatile ShardRouting shardRouting;
@@ -323,12 +317,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Sort getIndexSort() {
         return indexSortSupplier.get();
-    }
-    /**
-     * returns true if this shard supports indexing (i.e., write) operations.
-     */
-    public boolean canIndex() {
-        return true;
     }
 
     public ShardGetService getService() {
@@ -840,34 +828,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void refresh(String source) {
         verifyNotClosed();
-
-        if (canIndex()) {
-            long bytes = getEngine().getIndexBufferRAMBytesUsed();
-            writingBytes.addAndGet(bytes);
-            try {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("refresh with source [{}] indexBufferRAMBytesUsed [{}]", source, new ByteSizeValue(bytes));
-                }
-                getEngine().refresh(source);
-            } finally {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
-                }
-                writingBytes.addAndGet(-bytes);
-            }
-        } else {
-            if (logger.isTraceEnabled()) {
-                logger.trace("refresh with source [{}]", source);
-            }
-            getEngine().refresh(source);
+        if (logger.isTraceEnabled()) {
+            logger.trace("refresh with source [{}]", source);
         }
+        getEngine().refresh(source);
     }
 
     /**
      * Returns how many bytes we are currently moving from heap to disk
      */
     public long getWritingBytes() {
-        return writingBytes.get();
+        Engine engine = getEngineOrNull();
+        if (engine == null) {
+            return 0;
+        }
+        return engine.getWritingBytes();
     }
 
     public RefreshStats refreshStats() {
@@ -1672,24 +1647,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Called when our shard is using too much heap and should move buffered indexed/deleted documents to disk.
      */
     public void writeIndexingBuffer() {
-        if (canIndex() == false) {
-            throw new UnsupportedOperationException();
-        }
         try {
             Engine engine = getEngine();
-            long bytes = engine.getIndexBufferRAMBytesUsed();
-
-            // NOTE: this can be an overestimate by up to 20%, if engine uses IW.flush not refresh, because version map
-            // memory is low enough, but this is fine because after the writes finish, IMC will poll again and see that
-            // there's still up to the 20% being used and continue writing if necessary:
-            logger.debug("add [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
-            writingBytes.addAndGet(bytes);
-            try {
-                engine.writeIndexingBuffer();
-            } finally {
-                writingBytes.addAndGet(-bytes);
-                logger.debug("remove [{}] writing bytes for shard [{}]", new ByteSizeValue(bytes), shardId());
-            }
+            engine.writeIndexingBuffer();
         } catch (Exception e) {
             handleRefreshException(e);
         }

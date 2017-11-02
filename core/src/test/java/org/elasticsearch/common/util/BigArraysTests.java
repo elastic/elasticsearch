@@ -75,11 +75,16 @@ public class BigArraysTests extends ESTestCase {
             array.set(i, (byte) (i % 127));
         }
         int bytesDropped = 0;
+        byte lastValue = (byte) ((totalLen - 1) % 127);
         while (array.size() > (BigArrays.BYTE_PAGE_SIZE * 2)) {
             int i = randomIntBetween(1, (int) (BigArrays.BYTE_PAGE_SIZE * 1.5));
             bytesDropped += i;
             array = bigArrays.dropFromHead(array, i);
-            assertEquals((byte) (bytesDropped % 127), array.get(0));
+            int expectedInt = (bytesDropped % 127);
+            assertEquals((byte) expectedInt, array.get(0));
+            assertEquals((byte) (expectedInt + 1), array.get(1));
+            assertEquals(lastValue, array.get(array.size() - 1));
+            assertEquals(totalLen - bytesDropped, array.size());
         }
         array.close();
     }

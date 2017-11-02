@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
@@ -123,8 +124,13 @@ public class InternalSettingsPreparer {
 
     /**
      * Checks all settings values to make sure they do not have the old prompt settings. These were deprecated in 6.0.0.
+     * This check should be removed in 8.0.0.
      */
     private static void checkSettingsForTerminalDeprecation(final Settings.Builder output) throws SettingsException {
+        // This method to be removed in 8.0.0, as it was deprecated in 6.0 and removed in 7.0
+        if (Version.CURRENT.toString().startsWith("8")) {
+            throw new SettingsException("Logic pertaining to config driven prompting should be removed in 8.0.0.");
+        }
         for (String setting : output.keys()) {
             switch (output.get(setting)) {
                 case SECRET_PROMPT_VALUE:

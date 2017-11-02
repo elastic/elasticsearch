@@ -67,7 +67,7 @@ killed by firewalls or load balancers inbetween.
 "actions" : {
   "email_admin" : {
     "email": {
-      "to": "'John Doe <john.doe@example.com>'",
+      "to": "John Doe <john.doe@example.com>",
       "attachments" : {
         "my_image.png" : { <1>
           "http" : { <2>

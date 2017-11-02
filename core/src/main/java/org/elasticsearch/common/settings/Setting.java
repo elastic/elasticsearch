@@ -682,7 +682,7 @@ public class Setting<T> implements ToXContentObject {
          * Returns distinct namespaces for the given settings
          */
         public Set<String> getNamespaces(Settings settings) {
-            return settings.keySet().stream().filter((key) -> match(key)).map(key::getNamespace).collect(Collectors.toSet());
+            return settings.keySet().stream().filter(this::match).map(key::getNamespace).collect(Collectors.toSet());
         }
 
         /**

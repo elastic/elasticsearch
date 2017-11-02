@@ -71,12 +71,13 @@ public final class AzureStorageSettings {
         , ACCOUNT_SETTING, KEY_SETTING);
 
     /** The host name of a proxy to connect to azure through. */
-    public static final Setting<String> PROXY_HOST_SETTING = Setting.affixKeySetting("azure.client.", "proxy.host",
-        (key) -> Setting.simpleString(key, Property.NodeScope), KEY_SETTING, ACCOUNT_SETTING, KEY_SETTING);
+    public static final AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting("azure.client.", "proxy.host",
+        (key) -> Setting.simpleString(key, Property.NodeScope), KEY_SETTING, ACCOUNT_SETTING, PROXY_TYPE_SETTING);
 
     /** The port of a proxy to connect to azure through. */
     public static final Setting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting("azure.client.", "proxy.port",
-        (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING);
+        (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING, PROXY_TYPE_SETTING,
+        PROXY_HOST_SETTING);
 
     private final String account;
     private final String key;

@@ -169,7 +169,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
     }
 
-
     public void testUpdateDependentIndexSettings() {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
             prepareCreate("test",  Settings.builder().put("index.acc.test.pw", "asdf")).get());

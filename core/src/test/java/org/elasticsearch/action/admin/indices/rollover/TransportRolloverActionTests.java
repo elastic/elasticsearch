@@ -82,12 +82,12 @@ public class TransportRolloverActionTests extends ESTestCase {
             .settings(settings)
             .build();
         final HashSet<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition);
-        Set<Condition.Result> results = evaluateConditions(conditions, new DocsStats(matchMaxDocs, 0L), metaData);
+        Set<Condition.Result> results = evaluateConditions(conditions, new DocsStats(matchMaxDocs, 0L, between(1, 10000)), metaData);
         assertThat(results.size(), equalTo(2));
         for (Condition.Result result : results) {
             assertThat(result.matched, equalTo(true));
         }
-        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0), metaData);
+        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, between(1, 10000)), metaData);
         assertThat(results.size(), equalTo(2));
         for (Condition.Result result : results) {
             if (result.condition instanceof MaxAgeCondition) {
@@ -213,10 +213,10 @@ public class TransportRolloverActionTests extends ESTestCase {
 
     private IndicesStatsResponse createIndecesStatResponse(long totalDocs, long primaryDocs) {
         final CommonStats primaryStats = mock(CommonStats.class);
-        when(primaryStats.getDocs()).thenReturn(new DocsStats(primaryDocs, 0));
+        when(primaryStats.getDocs()).thenReturn(new DocsStats(primaryDocs, 0, between(1, 10000)));
 
         final CommonStats totalStats = mock(CommonStats.class);
-        when(totalStats.getDocs()).thenReturn(new DocsStats(totalDocs, 0));
+        when(totalStats.getDocs()).thenReturn(new DocsStats(totalDocs, 0, between(1, 10000)));
 
         final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
         when(response.getPrimaries()).thenReturn(primaryStats);

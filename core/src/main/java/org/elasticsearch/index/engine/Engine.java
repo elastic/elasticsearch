@@ -187,6 +187,9 @@ public abstract class Engine implements Closeable {
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
 
+    /** Returns how many bytes we are currently moving from heap to disk */
+    public abstract long getWritingBytes();
+
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
@@ -572,7 +575,11 @@ public abstract class Engine implements Closeable {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
-    /** get the sequence number service */
+    /**
+     * The sequence number service for this engine.
+     *
+     * @return the sequence number service
+     */
     public abstract SequenceNumbersService seqNoService();
 
     /**
@@ -703,17 +710,16 @@ public abstract class Engine implements Closeable {
     }
 
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
-    public abstract  long getIndexBufferRAMBytesUsed();
+    public abstract long getIndexBufferRAMBytesUsed();
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
-
         // first, go over and compute the search ones...
-        Searcher searcher = acquireSearcher("segments");
-        try {
+        try (Searcher searcher = acquireSearcher("segments")){
             for (LeafReaderContext reader : searcher.reader().leaves()) {
-                SegmentCommitInfo info = segmentReader(reader.reader()).getSegmentInfo();
+                final SegmentReader segmentReader = segmentReader(reader.reader());
+                SegmentCommitInfo info = segmentReader.getSegmentInfo();
                 assert !segments.containsKey(info.info.name);
                 Segment segment = new Segment(info.info.name);
                 segment.search = true;
@@ -726,7 +732,6 @@ public abstract class Engine implements Closeable {
                 } catch (IOException e) {
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                 }
-                final SegmentReader segmentReader = segmentReader(reader.reader());
                 segment.memoryInBytes = segmentReader.ramBytesUsed();
                 segment.segmentSort = info.info.getIndexSort();
                 if (verbose) {
@@ -736,8 +741,6 @@ public abstract class Engine implements Closeable {
                 // TODO: add more fine grained mem stats values to per segment info here
                 segments.put(info.info.name, segment);
             }
-        } finally {
-            searcher.close();
         }
 
         // now, correlate or add the committed ones...

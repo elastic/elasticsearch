@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,6 +44,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private boolean script;
     private boolean discovery;
     private boolean ingest;
+    private boolean adaptiveSelection;
 
     public NodesStatsRequest() {
     }
@@ -71,6 +73,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.script = true;
         this.discovery = true;
         this.ingest = true;
+        this.adaptiveSelection = true;
         return this;
     }
 
@@ -90,6 +93,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.script = false;
         this.discovery = false;
         this.ingest = false;
+        this.adaptiveSelection = false;
         return this;
     }
 
@@ -265,6 +269,18 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
+    public boolean adaptiveSelection() {
+        return adaptiveSelection;
+    }
+
+    /**
+     * Should adaptiveSelection statistics be returned.
+     */
+    public NodesStatsRequest adaptiveSelection(boolean adaptiveSelection) {
+        this.adaptiveSelection = adaptiveSelection;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -280,6 +296,11 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         script = in.readBoolean();
         discovery = in.readBoolean();
         ingest = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            adaptiveSelection = in.readBoolean();
+        } else {
+            adaptiveSelection = false;
+        }
     }
 
     @Override
@@ -297,5 +318,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeBoolean(script);
         out.writeBoolean(discovery);
         out.writeBoolean(ingest);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(adaptiveSelection);
+        }
     }
 }

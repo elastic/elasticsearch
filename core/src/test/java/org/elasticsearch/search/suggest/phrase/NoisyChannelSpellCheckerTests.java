@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
@@ -38,16 +39,14 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestMode;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.StringReader;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -439,4 +438,29 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
         assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xor the god jewel"));
     }
+
+    public void testFewDocsEgdeCase() throws Exception {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new TextField("field", "value", Field.Store.NO));
+                iw.addDocument(document);
+                iw.commit();
+                document = new Document();
+                document.add(new TextField("other_field", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+
+            try (DirectoryReader ir = DirectoryReader.open(dir)) {
+                WordScorer wordScorer = new StupidBackoffScorer(ir, MultiFields.getTerms(ir, "field"), "field",  0.95d, new BytesRef(" "), 0.4f);
+                NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();
+                DirectSpellChecker spellchecker = new DirectSpellChecker();
+                DirectCandidateGenerator generator = new DirectCandidateGenerator(spellchecker, "field", SuggestMode.SUGGEST_MORE_POPULAR, ir, 0.95, 5);
+                Result result = suggester.getCorrections(new StandardAnalyzer(), new BytesRef("valeu"), generator, 1, 1, ir, "field", wordScorer, 1, 2);
+                assertThat(result.corrections.length, equalTo(1));
+                assertThat(result.corrections[0].join(space).utf8ToString(), equalTo("value"));
+            }
+        }
+    }
+
 }

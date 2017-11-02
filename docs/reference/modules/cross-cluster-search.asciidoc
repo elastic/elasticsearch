@@ -1,8 +1,6 @@
 [[modules-cross-cluster-search]]
 == Cross Cluster Search
 
-beta[]
-
 The _cross cluster search_ feature allows any node to act as a federated client across
 multiple clusters. In contrast to the <<modules-tribe,tribe node>> feature, a  cross cluster search node won't
 join the remote cluster, instead it connects to a remote cluster in a light fashion in order to execute
@@ -206,3 +204,11 @@ will be prefixed with their remote cluster name:
   to `false` (defaults to `true`) to prevent certain nodes from connecting to
   remote clusters. Cross-cluster search requests must be sent to a node that
   is allowed to act as a cross-cluster client.
+
+[float]
+[[retrieve-remote-clusters-info]]
+=== Retrieving remote clusters info
+
+The <<cluster-remote-info, Remote Cluster Info API>> allows to retrieve
+information about the configured remote clusters, as well as the remote
+nodes that the Cross Cluster Search node is connected to.

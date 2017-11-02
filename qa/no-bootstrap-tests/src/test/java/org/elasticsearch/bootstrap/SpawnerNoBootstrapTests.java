@@ -31,7 +31,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
@@ -40,8 +42,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Create a simple "daemon controller", put it in the right place and check that it runs.
@@ -187,6 +192,33 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         assertThat(
                 e.getMessage(),
                 equalTo("plugin [test_plugin] does not have permission to fork native controller"));
+    }
+
+    public void testSpawnerHandlingOfDesktopServicesStoreFiles() throws IOException {
+        final Path esHome = createTempDir().resolve("home");
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString()).build();
+
+        final Environment environment = new Environment(settings);
+
+        Files.createDirectories(environment.pluginsFile());
+
+        final Path desktopServicesStore = environment.pluginsFile().resolve(".DS_Store");
+        Files.createFile(desktopServicesStore);
+
+        final Spawner spawner = new Spawner();
+        if (Constants.MAC_OS_X) {
+            // if the spawner were not skipping the Desktop Services Store files on macOS this would explode
+            spawner.spawnNativePluginControllers(environment);
+        } else {
+            // we do not ignore these files on non-macOS systems
+            final FileSystemException e =
+                    expectThrows(FileSystemException.class, () -> spawner.spawnNativePluginControllers(environment));
+            if (Constants.WINDOWS) {
+                assertThat(e, instanceOf(NoSuchFileException.class));
+            } else {
+                assertThat(e, hasToString(containsString("Not a directory")));
+            }
+        }
     }
 
     private void createControllerProgram(final Path outputFile) throws IOException {

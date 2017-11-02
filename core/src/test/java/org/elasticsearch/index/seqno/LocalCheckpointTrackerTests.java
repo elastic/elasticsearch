@@ -19,10 +19,14 @@
 
 package org.elasticsearch.index.seqno;
 
+import com.carrotsearch.hppc.LongObjectHashMap;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -36,8 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.index.seqno.LocalCheckpointTracker.BIT_ARRAYS_SIZE;
-import static org.hamcrest.Matchers.empty;
+import static org.elasticsearch.index.seqno.LocalCheckpointTracker.BIT_SET_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
 
@@ -83,10 +86,19 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getCheckpoint(), equalTo(2L));
     }
 
+    public void testLazyInitialization() {
+        /*
+         * Previously this would allocate the entire chain of bit sets to the one for the sequence number being marked; for very large
+         * sequence numbers this could lead to excessive memory usage resulting in out of memory errors.
+         */
+        tracker.markSeqNoAsCompleted(randomNonNegativeLong());
+        assertThat(tracker.processedSeqNo.size(), equalTo(1));
+    }
+
     public void testSimpleOverFlow() {
         List<Integer> seqNoList = new ArrayList<>();
         final boolean aligned = randomBoolean();
-        final int maxOps = BIT_ARRAYS_SIZE * randomIntBetween(1, 5) + (aligned ? 0 : randomIntBetween(1, BIT_ARRAYS_SIZE - 1));
+        final int maxOps = BIT_SET_SIZE * randomIntBetween(1, 5) + (aligned ? 0 : randomIntBetween(1, BIT_SET_SIZE - 1));
 
         for (int i = 0; i < maxOps; i++) {
             seqNoList.add(i);
@@ -97,7 +109,9 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         }
         assertThat(tracker.checkpoint, equalTo(maxOps - 1L));
         assertThat(tracker.processedSeqNo.size(), equalTo(aligned ? 0 : 1));
-        assertThat(tracker.firstProcessedSeqNo, equalTo(((long) maxOps / BIT_ARRAYS_SIZE) * BIT_ARRAYS_SIZE));
+        if (aligned == false) {
+            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.checkpoint / BIT_SET_SIZE));
+        }
     }
 
     public void testConcurrentPrimary() throws InterruptedException {
@@ -138,7 +152,9 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         tracker.markSeqNoAsCompleted(unFinishedSeq);
         assertThat(tracker.getCheckpoint(), equalTo(maxOps - 1L));
         assertThat(tracker.processedSeqNo.size(), isOneOf(0, 1));
-        assertThat(tracker.firstProcessedSeqNo, equalTo(((long) maxOps / BIT_ARRAYS_SIZE) * BIT_ARRAYS_SIZE));
+        if (tracker.processedSeqNo.size() == 1) {
+            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.checkpoint / BIT_SET_SIZE));
+        }
     }
 
     public void testConcurrentReplica() throws InterruptedException {
@@ -186,7 +202,10 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getCheckpoint(), equalTo(unFinishedSeq - 1L));
         tracker.markSeqNoAsCompleted(unFinishedSeq);
         assertThat(tracker.getCheckpoint(), equalTo(maxOps - 1L));
-        assertThat(tracker.firstProcessedSeqNo, equalTo(((long) maxOps / BIT_ARRAYS_SIZE) * BIT_ARRAYS_SIZE));
+        assertThat(tracker.processedSeqNo.size(), isOneOf(0, 1));
+        if (tracker.processedSeqNo.size() == 1) {
+            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.checkpoint / BIT_SET_SIZE));
+        }
     }
 
     public void testWaitForOpsToComplete() throws BrokenBarrierException, InterruptedException {
@@ -241,7 +260,17 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         tracker.resetCheckpoint(localCheckpoint);
         assertThat(tracker.getCheckpoint(), equalTo((long) localCheckpoint));
         assertThat(tracker.getMaxSeqNo(), equalTo((long) maxSeqNo));
-        assertThat(tracker.processedSeqNo, empty());
+        assertThat(tracker.processedSeqNo, new BaseMatcher<LongObjectHashMap<FixedBitSet>>() {
+            @Override
+            public boolean matches(Object item) {
+                return (item instanceof LongObjectHashMap && ((LongObjectHashMap) item).isEmpty());
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("empty");
+            }
+        });
         assertThat(tracker.generateSeqNo(), equalTo((long) (maxSeqNo + 1)));
     }
 }

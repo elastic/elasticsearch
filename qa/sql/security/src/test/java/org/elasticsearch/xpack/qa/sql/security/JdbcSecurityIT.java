@@ -252,11 +252,11 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         expectActionMatchesAdmin(
             con -> con.getMetaData().getColumns("%", "%", "not_created", "%"),
-            "read_bort",
+            "wrong_access",
             con -> con.getMetaData().getColumns("%", "%", "test", "%"));
         new AuditLogAsserter()
             .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("*", "-*"))
-            .expect(true, SQL_INDICES_ACTION_NAME, "read_bort", contains("*", "-*"))
+            .expect(true, SQL_INDICES_ACTION_NAME, "wrong_access", contains("*", "-*"))
             .assertLogs();
     }
 

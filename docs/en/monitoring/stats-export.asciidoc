@@ -1,0 +1,18 @@
+[role="xpack"]
+[[stats-export]]
+== Collecting Data from Particular Indices
+
+By default, the monitoring agent collects data from all {es} indices.
+To collect data from particular indices, configure the
+`xpack.monitoring.collection.indices` setting in `elasticsearch.yml`.
+You can specify multiple indices as a comma-separated list or
+use an index pattern to match multiple indices:
+
+[source,yaml]
+----------------------------------
+xpack.monitoring.collection.indices: logstash-*, index1, test2
+----------------------------------
+
+You can prepend `+` or `-` to explicitly include or exclude index
+names or patterns. For example, to include all indices that
+start with `test` except `test3`, you could specify `+test*,-test3`.

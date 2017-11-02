@@ -60,8 +60,6 @@ public final class AzureStorageSettings {
     public static final Setting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting("azure.client.", "endpoint_suffix",
         key -> Setting.simpleString(key, Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING);
 
-
-
     public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting("azure.client.", "timeout",
         (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING);
 

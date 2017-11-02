@@ -386,9 +386,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     Settings idxSettings = indexSettingsBuilder.build();
                     routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);
                 } else {
+                    assert IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettingsBuilder.build()) == false
+                        : "index.number_of_routing_shards should be present on the target index on resize";
                     final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(recoverFromIndex);
                     routingNumShards = sourceMetaData.getRoutingNumShards();
                 }
+                // remove the setting it's temporary and is only relevant once we create the index
+                indexSettingsBuilder.remove(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
                 tmpImdBuilder.setRoutingNumShards(routingNumShards);
 
                 if (recoverFromIndex != null) {
@@ -698,7 +702,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
                 .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());
         } else if (type == ResizeType.SPLIT) {
-
             validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
         } else {
             throw new IllegalStateException("unknown resize type is " + type);

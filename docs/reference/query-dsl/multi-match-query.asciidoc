@@ -58,6 +58,8 @@ GET /_search
 
 <1> The `subject` field is three times as important as the `message` field.
 
+WARNING: There is a limit of no more than 1024 fields being queried at once.
+
 [[multi-match-types]]
 [float]
 ==== Types of `multi_match` query:

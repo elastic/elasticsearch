@@ -25,8 +25,11 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
@@ -150,6 +153,15 @@ public class IpFieldMapper extends FieldMapper {
                     value = ((BytesRef) value).utf8ToString();
                 }
                 return InetAddresses.forString(value.toString());
+            }
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
         }
 
@@ -369,6 +381,8 @@ public class IpFieldMapper extends FieldMapper {
         }
         if (fieldType().hasDocValues()) {
             fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
+            createFieldNamesField(context, fields);
         }
         if (fieldType().stored()) {
             fields.add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));

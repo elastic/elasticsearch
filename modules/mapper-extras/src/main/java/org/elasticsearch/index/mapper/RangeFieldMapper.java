@@ -28,11 +28,14 @@ import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -288,6 +291,15 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
             if (boost() != 1f) {
@@ -390,6 +402,9 @@ public class RangeFieldMapper extends FieldMapper {
         boolean docValued = fieldType.hasDocValues();
         boolean stored = fieldType.stored();
         fields.addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
+        if (docValued == false && (indexed || stored)) {
+            createFieldNamesField(context, fields);
+        }
     }
 
     @Override

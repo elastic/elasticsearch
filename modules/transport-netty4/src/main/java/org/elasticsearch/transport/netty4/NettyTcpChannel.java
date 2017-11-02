@@ -20,10 +20,8 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.transport.TcpChannel;
 
@@ -54,9 +52,8 @@ public class NettyTcpChannel implements TcpChannel<NettyTcpChannel> {
     }
 
     @Override
-    public ListenableActionFuture<NettyTcpChannel> closeAsync() {
+    public void closeAsync() {
         channel.close();
-        return future;
     }
 
     @Override

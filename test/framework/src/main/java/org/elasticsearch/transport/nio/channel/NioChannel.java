@@ -22,6 +22,7 @@ package org.elasticsearch.transport.nio.channel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.ESSelector;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
@@ -35,17 +36,15 @@ public interface NioChannel extends TcpChannel<NioChannel> {
 
     String getProfile();
 
-    CloseFuture closeAsync();
+    void closeAsync();
 
-    void closeFromSelector();
+    void closeFromSelector() throws IOException;
 
     void register() throws ClosedChannelException;
 
     ESSelector getSelector();
 
     SelectionKey getSelectionKey();
-
-    CloseFuture getCloseFuture();
 
     NetworkChannel getRawChannel();
 }

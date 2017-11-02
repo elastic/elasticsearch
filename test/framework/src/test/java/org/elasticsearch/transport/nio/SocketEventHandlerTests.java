@@ -22,7 +22,6 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.DoNotRegisterChannel;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -102,11 +101,8 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     public void testHandleReadMarksChannelForCloseIfPeerClosed() throws IOException {
         NioSocketChannel nioSocketChannel = mock(NioSocketChannel.class);
-        CloseFuture closeFuture = mock(CloseFuture.class);
         when(nioSocketChannel.getReadContext()).thenReturn(readContext);
         when(readContext.read()).thenReturn(-1);
-        when(nioSocketChannel.getCloseFuture()).thenReturn(closeFuture);
-        when(closeFuture.getCloseException()).thenReturn(null);
 
         handler.handleRead(nioSocketChannel);
 

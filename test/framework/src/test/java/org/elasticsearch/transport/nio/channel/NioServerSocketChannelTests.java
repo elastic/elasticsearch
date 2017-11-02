@@ -31,8 +31,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -62,7 +60,7 @@ public class NioServerSocketChannelTests extends ESTestCase {
         thread.join();
     }
 
-    public void testClose() throws IOException, TimeoutException, InterruptedException {
+    public void testClose() throws Exception {
         AtomicReference<NioChannel> ref = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -71,19 +69,16 @@ public class NioServerSocketChannelTests extends ESTestCase {
             ref.set(c);
             latch.countDown();
         };
-        channel.getCloseFuture().addListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(channel)));
+        channel.addCloseListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(channel)));
 
-        CloseFuture closeFuture = channel.getCloseFuture();
-
-        assertFalse(closeFuture.isClosed());
+        assertTrue(channel.isOpen());
         assertFalse(closedRawChannel.get());
 
-        TcpChannelUtils.closeChannel(channel, false);
+        TcpChannelUtils.closeChannel(channel, true);
 
-        closeFuture.awaitClose(100, TimeUnit.SECONDS);
 
         assertTrue(closedRawChannel.get());
-        assertTrue(closeFuture.isClosed());
+        assertFalse(channel.isOpen());
         latch.await();
         assertSame(channel, ref.get());
     }

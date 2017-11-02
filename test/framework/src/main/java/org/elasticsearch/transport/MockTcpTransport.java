@@ -20,14 +20,10 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -44,7 +40,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -56,17 +51,14 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -184,7 +176,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected PlainChannelFuture<MockChannel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException {
+    protected MockChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<MockChannel> connectListener)
+        throws IOException {
         InetSocketAddress address = node.getAddress().address();
         final MockSocket socket = new MockSocket();
         boolean success = false;
@@ -198,9 +191,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             MockChannel channel = new MockChannel(socket, address, "none", (c) -> {});
             channel.loopRead(executor);
             success = true;
-            PlainChannelFuture<MockChannel> connectFuture = new PlainChannelFuture<>(channel);
-            connectFuture.setOnResponse();
-            return connectFuture;
+            connectListener.onResponse(channel);
+            return channel;
         } finally {
             if (success == false) {
                 IOUtils.close(socket);
@@ -383,14 +375,13 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
 
         @Override
-        public ListenableActionFuture<MockChannel> closeAsync() {
+        public void closeAsync() {
             try {
                 close();
                 closeFuture.onResponse(this);
             } catch (IOException e) {
                 closeFuture.onFailure(e);
             }
-            return closeFuture;
         }
 
         @Override

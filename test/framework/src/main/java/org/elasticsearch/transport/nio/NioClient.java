@@ -52,7 +52,7 @@ public class NioClient {
 
         try {
             SocketSelector selector = selectorSupplier.get();
-            NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address, selector, (c) -> {});
+            NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address, selector);
             openChannels.clientChannelOpened(nioSocketChannel);
             return nioSocketChannel;
         } finally {

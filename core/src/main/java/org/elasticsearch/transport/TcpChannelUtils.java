@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -41,50 +42,63 @@ public class TcpChannelUtils {
 
     public static <C extends TcpChannel<C>> void closeChannel(C channel, boolean blocking) {
         if (channel.isOpen()) {
-            ListenableActionFuture<C> f = channel.closeAsync();
             if (blocking) {
-                blockOnFutures(Collections.singletonList(f));
+                PlainActionFuture<C> closeFuture = PlainActionFuture.newFuture();
+                channel.addCloseListener(closeFuture);
+                channel.closeAsync();
+                blockOnFutures(Collections.singletonList(closeFuture));
+            } else {
+                channel.closeAsync();
             }
         }
     }
 
     public static <C extends TcpChannel<C>> void closeChannels(List<C> channels, boolean blocking) {
-        ArrayList<ListenableActionFuture<C>> futures = new ArrayList<>(channels.size());
-        for (final C channel : channels) {
-            if (channel.isOpen()) {
-                ListenableActionFuture<C> f = channel.closeAsync();
-                futures.add(f);
-            }
-        }
-
         if (blocking) {
+            ArrayList<ActionFuture<C>> futures = new ArrayList<>(channels.size());
+            for (final C channel : channels) {
+                if (channel.isOpen()) {
+                    PlainActionFuture<C> closeFuture = PlainActionFuture.newFuture();
+                    channel.addCloseListener(closeFuture);
+                    channel.closeAsync();
+                    futures.add(closeFuture);
+                }
+            }
             blockOnFutures(futures);
+        } else {
+            channels.forEach(c -> {
+                if (c.isOpen()) {
+                    c.closeAsync();
+                }
+            });
         }
     }
 
     public static <C extends TcpChannel<C>> void closeServerChannels(String profile, List<C> channels, Logger logger) {
-        ArrayList<ListenableActionFuture<C>> futures = new ArrayList<>(channels.size());
+        ArrayList<ActionFuture<C>> futures = new ArrayList<>(channels.size());
         for (final C channel : channels) {
             if (channel.isOpen()) {
-                ListenableActionFuture<C> f = channel.closeAsync();
-                f.addListener(ActionListener.wrap(c -> {
+                PlainActionFuture<C> closeFuture = PlainActionFuture.newFuture();
+                channel.addCloseListener(ActionListener.wrap(c -> {
                     },
                     e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)));
-                futures.add(f);
+                channel.addCloseListener(closeFuture);
+                channel.closeAsync();
+                futures.add(closeFuture);
             }
         }
 
         blockOnFutures(futures);
     }
 
-    public static <C extends TcpChannel<C>> void finishConnection(DiscoveryNode discoveryNode, List<PlainChannelFuture<C>> pendingChannels,
+    public static <C extends TcpChannel<C>> void finishConnection(DiscoveryNode discoveryNode, List<ActionFuture<C>> connectionFutures,
                                                                   TimeValue connectTimeout) throws ConnectTransportException {
         Exception connectionException = null;
         boolean allConnected = true;
 
-        for (PlainChannelFuture<C> pendingChannel : pendingChannels) {
+        for (ActionFuture<C> connectionFuture : connectionFutures) {
             try {
-                pendingChannel.get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
+                connectionFuture.get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
             } catch (TimeoutException e) {
                 allConnected = false;
                 break;
@@ -108,8 +122,8 @@ public class TcpChannelUtils {
     }
 
 
-    private static <C extends TcpChannel<C>> void blockOnFutures(List<ListenableActionFuture<C>> futures) {
-        for (ListenableActionFuture<C> future : futures) {
+    private static <C extends TcpChannel<C>> void blockOnFutures(List<ActionFuture<C>> futures) {
+        for (ActionFuture<C> future : futures) {
             try {
                 future.get();
             } catch (ExecutionException e) {
@@ -119,10 +133,5 @@ public class TcpChannelUtils {
                 throw new IllegalStateException("Future got interrupted", e);
             }
         }
-    }
-
-    public static <Channel extends TcpChannel<Channel>> void addCloseExceptionListener(Channel channel, Logger logger) {
-        channel.addCloseListener(ActionListener.wrap(c -> {}, e -> logger.debug(() ->
-            new ParameterizedMessage("exception while closing channel: {}", channel), e)));
     }
 }

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ListenerExecutionContext;
+import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 
@@ -28,14 +31,18 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
-    private final ConnectFuture connectFuture = new ConnectFuture(this);
+    private final ListenerExecutionContext<NioChannel> connectContext = new ListenerExecutionContext<>();
     private final SocketSelector socketSelector;
     private WriteContext writeContext;
     private ReadContext readContext;
+    private Exception connectException;
 
     public NioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
         super(profile, socketChannel, selector);
@@ -44,7 +51,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     @Override
-    public void closeFromSelector() {
+    public void closeFromSelector() throws IOException {
         assert socketSelector.isOnCurrentThread() : "Should only call from selector thread";
         // Even if the channel has already been closed we will clear any pending write operations just in case
         if (writeContext.hasQueuedWriteOps()) {
@@ -108,7 +115,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     public boolean isConnectComplete() {
-        return connectFuture.isConnectComplete();
+        return isConnectComplete0();
     }
 
     public boolean isWritable() {
@@ -130,11 +137,13 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
      * @throws IOException if an I/O error occurs
      */
     public boolean finishConnect() throws IOException {
-        if (connectFuture.isConnectComplete()) {
+        if (isConnectComplete0()) {
             return true;
-        } else if (connectFuture.connectFailed()) {
-            Exception exception = connectFuture.getException();
-            if (exception instanceof IOException) {
+        } else if (isConnectFailed()) {
+            Exception exception = getConnectException();
+            if (exception == null) {
+                throw new AssertionError("Should have received connection exception");
+            } else if (exception instanceof IOException) {
                 throw (IOException) exception;
             } else {
                 throw (RuntimeException) exception;
@@ -146,13 +155,13 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
             isConnected = internalFinish();
         }
         if (isConnected) {
-            connectFuture.setConnectionComplete();
+            connectContext.onResponse(this);
         }
         return isConnected;
     }
 
-    public ConnectFuture getConnectFuture() {
-        return connectFuture;
+    public void addConnectListener(ActionListener<NioChannel> listener) {
+        connectContext.addListener(listener);
     }
 
     @Override
@@ -167,12 +176,30 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     private boolean internalFinish() throws IOException {
         try {
             return socketChannel.finishConnect();
-        } catch (IOException e) {
-            connectFuture.setConnectionFailed(e);
+        } catch (IOException | RuntimeException e) {
+            connectException = e;
+            connectContext.onFailure(e);
             throw e;
-        } catch (RuntimeException e) {
-            connectFuture.setConnectionFailed(e);
-            throw e;
+        }
+    }
+
+    private boolean isConnectComplete0() {
+        if (connectContext.isDone()) {
+            return connectException == null;
+        } else {
+            return false;
+        }
+    }
+
+    private boolean isConnectFailed() {
+        return getConnectException() != null;
+    }
+
+    private Exception getConnectException() {
+        if (connectContext.isDone()) {
+            return connectException;
+        } else {
+            return null;
         }
     }
 }

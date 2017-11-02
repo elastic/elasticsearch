@@ -57,7 +57,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.PlainChannelFuture;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 
@@ -250,33 +249,34 @@ public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
     }
 
     @Override
-    protected PlainChannelFuture<NettyTcpChannel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException {
+    protected NettyTcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<NettyTcpChannel> listener)
+        throws IOException {
         ChannelFuture channelFuture = bootstrap.connect(node.getAddress().address());
         Channel channel = channelFuture.channel();
         if (channel == null) {
             Netty4Utils.maybeDie(channelFuture.cause());
             throw new IOException(channelFuture.cause());
         }
+        addClosedExceptionLogger(channel);
 
         NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
-        PlainChannelFuture<NettyTcpChannel> connectFuture = new PlainChannelFuture<>(nettyChannel);
 
         channelFuture.addListener(f -> {
             if (f.isSuccess()) {
-                connectFuture.setOnResponse();
+                listener.onResponse(nettyChannel);
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
                     Netty4Utils.maybeDie(cause);
-                    connectFuture.onFailure(new Exception(cause));
+                    listener.onFailure(new Exception(cause));
                 } else {
-                    connectFuture.onFailure((Exception) cause);
+                    listener.onFailure((Exception) cause);
                 }
             }
         });
 
-        return connectFuture;
+        return nettyChannel;
     }
 
     @Override
@@ -366,6 +366,7 @@ public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            addClosedExceptionLogger(ch);
             NettyTcpChannel nettyTcpChannel = new NettyTcpChannel(ch);
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             serverAcceptedChannel(nettyTcpChannel);
@@ -380,5 +381,13 @@ public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
             Netty4Utils.maybeDie(cause);
             super.exceptionCaught(ctx, cause);
         }
+    }
+
+    private void addClosedExceptionLogger(Channel channel) {
+        channel.closeFuture().addListener(f -> {
+            if (f.isSuccess() == false) {
+                logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), f.cause());
+            }
+        });
     }
 }

@@ -25,8 +25,10 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NotifyOnceListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
@@ -589,33 +591,30 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
             try {
                 Exception connectionException = null;
                 int numConnections = connectionProfile.getNumConnections();
-                List<PlainChannelFuture<Channel>> pendingChannels = new ArrayList<>(numConnections);
+                List<Channel> channels = new ArrayList<>(numConnections);
+                List<ActionFuture<Channel>> connectionFutures = new ArrayList<>(numConnections);
                 for (int i = 0; i < numConnections; ++i) {
                     try {
-                        PlainChannelFuture<Channel> pending = initiateChannel(node, connectionProfile.getConnectTimeout());
-                        pendingChannels.add(pending);
+                        PlainActionFuture<Channel> connectFuture = PlainActionFuture.newFuture();
+                        connectionFutures.add(connectFuture);
+                        Channel channel = initiateChannel(node, connectionProfile.getConnectTimeout(), connectFuture);
+                        channels.add(channel);
                     } catch (Exception e) {
                         connectionException = e;
                         break;
                     }
                 }
 
-                // We add listeners to log in the case of an exception at time of channel close
-                pendingChannels.forEach((c) -> TcpChannelUtils.addCloseExceptionListener(c.channel(), logger));
-
                 // If there was an exception when attempting to instantiate the raw channels, we close all of the channels
                 if (connectionException != null) {
-                    List<Channel> toClose = pendingChannels.stream().map(PlainChannelFuture::channel).collect(Collectors.toList());
-                    TcpChannelUtils.closeChannels(toClose, false);
+                    TcpChannelUtils.closeChannels(channels, false);
                     throw connectionException;
                 }
 
                 // If we make it past the block above, we successfully instantiated all of the channels
 
-                List<Channel> channels = new ArrayList<>(pendingChannels.size());
-                pendingChannels.forEach(cf -> channels.add(cf.channel()));
                 try {
-                    TcpChannelUtils.finishConnection(node, pendingChannels, connectionProfile.getConnectTimeout());
+                    TcpChannelUtils.finishConnection(node, connectionFutures, connectionProfile.getConnectTimeout());
                 } catch (Exception ex) {
                     TcpChannelUtils.closeChannels(channels, false);
                     throw ex;
@@ -1049,7 +1048,6 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
 
     protected void serverAcceptedChannel(Channel channel) {
         if (acceptedChannels.add(channel)) {
-            TcpChannelUtils.addCloseExceptionListener(channel, logger);
             channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
         }
     }
@@ -1083,10 +1081,12 @@ public abstract class TcpTransport<Channel extends TcpChannel<Channel>> extends 
      *
      * @param node              the node
      * @param connectTimeout    the connection timeout
-     * @return a channel future representing the pending connection
+     * @param connectListener   listener to be called when connection complete
+     * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract PlainChannelFuture<Channel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout) throws IOException;
+    protected abstract Channel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Channel> connectListener)
+        throws IOException;
 
     /**
      * Called to tear down internal resources

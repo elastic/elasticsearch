@@ -58,7 +58,7 @@ public class NioClientTests extends ESTestCase {
     public void testCreateConnection() throws IOException, InterruptedException {
         NioSocketChannel channel1 = mock(NioSocketChannel.class);
 
-        when(channelFactory.openNioChannel(eq(address), eq(selector), any())).thenReturn(channel1);
+        when(channelFactory.openNioChannel(eq(address), eq(selector))).thenReturn(channel1);
 
         NioSocketChannel nioSocketChannel = client.initiateConnection(address);
 
@@ -68,7 +68,7 @@ public class NioClientTests extends ESTestCase {
     public void testConnectionException() throws IOException, InterruptedException {
         IOException ioException = new IOException();
 
-        when(channelFactory.openNioChannel(eq(address), eq(selector), any())).thenThrow(ioException);
+        when(channelFactory.openNioChannel(eq(address), eq(selector))).thenThrow(ioException);
 
         expectThrows(IOException.class, () -> client.initiateConnection(address));
     }

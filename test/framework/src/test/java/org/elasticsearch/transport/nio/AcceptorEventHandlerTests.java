@@ -89,11 +89,11 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
     public void testHandleAcceptCallsChannelFactory() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel("", mock(SocketChannel.class), socketSelector);
-        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector), any())).thenReturn(childChannel);
+        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
 
-        verify(channelFactory).acceptNioChannel(same(channel), same(socketSelector), any());
+        verify(channelFactory).acceptNioChannel(same(channel), same(socketSelector));
 
     }
 
@@ -102,7 +102,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         SocketChannel rawChannel = SocketChannel.open();
         NioSocketChannel childChannel = new NioSocketChannel("", rawChannel, socketSelector);
         childChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
-        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector), any())).thenReturn(childChannel);
+        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
 

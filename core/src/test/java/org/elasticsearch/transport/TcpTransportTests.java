@@ -20,12 +20,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,17 +34,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -226,10 +219,10 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected PlainChannelFuture<FakeChannel> initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
-                    throws IOException {
+                protected FakeChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout,
+                                                      ActionListener<FakeChannel> connectListener) throws IOException {
                     FakeChannel fakeChannel = new FakeChannel();
-                    return new PlainChannelFuture<>(fakeChannel);
+                    return fakeChannel;
                 }
 
                 @Override
@@ -260,8 +253,7 @@ public class TcpTransportTests extends ESTestCase {
     private static final class FakeChannel implements TcpChannel<FakeChannel> {
 
         @Override
-        public ListenableActionFuture<FakeChannel> closeAsync() {
-            return null;
+        public void closeAsync() {
         }
 
         @Override

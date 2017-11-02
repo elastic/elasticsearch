@@ -21,7 +21,6 @@ package org.elasticsearch.transport.nio.channel;
 
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.AcceptingSelector;
@@ -35,7 +34,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.function.Consumer;
 
 public class ChannelFactory {
 
@@ -51,22 +49,18 @@ public class ChannelFactory {
         this.rawChannelFactory = rawChannelFactory;
     }
 
-    public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector,
-                                           Consumer<NioChannel> closeListener) throws IOException {
+    public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
         NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel, selector);
         channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
-        channel.addCloseListener(ActionListener.wrap(closeListener::accept, (e) -> closeListener.accept(channel)));
         scheduleChannel(channel, selector);
         return channel;
     }
 
-    public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector,
-                                             Consumer<NioChannel> closeListener) throws IOException {
+    public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel, selector);
         channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
-        channel.addCloseListener(ActionListener.wrap(closeListener::accept, (e) -> closeListener.accept(channel)));
         scheduleChannel(channel, selector);
         return channel;
     }

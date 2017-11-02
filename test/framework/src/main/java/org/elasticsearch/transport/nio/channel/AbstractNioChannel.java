@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ListenerExecutionContext;
 import org.elasticsearch.transport.nio.ESSelector;
 
 import java.io.IOException;
@@ -56,7 +57,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     private final InetSocketAddress localAddress;
     private final String profile;
-    private final CloseFuture closeFuture = new CloseFuture();
+    private final ListenerExecutionContext<NioChannel> closeContext = new ListenerExecutionContext<>();
     private final ESSelector selector;
     private SelectionKey selectionKey;
 
@@ -69,7 +70,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     @Override
     public boolean isOpen() {
-        return closeFuture.isClosed() == false;
+        return closeContext.isDone() == false;
     }
 
     @Override
@@ -89,15 +90,12 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      * be scheduled with the event loop.
      * <p>
      * If the channel is already set to closed, it is assumed that it is already scheduled to be closed.
-     *
-     * @return future that will be complete when the channel is closed
      */
     @Override
-    public CloseFuture closeAsync() {
+    public void closeAsync() {
         if (isClosing.compareAndSet(false, true)) {
             selector.queueChannelClose(this);
         }
-        return closeFuture;
     }
 
     /**
@@ -106,20 +104,19 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      * Once this method returns, the channel will be closed.
      */
     @Override
-    public void closeFromSelector() {
+    public void closeFromSelector() throws IOException {
         assert selector.isOnCurrentThread() : "Should only call from selector thread";
         isClosing.set(true);
-        if (closeFuture.isClosed() == false) {
-            boolean closedOnThisCall = false;
+        if (closeContext.isDone() == false) {
             try {
                 closeRawChannel();
-                closedOnThisCall = closeFuture.channelClosed(this);
+                closeContext.onResponse(this);
             } catch (IOException e) {
-                closedOnThisCall = closeFuture.channelCloseThrewException(e);
+                closeContext.onFailure(e);
+                throw e;
             } finally {
-                if (closedOnThisCall) {
-                    selector.removeRegisteredChannel(this);
-                }
+                // There is no problem with calling this multiple times
+                selector.removeRegisteredChannel(this);
             }
         }
     }
@@ -161,13 +158,8 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     @Override
-    public CloseFuture getCloseFuture() {
-        return closeFuture;
-    }
-
-    @Override
     public void addCloseListener(ActionListener<NioChannel> listener) {
-        closeFuture.addListener(listener);
+        closeContext.addListener(listener);
     }
 
     @Override

@@ -36,7 +36,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
-import org.elasticsearch.transport.nio.channel.ConnectFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -106,13 +105,14 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected ConnectFuture initiateChannel(DiscoveryNode node, TimeValue connectTimeout)
+    protected NioChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<NioChannel> connectListener)
         throws IOException {
         NioSocketChannel channel = client.initiateConnection(node.getAddress().address());
         if (channel == null) {
             throw new ElasticsearchException("client is shutdown");
         }
-        return channel.getConnectFuture();
+        channel.addConnectListener(connectListener);
+        return channel;
     }
 
     @Override

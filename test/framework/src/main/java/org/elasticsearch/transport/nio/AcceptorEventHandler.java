@@ -78,7 +78,7 @@ public class AcceptorEventHandler extends EventHandler {
     void acceptChannel(NioServerSocketChannel nioServerChannel) throws IOException {
         ChannelFactory channelFactory = nioServerChannel.getChannelFactory();
         SocketSelector selector = selectorSupplier.get();
-        NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioServerChannel, selector, (c) -> {});
+        NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioServerChannel, selector);
         openChannels.acceptedChannelOpened(nioSocketChannel);
         acceptedChannelCallback.accept(nioSocketChannel);
     }

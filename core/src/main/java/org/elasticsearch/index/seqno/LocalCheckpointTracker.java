@@ -34,15 +34,21 @@ public class LocalCheckpointTracker {
 
     /**
      * We keep a bit for each sequence number that is still pending. To optimize allocation, we do so in multiple arrays allocating them on
-     * demand and cleaning up while completed. This constant controls the size of the arrays.
+     * demand and cleaning up while completed. This setting controls the size of the arrays.
      */
-    static final int BIT_ARRAYS_SIZE = 1024;
+    public static Setting<Integer> SETTINGS_BIT_ARRAYS_SIZE =
+        Setting.intSetting("index.seq_no.checkpoint.bit_arrays_size", 1024, 4, Setting.Property.IndexScope);
 
     /**
      * An ordered list of bit arrays representing pending sequence numbers. The list is "anchored" in {@link #firstProcessedSeqNo} which
      * marks the sequence number the fist bit in the first array corresponds to.
      */
     final LinkedList<FixedBitSet> processedSeqNo = new LinkedList<>();
+
+    /**
+     * The size of each bit set representing processed sequence numbers.
+     */
+    private final int bitArraysSize;
 
     /**
      * The sequence number that the first bit in the first array corresponds to.
@@ -64,10 +70,11 @@ public class LocalCheckpointTracker {
      * {@link SequenceNumbers#NO_OPS_PERFORMED} and {@code localCheckpoint} should be set to the last known local checkpoint,
      * or {@link SequenceNumbers#NO_OPS_PERFORMED}.
      *
+     * @param indexSettings   the index settings
      * @param maxSeqNo        the last sequence number assigned, or {@link SequenceNumbers#NO_OPS_PERFORMED}
      * @param localCheckpoint the last known local checkpoint, or {@link SequenceNumbers#NO_OPS_PERFORMED}
      */
-    public LocalCheckpointTracker(final long maxSeqNo, final long localCheckpoint) {
+    public LocalCheckpointTracker(final IndexSettings indexSettings, final long maxSeqNo, final long localCheckpoint) {
         if (localCheckpoint < 0 && localCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
                 "local checkpoint must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] "
@@ -77,6 +84,7 @@ public class LocalCheckpointTracker {
             throw new IllegalArgumentException(
                 "max seq. no. must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]");
         }
+        bitArraysSize = SETTINGS_BIT_ARRAYS_SIZE.get(indexSettings.getSettings());
         firstProcessedSeqNo = localCheckpoint == SequenceNumbers.NO_OPS_PERFORMED ? 0 : localCheckpoint + 1;
         nextSeqNo = maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
         checkpoint = localCheckpoint;
@@ -175,7 +183,7 @@ public class LocalCheckpointTracker {
     @SuppressForbidden(reason = "Object#notifyAll")
     private void updateCheckpoint() {
         assert Thread.holdsLock(this);
-        assert checkpoint < firstProcessedSeqNo + BIT_ARRAYS_SIZE - 1 :
+        assert checkpoint < firstProcessedSeqNo + bitArraysSize - 1 :
             "checkpoint should be below the end of the first bit set (o.w. current bit set is completed and shouldn't be there)";
         assert getBitSetForSeqNo(checkpoint + 1) == processedSeqNo.getFirst() :
             "checkpoint + 1 doesn't point to the first bit set (o.w. current bit set is completed and shouldn't be there)";
@@ -188,10 +196,10 @@ public class LocalCheckpointTracker {
                 checkpoint++;
                 // the checkpoint always falls in the first bit set or just before. If it falls
                 // on the last bit of the current bit set, we can clean it.
-                if (checkpoint == firstProcessedSeqNo + BIT_ARRAYS_SIZE - 1) {
+                if (checkpoint == firstProcessedSeqNo + bitArraysSize - 1) {
                     processedSeqNo.removeFirst();
-                    firstProcessedSeqNo += BIT_ARRAYS_SIZE;
-                    assert checkpoint - firstProcessedSeqNo < BIT_ARRAYS_SIZE;
+                    firstProcessedSeqNo += bitArraysSize;
+                    assert checkpoint - firstProcessedSeqNo < bitArraysSize;
                     current = processedSeqNo.peekFirst();
                 }
             } while (current != null && current.get(seqNoToBitSetOffset(checkpoint + 1)));
@@ -210,13 +218,13 @@ public class LocalCheckpointTracker {
     private FixedBitSet getBitSetForSeqNo(final long seqNo) {
         assert Thread.holdsLock(this);
         assert seqNo >= firstProcessedSeqNo : "seqNo: " + seqNo + " firstProcessedSeqNo: " + firstProcessedSeqNo;
-        final long bitSetOffset = (seqNo - firstProcessedSeqNo) / BIT_ARRAYS_SIZE;
+        final long bitSetOffset = (seqNo - firstProcessedSeqNo) / bitArraysSize;
         if (bitSetOffset > Integer.MAX_VALUE) {
             throw new IndexOutOfBoundsException(
                 "sequence number too high; got [" + seqNo + "], firstProcessedSeqNo [" + firstProcessedSeqNo + "]");
         }
         while (bitSetOffset >= processedSeqNo.size()) {
-            processedSeqNo.add(new FixedBitSet(BIT_ARRAYS_SIZE));
+            processedSeqNo.add(new FixedBitSet(bitArraysSize));
         }
         return processedSeqNo.get((int) bitSetOffset);
     }
@@ -231,7 +239,7 @@ public class LocalCheckpointTracker {
     private int seqNoToBitSetOffset(final long seqNo) {
         assert Thread.holdsLock(this);
         assert seqNo >= firstProcessedSeqNo;
-        return ((int) (seqNo - firstProcessedSeqNo)) % BIT_ARRAYS_SIZE;
+        return ((int) (seqNo - firstProcessedSeqNo)) % bitArraysSize;
     }
 
 }

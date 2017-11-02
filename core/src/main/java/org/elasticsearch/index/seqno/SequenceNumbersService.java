@@ -56,7 +56,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
         final long localCheckpoint,
         final long globalCheckpoint) {
         super(shardId, indexSettings);
-        localCheckpointTracker = new LocalCheckpointTracker(maxSeqNo, localCheckpoint);
+        localCheckpointTracker = new LocalCheckpointTracker(indexSettings, maxSeqNo, localCheckpoint);
         globalCheckpointTracker = new GlobalCheckpointTracker(shardId, allocationId, indexSettings, globalCheckpoint);
     }
 

@@ -68,7 +68,9 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         try {
             httpRequest = new Netty4HttpRequest(serverTransport.xContentRegistry, copy, ctx.channel());
         } catch (Exception ex) {
-            request.release();
+            if (pipelinedRequest != null) {
+                pipelinedRequest.release();
+            }
             throw ex;
         }
         final Netty4HttpChannel channel =

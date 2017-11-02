@@ -76,6 +76,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     private ClusterStatsResponse clusterStats;
     private ClusterState clusterState;
     private License license;
+    private final boolean needToEnableTLS = randomBoolean();
 
     @Override
     @Before
@@ -111,7 +112,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     protected ClusterStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
                                                             MonitoredSystem system, String type, String id) {
         return new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                                             clusterName, version, clusterStatus, license, usages, clusterStats, clusterState);
+                                             clusterName, version, clusterStatus, license, usages, clusterStats, clusterState,
+                                             needToEnableTLS);
     }
 
     @Override
@@ -132,19 +134,22 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     public void testConstructorClusterNameMustNotBeNull() {
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                        null, version, clusterStatus, license, usages, clusterStats, clusterState));
+                        null, version, clusterStatus, license, usages, clusterStats, clusterState,
+                        needToEnableTLS));
     }
 
     public void testConstructorVersionMustNotBeNull() {
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                        clusterName, null, clusterStatus, license, usages, clusterStats, clusterState));
+                        clusterName, null, clusterStatus, license, usages, clusterStats, clusterState,
+                        needToEnableTLS));
     }
 
     public void testConstructorClusterHealthStatusMustNotBeNull() {
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                        clusterName, version, null, license, usages, clusterStats, clusterState));
+                        clusterName, version, null, license, usages, clusterStats, clusterState,
+                        needToEnableTLS));
     }
 
     public void testNodesHash() {
@@ -339,7 +344,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                             license,
                                                                             usages,
                                                                             clusterStats,
-                                                                            clusterState);
+                                                                            clusterState,
+                                                                            needToEnableTLS);
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
         assertEquals("{"
@@ -370,6 +376,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "\"issuer\":\"elasticsearch\","
                     + "\"start_date_in_millis\":-1,"
                     + "\"hkey\":\"e05627254d639cf36346bf99934dc4a4ac9f37bdc9100cee450c10fa6322a6dd\""
+                    + (needToEnableTLS ? ",\"cluster_needs_tls\":true" : "")
                   + "},"
                   + "\"cluster_stats\":{"
                     + "\"timestamp\":1451606400000,"

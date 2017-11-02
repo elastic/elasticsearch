@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -320,6 +321,9 @@ public class MonitoringIT extends ESRestTestCase {
 
         Long expiryDate = (Long) license.get(License.Fields.EXPIRY_DATE_IN_MILLIS);
         assertThat(expiryDate, greaterThan(0L));
+
+        Boolean clusterNeedsTLS = (Boolean) license.get("cluster_needs_tls");
+        assertThat(clusterNeedsTLS, isOneOf(true, null));
 
         // We basically recompute the hash here
         assertThat("Hash key should be the same",

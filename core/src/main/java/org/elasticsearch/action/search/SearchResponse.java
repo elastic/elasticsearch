@@ -206,7 +206,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     /**
-     * Returns info about what clusters the search was executed against
+     * Returns info about what clusters the search was executed against. Available only in responses obtained
+     * from a Cross Cluster Search request, otherwise <code>null</code>
      * @see Clusters
      */
     public Clusters getClusters() {

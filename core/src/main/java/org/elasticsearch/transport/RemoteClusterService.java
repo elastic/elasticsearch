@@ -218,38 +218,38 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
             final String[] indices = entry.getValue().indices();
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
-                    .indicesOptions(indicesOptions).local(true).preference(preference)
-                    .routing(routing);
+                .indicesOptions(indicesOptions).local(true).preference(preference)
+                .routing(routing);
             remoteClusterConnection.fetchSearchShards(searchShardsRequest,
-                    new ActionListener<ClusterSearchShardsResponse>() {
-                        @Override
-                        public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
-                            searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
-                            if (responsesCountDown.countDown()) {
-                                TransportException exception = transportException.get();
-                                if (exception == null) {
-                                    listener.onResponse(searchShardsResponses);
-                                } else {
-                                    listener.onFailure(transportException.get());
-                                }
+                new ActionListener<ClusterSearchShardsResponse>() {
+                    @Override
+                    public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
+                        searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
+                        if (responsesCountDown.countDown()) {
+                            TransportException exception = transportException.get();
+                            if (exception == null) {
+                                listener.onResponse(searchShardsResponses);
+                            } else {
+                                listener.onFailure(transportException.get());
                             }
                         }
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            TransportException exception = new TransportException("unable to communicate with remote cluster [" +
-                                    clusterName + "]", e);
-                            if (transportException.compareAndSet(null, exception) == false) {
-                                exception = transportException.accumulateAndGet(exception, (previous, current) -> {
-                                    current.addSuppressed(previous);
-                                    return current;
-                                });
-                            }
-                            if (responsesCountDown.countDown()) {
-                                listener.onFailure(exception);
-                            }
+                    @Override
+                    public void onFailure(Exception e) {
+                        TransportException exception = new TransportException("unable to communicate with remote cluster [" +
+                                clusterName + "]", e);
+                        if (transportException.compareAndSet(null, exception) == false) {
+                            exception = transportException.accumulateAndGet(exception, (previous, current) -> {
+                                current.addSuppressed(previous);
+                                return current;
+                            });
                         }
-                    });
+                        if (responsesCountDown.countDown()) {
+                            listener.onFailure(exception);
+                        }
+                    }
+                });
         }
     }
 

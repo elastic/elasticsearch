@@ -11,7 +11,9 @@
           query:
             match_all: {}
 
-  - is_false: _clusters
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
   - set: {_scroll_id: scroll_id}
   - match: {hits.total:      6    }
   - length: {hits.hits:      4    }
@@ -40,79 +42,3 @@
   - do:
       clear_scroll:
         scroll_id: $scroll_id
-
----
-"Scroll against disconnected cluster with skip_unavailable setting":
-  - skip:
-      version: " - 6.0.99"
-      reason: "skip_unavailable is only supported from 6.1.0 on"
-
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            search.remote.disconnected_scroll_cluster:
-              #TODO how do we pick a valid host, but a port that is for sure not up? Should this rather be a java test?
-              seeds: ["127.0.0.1:9399"]
-
-  - match: {transient.search.remote.disconnected_scroll_cluster.seeds: ["127.0.0.1:9399"]}
-
-  - do:
-      catch: /ConnectTransportException/
-      search:
-        index: my_remote_cluster:test_index,disconnected_scroll_cluster:test_index
-        size: 4
-        scroll: 1m
-
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            search.remote.disconnected_scroll_cluster:
-              skip_unavailable: true
-
-  - is_true: transient.search.remote.disconnected_scroll_cluster.skip_unavailable
-
-  - do:
-      search:
-        index: my_remote_cluster:test_index,disconnected_scroll_cluster:test_index
-        size: 4
-        scroll: 1m
-
-  - set: {_scroll_id: scroll_id}
-  - match: { _shards.total: 3 }
-  - match: { hits.total: 6 }
-  - match: { _clusters.total: 2 }
-  - match: { _clusters.successful: 1 }
-  - match: { _clusters.skipped: 1 }
-  - match: { hits.hits.0._index: "my_remote_cluster:test_index" }
-
-  - do:
-      scroll:
-        body: { "scroll_id": "$scroll_id", "scroll": "1m"}
-
-  - is_false: _clusters
-  - match: {hits.total:      6    }
-  - length: {hits.hits:      2    }
-
-  - do:
-      scroll:
-        scroll_id: $scroll_id
-        scroll: 1m
-
-  - is_false: _clusters
-  - match: {hits.total:      6    }
-  - length: {hits.hits:      0    }
-
-  - do:
-      clear_scroll:
-        scroll_id: $scroll_id
-
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            search.remote.disconnected_scroll_cluster.seeds: null
-
-  - match: {transient: {}}
-

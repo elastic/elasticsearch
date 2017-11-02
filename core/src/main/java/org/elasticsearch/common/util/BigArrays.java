@@ -456,7 +456,7 @@ public class BigArrays implements Releasable {
         assert oldMemSize == array.ramBytesEstimated(oldSize) :
             "ram bytes used should equal that which was previously estimated: ramBytesUsed=" +
                 oldMemSize + ", ramBytesEstimated=" + array.ramBytesEstimated(oldSize);
-        array.shrink(numberToDrop);
+        array.dropFromHead(numberToDrop);
         long delta = array.ramBytesUsed() - oldMemSize;
         assert delta <= 0 : "shrink should never lead to an increase in array size: ramBytesUsed delta=" + delta;
         adjustBreaker(delta, true);

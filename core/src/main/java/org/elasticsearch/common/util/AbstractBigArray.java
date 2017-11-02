@@ -39,7 +39,6 @@ abstract class AbstractBigArray<V> extends AbstractArray {
     protected int offset;
     private final int pageShift;
     private final int pageMask;
-    private int tailPage;
 
     @SuppressWarnings("unchecked")
     protected AbstractBigArray(long size, int pageSize, Supplier<Recycler.V<V>> pageSupplier, BigArrays bigArrays, boolean clearOnResize) {
@@ -102,7 +101,7 @@ abstract class AbstractBigArray<V> extends AbstractArray {
         this.size = newSize;
     }
 
-    public void shrink(long dropFromHead) {
+    public void dropFromHead(long dropFromHead) {
         if (dropFromHead > size) {
             throw new IllegalArgumentException("");
         }
@@ -115,9 +114,9 @@ abstract class AbstractBigArray<V> extends AbstractArray {
             return;
         }
 
-        int newOffset = indexInPage(dropFromHead - numberInFirstPage);
+        int newOffset = indexInPage(dropFromHead);
 
-        int newFirstPage = pageIndex(dropFromHead + offset);
+        int newFirstPage = pageIndex(dropFromHead);
 
         dropPagesFromHead(newFirstPage);
 
@@ -126,14 +125,14 @@ abstract class AbstractBigArray<V> extends AbstractArray {
     }
 
     @SuppressWarnings("unchecked")
-    public void dropPagesFromHead(int n) {
+    private void dropPagesFromHead(int n) {
         for (int i = 0; i < n; ++i) {
             pages[i].close();
             pages[i] = null;
         }
 
-        int newTail = (tailPage - n);
-        int numPages = newTail + 1;
+        int tailPage = pageIndex(size - 1);
+        int numPages = (tailPage - n) + 1;
 
         int oversize = ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
 
@@ -144,12 +143,11 @@ abstract class AbstractBigArray<V> extends AbstractArray {
             newPages = new Recycler.V[oversize];
         }
         System.arraycopy(pages, n, newPages, 0, numPages);
+        pages = newPages;
 
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
         }
-
-        tailPage = newTail;
     }
 
     protected abstract int numBytesPerElement();

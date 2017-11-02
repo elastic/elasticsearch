@@ -313,7 +313,7 @@ public class MachineLearning implements ActionPlugin {
         NormalizerProcessFactory normalizerProcessFactory;
         if (AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
             try {
-                NativeController nativeController = NativeControllerHolder.getNativeController(settings);
+                NativeController nativeController = NativeControllerHolder.getNativeController(env);
                 if (nativeController == null) {
                     // This will only only happen when path.home is not set, which is disallowed in production
                     throw new ElasticsearchException("Failed to create native process controller for Machine Learning");
@@ -341,7 +341,7 @@ public class MachineLearning implements ActionPlugin {
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(internalClient, jobProvider, auditor, System::currentTimeMillis);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, internalClient, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor, persistentTasksService);
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(settings, clusterService, datafeedManager, autodetectProcessManager);
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(env, clusterService, datafeedManager, autodetectProcessManager);
         InvalidLicenseEnforcer invalidLicenseEnforcer =
                 new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedManager, autodetectProcessManager);
         PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Arrays.asList(

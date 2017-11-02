@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.xpack.XPackFeatureSet;
@@ -64,9 +65,9 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     private final Map<String, Object> nativeCodeInfo;
 
     @Inject
-    public MachineLearningFeatureSet(Settings settings, ClusterService clusterService, Client client,
+    public MachineLearningFeatureSet(Environment environment, ClusterService clusterService, Client client,
                                      @Nullable XPackLicenseState licenseState) {
-        this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
+        this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
@@ -74,10 +75,11 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         // Don't try to get the native code version if ML is disabled - it causes too much controversy
         // if ML has been disabled because of some OS incompatibility.  Also don't try to get the native
         // code version in the transport or tribe client - the controller process won't be running.
-        if (enabled && XPackPlugin.transportClientMode(settings) == false && XPackPlugin.isTribeClientNode(settings) == false) {
+        if (enabled && XPackPlugin.transportClientMode(environment.settings()) == false
+                && XPackPlugin.isTribeClientNode(environment.settings()) == false) {
             try {
                 if (isRunningOnMlPlatform(true)) {
-                    NativeController nativeController = NativeControllerHolder.getNativeController(settings);
+                    NativeController nativeController = NativeControllerHolder.getNativeController(environment);
                     if (nativeController != null) {
                         nativeCodeInfo = nativeController.getNativeCodeInfo();
                     }

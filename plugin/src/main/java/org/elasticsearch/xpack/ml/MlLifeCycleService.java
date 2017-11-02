@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
@@ -18,16 +18,18 @@ import java.io.IOException;
 
 public class MlLifeCycleService extends AbstractComponent {
 
+    private final Environment environment;
     private final DatafeedManager datafeedManager;
     private final AutodetectProcessManager autodetectProcessManager;
 
-    public MlLifeCycleService(Settings settings, ClusterService clusterService) {
-        this(settings, clusterService, null, null);
+    public MlLifeCycleService(Environment environment, ClusterService clusterService) {
+        this(environment, clusterService, null, null);
     }
 
-    public MlLifeCycleService(Settings settings, ClusterService clusterService, DatafeedManager datafeedManager,
+    public MlLifeCycleService(Environment environment, ClusterService clusterService, DatafeedManager datafeedManager,
                               AutodetectProcessManager autodetectProcessManager) {
-        super(settings);
+        super(environment.settings());
+        this.environment = environment;
         this.datafeedManager = datafeedManager;
         this.autodetectProcessManager = autodetectProcessManager;
         clusterService.addLifecycleListener(new LifecycleListener() {
@@ -47,7 +49,7 @@ public class MlLifeCycleService extends AbstractComponent {
                 if (datafeedManager != null) {
                     datafeedManager.isolateAllDatafeedsOnThisNode();
                 }
-                NativeController nativeController = NativeControllerHolder.getNativeController(settings);
+                NativeController nativeController = NativeControllerHolder.getNativeController(environment);
                 if (nativeController != null) {
                     // This kills autodetect processes WITHOUT closing the jobs, so they get reallocated.
                     if (autodetectProcessManager != null) {

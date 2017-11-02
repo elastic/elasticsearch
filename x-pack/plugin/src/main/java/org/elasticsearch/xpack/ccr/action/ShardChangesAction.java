@@ -239,7 +239,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         }
 
         final List<Translog.Operation> operations = new ArrayList<>();
-        final LocalCheckpointTracker tracker = new LocalCheckpointTracker(indexShard.indexSettings(), maxSeqNo, minSeqNo);
+        final LocalCheckpointTracker tracker = new LocalCheckpointTracker(maxSeqNo, minSeqNo);
         try (Translog.Snapshot snapshot = indexShard.getTranslog().getSnapshotBetween(minSeqNo, maxSeqNo)) {
             for (Translog.Operation op = snapshot.next(); op != null; op = snapshot.next()) {
                 if (op.seqNo() >= minSeqNo && op.seqNo() <= maxSeqNo) {

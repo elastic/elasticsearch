@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -42,7 +41,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -53,6 +51,8 @@ import static java.util.Collections.unmodifiableMap;
  * This class exists per node and allows to create per-index {@link IndexAnalyzers} via {@link #build(IndexSettings)}
  */
 public final class AnalysisRegistry implements Closeable {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(AnalysisRegistry.class));
+
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
@@ -384,6 +384,9 @@ public final class AnalysisRegistry implements Closeable {
         if (typeName == null) {
             throw new IllegalArgumentException(component + " [" + name + "] must specify either an analyzer type, or a tokenizer");
         }
+        if ("delimited_payload_filter".equals(typeName)) {
+            DEPRECATION_LOGGER.deprecated("Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]");
+        }
         AnalysisProvider<T> type = providerMap.get(typeName);
         if (type == null) {
             throw new IllegalArgumentException("Unknown " + component + " type [" + typeName + "] for [" + name + "]");
@@ -421,6 +424,9 @@ public final class AnalysisRegistry implements Closeable {
         }
 
         public AnalysisModule.AnalysisProvider<TokenFilterFactory> getTokenFilterFactory(String name) {
+            if ("delimited_payload_filter".equals(name)) {
+                DEPRECATION_LOGGER.deprecated("Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]");
+            }
             return preConfiguredTokenFilters.get(name);
         }
 

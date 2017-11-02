@@ -243,7 +243,7 @@ public class RecoverySourceHandler {
 
             logger.trace("all operations up to [{}] completed, checking translog content", endingSeqNo);
 
-            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(shard.indexSettings(), startingSeqNo, startingSeqNo - 1);
+            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
             try (Translog.Snapshot snapshot = shard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {

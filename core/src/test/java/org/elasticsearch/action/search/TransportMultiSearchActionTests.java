@@ -102,8 +102,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 });
             }
         };
-        TransportMultiSearchAction action =
-                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver, 10);
+        
+        TransportMultiSearchAction action = 
+                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver, 10,
+                System::nanoTime);
 
         // Execute the multi search api and fail if we find an error after executing:
         try {

@@ -17,7 +17,7 @@ verify_xpack_installation() {
     assert_file "$ESHOME/bin/x-pack/syskeygen" f $user $group 755
     assert_file "$ESHOME/bin/x-pack/users" f $user $group 755
     assert_file "$ESHOME/bin/x-pack/x-pack-env" f $user $group 755
-    assert_number_of_files "$ESHOME/bin/x-pack/" 16
+    assert_number_of_files "$ESHOME/bin/x-pack/" 18
 
     assert_file "$ESCONFIG/x-pack" d $user elasticsearch 750
     assert_file "$ESCONFIG/x-pack/users" f $user elasticsearch 660

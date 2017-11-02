@@ -99,7 +99,7 @@ PUT _xpack/ml/datafeeds/datafeed-total-requests
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_job]
+// TEST[skip:https://github.com/elastic/elasticsearch/pull/27183]
 
 When the {dfeed} is created, you receive the following results:
 [source,js]
@@ -126,3 +126,4 @@ When the {dfeed} is created, you receive the following results:
 }
 ----
 //TESTRESPONSE[s/"query_delay": "83474ms"/"query_delay": $body.query_delay/]
+//TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]

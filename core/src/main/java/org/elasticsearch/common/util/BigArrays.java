@@ -450,6 +450,19 @@ public class BigArrays implements Releasable {
         return array;
     }
 
+    private <T extends AbstractBigArray> T dropFromHeadInPlace(T array, long numberToDrop) {
+        final long oldMemSize = array.ramBytesUsed();
+        final long oldSize = array.size();
+        assert oldMemSize == array.ramBytesEstimated(oldSize) :
+            "ram bytes used should equal that which was previously estimated: ramBytesUsed=" +
+                oldMemSize + ", ramBytesEstimated=" + array.ramBytesEstimated(oldSize);
+        array.shrink(numberToDrop);
+        long delta = array.ramBytesUsed() - oldMemSize;
+        assert delta <= 0 : "shrink should never lead to an increase in array size: ramBytesUsed delta=" + delta;
+        adjustBreaker(delta, true);
+        return array;
+    }
+
     private <T extends BigArray> T validate(T array) {
         boolean success = false;
         try {
@@ -503,6 +516,21 @@ public class BigArrays implements Releasable {
             return newArray;
         }
     }
+
+    // TODO: Add docs
+    public ByteArray dropFromHead(ByteArray array, long numberToDrop) {
+        if (array instanceof BigByteArray) {
+            return dropFromHeadInPlace((BigByteArray) array, numberToDrop);
+        } else {
+            AbstractArray arr = (AbstractArray) array;
+            final ByteArray newArray = newByteArray(array.size() - numberToDrop, arr.clearOnResize);
+            final byte[] rawArray = ((ByteArrayWrapper) array).array;
+            newArray.set(0, rawArray, (int) numberToDrop, (int) Math.min(rawArray.length, newArray.size()));
+            arr.close();
+            return newArray;
+        }
+    }
+
 
     /** Grow an array to a size that is larger than <code>minSize</code>, preserving content, and potentially reusing part of the provided array. */
     public ByteArray grow(ByteArray array, long minSize) {

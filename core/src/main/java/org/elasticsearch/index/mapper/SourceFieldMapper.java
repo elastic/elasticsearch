@@ -166,6 +166,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            throw new QueryShardException(context, "The _source field is not searchable");
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "The _source field is not searchable");
         }

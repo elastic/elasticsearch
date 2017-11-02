@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -210,6 +211,11 @@ public class AllFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             return queryStringTermQuery(new Term(name(), indexedValueForSearch(value)));
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
         }
     }
 

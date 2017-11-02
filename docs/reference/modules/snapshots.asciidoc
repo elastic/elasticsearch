@@ -505,15 +505,17 @@ same size or topology.  However, the version of the new cluster should be the sa
 If the new cluster has a smaller size additional considerations should be made. First of all it's necessary to make sure
 that new cluster have enough capacity to store all indices in the snapshot. It's possible to change indices settings
 during restore to reduce the number of replicas, which can help with restoring snapshots into smaller cluster. It's also
-possible to select only subset of the indices using the `indices` parameter.  Prior to version 1.5.0 elasticsearch
-didn't check restored persistent settings making it possible to accidentally restore an incompatible
-`discovery.zen.minimum_master_nodes` setting, and as a result disable a smaller cluster until the required number of
-master eligible nodes is added.  Starting with version 1.5.0 incompatible settings are ignored.
+possible to select only subset of the indices using the `indices` parameter.
 
 If indices in the original cluster were assigned to particular nodes using
 <<shard-allocation-filtering,shard allocation filtering>>, the same rules will be enforced in the new cluster. Therefore
 if the new cluster doesn't contain nodes with appropriate attributes that a restored index can be allocated on, such
 index will not be successfully restored unless these index allocation settings are changed during restore operation.
+
+The restore operation also checks that restored persistent settings are compatible with the current cluster to avoid accidentally
+restoring an incompatible settings such as `discovery.zen.minimum_master_nodes` and as a result disable a smaller cluster until the
+required number of master eligible nodes is added. If you need to restore a snapshot with incompatible persistent settings, try
+restoring it without the global cluster state.
 
 [float]
 === Snapshot status
@@ -596,7 +598,7 @@ state. Once recovery of primary shards is completed Elasticsearch is switching t
 creates the required number of replicas at this moment cluster switches to the `yellow` state. Once all required replicas
 are created, the cluster switches to the `green` states.
 
-The cluster health operation provides only a high level status of the restore process. It’s possible to get more
+The cluster health operation provides only a high level status of the restore process. It's possible to get more
 detailed insight into the current state of the recovery process by using <<indices-recovery, indices recovery>> and
 <<cat-recovery, cat recovery>> APIs.
 

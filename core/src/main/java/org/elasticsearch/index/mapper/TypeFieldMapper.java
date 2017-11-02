@@ -133,6 +133,11 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             return termsQuery(Arrays.asList(value), context);
         }

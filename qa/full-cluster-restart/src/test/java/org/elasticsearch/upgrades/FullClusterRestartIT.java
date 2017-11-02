@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class FullClusterRestartIT extends ESRestTestCase {
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
+    private final boolean supportsLenientBooleans = oldClusterVersion.before(Version.V_6_0_0_alpha1);
     private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
 
     private String index;
@@ -857,7 +857,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         // Check that the template was restored successfully
         map = toMap(client().performRequest("GET", "/_template/test_template"));
         expected = new HashMap<>();
-        if (runningAgainstOldCluster) {
+        if (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_0_0_beta1)) {
             expected.put("template", "evil_*");
         } else {
             expected.put("index_patterns", singletonList("evil_*"));

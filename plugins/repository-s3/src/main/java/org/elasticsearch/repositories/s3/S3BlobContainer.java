@@ -21,35 +21,50 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
 import com.amazonaws.services.s3.model.CopyObjectRequest;
+import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PartETag;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.UploadPartRequest;
+import com.amazonaws.services.s3.model.UploadPartResult;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 class S3BlobContainer extends AbstractBlobContainer {
 
-    protected final S3BlobStore blobStore;
+    static final ByteSizeValue MIN_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.MB);
+    static final ByteSizeValue MAX_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.TB);
+    static final ByteSizeValue MAX_UPLOAD_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
 
-    protected final String keyPath;
+    private final S3BlobStore blobStore;
+    private final String keyPath;
 
     S3BlobContainer(BlobPath path, S3BlobStore blobStore) {
         super(path);
@@ -91,9 +106,12 @@ class S3BlobContainer extends AbstractBlobContainer {
         if (blobExists(blobName)) {
             throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
         }
-        try (OutputStream stream = createOutput(blobName)) {
-            Streams.copy(inputStream, stream);
-        }
+
+        final UploadMethod method = (blobSize <= blobStore.bufferSizeInBytes()) ? this::executeSingleUpload : this::executeMultipartUpload;
+        SocketAccess.doPrivilegedIOException(() -> {
+            method.upload(blobStore, buildKey(blobName), inputStream, blobSize);
+            return null;
+        });
     }
 
     @Override
@@ -107,12 +125,6 @@ class S3BlobContainer extends AbstractBlobContainer {
         } catch (AmazonClientException e) {
             throw new IOException("Exception when deleting blob [" + blobName + "]", e);
         }
-    }
-
-    private OutputStream createOutput(final String blobName) throws IOException {
-        // UploadS3OutputStream does buffering & retry logic internally
-        return new DefaultS3OutputStream(blobStore, blobStore.bucket(), buildKey(blobName),
-            blobStore.bufferSizeInBytes(), blobStore.serverSideEncryption());
     }
 
     @Override
@@ -175,7 +187,160 @@ class S3BlobContainer extends AbstractBlobContainer {
         return listBlobsByPrefix(null);
     }
 
-    protected String buildKey(String blobName) {
+    private String buildKey(String blobName) {
         return keyPath + blobName;
+    }
+
+    @FunctionalInterface
+    interface UploadMethod {
+        void upload(S3BlobStore blobStore, String blobName, InputStream input, long blobSize) throws IOException;
+    }
+
+    /**
+     * Uploads a blob using a single upload request
+     */
+    void executeSingleUpload(final S3BlobStore blobStore,
+                             final String blobName,
+                             final InputStream input,
+                             final long blobSize) throws IOException {
+
+        if (blobSize > MAX_UPLOAD_SIZE.getBytes()) {
+            throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than " + MAX_UPLOAD_SIZE);
+        }
+        if (blobSize > blobStore.bufferSizeInBytes()) {
+            throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than buffer size");
+        }
+
+        try {
+            final ObjectMetadata md = new ObjectMetadata();
+            md.setContentLength(blobSize);
+            if (blobStore.serverSideEncryption()) {
+                md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            }
+
+            final PutObjectRequest putRequest = new PutObjectRequest(blobStore.bucket(), blobName, input, md);
+            putRequest.setStorageClass(blobStore.getStorageClass());
+            putRequest.setCannedAcl(blobStore.getCannedACL());
+
+            blobStore.client().putObject(putRequest);
+        } catch (AmazonClientException e) {
+            throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
+        }
+    }
+
+    /**
+     * Uploads a blob using multipart upload requests.
+     */
+    void executeMultipartUpload(final S3BlobStore blobStore,
+                                final String blobName,
+                                final InputStream input,
+                                final long blobSize) throws IOException {
+
+        if (blobSize > MAX_FILE_SIZE.getBytes()) {
+            throw new IllegalArgumentException("Multipart upload request size [" + blobSize + "] can't be larger than " + MAX_FILE_SIZE);
+        }
+        if (blobSize < MIN_FILE_SIZE.getBytes()) {
+            throw new IllegalArgumentException("Multipart upload request size [" + blobSize + "] can't be smaller than " + MIN_FILE_SIZE);
+        }
+
+        final long partSize = blobStore.bufferSizeInBytes();
+        final Tuple<Long, Long> multiparts = numberOfMultiparts(blobSize, partSize);
+
+        if (multiparts.v1() > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Too many multipart upload requests, maybe try a larger buffer size?");
+        }
+
+        final int nbParts = multiparts.v1().intValue();
+        final long lastPartSize = multiparts.v2();
+        assert blobSize == (nbParts - 1) * partSize + lastPartSize : "blobSize does not match multipart sizes";
+
+        final SetOnce<String> uploadId = new SetOnce<>();
+        final String bucketName = blobStore.bucket();
+        boolean success = false;
+
+        try {
+            final InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(bucketName, blobName);
+            initRequest.setStorageClass(blobStore.getStorageClass());
+            initRequest.setCannedACL(blobStore.getCannedACL());
+            if (blobStore.serverSideEncryption()) {
+                final ObjectMetadata md = new ObjectMetadata();
+                md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+                initRequest.setObjectMetadata(md);
+            }
+
+            uploadId.set(blobStore.client().initiateMultipartUpload(initRequest).getUploadId());
+            if (Strings.isEmpty(uploadId.get())) {
+                throw new IOException("Failed to initialize multipart upload " + blobName);
+            }
+
+            final List<PartETag> parts = new ArrayList<>();
+
+            long bytesCount = 0;
+            for (int i = 1; i <= nbParts; i++) {
+                final UploadPartRequest uploadRequest = new UploadPartRequest();
+                uploadRequest.setBucketName(bucketName);
+                uploadRequest.setKey(blobName);
+                uploadRequest.setUploadId(uploadId.get());
+                uploadRequest.setPartNumber(i);
+                uploadRequest.setInputStream(input);
+
+                if (i < nbParts) {
+                    uploadRequest.setPartSize(partSize);
+                    uploadRequest.setLastPart(false);
+                } else {
+                    uploadRequest.setPartSize(lastPartSize);
+                    uploadRequest.setLastPart(true);
+                }
+                bytesCount += uploadRequest.getPartSize();
+
+                final UploadPartResult uploadResponse = blobStore.client().uploadPart(uploadRequest);
+                parts.add(uploadResponse.getPartETag());
+            }
+
+            if (bytesCount != blobSize) {
+                throw new IOException("Failed to execute multipart upload for [" + blobName + "], expected " + blobSize
+                    + "bytes sent but got " + bytesCount);
+            }
+
+            CompleteMultipartUploadRequest complRequest = new CompleteMultipartUploadRequest(bucketName, blobName, uploadId.get(), parts);
+            blobStore.client().completeMultipartUpload(complRequest);
+            success = true;
+
+        } catch (AmazonClientException e) {
+            throw new IOException("Unable to upload object [" + blobName + "] using multipart upload", e);
+        } finally {
+            if (success == false && Strings.hasLength(uploadId.get())) {
+                final AbortMultipartUploadRequest abortRequest = new AbortMultipartUploadRequest(bucketName, blobName, uploadId.get());
+                blobStore.client().abortMultipartUpload(abortRequest);
+            }
+        }
+    }
+
+    /**
+     * Returns the number parts of size of {@code partSize} needed to reach {@code totalSize},
+     * along with the size of the last (or unique) part.
+     *
+     * @param totalSize the total size
+     * @param partSize  the part size
+     * @return a {@link Tuple} containing the number of parts to fill {@code totalSize} and
+     * the size of the last part
+     */
+    static Tuple<Long, Long> numberOfMultiparts(final long totalSize, final long partSize) {
+        if (partSize <= 0) {
+            throw new IllegalArgumentException("Part size must be greater than zero");
+        }
+
+        if (totalSize == 0L || totalSize <= partSize) {
+            return Tuple.tuple(1L, totalSize);
+        }
+
+        final long parts = totalSize / partSize;
+        final long remaining = totalSize % partSize;
+
+        if (remaining == 0) {
+            return Tuple.tuple(parts, partSize);
+        } else {
+            return Tuple.tuple(parts + 1, remaining);
+        }
     }
 }

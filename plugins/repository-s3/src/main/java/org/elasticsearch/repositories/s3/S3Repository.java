@@ -87,7 +87,7 @@ class S3Repository extends BlobStoreRepository {
      * use of the Multipart API and may result in upload errors. Defaults to the minimum between 100MB and 5% of the heap size.
      */
     static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting("buffer_size", DEFAULT_BUFFER_SIZE,
-            new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
+            new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.GB));
 
     /**
      * Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.

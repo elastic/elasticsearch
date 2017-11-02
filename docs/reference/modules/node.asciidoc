@@ -156,11 +156,12 @@ discovery.zen.minimum_master_nodes: 2 <1>
 ----------------------------
 <1> Defaults to `1`.
 
-Critical clusters must have at least three master-eligible nodes, with
+Clusters should have at least three master-eligible nodes, with
 `minimum_master_nodes` set accordingly, in order to remain available even when
-a node fails. A <<rolling-upgrades,rolling upgrade>> also requires at least
-three master-eligible nodes to avoid the possibility of data loss if a network
-split occurs while the upgrade is in progress.
+a node fails. A <<rolling-upgrades,rolling upgrade>>, performed without any
+downtime, also requires at least three master-eligible nodes to avoid the
+possibility of data loss if a network split occurs while the upgrade is in
+progress.
 
 This setting can also be changed dynamically on a live cluster with the
 <<cluster-update-settings,cluster update settings API>>:

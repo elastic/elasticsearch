@@ -67,7 +67,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     protected static final String SQL_ACTION_NAME = "indices:data/read/sql";
-    protected static final String SQL_INDICES_ACTION_NAME = "indices:data/read/sql/tables";
+    protected static final String SQL_INDICES_ACTION_NAME = "indices:data/read/sql/indices";
     /**
      * Location of the audit log file. We could technically figure this out by reading the admin
      * APIs but it isn't worth doing because we also have to give ourselves permission to read

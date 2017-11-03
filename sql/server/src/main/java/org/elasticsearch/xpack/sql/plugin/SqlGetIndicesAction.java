@@ -44,7 +44,7 @@ import static java.util.Comparator.comparing;
 public class SqlGetIndicesAction
         extends Action<SqlGetIndicesAction.Request, SqlGetIndicesAction.Response, SqlGetIndicesAction.RequestBuilder> {
     public static final SqlGetIndicesAction INSTANCE = new SqlGetIndicesAction();
-    public static final String NAME = "indices:data/read/sql/tables";
+    public static final String NAME = "indices:data/read/sql/indices";
 
     private SqlGetIndicesAction() {
         super(NAME);
@@ -59,7 +59,7 @@ public class SqlGetIndicesAction
     public Response newResponse() {
         return new Response();
     }
-    
+
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
         private IndicesOptions indicesOptions;
         private String[] indices;

@@ -234,6 +234,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private final RefreshListeners refreshListeners;
 
+    private final AtomicLong lastSearcherAccess = new AtomicLong();
+    private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
+
     public IndexShard(
             ShardRouting shardRouting,
             IndexSettings indexSettings,
@@ -298,6 +301,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         searcherWrapper = indexSearcherWrapper;
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         refreshListeners = buildRefreshListeners();
+        lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
     }
 
@@ -1120,6 +1124,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
+        lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
         final Engine engine = getEngine();
         final Engine.Searcher searcher = engine.acquireSearcher(source, scope);
         boolean success = false;
@@ -2419,14 +2424,70 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Executes a scheduled refresh if necessary
+     */
+    public boolean scheduledRefresh() {
+        if (isReadAllowed() && isRefreshNeeded()) {
+            if (refreshListeners.refreshNeeded() == false // if we have a listener that is waiting for a refresh we need to force it
+                && isSearchIdle() && indexSettings.isExplicitRefresh() == false) {
+                // lets skip this refresh since we are search idle and
+                // don't necessarily need to refresh. the next search execute cause a
+                setRefreshPending();
+                return false;
+            } else {
+                refresh("schedule");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher *or* there are pending
      * refresh listeners.
      * Otherwise <code>false</code>.
      *
      * @throws AlreadyClosedException if the engine or internal indexwriter in the engine is already closed
      */
-    public boolean isRefreshNeeded() {
-        return getEngine().refreshNeeded() || (refreshListeners != null && refreshListeners.refreshNeeded());
+    final boolean isRefreshNeeded() {
+        return refreshListeners.refreshNeeded() // lets check the cheaper one first
+                || getEngine().refreshNeeded();
+    }
+
+    /**
+     * Returns true if this shards is search idle
+     * @see {@link IndexSettings#getSearchIdleAfter()}
+     */
+    final boolean isSearchIdle() {
+        return (threadPool.relativeTimeInMillis() - lastSearcherAccess.get())
+            >= indexSettings.getSearchIdleAfter().getMillis();
+    }
+
+    private void setRefreshPending() {
+        Engine engine = getEngine();
+        if (isSearchIdle()) {
+            acquireSearcher("setRefreshPending").close(); // move the shard into non-search idle
+        }
+        Translog.Location lastWriteLocation = engine.getTranslog().getLastWriteLocation();
+        Translog.Location location;
+        do {
+            location = this.pendingRefreshLocation.get();
+            if (location != null && lastWriteLocation.compareTo(location) <= 0) {
+                break;
+            }
+        } while (pendingRefreshLocation.compareAndSet(location, lastWriteLocation) == false);
+    }
+
+    public void awaitPendingRefresh(Consumer<Boolean> listener) {
+        final Translog.Location location = pendingRefreshLocation.get();
+        if (location != null) {
+            addRefreshListener(location, (b) -> {
+                pendingRefreshLocation.compareAndSet(location, null);
+                listener.accept(true);
+            });
+        } else {
+            listener.accept(false);
+        }
     }
 
     /**

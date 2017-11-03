@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.termvectors;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -36,6 +37,8 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Performs the get operation.
@@ -80,6 +83,19 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
         }
+    }
+
+    @Override
+    protected void shardOperation(TermVectorsRequest request, ShardId shardId, ActionListener<TermVectorsResponse> listener) throws IOException {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+        indexShard.awaitPendingRefresh(b -> {
+            try {
+                super.shardOperation(request, shardId, listener);
+            } catch (IOException ex) {
+                listener.onFailure(ex);
+            }
+        });
     }
 
     @Override

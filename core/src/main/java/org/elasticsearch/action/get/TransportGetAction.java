@@ -19,9 +19,12 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -37,6 +40,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Performs the get operation.
@@ -74,6 +79,19 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
         }
+    }
+
+    @Override
+    protected void shardOperation(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+        indexShard.awaitPendingRefresh(b -> {
+            try {
+                super.shardOperation(request, shardId, listener);
+            } catch (IOException ex) {
+                listener.onFailure(ex);
+            }
+        });
     }
 
     @Override

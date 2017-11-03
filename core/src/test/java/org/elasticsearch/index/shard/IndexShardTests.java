@@ -62,7 +62,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -70,6 +72,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -2564,5 +2567,133 @@ public class IndexShardTests extends IndexShardTestCase {
         @Override
         public void verify(String verificationToken, DiscoveryNode localNode) {
         }
+    }
+
+    public void testIsSearchIdle() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
+        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.scheduledRefresh());
+        assertFalse(primary.isSearchIdle());
+
+        IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
+        settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
+        scopedSettings.applySettings(settings);
+        assertTrue(primary.isSearchIdle());
+
+        settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMinutes(1))
+            .build();
+        scopedSettings.applySettings(settings);
+        assertFalse(primary.isSearchIdle());
+
+        settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(10))
+            .build();
+        scopedSettings.applySettings(settings);
+        while (primary.isSearchIdle() == false) {
+            // wait for it to become idle
+        }
+        do {
+            // now loop until we are fast enough... shouldn't take long
+            primary.acquireSearcher("test").close();
+        } while (primary.isSearchIdle());
+        closeShards(primary);
+    }
+
+    public void testScheduledRefresh() throws IOException, InterruptedException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
+        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.scheduledRefresh());
+        IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
+        settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
+        scopedSettings.applySettings(settings);
+
+        assertFalse(primary.isRefreshNeeded());
+        indexDoc(primary, "test", "1", "{\"foo\" : \"bar\"}");
+        assertTrue(primary.isRefreshNeeded());
+        assertFalse(primary.scheduledRefresh());
+        CountDownLatch latch = new CountDownLatch(10);
+        for (int i = 0; i < 10; i++) {
+            primary.awaitPendingRefresh(refreshed -> {
+                assertTrue(refreshed);
+                try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+                    assertEquals(2, searcher.reader().numDocs());
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+        try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+            assertEquals(1, searcher.reader().numDocs());
+        }
+        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.scheduledRefresh());
+        latch.await();
+        CountDownLatch latch1 = new CountDownLatch(1);
+        primary.awaitPendingRefresh(refreshed -> {
+            assertFalse(refreshed);
+            try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+                assertEquals(2, searcher.reader().numDocs());
+            } finally {
+                latch1.countDown();
+            }
+
+        });
+        latch1.await();
+        closeShards(primary);
+    }
+
+    public void testRefreshIsNeededWithRefreshListeners() throws IOException, InterruptedException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
+        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.scheduledRefresh());
+        Engine.IndexResult doc = indexDoc(primary, "test", "1", "{\"foo\" : \"bar\"}");
+        CountDownLatch latch = new CountDownLatch(1);
+        primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
+        assertEquals(1, latch.getCount());
+        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.scheduledRefresh());
+        latch.await();
+
+        IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
+        settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
+        scopedSettings.applySettings(settings);
+
+        doc = indexDoc(primary, "test", "2", "{\"foo\" : \"bar\"}");
+        CountDownLatch latch1 = new CountDownLatch(1);
+        primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
+        assertEquals(1, latch1.getCount());
+        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.scheduledRefresh());
+        latch1.await();
+        closeShards(primary);
     }
 }

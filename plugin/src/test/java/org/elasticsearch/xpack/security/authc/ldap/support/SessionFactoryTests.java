@@ -107,7 +107,7 @@ public class SessionFactoryTests extends ESTestCase {
     private SessionFactory createSessionFactory() {
         Settings global = Settings.builder().put("path.home", createTempDir()).build();
         final RealmConfig realmConfig = new RealmConfig("_name", Settings.builder().put("url", "ldap://localhost:389").build(),
-                global, new ThreadContext(Settings.EMPTY));
+                global, new Environment(global), new ThreadContext(Settings.EMPTY));
         return new SessionFactory(realmConfig, null, threadPool) {
 
             @Override

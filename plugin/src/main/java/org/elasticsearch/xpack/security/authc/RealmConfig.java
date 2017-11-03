@@ -23,11 +23,6 @@ public class RealmConfig {
     private final Settings globalSettings;
     private final ThreadContext threadContext;
 
-    public RealmConfig(String name, Settings settings, Settings globalSettings,
-                       ThreadContext threadContext) {
-        this(name, settings, globalSettings, new Environment(globalSettings), threadContext);
-    }
-
     public RealmConfig(String name, Settings settings, Settings globalSettings, Environment env,
                        ThreadContext threadContext) {
         this.name = name;

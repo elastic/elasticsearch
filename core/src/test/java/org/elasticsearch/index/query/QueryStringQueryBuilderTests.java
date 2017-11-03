@@ -46,6 +46,7 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -805,13 +806,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(STRING_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
-        Query expected;
         if (getCurrentTypes().length > 0) {
-            expected = new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME));
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)) {
+                assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
+            } else {
+                assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));
+            }
         } else {
-            expected = new MatchNoDocsQuery();
+            assertThat(query, equalTo(new MatchNoDocsQuery()));
         }
-        assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("_all:*");
         query = queryBuilder.toQuery(context);
@@ -820,7 +823,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
         queryBuilder = new QueryStringQueryBuilder("*:*");
         query = queryBuilder.toQuery(context);
-        expected = new MatchAllDocsQuery();
+        Query expected = new MatchAllDocsQuery();
         assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("*");

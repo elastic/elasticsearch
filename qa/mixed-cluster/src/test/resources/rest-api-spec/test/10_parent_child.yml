@@ -1,20 +1,18 @@
-setup:
-  - do:
-      indices.create:
-        index: test
-        body:
-            mappings:
-              type_2: {}
-              type_3:
-                _parent:
-                  type: type_2
-
 ---
 "Parent/child inner hits":
     - skip:
-        version: " - 5.4.99"
-        reason:  mapping.single_type was added in 5.5
+        version: "6.0.0 - "
+        reason:  multiple types are not supported from 6.0 and beyond
 
+    - do:
+        indices.create:
+          index: test
+          body:
+              mappings:
+                type_2: {}
+                type_3:
+                  _parent:
+                    type: type_2
     - do:
         index:
           index: test
@@ -44,3 +42,11 @@ setup:
     - match: { hits.hits.0.inner_hits.type_3.hits.hits.0._type: "type_3" }
     - match: { hits.hits.0.inner_hits.type_3.hits.hits.0._id: "1" }
     - is_false: hits.hits.0.inner_hits.type_3.hits.hits.0._nested
+
+---
+"Fake test, so that build does not fail with no tests executed error when this suite is executed in isolation":
+# This suite is not needed for testing mixed clusters with minimum version 6.0.0 and higher,
+# because join type should be used instead of _parent field.
+  - do:
+      remote.info: {}
+  - is_true: ''

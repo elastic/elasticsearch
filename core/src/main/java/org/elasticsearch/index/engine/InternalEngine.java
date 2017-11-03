@@ -48,6 +48,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
@@ -259,6 +260,7 @@ public class InternalEngine extends Engine {
      * this specialized implementation an external refresh will immediately be reflected on the internal reader
      * and old segments can be released in the same way previous version did this (as a side-effect of _refresh)
      */
+    @SuppressForbidden(reason = "reference counting is required here")
     private static final class ExternalSearcherManager extends ReferenceManager<IndexSearcher> {
         private final SearcherFactory searcherFactory;
         private final SearcherManager internalSearcherManager;

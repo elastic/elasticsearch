@@ -110,6 +110,7 @@ import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -1971,7 +1972,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
     public static Path randomRepoPath(Settings settings) {
-        Environment environment = new Environment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
         Path[] repoFiles = environment.repoFiles();
         assert repoFiles.length > 0;
         Path path;

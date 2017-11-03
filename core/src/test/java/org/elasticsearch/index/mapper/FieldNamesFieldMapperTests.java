@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -87,7 +88,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes(),
                 XContentType.JSON));
 
-        assertFieldNames(set("a"), doc);
+        assertFieldNames(Collections.emptySet(), doc);
     }
 
     public void testExplicitEnabled() throws Exception {

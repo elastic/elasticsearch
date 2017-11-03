@@ -46,7 +46,8 @@ import java.util.concurrent.TimeUnit;
  * {@link ParentJoinPlugin}
  * plugins for the client. These plugins are all the required modules for Elasticsearch.
  *
- * @deprecated the transport client is deprecated in favour of the high-level REST client
+ * @deprecated {@link TransportClient} is deprecated in favour of the High Level REST client and will
+ * be removed in Elasticsearch 8.0.
  */
 @SuppressWarnings({"unchecked","varargs"})
 @Deprecated

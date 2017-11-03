@@ -11,6 +11,7 @@
  - do:
      search:
        index: test_index
+       type: doc
 
  - match: { hits.total: 10 } # no new indexed data, so expect the original 10 documents from the old and mixed clusters
 
@@ -20,6 +21,59 @@
 
  - match: { hits.total: 5 } # just check we recovered fine
 
+ - do:
+     bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
+          - '{"f1": "v1_upgraded", "f2": 10}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
+          - '{"f1": "v2_upgraded", "f2": 11}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
+          - '{"f1": "v3_upgraded", "f2": 12}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
+          - '{"f1": "v4_upgraded", "f2": 13}'
+          - '{"index": {"_index": "test_index", "_type": "doc"}}'
+          - '{"f1": "v5_upgraded", "f2": 14}'
+
+ - do:
+     indices.flush:
+        index: test_index
+
+ - do:
+     search:
+        type: doc
+        index: test_index
+
+ - match: { hits.total: 15 } # 10 docs from previous clusters plus 5 new docs
+
+---
+"Verify that we can still find things with the template":
+  - do:
+      search_template:
+        body:
+          id: test_search_template
+          params:
+            f1: v5_old
+  - match: { hits.total: 1 }
+
+---
+"Verify custom cluster metadata still exists after rolling upgrade":
+  - do:
+      snapshot.get_repository:
+        repository: my_repo
+  - is_true: my_repo
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }
+
+---
+"Test old multi type stuff":
+ - skip:
+    version: "6.0.0 - "
+    reason:  multiple types are not supported from 6.0 and beyond
 
  - do:
     search:
@@ -54,28 +108,8 @@
 
  - do:
      search:
+        type: test_type
         index: test_index
 
- - match: { hits.total: 15 } # 10 docs from previous clusters plus 5 new docs
+ - match: { hits.total: 10 } # 5 docs from previous clusters plus 5 new docs
 
----
-"Verify that we can still find things with the template":
-  - do:
-      search_template:
-        body:
-          id: test_search_template
-          params:
-            f1: v5_old
-  - match: { hits.total: 1 }
-
----
-"Verify custom cluster metadata still exists after rolling upgrade":
-  - do:
-      snapshot.get_repository:
-        repository: my_repo
-  - is_true: my_repo
-
-  - do:
-      ingest.get_pipeline:
-        id: "my_pipeline"
-  - match: { my_pipeline.description: "_description" }

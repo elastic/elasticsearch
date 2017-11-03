@@ -1,5 +1,5 @@
 ---
-"Index data, search, and create things in the cluster state that we'll validate are there after the ugprade":
+"Index data, search, and create things in the cluster state that we'll validate are there after the upgrade":
   - do:
       indices.create:
         index: test_index
@@ -7,28 +7,6 @@
           settings:
             index:
               number_of_replicas: 0
-  - do:
-      indices.create:
-        index: multi_type_index
-        body:
-          settings:
-            index.number_of_replicas: 0
-            index.mapping.single_type: false
-
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "multi_type_index", "_type": "type1"}}'
-          - '{"f1": "v1_old", "f2": 0}'
-          - '{"index": {"_index": "multi_type_index", "_type": "type2"}}'
-          - '{"f1": "v1_old", "f2": 0}'
-
-  - do:
-      search:
-        index: multi_type_index
-
-  - match: { hits.total: 2 }
 
   - do:
       indices.create:
@@ -123,3 +101,32 @@
           params:
             f1: v5_old
   - match: { hits.total: 1 }
+
+---
+"Test old multi type stuff":
+  - skip:
+      version: "6.0.0 - "
+      reason:  multiple types are not supported from 6.0 and beyond
+
+  - do:
+      indices.create:
+        index: multi_type_index
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.mapping.single_type: false
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "multi_type_index", "_type": "type1"}}'
+          - '{"f1": "v1_old", "f2": 0}'
+          - '{"index": {"_index": "multi_type_index", "_type": "type2"}}'
+          - '{"f1": "v1_old", "f2": 0}'
+
+  - do:
+      search:
+        index: multi_type_index
+
+  - match: { hits.total: 2 }

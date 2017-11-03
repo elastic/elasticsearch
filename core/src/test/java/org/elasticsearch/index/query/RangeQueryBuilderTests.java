@@ -26,6 +26,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -129,6 +130,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
                         && context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
                     expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(queryBuilder.fieldName()));
+                } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                        && context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
+                    expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(queryBuilder.fieldName()));
                 } else {
                     expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, queryBuilder.fieldName())));
                 }

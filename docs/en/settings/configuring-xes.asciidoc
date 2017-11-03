@@ -1,6 +1,9 @@
 [role="xpack"]
 [[settings-xpack]]
-== Configuring X-Pack
+== {xpack} Settings in {es}
+++++
+<titleabbrev>{xpack} Settings</titleabbrev>
+++++
 
 include::{asciidoc-dir}/../../shared/settings61.asciidoc[]
 include::license-settings.asciidoc[]

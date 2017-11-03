@@ -598,7 +598,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
         return Collections.unmodifiableList(
-                Stream.of(security.getBootstrapChecks(), watcher.getBootstrapChecks())
+                Stream.of(security.getBootstrapChecks(), watcher.getBootstrapChecks(env))
                         .flatMap(Collection::stream)
                         .collect(Collectors.toList()));
     }

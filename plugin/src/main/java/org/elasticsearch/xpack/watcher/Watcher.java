@@ -517,7 +517,7 @@ public class Watcher implements ActionPlugin {
         };
     }
 
-    public List<BootstrapCheck> getBootstrapChecks() {
-        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck(new Environment(settings)));
+    public List<BootstrapCheck> getBootstrapChecks(Environment env) {
+        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck(env));
     }
 }

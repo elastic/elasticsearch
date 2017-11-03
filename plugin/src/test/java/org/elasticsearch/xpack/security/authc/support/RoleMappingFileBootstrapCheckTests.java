@@ -15,6 +15,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.junit.Before;
@@ -42,7 +43,8 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         Settings ldapSettings = Settings.builder()
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings, new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings, new Environment(settings),
+                new ThreadContext(Settings.EMPTY));
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
@@ -55,7 +57,8 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         Settings ldapSettings = Settings.builder()
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("the-realm-name", ldapSettings, settings, new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig("the-realm-name", ldapSettings, settings, new Environment(settings),
+                new ThreadContext(Settings.EMPTY));
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
@@ -74,7 +77,8 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         Settings ldapSettings = Settings.builder()
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("the-realm-name", ldapSettings, settings, new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig("the-realm-name", ldapSettings, settings, new Environment(settings),
+                new ThreadContext(Settings.EMPTY));
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
@@ -93,7 +97,8 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         Settings ldapSettings = Settings.builder()
                 .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
-        RealmConfig config = new RealmConfig("the-realm-name", ldapSettings, settings, new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig("the-realm-name", ldapSettings, settings, new Environment(settings),
+                new ThreadContext(Settings.EMPTY));
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));

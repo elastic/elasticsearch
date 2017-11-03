@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 
@@ -23,7 +24,7 @@ public class NativeRealmTests extends ESTestCase {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
         int expectedInvalidation = 0;
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        RealmConfig config = new RealmConfig("native", Settings.EMPTY, settings, new ThreadContext(settings));
+        RealmConfig config = new RealmConfig("native", Settings.EMPTY, settings, new Environment(settings), new ThreadContext(settings));
         final NativeRealm nativeRealm = new NativeRealm(config, mock(NativeUsersStore.class)) {
             @Override
             void clearCache() {

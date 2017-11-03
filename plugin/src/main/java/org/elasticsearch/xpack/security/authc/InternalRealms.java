@@ -17,6 +17,7 @@ import java.util.Set;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
@@ -101,11 +102,11 @@ public class InternalRealms {
     private InternalRealms() {
     }
 
-    public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings) {
+    public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
         final List<BootstrapCheck> checks = new ArrayList<>();
         final Map<String, Settings> settingsByRealm = RealmSettings.getRealmSettings(globalSettings);
         settingsByRealm.forEach((name, settings) -> {
-            final RealmConfig realmConfig = new RealmConfig(name, settings, globalSettings, null);
+            final RealmConfig realmConfig = new RealmConfig(name, settings, globalSettings, env, null);
             switch (realmConfig.type()) {
                 case LdapRealm.AD_TYPE:
                 case LdapRealm.LDAP_TYPE:

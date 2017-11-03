@@ -254,7 +254,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                     new TokenSSLBootstrapCheck(),
                     new PkiRealmBootstrapCheck(sslService),
                     new TLSLicenseBootstrapCheck()));
-            checks.addAll(InternalRealms.getBootstrapChecks(settings));
+            checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
         } else {
             this.bootstrapChecks = Collections.emptyList();

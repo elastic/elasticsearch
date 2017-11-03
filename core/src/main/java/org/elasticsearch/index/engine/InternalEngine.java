@@ -1917,7 +1917,7 @@ public class InternalEngine extends Engine {
 
                 @Override
                 protected void doRun() throws Exception {
-                    maybeDie("fatal merge error", exc);
+                    maybeDie("fatal error while merging", exc);
                     logger.error("failed to merge", exc);
                     failEngine("merge failed", new MergePolicy.MergeException(exc, dir));
                 }

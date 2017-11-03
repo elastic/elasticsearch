@@ -56,11 +56,14 @@ public final class Whitelist {
         /** Information about where this struct was white-listed from.  Can be used for error messages. */
         public final String origin;
 
-        /** The Painless name of this struct which will also be the name of a type in a Painless script.  */
-        public final String painlessTypeName;
-
         /** The Java class name this struct represents. */
         public final String javaClassName;
+
+        /**
+         * Allow the Java class name to be imported so only the final text of the Java class is
+         * necessary to specify the Painless type name.
+         */
+        public final boolean importJavaClassName;
 
         /** The {@link List} of white-listed ({@link Constructor}s) available to this struct. */
         public final List<Constructor> whitelistConstructors;
@@ -72,11 +75,11 @@ public final class Whitelist {
         public final List<Field> whitelistFields;
 
         /** Standard constructor. All values must be not {@code null}. */
-        public Struct(String origin, String painlessTypeName, String javaClassName,
+        public Struct(String origin, String javaClassName, boolean importJavaClassName,
                       List<Constructor> whitelistConstructors, List<Method> whitelistMethods, List<Field> whitelistFields) {
             this.origin = Objects.requireNonNull(origin);
-            this.painlessTypeName = Objects.requireNonNull(painlessTypeName);
             this.javaClassName = Objects.requireNonNull(javaClassName);
+            this.importJavaClassName = importJavaClassName;
 
             this.whitelistConstructors = Collections.unmodifiableList(Objects.requireNonNull(whitelistConstructors));
             this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistMethods));

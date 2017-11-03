@@ -535,7 +535,8 @@ public final class Definition {
             // are used for validation during the second iteration
             for (Whitelist whitelist : whitelists) {
                 for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
-                    Struct painlessStruct = structsMap.get(whitelistStruct.painlessTypeName);
+                    String painlessTypeName = whitelistStruct.javaClassName.replace('$', '.');
+                    Struct painlessStruct = structsMap.get(painlessTypeName);
 
                     if (painlessStruct != null && painlessStruct.clazz.getName().equals(whitelistStruct.javaClassName) == false) {
                         throw new IllegalArgumentException("struct [" + painlessStruct.name + "] cannot represent multiple classes " +
@@ -545,7 +546,7 @@ public final class Definition {
                     origin = whitelistStruct.origin;
                     addStruct(whitelist.javaClassLoader, whitelistStruct);
 
-                    painlessStruct = structsMap.get(whitelistStruct.painlessTypeName);
+                    painlessStruct = structsMap.get(painlessTypeName);
                     javaClassesToPainlessStructs.put(painlessStruct.clazz, painlessStruct);
                 }
             }
@@ -555,19 +556,21 @@ public final class Definition {
             // been white-listed during the first iteration
             for (Whitelist whitelist : whitelists) {
                 for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
+                    String painlessTypeName = whitelistStruct.javaClassName.replace('$', '.');
+
                     for (Whitelist.Constructor whitelistConstructor : whitelistStruct.whitelistConstructors) {
                         origin = whitelistConstructor.origin;
-                        addConstructor(whitelistStruct.painlessTypeName, whitelistConstructor);
+                        addConstructor(painlessTypeName, whitelistConstructor);
                     }
 
                     for (Whitelist.Method whitelistMethod : whitelistStruct.whitelistMethods) {
                         origin = whitelistMethod.origin;
-                        addMethod(whitelist.javaClassLoader, whitelistStruct.painlessTypeName, whitelistMethod);
+                        addMethod(whitelist.javaClassLoader, painlessTypeName, whitelistMethod);
                     }
 
                     for (Whitelist.Field whitelistField : whitelistStruct.whitelistFields) {
                         origin = whitelistField.origin;
-                        addField(whitelistStruct.painlessTypeName, whitelistField);
+                        addField(painlessTypeName, whitelistField);
                     }
                 }
             }
@@ -577,7 +580,13 @@ public final class Definition {
 
         // goes through each Painless struct and determines the inheritance list,
         // and then adds all inherited types to the Painless struct's whitelist
-        for (Struct painlessStruct : structsMap.values()) {
+        for (String painlessStructName : structsMap.keySet()) {
+            Struct painlessStruct = structsMap.get(painlessStructName);
+
+            if (painlessStruct.name.equals(painlessStructName) == false) {
+                continue;
+            }
+
             List<String> painlessSuperStructs = new ArrayList<>();
             Class<?> javaSuperClass = painlessStruct.clazz.getSuperclass();
 
@@ -633,16 +642,33 @@ public final class Definition {
         }
 
         // mark functional interfaces (or set null, to mark class is not)
-        for (Struct clazz : structsMap.values()) {
-            clazz.functionalMethod.set(computeFunctionalInterfaceMethod(clazz));
+        for (String painlessStructName : structsMap.keySet()) {
+            Struct painlessStruct = structsMap.get(painlessStructName);
+
+            if (painlessStruct.name.equals(painlessStructName) == false) {
+                continue;
+            }
+
+            painlessStruct.functionalMethod.set(computeFunctionalInterfaceMethod(painlessStruct));
         }
 
         // precompute runtime classes
-        for (Struct struct : structsMap.values()) {
-            addRuntimeClass(struct);
+        for (String painlessStructName : structsMap.keySet()) {
+            Struct painlessStruct = structsMap.get(painlessStructName);
+
+            if (painlessStruct.name.equals(painlessStructName) == false) {
+                continue;
+            }
+
+            addRuntimeClass(painlessStruct);
         }
+
         // copy all structs to make them unmodifiable for outside users:
-        for (final Map.Entry<String,Struct> entry : structsMap.entrySet()) {
+        for (Map.Entry<String,Struct> entry : structsMap.entrySet()) {
+            if (entry.getKey().equals(entry.getValue().name) == false) {
+                continue;
+            }
+
             entry.setValue(entry.getValue().freeze());
         }
 
@@ -678,8 +704,17 @@ public final class Definition {
     }
 
     private void addStruct(ClassLoader whitelistClassLoader, Whitelist.Struct whitelistStruct) {
-        if (!whitelistStruct.painlessTypeName.matches("^[_a-zA-Z][._a-zA-Z0-9]*")) {
-            throw new IllegalArgumentException("invalid struct type name [" + whitelistStruct.painlessTypeName + "]");
+        String painlessTypeName = whitelistStruct.javaClassName.replace('$', '.');
+        String importedPainlessTypeName = painlessTypeName;
+
+        if (painlessTypeName.matches("^[_a-zA-Z][._a-zA-Z0-9]*") == false) {
+            throw new IllegalArgumentException("invalid struct type name [" + painlessTypeName + "]");
+        }
+
+        int index = whitelistStruct.javaClassName.lastIndexOf('.');
+
+        if (index != -1) {
+            importedPainlessTypeName = whitelistStruct.javaClassName.substring(index + 1).replace('$', '.');
         }
 
         Class<?> javaClass;
@@ -698,21 +733,40 @@ public final class Definition {
                 javaClass = Class.forName(whitelistStruct.javaClassName, true, whitelistClassLoader);
             } catch (ClassNotFoundException cnfe) {
                 throw new IllegalArgumentException("invalid java class name [" + whitelistStruct.javaClassName + "]" +
-                        " for struct [" + whitelistStruct.painlessTypeName + "]");
+                        " for struct [" + painlessTypeName + "]");
             }
         }
 
-        Struct existingStruct = structsMap.get(whitelistStruct.painlessTypeName);
+        Struct existingStruct = structsMap.get(painlessTypeName);
 
         if (existingStruct == null) {
-            Struct struct = new Struct(whitelistStruct.painlessTypeName, javaClass, org.objectweb.asm.Type.getType(javaClass));
+            Struct struct = new Struct(painlessTypeName, javaClass, org.objectweb.asm.Type.getType(javaClass));
+            structsMap.put(painlessTypeName, struct);
 
-            structsMap.put(whitelistStruct.painlessTypeName, struct);
-            simpleTypesMap.put(whitelistStruct.painlessTypeName, getTypeInternal(whitelistStruct.painlessTypeName));
+            if (simpleTypesMap.containsKey(painlessTypeName) == false && simpleTypesMap.containsKey(importedPainlessTypeName) == false) {
+                simpleTypesMap.put(painlessTypeName, getTypeInternal(painlessTypeName));
+            }
         } else if (existingStruct.clazz.equals(javaClass) == false) {
-            throw new IllegalArgumentException("struct [" + whitelistStruct.painlessTypeName + "] is used to " +
+            throw new IllegalArgumentException("struct [" + painlessTypeName + "] is used to " +
                     "illegally represent multiple java classes [" + whitelistStruct.javaClassName + "] and " +
                     "[" + existingStruct.clazz.getName() + "]");
+        }
+
+        if (whitelistStruct.importJavaClassName) {
+            existingStruct = structsMap.get(importedPainlessTypeName);
+
+            if (existingStruct == null) {
+                structsMap.put(importedPainlessTypeName, structsMap.get(painlessTypeName));
+                Type painlessType = simpleTypesMap.remove(painlessTypeName);
+
+                if (simpleTypesMap.containsKey(importedPainlessTypeName) == false) {
+                    simpleTypesMap.put(importedPainlessTypeName, painlessType);
+                }
+            } else if (existingStruct.clazz.equals(javaClass) == false) {
+                throw new IllegalArgumentException("imported name [" + painlessTypeName + "] is used to " +
+                    "illegally represent multiple java classes [" + whitelistStruct.javaClassName + "] " +
+                    "and [" + existingStruct.clazz.getName() + "]");
+            }
         }
     }
 

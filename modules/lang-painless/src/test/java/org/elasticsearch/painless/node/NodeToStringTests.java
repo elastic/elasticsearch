@@ -162,12 +162,13 @@ public class NodeToStringTests extends ESTestCase {
         Location l = new Location(getTestName(), 0);
         AExpression child = new EConstant(l, "test");
         Cast cast = new Cast(Definition.DEFINITION.StringType, Definition.DEFINITION.IntegerType, true);
-        assertEquals("(ECast Integer (EConstant String 'test'))", new ECast(l, child, cast).toString());
+        assertEquals("(ECast java.lang.Integer (EConstant String 'test'))", new ECast(l, child, cast).toString());
 
         l = new Location(getTestName(), 1);
         child = new EBinary(l, Operation.ADD, new EConstant(l, "test"), new EConstant(l, 12));
         cast = new Cast(Definition.DEFINITION.IntegerType, Definition.DEFINITION.BooleanType, true);
-        assertEquals("(ECast Boolean (EBinary (EConstant String 'test') + (EConstant Integer 12)))", new ECast(l, child, cast).toString());
+        assertEquals("(ECast java.lang.Boolean (EBinary (EConstant String 'test') + (EConstant Integer 12)))",
+            new ECast(l, child, cast).toString());
     }
 
     public void testEComp() {

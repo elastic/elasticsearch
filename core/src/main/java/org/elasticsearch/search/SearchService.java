@@ -30,7 +30,6 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -527,7 +525,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
-        SearchContext context = createContext(request, null);
+        SearchContext context = createContext(request);
         boolean success = false;
         try {
             putContext(context);
@@ -544,8 +542,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws IOException {
-        final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, searcher);
+    final SearchContext createContext(ShardSearchRequest request) throws IOException {
+        final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout);
         try {
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
@@ -581,18 +579,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context;
     }
 
-    public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, @Nullable Engine.Searcher searcher)
+    public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout)
         throws IOException {
-        return createSearchContext(request, timeout, searcher, true);
+        return createSearchContext(request, timeout, true);
     }
-    private DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, @Nullable Engine.Searcher searcher,
+    private DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout,
                                                      boolean assertAsyncActions)
             throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
                 indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
-        Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
+        Engine.Searcher engineSearcher = indexShard.acquireSearcher("search");
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
             engineSearcher, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout, fetchPhase,
@@ -948,7 +946,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public boolean canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
-        try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, null, false)) {
+        try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, false)) {
             SearchSourceBuilder source = context.request().source();
             if (canRewriteToMatchNone(source)) {
                 QueryBuilder queryBuilder = source.query();

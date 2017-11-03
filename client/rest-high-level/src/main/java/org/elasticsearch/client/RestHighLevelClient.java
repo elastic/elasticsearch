@@ -535,7 +535,7 @@ public class RestHighLevelClient implements Closeable {
      * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
      * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
      */
-    final ElasticsearchStatusException parseResponseException(ResponseException responseException) {
+    protected final ElasticsearchStatusException parseResponseException(ResponseException responseException) {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
         ElasticsearchStatusException elasticsearchException;
@@ -555,7 +555,7 @@ public class RestHighLevelClient implements Closeable {
         return elasticsearchException;
     }
 
-    final <Resp> Resp parseEntity(final HttpEntity entity,
+    protected final <Resp> Resp parseEntity(final HttpEntity entity,
                                       final CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
         if (entity == null) {
             throw new IllegalStateException("Response body expected but not returned");

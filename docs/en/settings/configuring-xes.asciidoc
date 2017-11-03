@@ -3,6 +3,7 @@
 == Configuring X-Pack
 
 include::x-pack-settings.asciidoc[]
+include::license-settings.asciidoc[]
 include::ml-settings.asciidoc[]
 include::monitoring-settings.asciidoc[]
 include::security-settings.asciidoc[]

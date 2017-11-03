@@ -31,6 +31,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -805,7 +806,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query query = queryBuilder.toQuery(context);
         Query expected;
         if (getCurrentTypes().length > 0) {
-            expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)));
+            expected = new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME));
         } else {
             expected = new MatchNoDocsQuery();
         }

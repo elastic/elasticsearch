@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
@@ -29,16 +28,16 @@ public class NativeControllerHolder {
      *
      * The NativeController is created lazily to allow time for the C++ process to be started before connection is attempted.
      *
-     * null is returned to tests that haven't bothered to set up path.home and all runs where xpack.ml.autodetect_process=false.
+     * <code>null</code> is returned to tests where xpack.ml.autodetect_process=false.
      *
      * Calls may throw an exception if initial connection to the C++ process fails.
      */
-    public static NativeController getNativeController(Settings settings) throws IOException {
+    public static NativeController getNativeController(Environment environment) throws IOException {
 
-        if (Environment.PATH_HOME_SETTING.exists(settings) && MachineLearning.AUTODETECT_PROCESS.get(settings)) {
+        if (MachineLearning.AUTODETECT_PROCESS.get(environment.settings())) {
             synchronized (lock) {
                 if (nativeController == null) {
-                    nativeController = new NativeController(new Environment(settings), new NamedPipeHelper());
+                    nativeController = new NativeController(environment, new NamedPipeHelper());
                     nativeController.tailLogsInThread();
                 }
             }
@@ -51,7 +50,7 @@ public class NativeControllerHolder {
      * Get a reference to the singleton native process controller.
      *
      * Assumes that if it is possible for a native controller to exist that it will already have been created.
-     * Designed for use by objects that don't have access to settings but know a native controller must exist
+     * Designed for use by objects that don't have access to the environment but know a native controller must exist
      * for the object calling this method to exist.
      */
     public static NativeController getNativeController() {

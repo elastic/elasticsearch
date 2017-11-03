@@ -25,12 +25,11 @@ include::{es-repo-dir}/reference/index-shared3.asciidoc[]
 
 :edit_url!:
 include::sql/index.asciidoc[]
+include::monitoring/index.asciidoc[]
 include::rest-api/index.asciidoc[]
 
-# NOCOMMIT before merging SQL we should make a index-shared4 in core and
-# put index-shared3 between sql and rest-api.
+# NOCOMMIT before merging SQL we need to fiddle with this to make sure it is right
 
-:edit_url!:
 include::commands/index.asciidoc[]
 
 :edit_url:

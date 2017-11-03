@@ -1,0 +1,52 @@
+[role="xpack"]
+[[http-exporter]]
+== HTTP Exporter
+
+When you configure
+an exporter in `elasticsearch.yml`, the default `local` exporter is disabled.
+
+The `http` exporter uses the low-level {es} REST Client. This allows
+the `http` exporter to send its data to any {es} cluster it can access
+through the network.
+
+The `http` exporter supports a number of settings that control how it
+communicates over HTTP to remote clusters. In most cases, it is not
+necessary to explicitly configure these settings. For detailed
+descriptions, see {ref}/monitoring-settings.html[Monitoring Settings].
+
+[source,yaml]
+----------------------------------
+xpack.monitoring.exporters:
+  my_local: <1>
+    type: local
+  my_remote: <2>
+    type: http
+    host: [ "10.1.2.3", ... ] <3>
+    auth: <4>
+      username: my_username
+      password: changeme
+    connection:
+      timeout: 6s
+      read_timeout: 60s
+    ssl: ... <5>
+    proxy:
+      base_path: /some/base/path <6>
+    headers: <7>
+      My-Proxy-Header: abc123
+      My-Other-Thing: [ def456, ... ]
+    index.name.time_format: YYYY-MM <8>
+
+----------------------------------
+<1> A `local` exporter defined explicitly whose arbitrary name is `my_local`.
+<2> An `http` exporter defined whose arbitrary name is `my_remote`.
+<3> `host` is a required setting for `http` exporters, which can take a few
+    different forms as described in the table below.
+<4> User authentication for those using {security} or some other
+    form of user authentication protecting the cluster.
+<5> See below for all TLS / SSL settings. If not supplied, the default
+    node-level TLS / SSL settings will be used.
+<6> Optional base path to prefix any outgoing request with in order to
+    work with proxies.
+<7> Arbitrary key/value pairs to define as headers to send with every request.
+    The array-based key/value format sends one header per value.
+<8> A mechanism for changing the date suffix used by default.

@@ -62,7 +62,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
     public void testAdAuth() throws Exception {
         RealmConfig config = new RealmConfig("ad-test",
                 buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false),
-                globalSettings, new ThreadContext(Settings.EMPTY));
+                globalSettings, new Environment(globalSettings), new ThreadContext(Settings.EMPTY));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             String userName = "ironman";
@@ -410,7 +410,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
     public void testADLookup() throws Exception {
         RealmConfig config = new RealmConfig("ad-test",
                 buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false, true),
-                globalSettings, new ThreadContext(Settings.EMPTY));
+                globalSettings, new Environment(globalSettings), new ThreadContext(Settings.EMPTY));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             List<String> users = randomSubsetOf(Arrays.asList("cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow",

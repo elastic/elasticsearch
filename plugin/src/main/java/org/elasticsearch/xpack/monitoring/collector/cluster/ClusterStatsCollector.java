@@ -30,6 +30,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.XPackSettings.SECURITY_ENABLED;
+import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
+
 /**
  * Collector for cluster stats.
  * <p>
@@ -80,11 +83,15 @@ public class ClusterStatsCollector extends Collector {
         final ClusterState clusterState = clusterService.state();
         final License license = licenseService.getLicense();
         final List<XPackFeatureSet.Usage> usage = collect(usageSupplier);
+        // if they have any other type of license, then they are either okay or already know
+        final boolean clusterNeedsTLSEnabled = license.operationMode() == License.OperationMode.TRIAL &&
+                                               SECURITY_ENABLED.get(settings) &&
+                                               TRANSPORT_SSL_ENABLED.get(settings) == false;
 
         // Adds a cluster stats document
         return Collections.singleton(
                 new ClusterStatsMonitoringDoc(clusterUUID(), timestamp(), interval, node, clusterName, version,  clusterStats.getStatus(),
-                        license, usage, clusterStats, clusterState));
+                        license, usage, clusterStats, clusterState, clusterNeedsTLSEnabled));
     }
 
     @Nullable

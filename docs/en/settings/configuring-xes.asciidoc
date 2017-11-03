@@ -1,8 +1,12 @@
 [role="xpack"]
 [[settings-xpack]]
-== Configuring X-Pack
+== {xpack} Settings in {es}
+++++
+<titleabbrev>{xpack} Settings</titleabbrev>
+++++
 
-include::x-pack-settings.asciidoc[]
+include::{asciidoc-dir}/../../shared/settings.asciidoc[]
+include::license-settings.asciidoc[]
 include::ml-settings.asciidoc[]
 include::monitoring-settings.asciidoc[]
 include::security-settings.asciidoc[]

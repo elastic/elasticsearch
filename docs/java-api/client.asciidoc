@@ -23,10 +23,12 @@ cluster.
 
 ==============================
 
-WARNING: The `TransportClient` is aimed to be replaced by the Java High Level REST
-Client, which executes HTTP requests instead of serialized Java requests. The
-`TransportClient` will be deprecated in upcoming versions of Elasticsearch and it
-is advised to use the Java High Level REST Client instead.
+WARNING: The `TransportClient` will be replaced by the
+{java-rest}/java-rest-high.html[Java High Level REST Client], which executes
+HTTP requests instead of serialized Java requests. The `TransportClient` will
+be deprecated in Elasticsearch 7.0 and removed in  Elasticsearch 8.0.
+It is advised to use the Java High Level REST Client instead.
+
 
 [[transport-client]]
 === Transport Client

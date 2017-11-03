@@ -19,6 +19,8 @@
 package org.elasticsearch.index.mapper;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -56,23 +58,30 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
         mapping = mapping.endObject().endObject().endObject().endObject();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
         assertEquals(mapping.string(), mapper.mappingSource().toString());
-        ParsedDocument doc =
-            mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("field", "192.168.0.0/16")
-                    .endObject().bytes(),
-                XContentType.JSON
-            ));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField dvField = fields[0];
-        assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
-        IndexableField pointField = fields[1];
-        assertEquals(2, pointField.fieldType().pointDimensionCount());
-        IndexableField storedField = fields[2];
-        assertTrue(storedField.fieldType().stored());
-        String strVal = InetAddresses.toAddrString(InetAddresses.forString("192.168.0.0")) + " : " +
-            InetAddresses.toAddrString(InetAddresses.forString("192.168.255.255"));
-        assertThat(storedField.stringValue(), containsString(strVal));
+        final Map<String, String> cases = new HashMap<>();
+        cases.put("192.168.0.0/15", "192.169.255.255");
+        cases.put("192.168.0.0/16", "192.168.255.255");
+        cases.put("192.168.0.0/17", "192.168.127.255");
+        for (final Map.Entry<String, String> entry : cases.entrySet()) {
+            ParsedDocument doc =
+                mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", entry.getKey())
+                        .endObject().bytes(),
+                    XContentType.JSON
+                ));
+            IndexableField[] fields = doc.rootDoc().getFields("field");
+            assertEquals(3, fields.length);
+            IndexableField dvField = fields[0];
+            assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
+            IndexableField pointField = fields[1];
+            assertEquals(2, pointField.fieldType().pointDimensionCount());
+            IndexableField storedField = fields[2];
+            assertTrue(storedField.fieldType().stored());
+            String strVal =
+                InetAddresses.toAddrString(InetAddresses.forString("192.168.0.0")) + " : " +
+                    InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
+            assertThat(storedField.stringValue(), containsString(strVal));
+        }
     }
 }

@@ -563,6 +563,20 @@ to set the index that the document will be indexed into:
 --------------------------------------------------
 // NOTCONSOLE
 
+Dynamic field names are also supported. This example sets the field named after the 
+value of `service` to the value of the field `code`:
+
+[source,js]
+--------------------------------------------------
+{
+  "set": {
+    "field": "{{service}}"
+    "value": "{{code}}"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 [[handling-failure-in-pipelines]]
 == Handling Failures in Pipelines
 

@@ -12,3 +12,6 @@ You configure settings for X-Pack features in the `elasticsearch.yml`,
 |Security          |{ref}/security-settings.html[Yes]      |{kibana-ref}/security-settings-kb.html[Yes]   |No
 |Watcher           |{ref}/notification-settings.html[Yes]    |No                                  |No
 |=======================
+
+There are also {ref}/license-settings.html[{xpack} license settings] in the
+`elasticsearch.yml` file.  

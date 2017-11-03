@@ -12,7 +12,6 @@ is a notable exception).
 
 If you need to index structured content such as email addresses, hostnames, status
 codes, or tags, it is likely that you should rather use a <<keyword,`keyword`>> field.
-codes, or tags, it is likely that you should rather use a <<keyword,`keyword`>> field.
 
 Below is an example of a mapping for a text field:
 

@@ -2,7 +2,7 @@
 [[settings-xpack]]
 == Configuring X-Pack
 
-include::x-pack-settings.asciidoc[]
+include::{asciidoc-dir}/../../shared/settings.asciidoc[]
 include::license-settings.asciidoc[]
 include::ml-settings.asciidoc[]
 include::monitoring-settings.asciidoc[]

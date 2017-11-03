@@ -391,7 +391,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
      * API on elastic.co</a>
      */
-    public final void searchScrollAsync(SearchScrollRequest searchScrollRequest, ActionListener<SearchResponse> listener, Header... headers) {
+    public final void searchScrollAsync(SearchScrollRequest searchScrollRequest,
+                                        ActionListener<SearchResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent,
                 listener, emptySet(), headers);
     }
@@ -413,7 +414,8 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>
      */
-    public final void clearScrollAsync(ClearScrollRequest clearScrollRequest, ActionListener<ClearScrollResponse> listener, Header... headers) {
+    public final void clearScrollAsync(ClearScrollRequest clearScrollRequest,
+                                       ActionListener<ClearScrollResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
                 listener, emptySet(), headers);
     }

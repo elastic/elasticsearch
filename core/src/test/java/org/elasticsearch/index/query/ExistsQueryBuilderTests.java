@@ -114,7 +114,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 assertThat(constantScoreQuery.getQuery(), instanceOf(DocValuesFieldExistsQuery.class));
                 DocValuesFieldExistsQuery dvExistsQuery = (DocValuesFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, dvExistsQuery.getField());
-            } else if (context.getQueryShardContext().getMapperService().fullName(field).omitNorms() == false) {
+            } else if (field.equals("_all") == false && context.getQueryShardContext().getMapperService().fullName(field).omitNorms() == false) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(NormsFieldExistsQuery.class));
                 NormsFieldExistsQuery normsExistsQuery = (NormsFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, normsExistsQuery.getField());

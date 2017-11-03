@@ -263,7 +263,7 @@ public class InternalEngine extends Engine {
         private final SearcherFactory searcherFactory;
         private final SearcherManager internalSearcherManager;
 
-        public ExternalSearcherManager(SearcherManager manager, SearcherFactory searcherFactory) throws IOException {
+        ExternalSearcherManager(SearcherManager manager, SearcherFactory searcherFactory) throws IOException {
             IndexSearcher acquire = manager.acquire();
             try {
                 IndexReader indexReader = acquire.getIndexReader();

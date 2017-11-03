@@ -1586,16 +1586,9 @@ public class InternalEngine extends Engine {
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
         if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
-            if (indexWriter.getTragicException() instanceof Error) {
-                try {
-                    logger.error("tragic event in index writer", ex);
-                } finally {
-                    throw (Error) indexWriter.getTragicException();
-                }
-            } else {
-                failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
-                engineFailed = true;
-            }
+            maybeDie("tragic event in index writer", indexWriter.getTragicException());
+            failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
+            engineFailed = true;
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
             engineFailed = true;
@@ -1916,7 +1909,6 @@ public class InternalEngine extends Engine {
 
         @Override
         protected void handleMergeException(final Directory dir, final Throwable exc) {
-            logger.error("failed to merge", exc);
             engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -1925,10 +1917,21 @@ public class InternalEngine extends Engine {
 
                 @Override
                 protected void doRun() throws Exception {
-                    MergePolicy.MergeException e = new MergePolicy.MergeException(exc, dir);
-                    failEngine("merge failed", e);
+                    maybeDie("fatal merge error", exc);
+                    logger.error("failed to merge", exc);
+                    failEngine("merge failed", new MergePolicy.MergeException(exc, dir));
                 }
             });
+        }
+    }
+
+    void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
+        if (maybeFatal instanceof Error) {
+            try {
+                logger.error(maybeMessage, maybeFatal);
+            } finally {
+                throw (Error) maybeFatal;
+            }
         }
     }
 

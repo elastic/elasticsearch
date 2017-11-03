@@ -169,7 +169,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(xPackUsageFuture.actionGet()).thenReturn(xPackUsageResponse);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
+                new ClusterStatsCollector(settings.build(), clusterService, licenseState, client, licenseService);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final long interval = randomNonNegativeLong();

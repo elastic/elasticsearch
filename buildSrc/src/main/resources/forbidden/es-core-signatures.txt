@@ -74,9 +74,6 @@ java.util.concurrent.Future#cancel(boolean)
 org.elasticsearch.common.io.PathUtils#get(java.lang.String, java.lang.String[])
 org.elasticsearch.common.io.PathUtils#get(java.net.URI)
 
-@defaultMessage The single argument constructor of Environment is only for tests, always use the Node's Environment in production code
-org.elasticsearch.env.Environment#<init>(org.elasticsearch.common.settings.Settings)
-
 @defaultMessage Constructing a DateTime without a time zone is dangerous
 org.joda.time.DateTime#<init>()
 org.joda.time.DateTime#<init>(long)

@@ -23,13 +23,19 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -45,6 +51,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -58,6 +65,9 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -113,6 +123,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -1254,6 +1265,124 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             fail("index 'test' was lost. current cluster state: " + state);
         }
 
+    }
+
+    public void testDisruptionOnSnapshotInitialization() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(DEFAULT_SETTINGS)
+            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // wait till cluster state is committed
+            .build();
+        final String idxName = "test";
+        configureCluster(settings, 4, null, 2);
+        final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(4);
+
+        createRandomIndex(idxName);
+
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+            .setType("fs").setSettings(Settings.builder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        // Writing incompatible snapshot can cause this test to fail due to a race condition in repo initialization
+        // by the current master and the former master. It is not causing any issues in real life scenario, but
+        // might make this test to fail. We are going to complete initialization of the snapshot to prevent this failures.
+        logger.info("-->  initializing the repository");
+        assertEquals(SnapshotState.SUCCESS, client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+            .setWaitForCompletion(true).setIncludeGlobalState(true).setIndices().get().getSnapshotInfo().state());
+
+        final String masterNode1 = internalCluster().getMasterName();
+        Set<String> otherNodes = new HashSet<>();
+        otherNodes.addAll(allMasterEligibleNodes);
+        otherNodes.remove(masterNode1);
+        otherNodes.add(dataNode);
+
+        NetworkDisruption networkDisruption =
+            new NetworkDisruption(new NetworkDisruption.TwoPartitions(Collections.singleton(masterNode1), otherNodes),
+                new NetworkDisruption.NetworkUnresponsive());
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        ClusterService clusterService = internalCluster().clusterService(masterNode1);
+        CountDownLatch disruptionStarted = new CountDownLatch(1);
+        clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                SnapshotsInProgress snapshots = event.state().custom(SnapshotsInProgress.TYPE);
+                if (snapshots != null && snapshots.entries().size() > 0) {
+                    if (snapshots.entries().get(0).state() == SnapshotsInProgress.State.INIT) {
+                        // The snapshot started, we can start disruption so the INIT state will arrive to another master node
+                        logger.info("--> starting disruption");
+                        networkDisruption.startDisrupting();
+                        clusterService.removeListener(this);
+                        disruptionStarted.countDown();
+                    }
+                }
+            }
+        });
+
+        logger.info("--> starting snapshot");
+        ActionFuture<CreateSnapshotResponse> future = client(masterNode1).admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(false).setIndices(idxName).execute();
+
+        logger.info("--> waiting for disruption to start");
+        assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
+
+        logger.info("--> wait until the snapshot is done");
+        assertBusy(() -> {
+            SnapshotsInProgress snapshots = dataNodeClient().admin().cluster().prepareState().setLocal(true).get().getState()
+                .custom(SnapshotsInProgress.TYPE);
+            if (snapshots != null && snapshots.entries().size() > 0) {
+                logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
+                fail("Snapshot is still running");
+            } else {
+                logger.info("Snapshot is no longer in the cluster state");
+            }
+        }, 1, TimeUnit.MINUTES);
+
+        logger.info("--> verify that snapshot was successful or no longer exist");
+        assertBusy(() -> {
+            try {
+                GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots("test-repo")
+                    .setSnapshots("test-snap-2").get();
+                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+                assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+                assertEquals(0, snapshotInfo.failedShards());
+                logger.info("--> done verifying");
+            } catch (SnapshotMissingException exception) {
+                logger.info("--> snapshot doesn't exist");
+            }
+        }, 1, TimeUnit.MINUTES);
+
+        logger.info("--> stopping disrupting");
+        networkDisruption.stopDisrupting();
+        ensureStableCluster(4, masterNode1);
+        logger.info("--> done");
+
+        try {
+            future.get();
+        } catch (Exception ex) {
+            logger.info("--> got exception from hanged master", ex);
+            Throwable cause = ex.getCause();
+            assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
+            cause = cause.getCause();
+            assertThat(cause, instanceOf(Discovery.FailedToCommitClusterStateException.class));
+        }
+    }
+
+    private void createRandomIndex(String idxName) throws ExecutionException, InterruptedException {
+        assertAcked(prepareCreate(idxName, 0, Settings.builder().put("number_of_shards", between(1, 20))
+            .put("number_of_replicas", 0)));
+        logger.info("--> indexing some data");
+        final int numdocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(idxName, "type1", Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
     }
 
     protected NetworkDisruption addRandomDisruptionType(TwoPartitions partitions) {

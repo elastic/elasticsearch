@@ -3,19 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.plugin.sql.action;
+package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
-public class SqlTranslateRequestTests extends AbstractStreamableTestCase<SqlTranslateRequest> {
+public class SqlTranslateRequestTests extends AbstractStreamableTestCase<SqlTranslateAction.Request> {
 
     @Override
-    protected SqlTranslateRequest createTestInstance() {
-        return new SqlTranslateRequest(randomAlphaOfLength(10), randomDateTimeZone(), between(1, Integer.MAX_VALUE), randomTV(),
-                randomTV());
+    protected SqlTranslateAction.Request createTestInstance() {
+        return new SqlTranslateAction.Request(randomAlphaOfLength(10), randomDateTimeZone(), between(1, Integer.MAX_VALUE),
+                randomTV(), randomTV());
     }
 
     private TimeValue randomTV() {
@@ -23,23 +23,23 @@ public class SqlTranslateRequestTests extends AbstractStreamableTestCase<SqlTran
     }
 
     @Override
-    protected SqlTranslateRequest createBlankInstance() {
-        return new SqlTranslateRequest();
+    protected SqlTranslateAction.Request createBlankInstance() {
+        return new SqlTranslateAction.Request();
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected MutateFunction<SqlTranslateRequest> getMutateFunction() {
+    protected MutateFunction<SqlTranslateAction.Request> getMutateFunction() {
         return randomFrom(
-                request -> (SqlTranslateRequest) getCopyFunction().copy(request)
+                request -> (SqlTranslateAction.Request) getCopyFunction().copy(request)
                         .query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
-                request -> (SqlTranslateRequest) getCopyFunction().copy(request)
+                request -> (SqlTranslateAction.Request) getCopyFunction().copy(request)
                         .timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomDateTimeZone)),
-                request -> (SqlTranslateRequest) getCopyFunction().copy(request)
+                request -> (SqlTranslateAction.Request) getCopyFunction().copy(request)
                         .fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
-                request -> (SqlTranslateRequest) getCopyFunction().copy(request)
+                request -> (SqlTranslateAction.Request) getCopyFunction().copy(request)
                         .requestTimeout(randomValueOtherThan(request.requestTimeout(), () -> randomTV())),
-                request -> (SqlTranslateRequest) getCopyFunction().copy(request)
+                request -> (SqlTranslateAction.Request) getCopyFunction().copy(request)
                         .pageTimeout(randomValueOtherThan(request.pageTimeout(), () -> randomTV())));
     }
 }

@@ -27,11 +27,8 @@ import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.SqlGetIndicesAction.TransportAction.CatalogHolder;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
-import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlTranslateAction;
 import org.elasticsearch.xpack.sql.plugin.sql.rest.RestSqlAction;
-import org.elasticsearch.xpack.sql.plugin.sql.rest.RestSqlTranslateAction;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.util.Arrays;
@@ -68,12 +65,12 @@ public class SqlPlugin implements ActionPlugin {
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, 
-            ClusterSettings clusterSettings, IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, 
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController,
+            ClusterSettings clusterSettings, IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
 
         return Arrays.asList(new RestSqlAction(settings, restController),
-                             new RestSqlTranslateAction(settings, restController),
+                             new SqlTranslateAction.RestAction(settings, restController),
                              new RestSqlCliAction(settings, restController),
                              new RestSqlJdbcAction(settings, restController, sqlLicenseChecker));
     }
@@ -82,6 +79,6 @@ public class SqlPlugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(SqlAction.INSTANCE, TransportSqlAction.class),
                              new ActionHandler<>(SqlGetIndicesAction.INSTANCE, SqlGetIndicesAction.TransportAction.class),
-                             new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class));
+                             new ActionHandler<>(SqlTranslateAction.INSTANCE, SqlTranslateAction.TransportAction.class));
     }
 }

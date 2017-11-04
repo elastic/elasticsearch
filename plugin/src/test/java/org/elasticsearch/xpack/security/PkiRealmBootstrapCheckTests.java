@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -16,8 +17,8 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
 
     public void testPkiRealmBootstrapDefault() throws Exception {
         assertFalse(new PkiRealmBootstrapCheck(new SSLService(Settings.EMPTY,
-                new Environment(Settings.builder().put("path.home", createTempDir()).build()))).check((new BootstrapContext(Settings
-                .EMPTY, null))).isFailure());
+                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build()))).check(
+                new BootstrapContext(Settings.EMPTY, null)).isFailure());
     }
 
     public void testBootstrapCheckWithPkiRealm() throws Exception {
@@ -25,7 +26,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
                 .put("xpack.security.authc.realms.test_pki.type", PkiRealm.TYPE)
                 .put("path.home", createTempDir())
                 .build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         assertTrue(new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null)).isFailure());
 
         // enable transport tls
@@ -38,35 +39,35 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
         settings = Settings.builder().put(settings)
                 .put("xpack.ssl.client_authentication", "none")
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         assertTrue(new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null)).isFailure());
 
         // enable ssl for http
         settings = Settings.builder().put(settings)
                 .put("xpack.security.http.ssl.enabled", true)
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         assertTrue(new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null)).isFailure());
 
         // enable client auth for http
         settings = Settings.builder().put(settings)
                 .put("xpack.security.http.ssl.client_authentication", randomFrom("required", "optional"))
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         assertFalse(new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null)).isFailure());
 
         // disable http ssl
         settings = Settings.builder().put(settings)
                 .put("xpack.security.http.ssl.enabled", false)
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         assertTrue(new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null)).isFailure());
 
         // set transport client auth
         settings = Settings.builder().put(settings)
                 .put("xpack.security.transport.client_authentication", randomFrom("required", "optional"))
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         assertTrue(new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null)).isFailure());
 
         // test with transport profile
@@ -74,7 +75,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
                 .put("xpack.security.transport.client_authentication", "none")
                 .put("transport.profiles.foo.xpack.security.ssl.client_authentication", randomFrom("required", "optional"))
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         assertFalse(new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null)).isFailure());
     }
 
@@ -85,7 +86,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
                 .put("xpack.ssl.client_authentication", "none")
                 .put("path.home", createTempDir())
                 .build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         assertFalse(new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null)).isFailure());
     }
 }

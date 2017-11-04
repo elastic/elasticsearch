@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,7 +56,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
                 .put("resource.reload.interval.high", "2s")
                 .put("path.home", createTempDir())
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");
     }
 

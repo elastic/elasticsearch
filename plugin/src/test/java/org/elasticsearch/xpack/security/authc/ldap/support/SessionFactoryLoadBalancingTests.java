@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -223,9 +223,10 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         Settings settings = buildLdapSettings(ldapUrls(), new String[] { userTemplate }, groupSearchBase,
                 LdapSearchScope.SUB_TREE, loadBalancing);
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        RealmConfig config = new RealmConfig("test-session-factory", settings, globalSettings, new Environment(globalSettings),
-                new ThreadContext(Settings.EMPTY));
-        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, new Environment(config.globalSettings())), threadPool);
+        RealmConfig config = new RealmConfig("test-session-factory", settings, globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, TestEnvironment.newEnvironment(config.globalSettings())),
+                threadPool);
     }
 
     static class TestSessionFactory extends SessionFactory {

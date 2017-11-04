@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -65,8 +65,8 @@ public class WatcherPluginTests extends ESTestCase {
 
         // ensure index module is not called, even if watches index is tried
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(Watch.INDEX, settings);
-        AnalysisRegistry registry = new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap(), emptyMap(), emptyMap());
+        AnalysisRegistry registry = new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(), emptyMap(),
+                emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
         IndexModule indexModule = new IndexModule(indexSettings, registry);
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);

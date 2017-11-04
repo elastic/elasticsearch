@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ssl.TrustConfig.CombiningTrustConfig;
 
@@ -295,7 +296,7 @@ public class SSLConfigurationTests extends ESTestCase {
 
     public void testPEMFile() {
         Environment env = randomBoolean() ? null :
-                new Environment(Settings.builder().put("path.home", createTempDir()).build());
+                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
@@ -315,7 +316,7 @@ public class SSLConfigurationTests extends ESTestCase {
 
     public void testPEMFileBackcompat() {
         Environment env = randomBoolean() ? null :
-            new Environment(Settings.builder().put("path.home", createTempDir()).build());
+                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         Settings settings = Settings.builder()
             .put("key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
@@ -336,7 +337,7 @@ public class SSLConfigurationTests extends ESTestCase {
 
     public void testPEMKeyAndTrustFiles() {
         Environment env = randomBoolean() ? null :
-                new Environment(Settings.builder().put("path.home", createTempDir()).build());
+                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
@@ -361,7 +362,7 @@ public class SSLConfigurationTests extends ESTestCase {
 
     public void testPEMKeyAndTrustFilesBackcompat() {
         Environment env = randomBoolean() ? null :
-            new Environment(Settings.builder().put("path.home", createTempDir()).build());
+                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         Settings settings = Settings.builder()
             .put("key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("key_passphrase", "testnode")

@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -80,7 +81,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private final boolean remoteClusterAllowsWatcher = randomBoolean();
     private final boolean currentLicenseAllowsWatcher = true;
     private final boolean watcherAlreadyExists = randomBoolean();
-    private final Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+    private final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
     private MockWebServer webServer;
 

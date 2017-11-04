@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.Netty4HttpMockUtil;
@@ -52,7 +53,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .setSecureSettings(secureSettings)
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
     }
 
@@ -140,7 +141,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.supported_protocols", "TLSv1.2")
                 .build();
-        sslService = new SSLService(settings, new Environment(settings));
+        sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
         transport = new SecurityNetty4HttpServerTransport(settings, new NetworkService(Collections.emptyList()),
                 mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
         Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
@@ -189,7 +190,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
                 .put("path.home", createTempDir())
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new SecurityNetty4HttpServerTransport(settings, new NetworkService(Collections.emptyList()), mock(BigArrays.class),
@@ -206,7 +207,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .put("path.home", createTempDir())
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,

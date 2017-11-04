@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.OpenLdapTests;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -29,7 +29,6 @@ import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.test.OpenLdapTests.LDAPTRUST_PATH;
@@ -75,12 +74,12 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
                 .put("bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("bind_password", OpenLdapTests.PASSWORD)
                 .put("user_search.pool.enabled", randomBoolean())
-                .build(), globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
+                .build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         Settings.Builder builder = Settings.builder()
                 .put(globalSettings);
         builder.put(Settings.builder().put(config.settings()).normalizePrefix("xpack.security.authc.realms.ldap.").build());
         Settings settings = builder.build();
-        SSLService sslService = new SSLService(settings, new Environment(settings));
+        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
 
 
         String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor" };

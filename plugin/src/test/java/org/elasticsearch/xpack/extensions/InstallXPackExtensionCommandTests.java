@@ -12,6 +12,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -27,8 +28,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -43,7 +42,7 @@ public class InstallXPackExtensionCommandTests extends ESTestCase {
         super.setUp();
         home = createTempDir();
         Files.createDirectories(home.resolve("org/elasticsearch/xpack/extensions").resolve("xpack").resolve("extensions"));
-        env = new Environment(Settings.builder().put("path.home", home.toString()).build());
+        env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home.toString()).build());
     }
 
     /**
@@ -89,7 +88,7 @@ public class InstallXPackExtensionCommandTests extends ESTestCase {
     }
 
     static MockTerminal installExtension(String extensionUrl, Path home) throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", home).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
         new InstallXPackExtensionCommand().execute(terminal, extensionUrl, true, env);
         return terminal;

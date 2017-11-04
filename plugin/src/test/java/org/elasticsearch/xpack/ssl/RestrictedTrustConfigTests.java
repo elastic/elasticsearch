@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -21,7 +22,7 @@ public class RestrictedTrustConfigTests extends ESTestCase {
     public void testDelegationOfFilesToMonitor() throws Exception {
         Path homeDir = createTempDir();
         Settings settings = Settings.builder().put("path.home", homeDir).build();
-        Environment environment = new Environment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
 
         final int numOtherFiles = randomIntBetween(0, 4);
         List<Path> otherFiles = new ArrayList<>(numOtherFiles);

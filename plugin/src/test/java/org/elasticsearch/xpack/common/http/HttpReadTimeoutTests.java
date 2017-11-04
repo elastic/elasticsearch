@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.common.http;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -39,7 +39,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
     }
 
     public void testDefaultTimeout() throws Exception {
-        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         HttpClient httpClient = new HttpClient(Settings.EMPTY, mock(HttpAuthRegistry.class),
                 new SSLService(environment.settings(), environment));
 
@@ -59,7 +59,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
     }
 
     public void testDefaultTimeoutCustom() throws Exception {
-        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
         HttpClient httpClient = new HttpClient(Settings.builder()
                 .put("xpack.http.default_read_timeout", "3s").build()
@@ -81,7 +81,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
     }
 
     public void testTimeoutCustomPerRequest() throws Exception {
-        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
         HttpClient httpClient = new HttpClient(Settings.builder()
                 .put("xpack.http.default_read_timeout", "10s").build()

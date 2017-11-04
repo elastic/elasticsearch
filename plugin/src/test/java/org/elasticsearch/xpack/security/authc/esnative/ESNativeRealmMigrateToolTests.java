@@ -17,6 +17,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
@@ -48,7 +49,7 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
                     protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                         Settings.Builder builder = Settings.builder();
                         settings.forEach((k,v) -> builder.put(k, v));
-                        return new Environment(builder.build());
+                        return TestEnvironment.newEnvironment(builder.build());
                     }
 
                 };

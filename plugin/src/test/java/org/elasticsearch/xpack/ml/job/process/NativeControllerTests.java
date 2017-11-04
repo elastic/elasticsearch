@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 import org.mockito.Mockito;
@@ -49,7 +50,7 @@ public class NativeControllerTests extends ESTestCase {
         command.add("--arg2=42");
         command.add("--arg3=something with spaces");
 
-        NativeController nativeController = new NativeController(new Environment(settings), namedPipeHelper);
+        NativeController nativeController = new NativeController(TestEnvironment.newEnvironment(settings), namedPipeHelper);
         nativeController.startProcess(command);
 
         assertEquals("start\tmy_process\t--arg1\t--arg2=42\t--arg3=something with spaces\n",
@@ -64,7 +65,7 @@ public class NativeControllerTests extends ESTestCase {
         ByteArrayOutputStream commandStream = new ByteArrayOutputStream();
         when(namedPipeHelper.openNamedPipeOutputStream(contains("command"), any(Duration.class))).thenReturn(commandStream);
 
-        NativeController nativeController = new NativeController(new Environment(settings), namedPipeHelper);
+        NativeController nativeController = new NativeController(TestEnvironment.newEnvironment(settings), namedPipeHelper);
         nativeController.tailLogsInThread();
         Map<String, Object> nativeCodeInfo = nativeController.getNativeCodeInfo();
 
@@ -82,7 +83,7 @@ public class NativeControllerTests extends ESTestCase {
         ByteArrayOutputStream commandStream = new ByteArrayOutputStream();
         when(namedPipeHelper.openNamedPipeOutputStream(contains("command"), any(Duration.class))).thenReturn(commandStream);
 
-        NativeController nativeController = new NativeController(new Environment(settings), namedPipeHelper);
+        NativeController nativeController = new NativeController(TestEnvironment.newEnvironment(settings), namedPipeHelper);
         nativeController.tailLogsInThread();
 
         // As soon as the log stream ends startProcess should think the native controller has died

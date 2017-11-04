@@ -71,6 +71,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.ssl.CertificateTool.CAInfo;
@@ -379,7 +380,7 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     public void testGetCAInfo() throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         final boolean passwordPrompt = randomBoolean();
@@ -520,7 +521,7 @@ public class CertificateToolTests extends ESTestCase {
         final Path tempDir = initTempDir();
 
         final Terminal terminal = new MockTerminal();
-        Environment env = new Environment(Settings.builder().put("path.home", tempDir).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
         final Path node1File = tempDir.resolve("node1.p12").toAbsolutePath();
@@ -650,7 +651,7 @@ public class CertificateToolTests extends ESTestCase {
         final Path tempDir = initTempDir();
 
         final MockTerminal terminal = new MockTerminal();
-        Environment env = new Environment(Settings.builder().put("path.home", tempDir).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path pkcs12Zip = tempDir.resolve("p12.zip");
         final Path pemZip = tempDir.resolve("pem.zip");

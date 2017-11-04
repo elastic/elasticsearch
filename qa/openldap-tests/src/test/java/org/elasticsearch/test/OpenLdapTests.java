@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -99,7 +100,7 @@ public class OpenLdapTests extends ESTestCase {
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         }
         globalSettings = builder.setSecureSettings(mockSecureSettings).build();
-        Environment environment = new Environment(globalSettings);
+        Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(globalSettings, environment);
     }
 
@@ -108,7 +109,8 @@ public class OpenLdapTests extends ESTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
-                LdapSearchScope.ONE_LEVEL), globalSettings, new Environment(globalSettings), new ThreadContext(Settings.EMPTY));
+                LdapSearchScope.ONE_LEVEL), globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
@@ -126,7 +128,7 @@ public class OpenLdapTests extends ESTestCase {
         String groupSearchBase = "cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
-                LdapSearchScope.BASE), globalSettings, new Environment(globalSettings), new ThreadContext(Settings.EMPTY));
+                LdapSearchScope.BASE), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
@@ -145,7 +147,7 @@ public class OpenLdapTests extends ESTestCase {
                 .put("group_search.filter", "(&(objectclass=posixGroup)(memberUid={0}))")
                 .put("group_search.user_attribute", "uid")
                 .build();
-        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, new Environment(globalSettings),
+        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -164,7 +166,7 @@ public class OpenLdapTests extends ESTestCase {
                 .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
                 .build();
-        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, new Environment(globalSettings),
+        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -182,7 +184,7 @@ public class OpenLdapTests extends ESTestCase {
                 .put("ssl.verification_mode", VerificationMode.FULL)
                 .build();
 
-        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, new Environment(globalSettings),
+        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 

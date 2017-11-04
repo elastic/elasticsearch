@@ -90,7 +90,7 @@ indices:monitor/stats[n]
 indices:monitor/upgrade[n]
 indices:monitor/upgrade
 indices:data/read/sql
-indices:data/read/sql/tables
+indices:data/read/sql/indices
 indices:data/read/sql/translate
 internal:admin/tasks/ban
 internal:cluster/node/mapping/refresh

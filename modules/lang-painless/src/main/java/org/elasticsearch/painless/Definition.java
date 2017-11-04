@@ -388,35 +388,35 @@ public final class Definition {
     }
 
     public static class Cast {
-        public static Cast standard(Type from, Type to, boolean explicit) {
+        public static Cast standard(Class<?> from, Class<?> to, boolean explicit) {
             return new Cast(from, to, explicit, null, null, null, null);
         }
 
-        public static Cast unboxFrom(Type from, Type to, boolean explicit, Type unboxFrom) {
+        public static Cast unboxFrom(Class<?> from, Class<?> to, boolean explicit, Class<?> unboxFrom) {
             return new Cast(from, to, explicit, unboxFrom, null, null, null);
         }
 
-        public static Cast unboxTo(Type from, Type to, boolean explicit, Type unboxTo) {
+        public static Cast unboxTo(Class<?> from, Class<?> to, boolean explicit, Class<?> unboxTo) {
             return new Cast(from, to, explicit, null, unboxTo, null, null);
         }
 
-        public static Cast boxFrom(Type from, Type to, boolean explicit, Type boxFrom) {
+        public static Cast boxFrom(Class<?> from, Class<?> to, boolean explicit, Class<?> boxFrom) {
             return new Cast(from, to, explicit, null, null, boxFrom, null);
         }
 
-        public static Cast boxTo(Type from, Type to, boolean explicit, Type boxTo) {
+        public static Cast boxTo(Class<?> from, Class<?> to, boolean explicit, Class<?> boxTo) {
             return new Cast(from, to, explicit, null, null, null, boxTo);
         }
 
-        public final Type from;
-        public final Type to;
+        public final Class<?> from;
+        public final Class<?> to;
         public final boolean explicit;
-        public final Type unboxFrom;
-        public final Type unboxTo;
-        public final Type boxFrom;
-        public final Type boxTo;
+        public final Class<?> unboxFrom;
+        public final Class<?> unboxTo;
+        public final Class<?> boxFrom;
+        public final Class<?> boxTo;
 
-        private Cast(Type from, Type to, boolean explicit, Type unboxFrom, Type unboxTo, Type boxFrom, Type boxTo) {
+        private Cast(Class<?> from, Class<?> to, boolean explicit, Class<?> unboxFrom, Class<?> unboxTo, Class<?> boxFrom, Class<?> boxTo) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;

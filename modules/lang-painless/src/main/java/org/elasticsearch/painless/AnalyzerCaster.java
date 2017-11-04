@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.def;
 
 import java.util.Objects;
 
@@ -36,9 +37,11 @@ public final class AnalyzerCaster {
         this.definition = definition;
     }
 
-    public Cast getLegalCast(Location location, Type actual, Type expected, boolean explicit, boolean internal) {
-        Objects.requireNonNull(actual);
-        Objects.requireNonNull(expected);
+    public Cast getLegalCast(Location location, Type actualType, Type expectedType, boolean explicit, boolean internal) {
+        Objects.requireNonNull(actualType);
+        Objects.requireNonNull(expectedType);
+
+        Class<?> actual = actualType.dynamic ? def.class : actualType.clazz;
 
         if (actual.equals(expected)) {
             return null;

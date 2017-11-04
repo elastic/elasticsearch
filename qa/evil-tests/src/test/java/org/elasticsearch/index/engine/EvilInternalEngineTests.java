@@ -39,7 +39,7 @@ public class EvilInternalEngineTests extends EngineTestCase {
 
     public void testOutOfMemoryErrorWhileMergingIsRethrownAndIsUncaught() throws IOException, InterruptedException {
         engine.close();
-        final AtomicReference<Throwable> maybeDie = new AtomicReference<>();
+        final AtomicReference<Throwable> maybeFatal = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         try {
@@ -48,7 +48,7 @@ public class EvilInternalEngineTests extends EngineTestCase {
              * memory error thrown while merging will lead to the node being torn down.
              */
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-                maybeDie.set(e);
+                maybeFatal.set(e);
                 latch.countDown();
             });
             final AtomicReference<List<SegmentCommitInfo>> segmentsReference = new AtomicReference<>();
@@ -89,10 +89,14 @@ public class EvilInternalEngineTests extends EngineTestCase {
                 segmentsReference.set(segments);
                 // trigger a background merge that will be managed by the concurrent merge scheduler
                 e.forceMerge(randomBoolean(), 0, false, false, false);
+                /*
+                 * Merging happens in the background on a merge thread, and the maybeDie handler is invoked on yet another thread; we have
+                 * to wait for these events to finish.
+                 */
                 latch.await();
-                assertNotNull(maybeDie.get());
-                assertThat(maybeDie.get(), instanceOf(OutOfMemoryError.class));
-                assertThat(maybeDie.get(), hasToString(containsString("640k ought to be enough for anybody")));
+                assertNotNull(maybeFatal.get());
+                assertThat(maybeFatal.get(), instanceOf(OutOfMemoryError.class));
+                assertThat(maybeFatal.get(), hasToString(containsString("640k ought to be enough for anybody")));
             }
         } finally {
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);

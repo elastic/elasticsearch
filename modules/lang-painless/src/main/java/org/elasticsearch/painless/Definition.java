@@ -92,6 +92,13 @@ public final class Definition {
     public final Type ArrayListType;
     public final Type HashMapType;
 
+    /** Marker class for def type to be used during type analysis. */
+    public static final class def {
+        private def() {
+
+        }
+    }
+
     public static final class Type {
         public final String name;
         public final int dimensions;

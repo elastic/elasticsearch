@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
@@ -113,6 +114,11 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 assertThat(constantScoreQuery.getQuery(), instanceOf(DocValuesFieldExistsQuery.class));
                 DocValuesFieldExistsQuery dvExistsQuery = (DocValuesFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, dvExistsQuery.getField());
+            } else if (field.equals("_all") == false &&
+                context.getQueryShardContext().getMapperService().fullName(field).omitNorms() == false) {
+                assertThat(constantScoreQuery.getQuery(), instanceOf(NormsFieldExistsQuery.class));
+                NormsFieldExistsQuery normsExistsQuery = (NormsFieldExistsQuery) constantScoreQuery.getQuery();
+                assertEquals(field, normsExistsQuery.getField());
             } else {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(TermQuery.class));
                 TermQuery termQuery = (TermQuery) constantScoreQuery.getQuery();

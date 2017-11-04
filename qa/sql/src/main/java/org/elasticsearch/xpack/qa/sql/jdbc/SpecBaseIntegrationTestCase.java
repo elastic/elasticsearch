@@ -147,8 +147,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
                             testName = Strings.capitalize(line);
                             testNames.put(testName, Integer.valueOf(lineNumber));
                         }
-                    }
-                    else {
+                    } else {
                         Object result = parser.parse(line);
                         // only if the parser is ready, add the object - otherwise keep on serving it lines
                         if (result != null) {
@@ -156,9 +155,11 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
                             testName = null;
                         }
                     }
-                    // NOCOMMIT be more careful on the last line
                 }
                 lineNumber++;
+            }
+            if (testName != null) {
+                throw new IllegalStateException("Read a test without a body at the end of [" + fileName + "].");
             }
         }
         assertNull("Cannot find spec for test " + testName, testName);

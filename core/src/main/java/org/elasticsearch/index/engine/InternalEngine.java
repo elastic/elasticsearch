@@ -1930,7 +1930,7 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * If the specified throwable is a fatal error, this exception will be thrown. Callers should ensure that there are no catch statements
+     * If the specified throwable is a fatal error, this throwable will be thrown. Callers should ensure that there are no catch statements
      * that would catch an error in the stack as the fatal error here should go uncaught and be handled by the uncaught exception handler
      * that we install during bootstrap. If the specified throwable is indeed a fatal error, the specified message will attempt to be logged
      * before throwing the fatal error. If the specified throwable is not a fatal error, this method is a no-op.

@@ -832,9 +832,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public interface Snapshot extends Closeable {
 
         /**
-         * The total number of operations in the translog.
+         * The total estimated number of operations in the snapshot.
          */
         int totalOperations();
+
+        /**
+         * The number of operations has been skipped in the snapshot so far.
+         * Unlike {@link #totalOperations()}, this value is updated each time after {@link #next()}) is called.
+         */
+        default int skippedOperations() {
+            return 0;
+        }
 
         /**
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.

@@ -562,6 +562,9 @@ public class RecoverySourceHandler {
             }
         }
 
+        logger.trace("Translog skipped [{}] operations", snapshot.skippedOperations());
+        skippedOps += snapshot.skippedOperations();
+
         if (!operations.isEmpty() || totalSentOps == 0) {
             // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
             cancellableThreads.executeIO(sendBatch);

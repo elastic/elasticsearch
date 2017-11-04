@@ -60,7 +60,7 @@ public class EvilInternalEngineTests extends EngineTestCase {
                     newMergePolicy(),
                     (directory, iwc) -> new IndexWriter(directory, iwc) {
                         @Override
-                        public void merge(MergePolicy.OneMerge merge) throws IOException {
+                        public void merge(final MergePolicy.OneMerge merge) throws IOException {
                             throw new OutOfMemoryError("640K ought to be enough for anybody");
                         }
 

@@ -23,13 +23,16 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -124,7 +127,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
             if (getCurrentTypes().length > 0) {
-                expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, queryBuilder.fieldName())));
+                if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                        && context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
+                    expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(queryBuilder.fieldName()));
+                } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                        && context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
+                    expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(queryBuilder.fieldName()));
+                } else {
+                    expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, queryBuilder.fieldName())));
+                }
             } else {
                 expectedQuery = new MatchNoDocsQuery("no mappings yet");
             }
@@ -385,7 +396,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testRewriteDateToMatchAll() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(1, 20);
+        String fieldName = DATE_FIELD_NAME;
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
@@ -408,7 +419,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         final Query luceneQuery = rewrittenRange.toQuery(queryShardContext);
         final Query expectedQuery;
         if (getCurrentTypes().length > 0) {
-            expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
+            if (queryShardContext.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                    && queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
+                expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
+            } else {
+                expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
+            }
         } else {
             expectedQuery = new MatchNoDocsQuery("no mappings yet");
         }
@@ -416,7 +432,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testRewriteDateToMatchAllWithTimezoneAndFormat() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(1, 20);
+        String fieldName = DATE_FIELD_NAME;
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {

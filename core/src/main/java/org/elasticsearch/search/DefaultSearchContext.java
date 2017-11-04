@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
@@ -81,7 +80,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 
 final class DefaultSearchContext extends SearchContext {
 
@@ -200,29 +198,28 @@ final class DefaultSearchContext extends SearchContext {
 
         if (resultWindow > maxResultWindow) {
             if (scrollContext == null) {
-                throw new QueryPhaseExecutionException(this,
+                throw new IllegalArgumentException(
                         "Result window is too large, from + size must be less than or equal to: [" + maxResultWindow + "] but was ["
                                 + resultWindow + "]. See the scroll api for a more efficient way to request large data sets. "
                                 + "This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
                                 + "] index level setting.");
             }
-            throw new QueryPhaseExecutionException(this,
+            throw new IllegalArgumentException(
                     "Batch size is too large, size must be less than or equal to: [" + maxResultWindow + "] but was [" + resultWindow
                             + "]. Scroll batch sizes cost as much memory as result windows so they are controlled by the ["
                             + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey() + "] index level setting.");
         }
         if (rescore != null) {
             if (sort != null) {
-                throw new QueryPhaseExecutionException(this, "Cannot use [sort] option in conjunction with [rescore].");
+                throw new IllegalArgumentException("Cannot use [sort] option in conjunction with [rescore].");
             }
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
             for (RescoreContext rescoreContext: rescore) {
                 if (rescoreContext.getWindowSize() > maxWindow) {
-                    throw new QueryPhaseExecutionException(this, "Rescore window [" + rescoreContext.getWindowSize() + "] is too large. "
+                    throw new IllegalArgumentException("Rescore window [" + rescoreContext.getWindowSize() + "] is too large. "
                             + "It must be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results "
                             + "to be rescored. This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
                             + "] index level setting.");
-
                 }
             }
         }
@@ -231,7 +228,7 @@ final class DefaultSearchContext extends SearchContext {
             int sliceLimit = indexService.getIndexSettings().getMaxSlicesPerScroll();
             int numSlices = sliceBuilder.getMax();
             if (numSlices > sliceLimit) {
-                throw new QueryPhaseExecutionException(this, "The number of slices [" + numSlices + "] is too large. It must "
+                throw new IllegalArgumentException("The number of slices [" + numSlices + "] is too large. It must "
                     + "be less than [" + sliceLimit + "]. This limit can be set by changing the [" +
                     IndexSettings.MAX_SLICES_PER_SCROLL.getKey() + "] index level setting.");
             }

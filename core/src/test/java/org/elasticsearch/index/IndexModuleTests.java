@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
@@ -118,7 +119,7 @@ public class IndexModuleTests extends ESTestCase {
         indicesQueryCache = new IndicesQueryCache(settings);
         indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         index = indexSettings.getIndex();
-        environment = new Environment(settings);
+        environment = TestEnvironment.newEnvironment(settings);
         emptyAnalysisRegistry = new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
                 emptyMap(), emptyMap(), emptyMap());
         threadPool = new TestThreadPool("test");

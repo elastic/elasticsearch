@@ -152,8 +152,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     protected List<IndexShard> availableShards() {
         List<IndexShard> availableShards = new ArrayList<>();
         for (IndexShard shard : indexShards) {
-            // shadow replica doesn't have an indexing buffer
-            if (shard.canIndex() && CAN_WRITE_INDEX_BUFFER_STATES.contains(shard.state())) {
+            if (CAN_WRITE_INDEX_BUFFER_STATES.contains(shard.state())) {
                 availableShards.add(shard);
             }
         }

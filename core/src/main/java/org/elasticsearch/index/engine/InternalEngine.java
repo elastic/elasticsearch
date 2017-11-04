@@ -1579,7 +1579,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    @SuppressWarnings("finally")
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
         final boolean engineFailed;
         // if we are already closed due to some tragic exception
@@ -1939,6 +1938,7 @@ public class InternalEngine extends Engine {
      * @param maybeMessage the message to maybe log
      * @param maybeFatal the throwable that is maybe fatal
      */
+    @SuppressWarnings("finally")
     private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
         if (maybeFatal instanceof Error) {
             try {

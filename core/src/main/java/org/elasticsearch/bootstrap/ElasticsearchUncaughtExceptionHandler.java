@@ -68,11 +68,7 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
 
     // visible for testing
     static boolean isFatalUncaught(Throwable e) {
-        return isFatalCause(e) || (e instanceof MergePolicy.MergeException && isFatalCause(e.getCause()));
-    }
-
-    private static boolean isFatalCause(Throwable cause) {
-        return cause instanceof Error;
+        return e instanceof Error;
     }
 
     // visible for testing

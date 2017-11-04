@@ -1,0 +1,29 @@
+
+---
+"Deprecated parameters should produce warning in Bulk query":
+# MODIFY in 7.x as these throw errors instead of warnings
+
+   - skip:
+       version: " - 6.99.99"
+       reason:  some parameters are deprecated starting from 7.0, their equivalents without underscore are used instead
+       features: "warnings"
+
+   - do:
+       bulk:
+           body: |
+               { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_1", "_version": 1 } }
+               { "doc": { "f1": "v1" } }
+               { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_2", "_version": 1 } }
+               { "doc": { "f1": "v2" } }
+       warnings:
+           - "Deprecated field [_version] used, expected [version] instead"
+
+   - do:
+       bulk:
+           body: |
+               { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_1", "_routing": "test1" } }
+               { "doc": { "f1": "v1" } }
+               { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_2", "_routing": "test1" } }
+               { "doc": { "f1": "v2" } }
+       warnings:
+           - "Deprecated field [_routing] used, expected [routing] instead"

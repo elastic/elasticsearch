@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.session.Configuration;
 
@@ -67,11 +68,11 @@ public class PlanExecutor {
         }
     }
 
-    public void sql(String sql, ActionListener<RowSet> listener) {
+    public void sql(String sql, ActionListener<SchemaRowSet> listener) {
         sql(Configuration.DEFAULT, sql, listener);
     }
 
-    public void sql(Configuration sqlSettings, String sql, ActionListener<RowSet> listener) {
+    public void sql(Configuration sqlSettings, String sql, ActionListener<SchemaRowSet> listener) {
         SqlSession session = newSession(sqlSettings);
         try {
             PhysicalPlan executable = session.executable(sql);

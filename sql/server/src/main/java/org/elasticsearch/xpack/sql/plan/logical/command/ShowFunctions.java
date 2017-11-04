@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -43,10 +44,10 @@ public class ShowFunctions extends Command {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<RowSet> listener) {
+    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         FunctionRegistry registry = session.functionRegistry();
         Collection<FunctionDefinition> functions = registry.listFunctions(pattern);
-        
+
         listener.onResponse(Rows.of(output(), functions.stream()
                 .map(f -> asList(f.name(), f.type().name()))
                 .collect(toList())));
@@ -62,11 +63,11 @@ public class ShowFunctions extends Command {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         ShowFunctions other = (ShowFunctions) obj;
         return Objects.equals(pattern, other.pattern);
     }

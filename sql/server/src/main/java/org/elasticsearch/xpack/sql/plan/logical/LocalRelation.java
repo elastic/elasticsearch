@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.session.Executable;
-import org.elasticsearch.xpack.sql.session.RowSet;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 
@@ -41,7 +41,7 @@ public class LocalRelation extends LogicalPlan implements Executable {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<RowSet> listener) {
+    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         executable.execute(session, listener);
     }
 

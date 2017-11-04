@@ -9,13 +9,14 @@ import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.List;
 
-class ListRowSetCursor extends AbstractRowSet {
+class ListRowSetCursor extends AbstractRowSet implements SchemaRowSet {
 
+    private final Schema schema;
     private final List<List<?>> list;
     private int pos = 0;
 
     ListRowSetCursor(Schema schema, List<List<?>> list) {
-        super(schema);
+        this.schema = schema;
         this.list = list;
     }
 
@@ -51,5 +52,10 @@ class ListRowSetCursor extends AbstractRowSet {
     @Override
     public Cursor nextPageCursor() {
         return Cursor.EMPTY;
+    }
+
+    @Override
+    public Schema schema() {
+        return schema;
     }
 }

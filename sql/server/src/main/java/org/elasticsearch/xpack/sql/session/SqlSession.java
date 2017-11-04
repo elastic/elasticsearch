@@ -51,8 +51,8 @@ public class SqlSession {
     }
 
     public SqlSession(Configuration defaults, Client client,
-            Catalog catalog, FunctionRegistry functionRegistry, 
-            SqlParser parser, 
+            Catalog catalog, FunctionRegistry functionRegistry,
+            SqlParser parser,
             Optimizer optimizer,
             Planner planner) {
         this.client = client;
@@ -133,7 +133,7 @@ public class SqlSession {
         }
     }
 
-    public void sql(String sql, ActionListener<RowSet> listener) {
+    public void sql(String sql, ActionListener<SchemaRowSet> listener) {
         executable(sql).execute(this, listener);
     }
 
@@ -145,7 +145,7 @@ public class SqlSession {
         return settings;
     }
 
-    public void execute(PhysicalPlan plan, ActionListener<RowSet> listener) {
+    public void execute(PhysicalPlan plan, ActionListener<SchemaRowSet> listener) {
         plan.execute(this, listener);
     }
 }

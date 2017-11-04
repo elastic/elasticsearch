@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.session.AbstractRowSet;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -21,7 +20,7 @@ import java.util.Set;
 /**
  * Extracts rows from an array of {@link SearchHit}.
  */
-public class SearchHitRowSetCursor extends AbstractRowSet {
+abstract class AbstractSearchHitRowSet extends AbstractRowSet {
     private final SearchHit[] hits;
     private final String scrollId;
     private final List<HitExtractor> extractors;
@@ -33,12 +32,7 @@ public class SearchHitRowSetCursor extends AbstractRowSet {
     private final int[] indexPerLevel;
     private int row = 0;
 
-    SearchHitRowSetCursor(Schema schema, List<HitExtractor> exts) {
-        this(schema, exts, SearchHits.EMPTY, -1, null);
-    }
-
-    SearchHitRowSetCursor(Schema schema, List<HitExtractor> exts, SearchHit[] hits, int limitHits, String scrollId) {
-        super(schema);
+    AbstractSearchHitRowSet(List<HitExtractor> exts, SearchHit[] hits, int limitHits, String scrollId) {
         this.hits = hits;
         this.scrollId = scrollId;
         this.extractors = exts;
@@ -56,7 +50,7 @@ public class SearchHitRowSetCursor extends AbstractRowSet {
         }
 
         int sz = hits.length;
-        
+
         int maxDepth = 0;
         if (!innerHits.isEmpty()) {
             if (innerHits.size() > 1) {
@@ -87,7 +81,7 @@ public class SearchHitRowSetCursor extends AbstractRowSet {
     protected Object getColumn(int column) {
         HitExtractor e = extractors.get(column);
         int extractorLevel = e.innerHitName() == null ? 0 : 1;
-        
+
         SearchHit hit = null;
         SearchHit[] sh = hits;
         for (int lvl = 0; lvl <= extractorLevel ; lvl++) {
@@ -98,7 +92,7 @@ public class SearchHitRowSetCursor extends AbstractRowSet {
             }
             hit = sh[indexPerLevel[lvl]];
         }
-        
+
         return e.get(hit);
     }
 
@@ -135,7 +129,7 @@ public class SearchHitRowSetCursor extends AbstractRowSet {
                     }
                 }
             }
-            
+
             return true;
         }
         return false;

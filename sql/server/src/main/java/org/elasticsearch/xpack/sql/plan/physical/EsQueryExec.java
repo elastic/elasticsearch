@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 
@@ -47,9 +48,9 @@ public class EsQueryExec extends LeafExec {
     public List<Attribute> output() {
         return output;
     }
-    
+
     @Override
-    public void execute(SqlSession session, ActionListener<RowSet> listener) {
+    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         Scroller scroller = new Scroller(session.client(), session.settings());
         scroller.scroll(Rows.schema(output), queryContainer, index, listener);
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -57,7 +58,7 @@ public class Explain extends Command {
     public boolean verify() {
         return verify;
     }
-    
+
     public Format format() {
         return format;
     }
@@ -72,7 +73,7 @@ public class Explain extends Command {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<RowSet> listener) {
+    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         String planString = null;
         String planName = "Parsed";
 
@@ -82,7 +83,7 @@ public class Explain extends Command {
             PhysicalPlan mappedPlan = null, executionPlan = null;
 
             Planner planner = session.planner();
-            
+
             // verification is on, exceptions can be thrown
             if (verify) {
                 optimizedPlan = session.optimizedPlan(plan);
@@ -102,7 +103,7 @@ public class Explain extends Command {
                     }
                 }
             }
-            
+
             if (format == Format.TEXT) {
                 StringBuilder sb = new StringBuilder();
                 sb.append("Parsed\n");
@@ -120,7 +121,7 @@ public class Explain extends Command {
                 sb.append("\nExecutable\n");
                 sb.append("---------\n");
                 sb.append(executionPlan.toString());
-                
+
                 planString = sb.toString();
             } else {
                 Map<String, QueryPlan<?>> plans = new HashMap<>();
@@ -183,7 +184,7 @@ public class Explain extends Command {
         }
         Explain o = (Explain) obj;
         return Objects.equals(verify, o.verify)
-                && Objects.equals(format, o.format) 
+                && Objects.equals(format, o.format)
                 && Objects.equals(type, o.type)
                 && Objects.equals(plan, o.plan);
     }

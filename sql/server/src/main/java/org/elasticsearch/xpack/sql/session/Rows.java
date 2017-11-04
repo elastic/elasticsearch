@@ -29,7 +29,7 @@ public abstract class Rows {
         }
         return new Schema(names, types);
     }
-    
+
     public static Schema schema(String n1, DataType t1) {
         return new Schema(singletonList(n1), singletonList(t1));
     }
@@ -50,11 +50,11 @@ public abstract class Rows {
         return new Schema(asList(n1, n2, n3, n4, n5), asList(t1, t2, t3, t4, t5));
     }
 
-    public static RowSet of(List<Attribute> attrs, List<List<?>> values) {
+    public static SchemaRowSet of(List<Attribute> attrs, List<List<?>> values) {
         if (values.isEmpty()) {
             return empty(attrs);
         }
-        
+
         if (values.size() == 1) {
             return singleton(attrs, values.get(0).toArray());
         }
@@ -63,16 +63,16 @@ public abstract class Rows {
         return new ListRowSetCursor(schema, values);
     }
 
-    public static RowSet singleton(List<Attribute> attrs, Object... values) {
+    public static SchemaRowSet singleton(List<Attribute> attrs, Object... values) {
         Assert.isTrue(attrs.size() == values.length, "Schema %s and values %s are out of sync", attrs, values);
         return new SingletonRowSet(schema(attrs), values);
     }
 
-    public static RowSet empty(Schema schema) {
+    public static SchemaRowSet empty(Schema schema) {
         return new EmptyRowSetCursor(schema);
     }
 
-    public static RowSet empty(List<Attribute> attrs) {
+    public static SchemaRowSet empty(List<Attribute> attrs) {
         return new EmptyRowSetCursor(schema(attrs));
     }
 }

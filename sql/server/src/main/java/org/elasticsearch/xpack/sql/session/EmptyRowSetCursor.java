@@ -7,10 +7,11 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.xpack.sql.type.Schema;
 
-class EmptyRowSetCursor extends AbstractRowSet {
+class EmptyRowSetCursor extends AbstractRowSet implements SchemaRowSet {
+    private final Schema schema;
 
     EmptyRowSetCursor(Schema schema) {
-        super(schema);
+        this.schema = schema;
     }
 
     @Override
@@ -41,5 +42,10 @@ class EmptyRowSetCursor extends AbstractRowSet {
     @Override
     public Cursor nextPageCursor() {
         return Cursor.EMPTY;
+    }
+
+    @Override
+    public Schema schema() {
+        return schema;
     }
 }

@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.TotalCountRef;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -73,7 +74,7 @@ public class Scroller {
         this.size = size;
     }
 
-    public void scroll(Schema schema, QueryContainer query, String index, ActionListener<RowSet> listener) {
+    public void scroll(Schema schema, QueryContainer query, String index, ActionListener<SchemaRowSet> listener) {
         // prepare the request
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, size);
 
@@ -97,32 +98,32 @@ public class Scroller {
 
     // dedicated scroll used for aggs-only/group-by results
     static class AggsScrollActionListener extends ScrollerActionListener {
-    
+
         private final QueryContainer query;
-    
-        AggsScrollActionListener(ActionListener<RowSet> listener, Client client, TimeValue keepAlive, Schema schema, QueryContainer query) {
+
+        AggsScrollActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, Schema schema, QueryContainer query) {
             super(listener, client, keepAlive, schema);
             this.query = query;
         }
-    
+
         @Override
-        protected RowSet handleResponse(SearchResponse response) {
-    
+        protected SchemaRowSet handleResponse(SearchResponse response) {
+
             final List<Object[]> extractedAggs = new ArrayList<>();
             AggValues aggValues = new AggValues(extractedAggs);
             List<Supplier<Object>> aggColumns = new ArrayList<>(query.columns().size());
-    
+
             // this method assumes the nested aggregation are all part of the same tree (the SQL group-by)
             int maxDepth = -1;
-    
+
             List<ColumnReference> cols = query.columns();
             for (int index = 0; index < cols.size(); index++) {
                 ColumnReference col = cols.get(index);
                 Supplier<Object> supplier = null;
-    
+
                 if (col instanceof ComputedRef) {
                     ComputedRef pRef = (ComputedRef) col;
-    
+
                     Processor processor = pRef.processor().transformUp(a -> {
                         Object[] value = extractAggValue(new AggRef(a.context()), response);
                         extractedAggs.add(value);
@@ -144,13 +145,13 @@ public class Scroller {
                     final int aggPosition = extractedAggs.size() - 1;
                     supplier = () -> aggValues.column(aggPosition);
                 }
-    
+
                 aggColumns.add(supplier);
                 if (col.depth() > maxDepth) {
                     maxDepth = col.depth();
                 }
             }
-    
+
             aggValues.init(maxDepth, query.limit());
             clearScroll(response.getScrollId());
 
@@ -160,12 +161,12 @@ public class Scroller {
         private Object[] extractAggValue(ColumnReference col, SearchResponse response) {
             if (col == TotalCountRef.INSTANCE) {
                 return new Object[] { Long.valueOf(response.getHits().getTotalHits()) };
-            } 
+            }
             else if (col instanceof AggRef) {
                 Object[] arr;
 
                 String path = ((AggRef) col).path();
-                // yup, this is instance equality to make sure we only check the path used by the code 
+                // yup, this is instance equality to make sure we only check the path used by the code
                 if (path == TotalCountRef.PATH) {
                     arr = new Object[] { Long.valueOf(response.getHits().getTotalHits()) };
                 }
@@ -176,14 +177,14 @@ public class Scroller {
                         path = AggPath.bucketValueWithoutFormat(path);
                     }
                     Object value = getAggProperty(response.getAggregations(), path);
-                    
+
                     //                // FIXME: this can be tabular in nature
                     //                if (ref instanceof MappedAggRef) {
                     //                    Map<String, Object> map = (Map<String, Object>) value;
                     // Object extractedValue = map.get(((MappedAggRef)
                     // ref).fieldName());
                     //                }
-                    
+
                     if (formattedKey) {
                         List<? extends Bucket> buckets = ((MultiBucketsAggregation) value).getBuckets();
                         arr = new Object[buckets.size()];
@@ -194,12 +195,12 @@ public class Scroller {
                         arr = value instanceof Object[] ? (Object[]) value : new Object[] { value };
                     }
                 }
-    
+
                 return arr;
             }
             throw new SqlIllegalArgumentException("Unexpected non-agg/grouped column specified; %s", col.getClass());
         }
-    
+
         private static Object getAggProperty(Aggregations aggs, String path) {
             List<String> list = AggregationPath.parse(path).getPathElementsAsStringList();
             String aggName = list.get(0);
@@ -210,30 +211,30 @@ public class Scroller {
             return agg.getProperty(list.subList(1, list.size()));
         }
     }
-    
+
     // initial scroll used for parsing search hits (handles possible aggs)
     static class HandshakeScrollActionListener extends ScrollerActionListener {
         private final QueryContainer query;
-    
-        HandshakeScrollActionListener(ActionListener<RowSet> listener, Client client, TimeValue keepAlive,
+
+        HandshakeScrollActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive,
                 Schema schema, QueryContainer query) {
             super(listener, client, keepAlive, schema);
             this.query = query;
         }
-    
+
         @Override
         public void onResponse(SearchResponse response) {
             super.onResponse(response);
         }
 
-        protected RowSet handleResponse(SearchResponse response) {
+        protected SchemaRowSet handleResponse(SearchResponse response) {
             SearchHit[] hits = response.getHits().getHits();
             List<HitExtractor> exts = getExtractors();
-    
+
             // there are some results
             if (hits.length > 0) {
                 String scrollId = response.getScrollId();
-    
+
                 // if there's an id, try to setup next scroll
                 if (scrollId != null) {
                     // is all the content already retrieved?
@@ -246,80 +247,69 @@ public class Scroller {
                         scrollId = null;
                     }
                 }
-                return new SearchHitRowSetCursor(schema, exts, hits, query.limit(), scrollId);
+                return new InitialSearchHitRowSet(schema, exts, hits, query.limit(), scrollId);
             }
             // no hits
             else {
                 clearScroll(response.getScrollId());
-                // typically means last page but might be an aggs only query
-                return  needsHit(exts) ? Rows.empty(schema) : new SearchHitRowSetCursor(schema, exts);
+                return Rows.empty(schema);
             }
         }
-    
-        private static boolean needsHit(List<HitExtractor> exts) {
-            for (HitExtractor ext : exts) {
-                // Anything non-constant requires extraction
-                if (!(ext instanceof ConstantExtractor)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    
+
         private List<HitExtractor> getExtractors() {
             // create response extractors for the first time
             List<ColumnReference> refs = query.columns();
-    
+
             List<HitExtractor> exts = new ArrayList<>(refs.size());
-    
+
             for (ColumnReference ref : refs) {
                 exts.add(createExtractor(ref));
             }
             return exts;
         }
-    
+
         private HitExtractor createExtractor(ColumnReference ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
                 return f.useDocValue() ? new DocValueExtractor(f.name()) : new SourceExtractor(f.name());
             }
-    
+
             if (ref instanceof NestedFieldRef) {
                 NestedFieldRef f = (NestedFieldRef) ref;
                 return new InnerHitExtractor(f.parent(), f.name(), f.useDocValue());
             }
-    
+
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
                 return new DocValueExtractor(f.name());
             }
-    
+
             if (ref instanceof ComputedRef) {
                 ProcessorDefinition proc = ((ComputedRef) ref).processor();
                 proc = proc.transformDown(l -> new HitExtractorInput(l.expression(), createExtractor(l.context())), ReferenceInput.class);
                 return new ComputingHitExtractor(proc.asProcessor());
             }
-    
+
             throw new SqlIllegalArgumentException("Unexpected ValueReference %s", ref.getClass());
         }
     }
-    
+
     abstract static class ScrollerActionListener implements ActionListener<SearchResponse> {
-    
-        final ActionListener<RowSet> listener;
-    
+
+        final ActionListener<SchemaRowSet> listener;
+
         final Client client;
         final TimeValue keepAlive;
         final Schema schema;
-    
-        ScrollerActionListener(ActionListener<RowSet> listener, Client client, TimeValue keepAlive, Schema schema) {
+
+        ScrollerActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, Schema schema) {
             this.listener = listener;
-    
+
             this.client = client;
             this.keepAlive = keepAlive;
             this.schema = schema;
         }
-    
+
         // TODO: need to handle rejections plus check failures (shard size, etc...)
         @Override
         public void onResponse(final SearchResponse response) {
@@ -333,16 +323,16 @@ public class Scroller {
                 onFailure(ex);
             }
         }
-    
-        protected abstract RowSet handleResponse(SearchResponse response);
-    
+
+        protected abstract SchemaRowSet handleResponse(SearchResponse response);
+
         protected final void clearScroll(String scrollId) {
             if (scrollId != null) {
                 // fire and forget
                 client.prepareClearScroll().addScrollId(scrollId).execute();
             }
         }
-    
+
         @Override
         public final void onFailure(Exception ex) {
             listener.onFailure(ex);

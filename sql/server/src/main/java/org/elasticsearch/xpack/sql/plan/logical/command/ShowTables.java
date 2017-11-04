@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -45,7 +46,7 @@ public class ShowTables extends Command {
     }
 
     @Override
-    public final void execute(SqlSession session, ActionListener<RowSet> listener) {
+    public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         String pattern = Strings.hasText(this.pattern) ? StringUtils.jdbcToEsPattern(this.pattern) : "*";
         session.getIndices(new String[] {pattern}, IndicesOptions.lenientExpandOpen(), ActionListener.wrap(result -> {
             listener.onResponse(Rows.of(output(), result.stream()
@@ -64,11 +65,11 @@ public class ShowTables extends Command {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         ShowTables other = (ShowTables) obj;
         return Objects.equals(pattern, other.pattern);
     }

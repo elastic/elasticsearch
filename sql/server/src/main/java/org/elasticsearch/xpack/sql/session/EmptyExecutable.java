@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 
 import java.util.List;
@@ -24,7 +25,7 @@ public class EmptyExecutable implements Executable {
     }
 
     @Override
-    public void execute(SqlSession session, org.elasticsearch.action.ActionListener<RowSet> listener) {
+    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         listener.onResponse(Rows.empty(output));
     }
 

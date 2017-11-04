@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.ArrayList;
@@ -56,34 +57,34 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
             Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),
                                                           request.requestTimeout(), request.pageTimeout());
             planExecutor.sql(cfg, request.query(),
-                    ActionListener.wrap(cursor -> listener.onResponse(createResponse(true, cursor)), listener::onFailure));
+                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet)), listener::onFailure));
         } else {
             planExecutor.nextPage(request.cursor(),
-                    ActionListener.wrap(cursor -> listener.onResponse(createResponse(false, cursor)), listener::onFailure));
+                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)), listener::onFailure));
         }
     }
 
-    static SqlResponse createResponse(boolean includeColumnMetadata, RowSet cursor) {
-        List<ColumnInfo> columns = null;
-        if (includeColumnMetadata) {
-            columns = new ArrayList<>(cursor.schema().types().size());
-            for (Schema.Entry entry : cursor.schema()) {
-                columns.add(new ColumnInfo(entry.name(), entry.type().esName(), entry.type().sqlType(), entry.type().displaySize()));
-            }
-            columns = unmodifiableList(columns);
+    static SqlResponse createResponse(SchemaRowSet rowSet) {
+        List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
+        for (Schema.Entry entry : rowSet.schema()) {
+            columns.add(new ColumnInfo(entry.name(), entry.type().esName(), entry.type().sqlType(), entry.type().displaySize()));
         }
+        columns = unmodifiableList(columns);
+        return createResponse(rowSet, columns);
+    }
 
+    static SqlResponse createResponse(RowSet rowSet, List<ColumnInfo> columns) {
         List<List<Object>> rows = new ArrayList<>();
-        cursor.forEachRow(rowView -> {
-            List<Object> row = new ArrayList<>(rowView.rowSize());
+        rowSet.forEachRow(rowView -> {
+            List<Object> row = new ArrayList<>(rowView.columnCount());
             rowView.forEachColumn(row::add);
             rows.add(unmodifiableList(row));
         });
 
         return new SqlResponse(
-                cursor.nextPageCursor(),
-                cursor.size(),
-                cursor.rowSize(),
+                rowSet.nextPageCursor(),
+                rowSet.size(),
+                rowSet.columnCount(),
                 columns,
                 rows);
     }

@@ -110,15 +110,6 @@ public class ScrollCursor implements Cursor {
 
     @Override
     public void nextPage(Client client, ActionListener<RowSet> listener) {
-        // Fake the schema for now. We'll try to remove the need later.
-        List<String> names = new ArrayList<>(extractors.size());
-        List<DataType> dataTypes = new ArrayList<>(extractors.size());
-        for (int i = 0; i < extractors.size(); i++) {
-            names.add("dummy");
-            dataTypes.add(null);
-        }
-        // NOCOMMIT make schema properly nullable for the second page
-        Schema schema = new Schema(names, dataTypes);
         // NOCOMMIT add keep alive to the settings and pass it here
         /* Or something. The trouble is that settings is for *starting*
          * queries, but maybe we should actually have two sets of settings,
@@ -128,7 +119,7 @@ public class ScrollCursor implements Cursor {
         SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(timeValueSeconds(90));
         client.searchScroll(request, ActionListener.wrap((SearchResponse response) -> {
             int limitHits = limit;
-            listener.onResponse(new SearchHitRowSetCursor(schema, extractors, response.getHits().getHits(),
+            listener.onResponse(new ScrolledSearchHitRowSet(extractors, response.getHits().getHits(),
                     limitHits, response.getScrollId()));
         }, listener::onFailure));
     }

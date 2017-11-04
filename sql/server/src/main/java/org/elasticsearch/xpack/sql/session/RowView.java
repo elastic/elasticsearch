@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.xpack.sql.type.Schema;
-
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -17,12 +15,10 @@ import java.util.function.Consumer;
  * Offers access to the data but it shouldn't be held since it is not a data container.
  */
 public interface RowView extends Iterable<Object> {
-
-    Schema schema();
-
-    default int rowSize() {
-        return schema().names().size();
-    }
+    /**
+     * Number of columns in this row.
+     */
+    int columnCount();
 
     Object column(int index);
 
@@ -37,7 +33,7 @@ public interface RowView extends Iterable<Object> {
 
     default void forEachColumn(Consumer<? super Object> action) {
         Objects.requireNonNull(action);
-        int rowSize = rowSize();
+        int rowSize = columnCount();
         for (int i = 0; i < rowSize; i++) {
             action.accept(column(i));
         }
@@ -47,8 +43,8 @@ public interface RowView extends Iterable<Object> {
     default Iterator<Object> iterator() {
         return new Iterator<Object>() {
             private int pos = 0;
-            private final int rowSize = rowSize();
-            
+            private final int rowSize = columnCount();
+
             @Override
             public boolean hasNext() {
                 return pos < rowSize;

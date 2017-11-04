@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.rule.RuleExecutor.ExecutionInfo;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor.Transformation;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
@@ -69,7 +70,7 @@ public class Debug extends Command {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
-    public void execute(SqlSession session, ActionListener<RowSet> listener) {
+    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         String planString = null;
 
         ExecutionInfo info = null;
@@ -86,7 +87,7 @@ public class Debug extends Command {
             default:
                 break;
         }
-            
+
         if (format == Format.TEXT) {
             StringBuilder sb = new StringBuilder();
             if (info == null) {
@@ -149,7 +150,7 @@ public class Debug extends Command {
             return false;
         }
         Debug o = (Debug) obj;
-        return Objects.equals(format, o.format) 
+        return Objects.equals(format, o.format)
                 && Objects.equals(type, o.type)
                 && Objects.equals(plan, o.plan);
     }

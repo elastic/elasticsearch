@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plan.physical;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
-import org.elasticsearch.xpack.sql.session.RowSet;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.util.List;
@@ -28,7 +28,7 @@ public class CommandExec extends LeafExec {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<RowSet> listener) {
+    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         command.execute(session, listener);
     }
 
@@ -47,11 +47,11 @@ public class CommandExec extends LeafExec {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         CommandExec other = (CommandExec) obj;
         return Objects.equals(command, other.command);
     }

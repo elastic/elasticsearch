@@ -7,19 +7,20 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.xpack.sql.session.AbstractRowSet;
 import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-class AggsRowSet extends AbstractRowSet {
-
-    private int row = 0;
+class AggsRowSet extends AbstractRowSet implements SchemaRowSet {
+    private final Schema schema;
     private final AggValues agg;
     private final List<Supplier<Object>> columns;
+    private int row = 0;
 
     AggsRowSet(Schema schema, AggValues agg, List<Supplier<Object>> columns) {
-        super(schema);
+        this.schema = schema;
         this.agg = agg;
         this.columns = columns;
     }
@@ -52,5 +53,10 @@ class AggsRowSet extends AbstractRowSet {
     @Override
     public Cursor nextPageCursor() {
         return Cursor.EMPTY;
+    }
+
+    @Override
+    public Schema schema() {
+        return schema;
     }
 }

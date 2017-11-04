@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -66,7 +67,8 @@ public class MockNode extends Node {
     }
 
     public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
-        this(InternalSettingsPreparer.prepareEnvironment(settings, null, Collections.emptyMap(), configPath), classpathPlugins);
+        this(InternalSettingsPreparer.prepareEnvironment(settings, null, Collections.emptyMap(), configPath,
+            PathUtils.get(System.getProperty("java.io.tmpdir"))), classpathPlugins);
     }
 
     public MockNode(Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {

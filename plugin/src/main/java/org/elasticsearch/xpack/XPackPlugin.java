@@ -104,7 +104,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
-import org.elasticsearch.xpack.sql.plugin.SecurityCatalogFilter;
+import org.elasticsearch.xpack.sql.SecurityCatalogFilter;
 import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;

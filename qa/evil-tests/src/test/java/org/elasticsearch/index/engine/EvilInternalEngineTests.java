@@ -61,7 +61,7 @@ public class EvilInternalEngineTests extends EngineTestCase {
                     (directory, iwc) -> new IndexWriter(directory, iwc) {
                         @Override
                         public void merge(MergePolicy.OneMerge merge) throws IOException {
-                            throw new OutOfMemoryError("640k ought to be enough for anybody");
+                            throw new OutOfMemoryError("640K ought to be enough for anybody");
                         }
 
                         @Override
@@ -96,7 +96,7 @@ public class EvilInternalEngineTests extends EngineTestCase {
                 latch.await();
                 assertNotNull(maybeFatal.get());
                 assertThat(maybeFatal.get(), instanceOf(OutOfMemoryError.class));
-                assertThat(maybeFatal.get(), hasToString(containsString("640k ought to be enough for anybody")));
+                assertThat(maybeFatal.get(), hasToString(containsString("640K ought to be enough for anybody")));
             }
         } finally {
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);

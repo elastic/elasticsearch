@@ -40,8 +40,6 @@ import java.util.function.Consumer;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
-    private final NamedWriteableRegistry cursorRegistry = new NamedWriteableRegistry(Cursor.getNamedWriteables());
-
     public RestSqlCliAction(Settings settings, RestController controller) {
         super(settings, Proto.INSTANCE);
         controller.registerHandler(POST, "/_sql/cli", this);
@@ -91,9 +89,9 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
 
     private Consumer<RestChannel> queryInit(Client client, QueryInitRequest request) {
         // TODO time zone support for CLI
-        SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize, 
+        SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
-                                                TimeValue.timeValueMillis(request.timeout.pageTimeout), 
+                                                TimeValue.timeValueMillis(request.timeout.pageTimeout),
                                                 Cursor.EMPTY);
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(request, channel, response -> {
@@ -106,7 +104,7 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
     private Consumer<RestChannel> queryPage(Client client, QueryPageRequest request) {
         Cursor cursor;
         CliFormatter formatter;
-        try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(request.cursor).streamInput(), cursorRegistry)) {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(request.cursor).streamInput(), CURSOR_REGISTRY)) {
             cursor = in.readNamedWriteable(Cursor.class);
             formatter = new CliFormatter(in);
         } catch (IOException e) {
@@ -114,7 +112,7 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
         }
         SqlRequest sqlRequest = new SqlRequest("", SqlRequest.DEFAULT_TIME_ZONE, 0,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
-                                                TimeValue.timeValueMillis(request.timeout.pageTimeout), 
+                                                TimeValue.timeValueMillis(request.timeout.pageTimeout),
                                                 cursor);
 
         long start = System.nanoTime();

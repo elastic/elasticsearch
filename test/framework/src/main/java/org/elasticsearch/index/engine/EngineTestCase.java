@@ -88,7 +88,7 @@ import java.util.function.ToLongBiFunction;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 
-public class EngineTestCase extends ESTestCase {
+public abstract class EngineTestCase extends ESTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index", "_na_"), 0);
     protected final AllocationId allocationId = AllocationId.newInitializing();

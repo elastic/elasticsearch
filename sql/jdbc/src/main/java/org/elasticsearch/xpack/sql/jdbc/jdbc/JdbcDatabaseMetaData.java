@@ -637,9 +637,9 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern) throws SQLException {
         return emptySet(con.cfg,
                      "ROUTINES",
-                     "PROCEDURE_CAT", 
-                     "PROCEDURE_SCHEM", 
-                     "PROCEDURE_NAME", 
+                     "PROCEDURE_CAT",
+                     "PROCEDURE_SCHEM",
+                     "PROCEDURE_NAME",
                      "NUM_INPUT_PARAMS", int.class,
                      "NUM_OUTPUT_PARAMS", int.class,
                      "NUM_RESULT_SETS", int.class,
@@ -653,9 +653,9 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             throws SQLException {
         return emptySet(con.cfg,
                      "PARAMETERS",
-                     "PROCEDURE_CAT", 
-                     "PROCEDURE_SCHEM", 
-                     "PROCEDURE_NAME", 
+                     "PROCEDURE_CAT",
+                     "PROCEDURE_SCHEM",
+                     "PROCEDURE_NAME",
                      "COLUMN_NAME",
                      "COLUMN_TYPE", short.class,
                      "DATA_TYPE", int.class,
@@ -680,7 +680,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     private String defaultCatalog() throws SQLException {
         return con.client.serverInfo().cluster;
     }
-    
+
     private boolean isDefaultCatalog(String catalog) throws SQLException {
         // null means catalog info is irrelevant
         // % means return all catalogs
@@ -699,16 +699,16 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
         List<ColumnInfo> info = columnInfo("TABLES",
                                            "TABLE_CAT",                 //0
-                                           "TABLE_SCHEM",               //1  
+                                           "TABLE_SCHEM",               //1
                                            "TABLE_NAME",                //2
-                                           "TABLE_TYPE",                //3  
-                                           "REMARKS",                   //4  
-                                           "TYPE_CAT",                  //5  
-                                           "TYPE_SCHEM",                //6  
-                                           "TYPE_NAME",                 //7  
+                                           "TABLE_TYPE",                //3
+                                           "REMARKS",                   //4
+                                           "TYPE_CAT",                  //5
+                                           "TYPE_SCHEM",                //6
+                                           "TYPE_NAME",                 //7
                                            "SELF_REFERENCING_COL_NAME", //8
                                            "REF_GENERATION");           //9
- 
+
         // schema and catalogs are not being used, if these are specified return an empty result set
         if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
             return emptySet(con.cfg, info);
@@ -739,7 +739,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     public ResultSet getSchemas() throws SQLException {
         Object[][] data = { { "", defaultCatalog() } };
         return memorySet(con.cfg, columnInfo("SCHEMATA",
-                                    "TABLE_SCHEM", 
+                                    "TABLE_SCHEM",
                                     "TABLE_CATALOG"), data);
     }
 
@@ -812,7 +812,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             data[i] = new Object[24];
             Object[] row = data[i];
             MetaColumnInfo col = columns.get(i);
-            
+
             row[ 0] = cat;
             row[ 1] = "";
             row[ 2] = col.table;
@@ -823,14 +823,14 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             row[ 7] = null;
             row[ 8] = null;
             row[ 9] = 10;
-            row[10] = columnNullableUnknown;
+            row[10] = columnNullable;
             row[11] = null;
             row[12] = null;
             row[13] = null;
             row[14] = null;
             row[15] = null;
             row[16] = col.position;
-            row[17] = "";
+            row[17] = "YES";
             row[18] = null;
             row[19] = null;
             row[20] = null;

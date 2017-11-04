@@ -25,19 +25,19 @@ CREATE TABLE mock (
 ) AS
 SELECT '', 'test1', 'name', 12, 'VARCHAR', 2147483647, null, null,
   10, -- NOCOMMIT 10 seem wrong to hard code for stuff like strings
-  2, -- columnNullableUnknown NOCOMMIT I think it'd be more correct to return columnNullable
-  null, null, null, null, null, 1, '', null, null, null, null, '', ''
+  1, -- columnNullable
+  null, null, null, null, null, 1, 'YES', null, null, null, null, '', ''
 FROM DUAL
 UNION ALL
 SELECT '', 'test2', 'date', 93, 'TIMESTAMP', 19, null, null,
   10,
-  2, -- columnNullableUnknown NOCOMMIT I think it'd be more correct to return columnNullable
-  null, null, null, null, null, 1, '', null, null, null, null, '', ''
+  1, -- columnNullable
+  null, null, null, null, null, 1, 'YES', null, null, null, null, '', ''
 FROM DUAL
 UNION ALL
 SELECT '', 'test2', 'number', -5, 'BIGINT', 19, null, null,
   10,
-  2, -- columnNullableUnknown NOCOMMIT I think it'd be more correct to return columnNullable
-  null, null, null, null, null, 2, '', null, null, null, null, '', ''
+  1, -- columnNullable
+  null, null, null, null, null, 2, 'YES', null, null, null, null, '', ''
 FROM DUAL
 ;

@@ -14,6 +14,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
@@ -48,7 +49,7 @@ public class LdapTestUtils {
             secureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
         }
         Settings settings = builder.build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(settings, env);
 
         LDAPURL ldapurl = new LDAPURL(url);

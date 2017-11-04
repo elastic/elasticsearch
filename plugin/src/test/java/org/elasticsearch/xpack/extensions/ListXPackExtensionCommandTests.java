@@ -13,6 +13,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -37,7 +38,7 @@ public class ListXPackExtensionCommandTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("path.home", home)
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         Files.createDirectories(extensionsFile(env));
     }
 

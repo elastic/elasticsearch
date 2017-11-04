@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +57,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
                 .put("resource.reload.interval.high", "2s")
                 .put("path.home", createTempDir())
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");
     }
 
@@ -220,7 +221,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
                     .put("files.users_roles", usersRoles.toAbsolutePath())
                     .build();
 
-            Environment env = new Environment(settings);
+            Environment env = TestEnvironment.newEnvironment(settings);
             RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, new ThreadContext(Settings.EMPTY));
             ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
             FileUserRolesStore store = new FileUserRolesStore(config, watcherService);

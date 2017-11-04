@@ -12,7 +12,7 @@ import java.security.PrivateKey;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -34,7 +34,7 @@ public class StoreKeyConfigTests extends ESTestCase {
         final SecureString keyStorePassword = new SecureString("testnode".toCharArray());
         final StoreKeyConfig keyConfig = new StoreKeyConfig(path, type, keyStorePassword, keyStorePassword,
                 KeyManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getDefaultAlgorithm());
-        final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager(new Environment(settings));
+        final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager(TestEnvironment.newEnvironment(settings));
         final PrivateKey key = keyManager.getPrivateKey("testnode");
         assertThat(key, notNullValue());
         assertThat(key.getAlgorithm(), equalTo("RSA"));

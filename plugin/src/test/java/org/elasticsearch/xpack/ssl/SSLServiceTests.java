@@ -39,6 +39,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.XPackSettings;
@@ -81,7 +82,7 @@ public class SSLServiceTests extends ESTestCase {
         }
         logger.info("Using [{}] key/truststore [{}]", testnodeStoreType, testnodeStore);
         testclientStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks");
-        env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
     }
 
     public void testThatCustomTruststoreCanBeSpecified() throws Exception {

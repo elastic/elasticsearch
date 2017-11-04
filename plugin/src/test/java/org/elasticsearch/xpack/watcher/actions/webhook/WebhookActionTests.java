@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -216,7 +217,7 @@ public class WebhookActionTests extends ESTestCase {
     }
 
     public void testThatSelectingProxyWorks() throws Exception {
-        Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry,
                 new SSLService(environment.settings(), environment));
 

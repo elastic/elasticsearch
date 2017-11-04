@@ -10,6 +10,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import com.sun.jna.IntegerType;
@@ -275,7 +276,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     public void testOpenForInput() throws IOException, InterruptedException {
-        Environment env = new Environment(
+        Environment env = TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         String pipeName = NAMED_PIPE_HELPER.getDefaultPipeDirectoryPrefix(env) + "inputPipe" + JvmInfo.jvmInfo().pid();
 
@@ -306,7 +307,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     public void testOpenForOutput() throws IOException, InterruptedException {
-        Environment env = new Environment(
+        Environment env = TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         String pipeName = NAMED_PIPE_HELPER.getDefaultPipeDirectoryPrefix(env) + "outputPipe" + JvmInfo.jvmInfo().pid();
 

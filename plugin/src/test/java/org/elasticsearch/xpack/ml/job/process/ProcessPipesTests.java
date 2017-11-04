@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 import org.mockito.Mockito;
@@ -30,7 +31,7 @@ public class ProcessPipesTests extends ESTestCase {
 
     public void testProcessPipes() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
 
         NamedPipeHelper namedPipeHelper = Mockito.mock(NamedPipeHelper.class);
         when(namedPipeHelper.openNamedPipeInputStream(contains("log"), any(Duration.class)))

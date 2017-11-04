@@ -9,6 +9,7 @@ import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 
@@ -16,7 +17,7 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
 
     public void testDefaultIsFalse() {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(env);
         assertFalse(check.check(new BootstrapContext(settings, null)).isFailure());
         assertTrue(check.alwaysEnforce());
@@ -27,7 +28,7 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .put(Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.getKey(), true)
                 .build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(env);
         assertTrue(check.check(new BootstrapContext(settings, null)).isFailure());
     }
@@ -40,7 +41,7 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
                 .put(Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.getKey(), true)
                 .setSecureSettings(secureSettings)
                 .build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         EncryptSensitiveDataBootstrapCheck check = new EncryptSensitiveDataBootstrapCheck(env);
         assertFalse(check.check(new BootstrapContext(settings, null)).isFailure());
     }

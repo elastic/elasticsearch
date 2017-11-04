@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -78,7 +79,7 @@ public class SecurityTests extends ESTestCase {
             throw new IllegalStateException("Security object already exists (" + security + ")");
         }
         Settings settings = Settings.builder().put(testSettings).put("path.home", createTempDir()).build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         security = new Security(settings, env, new XPackLicenseState(), new SSLService(settings, env));
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);

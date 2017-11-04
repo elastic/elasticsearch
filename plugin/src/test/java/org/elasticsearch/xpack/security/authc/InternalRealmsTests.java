@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -39,11 +39,11 @@ public class InternalRealmsTests extends ESTestCase {
         verifyZeroInteractions(lifecycleService);
 
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        factories.get(NativeRealm.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings, new Environment(settings),
+        factories.get(NativeRealm.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings, TestEnvironment.newEnvironment(settings),
                 new ThreadContext(settings)));
         verify(lifecycleService).addSecurityIndexHealthChangeListener(isA(BiConsumer.class));
 
-        factories.get(NativeRealm.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings, new Environment(settings),
+        factories.get(NativeRealm.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings, TestEnvironment.newEnvironment(settings),
                 new ThreadContext(settings)));
         verify(lifecycleService, times(2)).addSecurityIndexHealthChangeListener(isA(BiConsumer.class));
     }

@@ -10,7 +10,6 @@ import com.google.common.jimfs.Jimfs;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -19,9 +18,9 @@ import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.authc.UserTokenTests;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -295,7 +294,7 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testParseUnknownRole() throws Exception {
-        UsersTool.parseRoles(terminal, new Environment(settings), "test_r1,r2,r3");
+        UsersTool.parseRoles(terminal, TestEnvironment.newEnvironment(settings), "test_r1,r2,r3");
         String output = terminal.getOutput();
         assertTrue(output, output.contains("The following roles [r2,r3] are not in the ["));
     }
@@ -303,21 +302,21 @@ public class UsersToolTests extends CommandTestCase {
     public void testParseReservedRole() throws Exception {
         final String reservedRoleName = randomFrom(ReservedRolesStore.names().toArray(Strings.EMPTY_ARRAY));
         String rolesArg = randomBoolean() ? "test_r1," + reservedRoleName : reservedRoleName;
-        UsersTool.parseRoles(terminal, new Environment(settings), rolesArg);
+        UsersTool.parseRoles(terminal, TestEnvironment.newEnvironment(settings), rolesArg);
         String output = terminal.getOutput();
         assertTrue(output, output.isEmpty());
     }
 
     public void testParseInvalidRole() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            UsersTool.parseRoles(terminal, new Environment(settings), "fóóbár");
+            UsersTool.parseRoles(terminal, TestEnvironment.newEnvironment(settings), "fóóbár");
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid role [fóóbár]"));
     }
 
     public void testParseMultipleRoles() throws Exception {
-        String[] roles = UsersTool.parseRoles(terminal, new Environment(settings), "test_r1,test_r2");
+        String[] roles = UsersTool.parseRoles(terminal, TestEnvironment.newEnvironment(settings), "test_r1,test_r2");
         assertEquals(Objects.toString(roles), 2, roles.length);
         assertEquals("test_r1", roles[0]);
         assertEquals("test_r2", roles[1]);

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
@@ -31,7 +32,7 @@ public class ProcessCtrlTests extends ESTestCase {
 
     public void testBuildAutodetectCommand() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         Job.Builder job = buildJobBuilder("unit-test-job");
 
         Detector.Builder detectorBuilder = new Detector.Builder("mean", "value");
@@ -77,7 +78,7 @@ public class ProcessCtrlTests extends ESTestCase {
 
     public void testBuildAutodetectCommand_defaultTimeField() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         Job.Builder job = buildJobBuilder("unit-test-job");
 
         List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, pid);
@@ -88,7 +89,7 @@ public class ProcessCtrlTests extends ESTestCase {
     public void testBuildAutodetectCommand_givenPersistModelState() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.getKey(), true).build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         Job.Builder job = buildJobBuilder("unit-test-job");
 
         int expectedPersistInterval = 10800 + ProcessCtrl.calculateStaggeringInterval(job.getId());
@@ -97,14 +98,14 @@ public class ProcessCtrlTests extends ESTestCase {
         assertFalse(command.contains(ProcessCtrl.PERSIST_INTERVAL_ARG + expectedPersistInterval));
 
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
 
         command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, pid);
         assertTrue(command.contains(ProcessCtrl.PERSIST_INTERVAL_ARG + expectedPersistInterval));
     }
 
     public void testBuildNormalizerCommand() throws IOException {
-        Environment env = new Environment(
+        Environment env = TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         String jobId = "unit-test-job";
 

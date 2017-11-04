@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -43,7 +44,7 @@ public class SessionFactoryTests extends ESTestCase {
     }
 
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() throws Exception {
-        final Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         RealmConfig realmConfig = new RealmConfig("conn settings", Settings.EMPTY, environment.settings(), environment,
                 new ThreadContext(Settings.EMPTY));
         LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
@@ -63,7 +64,7 @@ public class SessionFactoryTests extends ESTestCase {
                 .put(SessionFactory.FOLLOW_REFERRALS_SETTING, "false")
                 .build();
 
-        final Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         RealmConfig realmConfig = new RealmConfig("conn settings", settings, environment.settings(), environment, new ThreadContext(Settings.EMPTY));
         LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
                 logger);
@@ -107,7 +108,7 @@ public class SessionFactoryTests extends ESTestCase {
     private SessionFactory createSessionFactory() {
         Settings global = Settings.builder().put("path.home", createTempDir()).build();
         final RealmConfig realmConfig = new RealmConfig("_name", Settings.builder().put("url", "ldap://localhost:389").build(),
-                global, new Environment(global), new ThreadContext(Settings.EMPTY));
+                global, TestEnvironment.newEnvironment(global), new ThreadContext(Settings.EMPTY));
         return new SessionFactory(realmConfig, null, threadPool) {
 
             @Override

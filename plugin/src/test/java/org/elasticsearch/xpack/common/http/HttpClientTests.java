@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -61,7 +62,7 @@ public class HttpClientTests extends ESTestCase {
     private MockWebServer webServer = new MockWebServer();
     private HttpClient httpClient;
     private HttpAuthRegistry authRegistry;
-    private Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+    private Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
     @Before
     public void init() throws Exception {

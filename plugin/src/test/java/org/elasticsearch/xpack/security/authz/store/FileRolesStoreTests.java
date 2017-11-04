@@ -11,6 +11,7 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -312,7 +313,7 @@ public class FileRolesStoreTests extends ESTestCase {
                     .put("resource.reload.interval.high", "500ms")
                     .put("path.home", home);
             Settings settings = builder.build();
-            Environment env = new Environment(settings);
+            Environment env = TestEnvironment.newEnvironment(settings);
             threadPool = new TestThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
@@ -440,7 +441,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 .put("path.home", home)
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), flsDlsEnabled)
                 .build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         FileRolesStore store = new FileRolesStore(settings, env, mock(ResourceWatcherService.class), new XPackLicenseState());
 
         Map<String, Object> usageStats = store.usageStats();

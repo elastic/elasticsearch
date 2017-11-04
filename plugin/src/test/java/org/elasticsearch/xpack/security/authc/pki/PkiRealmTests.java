@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -60,7 +60,7 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testTokenSupport() {
-        RealmConfig config = new RealmConfig("", Settings.EMPTY, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         PkiRealm realm = new PkiRealm(config, mock(UserRoleMapper.class));
 
         assertThat(realm.supports(null), is(false));
@@ -72,7 +72,7 @@ public class PkiRealmTests extends ESTestCase {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
-        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings, new Environment(globalSettings), 
+        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings)), mock(UserRoleMapper.class));
 
         X509AuthenticationToken token = realm.token(threadContext);
@@ -97,7 +97,7 @@ public class PkiRealmTests extends ESTestCase {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[] { certificate }, "Elasticsearch Test Node", dn);
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
-        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings, new Environment(globalSettings),
+        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
             new ThreadContext(globalSettings)), roleMapper);
         Mockito.doAnswer(invocation -> {
             final UserRoleMapper.UserData userData = (UserRoleMapper.UserData) invocation.getArguments()[0];
@@ -125,7 +125,7 @@ public class PkiRealmTests extends ESTestCase {
     public void testCustomUsernamePattern() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
-        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.builder().put("username_pattern", "OU=(.*?),").build(), globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings)),
+        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.builder().put("username_pattern", "OU=(.*?),").build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)),
                 roleMapper);
         Mockito.doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
@@ -155,7 +155,7 @@ public class PkiRealmTests extends ESTestCase {
                 .put("truststore.path", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
                 .setSecureSettings(secureSettings)
                 .build();
-        PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings, new Environment(globalSettings),
+        PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings)), roleMapper);
         Mockito.doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
@@ -186,7 +186,7 @@ public class PkiRealmTests extends ESTestCase {
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks"))
                 .setSecureSettings(secureSettings)
                 .build();
-        PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings, new Environment(globalSettings),
+        PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings)), roleMapper);
         Mockito.doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
@@ -210,7 +210,7 @@ public class PkiRealmTests extends ESTestCase {
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks"))
                 .build();
         try {
-            new PkiRealm(new RealmConfig("mypki", settings, globalSettings, new Environment(globalSettings),
+            new PkiRealm(new RealmConfig("mypki", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                     new ThreadContext(globalSettings)), mock(UserRoleMapper.class));
             fail("exception should have been thrown");
         } catch (IllegalArgumentException e) {
@@ -225,7 +225,7 @@ public class PkiRealmTests extends ESTestCase {
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks"))
                 .put("truststore.password", "testnode-client-profile")
                 .build();
-        new PkiRealm(new RealmConfig("mypki", settings, globalSettings, new Environment(globalSettings),
+        new PkiRealm(new RealmConfig("mypki", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings)), mock(UserRoleMapper.class));
         assertSettingDeprecationsAndWarnings(new Setting[] { SSLConfigurationSettings.withoutPrefix().legacyTruststorePassword });
     }

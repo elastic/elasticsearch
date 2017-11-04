@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.support.Validation;
 import org.elasticsearch.xpack.security.user.ElasticUser;
@@ -102,7 +103,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
                     protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                         Settings.Builder builder = Settings.builder();
                         settings.forEach((k,v) -> builder.put(k, v));
-                        return new Environment(builder.build());
+                        return TestEnvironment.newEnvironment(builder.build());
                     }
                 };
             }
@@ -114,7 +115,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
                     protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
                         Settings.Builder builder = Settings.builder();
                         settings.forEach((k,v) -> builder.put(k, v));
-                        return new Environment(builder.build());
+                        return TestEnvironment.newEnvironment(builder.build());
                     }
                 };
             }

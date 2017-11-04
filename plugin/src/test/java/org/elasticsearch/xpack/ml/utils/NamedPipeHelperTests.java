@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.FileNotFoundException;
@@ -25,7 +26,7 @@ public class NamedPipeHelperTests extends ESTestCase {
     NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
     public void testOpenForInputGivenPipeDoesNotExist() {
-        Environment env = new Environment(
+        Environment env = TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         IOException ioe = ESTestCase.expectThrows(FileNotFoundException.class,
                 () -> NAMED_PIPE_HELPER.openNamedPipeInputStream(
@@ -38,7 +39,7 @@ public class NamedPipeHelperTests extends ESTestCase {
     }
 
     public void testOpenForOutputGivenPipeDoesNotExist() {
-        Environment env = new Environment(
+        Environment env = TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         IOException ioe = ESTestCase.expectThrows(FileNotFoundException.class,
                 () -> NAMED_PIPE_HELPER.openNamedPipeOutputStream(
@@ -50,7 +51,7 @@ public class NamedPipeHelperTests extends ESTestCase {
     }
 
     public void testOpenForInputGivenPipeIsRegularFile() throws IOException {
-        Environment env = new Environment(
+        Environment env = TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         Path tempFile = Files.createTempFile(env.tmpFile(), "not a named pipe", null);
 
@@ -63,7 +64,7 @@ public class NamedPipeHelperTests extends ESTestCase {
     }
 
     public void testOpenForOutputGivenPipeIsRegularFile() throws IOException {
-        Environment env = new Environment(
+        Environment env = TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         Path tempFile = Files.createTempFile(env.tmpFile(), "not a named pipe", null);
 

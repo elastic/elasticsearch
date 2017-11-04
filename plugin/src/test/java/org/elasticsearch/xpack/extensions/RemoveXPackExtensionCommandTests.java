@@ -10,6 +10,7 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -17,8 +18,6 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class RemoveXPackExtensionCommandTests extends ESTestCase {
@@ -30,7 +29,7 @@ public class RemoveXPackExtensionCommandTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         home = createTempDir();
-        env = new Environment(Settings.builder().put("path.home", home.toString()).build());
+        env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home.toString()).build());
     }
 
     Path createExtensionDir(Environment env) throws IOException {
@@ -39,7 +38,7 @@ public class RemoveXPackExtensionCommandTests extends ESTestCase {
     }
 
     static MockTerminal removeExtension(String name, Path home) throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", home).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
         new RemoveXPackExtensionCommand().execute(terminal, name, env);
         return terminal;

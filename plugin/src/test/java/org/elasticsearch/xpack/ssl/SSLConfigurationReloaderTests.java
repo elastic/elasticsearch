@@ -11,6 +11,7 @@ import org.bouncycastle.openssl.jcajce.JcePEMEncryptorBuilder;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,7 +84,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("xpack.ssl.keystore.path", keystorePath)
                 .setSecureSettings(secureSettings)
                 .build();
-        final Environment env = randomBoolean() ? null : new Environment(settings);
+        final Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
 
         final BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPreChecks = (keyManager, config) -> {
             // key manager checks
@@ -154,7 +155,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         final Environment env = randomBoolean() ? null :
-                new Environment(Settings.builder().put("path.home", createTempDir()).build());
+                TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
         final SetOnce<PrivateKey> privateKey = new SetOnce<>();
         final BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPreChecks = (keyManager, config) -> {
@@ -217,7 +218,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .setSecureSettings(secureSettings)
                 .build();
-        Environment env = randomBoolean() ? null : new Environment(settings);
+        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
 
         final SetOnce<Integer> trustedCount = new SetOnce<>();
         final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPreChecks = (trustManager, config) -> {
@@ -260,7 +261,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .putList("xpack.ssl.certificate_authorities", clientCertPath.toString())
                 .put("path.home", createTempDir())
                 .build();
-        Environment env = randomBoolean() ? null : new Environment(settings);
+        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
 
         final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPreChecks = (trustManager, config) -> {
             // trust manager checks
@@ -304,7 +305,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .put("path.home", createTempDir())
                 .build();
-        Environment env = randomBoolean() ? null : new Environment(settings);
+        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
@@ -346,7 +347,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .setSecureSettings(secureSettings)
                 .build();
-        Environment env = randomBoolean() ? null : new Environment(settings);
+        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
@@ -381,7 +382,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .setSecureSettings(secureSettings)
                 .build();
-        Environment env = randomBoolean() ? null : new Environment(settings);
+        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
@@ -413,7 +414,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .putList("xpack.ssl.certificate_authorities", clientCertPath.toString())
                 .put("path.home", createTempDir())
                 .build();
-        Environment env = randomBoolean() ? null : new Environment(settings);
+        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {

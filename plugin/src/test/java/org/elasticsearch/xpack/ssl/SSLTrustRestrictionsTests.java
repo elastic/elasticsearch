@@ -26,7 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -188,7 +188,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
                 .build();
 
         String node = randomFrom(internalCluster().getNodeNames());
-        SSLService sslService = new SSLService(settings, new Environment(settings));
+        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings);
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {

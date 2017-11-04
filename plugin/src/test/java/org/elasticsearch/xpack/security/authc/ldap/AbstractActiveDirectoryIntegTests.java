@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -55,7 +56,7 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         }
         globalSettings = builder.build();
-        Environment environment = new Environment(globalSettings);
+        Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(globalSettings, environment);
     }
 

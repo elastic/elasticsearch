@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
 import org.elasticsearch.test.ESTestCase;
@@ -75,7 +76,7 @@ public class RealmsTests extends ESTestCase {
             orderToIndex.put(orders.get(i), i);
         }
         Settings settings = builder.build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
 
         Iterator<Realm> iterator = realms.iterator();
@@ -102,7 +103,7 @@ public class RealmsTests extends ESTestCase {
                 .put("xpack.security.authc.realms.realm_2.order", 1)
                 .put("path.home", createTempDir())
                 .build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         try {
             new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
             fail("Expected IllegalArgumentException");
@@ -112,8 +113,8 @@ public class RealmsTests extends ESTestCase {
     }
 
     public void testWithEmptySettings() throws Exception {
-        Realms realms = new Realms(Settings.EMPTY, new Environment(Settings.builder().put("path.home", createTempDir()).build()),
-                factories, licenseState, threadContext, reservedRealm);
+        Realms realms = new Realms(Settings.EMPTY, TestEnvironment.newEnvironment(Settings.builder().put("path.home",
+                createTempDir()).build()), factories, licenseState, threadContext, reservedRealm);
         Iterator<Realm> iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
         Realm realm = iter.next();
@@ -144,7 +145,7 @@ public class RealmsTests extends ESTestCase {
             orderToIndex.put(orders.get(i), i);
         }
         Settings settings = builder.build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
 
         // this is the iterator when licensed
@@ -205,7 +206,7 @@ public class RealmsTests extends ESTestCase {
                 .put("xpack.security.authc.realms.custom.type", "type_0")
                 .put("xpack.security.authc.realms.custom.order", "1");
         Settings settings = builder.build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm );
         Iterator<Realm> iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -261,7 +262,7 @@ public class RealmsTests extends ESTestCase {
                 .put("xpack.security.authc.realms.native.type", type)
                 .put("xpack.security.authc.realms.native.order", "1");
         Settings settings = builder.build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm );
         Iterator<Realm> iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -306,7 +307,7 @@ public class RealmsTests extends ESTestCase {
             }
         }
         Settings settings = builder.build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm );
         Iterator<Realm> iterator = realms.iterator();
         Realm realm = iterator.next();
@@ -343,7 +344,7 @@ public class RealmsTests extends ESTestCase {
                 .put("xpack.security.authc.realms.realm_1.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.realm_1.order", 0)
                 .build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm );
 
         assertThat(realms.iterator().hasNext(), is(true));
@@ -361,7 +362,7 @@ public class RealmsTests extends ESTestCase {
                 .put("xpack.security.authc.realms.bar.type", "type_0")
                 .put("xpack.security.authc.realms.bar.order", "1");
         Settings settings = builder.build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm );
 
         Map<String, Object> usageStats = realms.usageStats();

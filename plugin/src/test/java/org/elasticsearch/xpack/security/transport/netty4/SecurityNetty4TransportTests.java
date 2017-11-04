@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +48,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .put("path.home", createTempDir())
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
     }
 
@@ -196,7 +197,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .put("path.home", createTempDir());
         Settings settings = builder.build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
         Netty4MockUtil.setOpenChannelsHandlerToMock(transport);

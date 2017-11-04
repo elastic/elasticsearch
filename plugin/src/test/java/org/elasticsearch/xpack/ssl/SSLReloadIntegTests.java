@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
@@ -110,7 +110,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         String node = randomFrom(internalCluster().getNodeNames());
-        SSLService sslService = new SSLService(settings, new Environment(settings));
+        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings);
         TransportAddress address = internalCluster()
                 .getInstance(Transport.class, node).boundAddress().publishAddress();

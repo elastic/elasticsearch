@@ -62,6 +62,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.ssl.CertificateGenerateTool.CAInfo;
@@ -351,7 +352,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
     }
 
     public void testGetCAInfo() throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         final boolean passwordPrompt = randomBoolean();

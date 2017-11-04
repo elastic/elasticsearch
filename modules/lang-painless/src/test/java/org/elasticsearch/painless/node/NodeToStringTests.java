@@ -161,12 +161,12 @@ public class NodeToStringTests extends ESTestCase {
     public void testECast() {
         Location l = new Location(getTestName(), 0);
         AExpression child = new EConstant(l, "test");
-        Cast cast = new Cast(Definition.DEFINITION.StringType, Definition.DEFINITION.IntegerType, true);
+        Cast cast = Cast.standard(Definition.DEFINITION.StringType, Definition.DEFINITION.IntegerType, true);
         assertEquals("(ECast java.lang.Integer (EConstant String 'test'))", new ECast(l, child, cast).toString());
 
         l = new Location(getTestName(), 1);
         child = new EBinary(l, Operation.ADD, new EConstant(l, "test"), new EConstant(l, 12));
-        cast = new Cast(Definition.DEFINITION.IntegerType, Definition.DEFINITION.BooleanType, true);
+        cast = Cast.standard(Definition.DEFINITION.IntegerType, Definition.DEFINITION.BooleanType, true);
         assertEquals("(ECast java.lang.Boolean (EBinary (EConstant String 'test') + (EConstant Integer 12)))",
             new ECast(l, child, cast).toString());
     }

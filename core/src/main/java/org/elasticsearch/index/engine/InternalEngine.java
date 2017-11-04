@@ -1918,7 +1918,7 @@ public class InternalEngine extends Engine {
                 protected void doRun() throws Exception {
                     /*
                      * We do this on another thread rather than the merge thread that we are initially called on so that we have complete
-                     * confidence that the call stack does not contain catch statements that would prevent the error that might be thrown
+                     * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
                      * here from being caught and never reaching the uncaught exception handler.
                      */
                     maybeDie("fatal error while merging", exc);

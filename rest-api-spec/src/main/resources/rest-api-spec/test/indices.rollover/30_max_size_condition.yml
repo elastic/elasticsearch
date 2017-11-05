@@ -2,8 +2,8 @@
 "Rollover with max_size condition":
 
   - skip:
-      version: " - 6.99.99"
-      reason: max_size condition is introduced in v7
+      version: " - 6.0.99"
+      reason: max_size condition is introduced in 6.1.0
 
   # create index with alias and replica
   - do:

@@ -50,6 +50,7 @@ import org.apache.lucene.util.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1String;
+import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
@@ -797,8 +798,10 @@ public class CertificateToolTests extends ESTestCase {
                 assertThat(seq.size(), equalTo(2));
                 assertThat(seq.getObjectAt(0), instanceOf(ASN1ObjectIdentifier.class));
                 assertThat(seq.getObjectAt(0).toString(), equalTo(CertUtils.CN_OID));
-                assertThat(seq.getObjectAt(1), instanceOf(ASN1String.class));
-                assertThat(seq.getObjectAt(1).toString(), Matchers.isIn(certInfo.commonNames));
+                assertThat(seq.getObjectAt(1), instanceOf(ASN1TaggedObject.class));
+                ASN1TaggedObject tagged = (ASN1TaggedObject) seq.getObjectAt(1);
+                assertThat(tagged.getObject(), instanceOf(ASN1String.class));
+                assertThat(tagged.getObject().toString(), Matchers.isIn(certInfo.commonNames));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }

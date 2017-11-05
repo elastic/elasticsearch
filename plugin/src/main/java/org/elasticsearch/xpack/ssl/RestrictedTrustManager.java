@@ -23,7 +23,9 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1Primitive;
 import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.asn1.DERTaggedObject;
 import org.elasticsearch.common.logging.Loggers;
@@ -126,13 +128,35 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
                 .map(pair -> pair.get(1))
                 .map(value -> {
                     ASN1Sequence seq = ASN1Sequence.getInstance(value);
-                    assert seq.size() == 2 : "Incorrect sequence length for 'other name'";
+                    if (seq.size() != 2) {
+                        String message = "Incorrect sequence length for 'other name' [" + seq + "]";
+                        assert false : message;
+                        logger.warn(message);
+                        return null;
+                    }
                     final String id = ASN1ObjectIdentifier.getInstance(seq.getObjectAt(0)).getId();
                     if (CertUtils.CN_OID.equals(id)) {
-                        final ASN1TaggedObject object = DERTaggedObject.getInstance(seq.getObjectAt(1));
-                        final String cn = object.getObject().toString();
-                        logger.trace("Read cn [{}] from ASN1Sequence [{}]", cn, seq);
-                        return cn;
+                        ASN1TaggedObject tagged = DERTaggedObject.getInstance(seq.getObjectAt(1));
+                        // The JRE's handling of OtherNames is buggy.
+                        // The internal sun classes go to a lot of trouble to parse the GeneralNames into real object
+                        // And then java.security.cert.X509Certificate just turns them back into bytes
+                        // But in doing so, it ends up wrapping the "other name" bytes with a second tag
+                        // Specifically: sun.security.x509.OtherName(DerValue) never decodes the tagged "nameValue"
+                        // But: sun.security.x509.OtherName.encode() wraps the nameValue in a DER Tag.
+                        // So, there's a good chance that our tagged nameValue contains... a tagged name value.
+                        if (tagged.getObject() instanceof ASN1TaggedObject) {
+                            tagged = (ASN1TaggedObject) tagged.getObject();
+                        }
+                        final ASN1Primitive nameValue = tagged.getObject();
+                        if (nameValue instanceof ASN1String) {
+                            final String cn = ((ASN1String) nameValue).getString();
+                            logger.trace("Read cn [{}] from ASN1Sequence [{}]", cn, seq);
+                            return cn;
+                        } else {
+                            logger.warn("Certificate [{}] has 'otherName' [{}] with unsupported name-value type [{}]",
+                                    certificate.getSubjectDN(), seq, nameValue.getClass().getSimpleName());
+                            return null;
+                        }
                     } else {
                         logger.debug("Certificate [{}] has 'otherName' [{}] with unsupported object-id [{}]",
                                 certificate.getSubjectDN(), seq, id);

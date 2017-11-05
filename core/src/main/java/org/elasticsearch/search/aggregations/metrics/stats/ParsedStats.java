@@ -109,7 +109,7 @@ public class ParsedStats extends ParsedAggregation implements Stats {
             builder.nullField(Fields.MIN);
             builder.nullField(Fields.MAX);
             builder.nullField(Fields.AVG);
-            builder.nullField(Fields.SUM);
+            builder.field(Fields.SUM, 0.0d);
         }
         otherStatsToXContent(builder, params);
         return builder;

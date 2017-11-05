@@ -25,9 +25,12 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -212,6 +215,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexed();
             double queryValue = parse(value);
@@ -244,19 +256,19 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
-                double dValue = parse(lowerTerm);
+                double dValue = parse(lowerTerm) * scalingFactor;
                 if (includeLower == false) {
                     dValue = Math.nextUp(dValue);
                 }
-                lo = Math.round(Math.ceil(dValue * scalingFactor));
+                lo = Math.round(Math.ceil(dValue));
             }
             Long hi = null;
             if (upperTerm != null) {
-                double dValue = parse(upperTerm);
+                double dValue = parse(upperTerm) * scalingFactor;
                 if (includeUpper == false) {
                     dValue = Math.nextDown(dValue);
                 }
-                hi = Math.round(Math.floor(dValue * scalingFactor));
+                hi = Math.round(Math.floor(dValue));
             }
             Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues());
             if (boost() != 1f) {
@@ -406,6 +418,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
         fields.addAll(NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored));
+        if (docValued == false && (indexed || stored)) {
+            createFieldNamesField(context, fields);
+        }
     }
 
     @Override

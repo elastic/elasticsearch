@@ -35,6 +35,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -49,6 +50,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -379,6 +381,18 @@ public final class Request {
     static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
         HttpEntity entity = createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
+    }
+
+    static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
+        Params params = Params.builder();
+        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (multiSearchRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
+            params.putParam("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
+        }
+        XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
+        byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
+        HttpEntity entity = new ByteArrayEntity(source, createContentType(xContent.type()));
+        return new Request("GET", "/_msearch", params.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {

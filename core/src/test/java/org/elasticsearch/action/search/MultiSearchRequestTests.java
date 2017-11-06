@@ -19,24 +19,36 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
+import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -202,4 +214,87 @@ public class MultiSearchRequestTests extends ESTestCase {
         return new NamedXContentRegistry(singletonList(new NamedXContentRegistry.Entry(QueryBuilder.class,
                 new ParseField(MatchAllQueryBuilder.NAME), (p, c) -> MatchAllQueryBuilder.fromXContent(p))));
     }
+
+    public void testMultiLineSerialization() throws IOException {
+        int iters = 16;
+        for (int i = 0; i < iters; i++) {
+            // The only formats that support stream separator
+            XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+            MultiSearchRequest originalRequest = createMultiSearchRequest();
+
+            byte[] originalBytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, xContentType.xContent());
+            MultiSearchRequest parsedRequest = new MultiSearchRequest();
+            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (r, p) -> {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p);
+                if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
+                    r.source(searchSourceBuilder);
+                }
+                parsedRequest.add(r);
+            };
+            MultiSearchRequest.readMultiLineFormat(new BytesArray(originalBytes), xContentType.xContent(),
+                    consumer, null, null, null, null, null, xContentRegistry(), true);
+            assertEquals(originalRequest, parsedRequest);
+        }
+    }
+
+    public void testEqualsAndHashcode() throws IOException {
+        checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
+    }
+
+    private static MultiSearchRequest mutate(MultiSearchRequest searchRequest) throws IOException {
+        MultiSearchRequest mutation = copyRequest(searchRequest);
+        List<CheckedRunnable<IOException>> mutators = new ArrayList<>();
+        mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(searchRequest.indicesOptions(),
+                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+        mutators.add(() -> mutation.maxConcurrentSearchRequests(randomIntBetween(1, 32)));
+        mutators.add(() -> mutation.add(createSimpleSearchRequest()));
+        randomFrom(mutators).run();
+        return mutation;
+    }
+
+    private static MultiSearchRequest copyRequest(MultiSearchRequest request) throws IOException {
+        MultiSearchRequest copy = new MultiSearchRequest();
+        if (request.maxConcurrentSearchRequests() > 0) {
+            copy.maxConcurrentSearchRequests(request.maxConcurrentSearchRequests());
+        }
+        copy.indicesOptions(request.indicesOptions());
+        for (SearchRequest searchRequest : request.requests()) {
+            copy.add(searchRequest);
+        }
+        return copy;
+    }
+
+    private static MultiSearchRequest createMultiSearchRequest() throws IOException {
+        int numSearchRequest = randomIntBetween(1, 128);
+        MultiSearchRequest request = new MultiSearchRequest();
+        for (int j = 0; j < numSearchRequest; j++) {
+            SearchRequest searchRequest = createSimpleSearchRequest();
+
+            // scroll is not supported in the current msearch api, so unset it:
+            searchRequest.scroll((Scroll) null);
+
+            // only expand_wildcards, ignore_unavailable and allow_no_indices can be specified from msearch api, so unset other options:
+            IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
+            IndicesOptions msearchDefault = IndicesOptions.strictExpandOpenAndForbidClosed();
+            searchRequest.indicesOptions(IndicesOptions.fromOptions(
+                    randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
+                    randomlyGenerated.expandWildcardsClosed(), msearchDefault.allowAliasesToMultipleIndices(),
+                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases()
+            ));
+
+            request.add(searchRequest);
+        }
+        return request;
+    }
+
+    private static SearchRequest createSimpleSearchRequest() throws IOException {
+        return randomSearchRequest(() -> {
+            // No need to return a very complex SearchSourceBuilder here, that is tested elsewhere
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.from(randomInt(10));
+            searchSourceBuilder.size(randomIntBetween(20, 100));
+            return searchSourceBuilder;
+        });
+    }
+
 }

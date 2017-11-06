@@ -23,20 +23,30 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.ScriptQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.join.aggregations.Children;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -45,10 +55,12 @@ import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -64,6 +76,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SearchIT extends ESRestHighLevelClientTestCase {
 
@@ -80,10 +93,24 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         StringEntity doc5 = new StringEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}", ContentType.APPLICATION_JSON);
         client().performRequest("PUT", "/index/type/5", Collections.emptyMap(), doc5);
         client().performRequest("POST", "/index/_refresh");
+
+        StringEntity doc = new StringEntity("{\"field\":\"value1\"}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/index1/doc/1", Collections.emptyMap(), doc);
+        doc = new StringEntity("{\"field\":\"value2\"}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/index1/doc/2", Collections.emptyMap(), doc);
+        doc = new StringEntity("{\"field\":\"value1\"}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/index2/doc/3", Collections.emptyMap(), doc);
+        doc = new StringEntity("{\"field\":\"value2\"}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/index2/doc/4", Collections.emptyMap(), doc);
+        doc = new StringEntity("{\"field\":\"value1\"}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/index3/doc/5", Collections.emptyMap(), doc);
+        doc = new StringEntity("{\"field\":\"value2\"}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/index3/doc/6", Collections.emptyMap(), doc);
+        client().performRequest("POST", "/index1,index2,index3/_refresh");
     }
 
     public void testSearchNoQuery() throws IOException {
-        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest searchRequest = new SearchRequest("index");
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getAggregations());
@@ -106,7 +133,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testSearchMatchQuery() throws IOException {
-        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("num", 10)));
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
         assertSearchHeader(searchResponse);
@@ -164,7 +191,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertEquals(RestStatus.BAD_REQUEST, exception.status());
         }
 
-        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.aggregation(new RangeAggregationBuilder("agg1").field("num")
                 .addRange("first", 0, 30).addRange("second", 31, 200));
@@ -193,7 +220,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testSearchWithTermsAndRangeAgg() throws IOException {
-        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         TermsAggregationBuilder agg = new TermsAggregationBuilder("agg1", ValueType.STRING).field("type.keyword");
         agg.subAggregation(new RangeAggregationBuilder("subagg").field("num")
@@ -247,7 +274,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testSearchWithMatrixStats() throws IOException {
-        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.aggregation(new MatrixStatsAggregationBuilder("agg1").fields(Arrays.asList("num", "num2")));
         searchSourceBuilder.size(0);
@@ -374,7 +401,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testSearchWithSuggest() throws IOException {
-        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion("sugg1", new PhraseSuggestionBuilder("type"))
                 .setGlobalText("type"));
@@ -462,6 +489,185 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ElasticsearchException rootCause = (ElasticsearchException) exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("No search context found for"));
         }
+    }
+
+    public void testMultiSearch() throws Exception {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        SearchRequest searchRequest1 = new SearchRequest("index1");
+        searchRequest1.source().sort("_id", SortOrder.ASC);
+        multiSearchRequest.add(searchRequest1);
+        SearchRequest searchRequest2 = new SearchRequest("index2");
+        searchRequest2.source().sort("_id", SortOrder.ASC);
+        multiSearchRequest.add(searchRequest2);
+        SearchRequest searchRequest3 = new SearchRequest("index3");
+        searchRequest3.source().sort("_id", SortOrder.ASC);
+        multiSearchRequest.add(searchRequest3);
+
+        MultiSearchResponse multiSearchResponse =
+                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+        assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
+
+        assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits(), Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("1"));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getAt(1).getId(), Matchers.equalTo("2"));
+
+        assertThat(multiSearchResponse.getResponses()[1].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[1].getResponse());
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits(), Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("3"));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(1).getId(), Matchers.equalTo("4"));
+
+        assertThat(multiSearchResponse.getResponses()[2].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[2].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[2].getResponse());
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits(), Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("5"));
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(1).getId(), Matchers.equalTo("6"));
+    }
+
+    public void testMultiSearch_withAgg() throws Exception {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        SearchRequest searchRequest1 = new SearchRequest("index1");
+        searchRequest1.source().size(0).aggregation(new TermsAggregationBuilder("name", ValueType.STRING).field("field.keyword")
+                .order(BucketOrder.key(true)));
+        multiSearchRequest.add(searchRequest1);
+        SearchRequest searchRequest2 = new SearchRequest("index2");
+        searchRequest2.source().size(0).aggregation(new TermsAggregationBuilder("name", ValueType.STRING).field("field.keyword")
+                .order(BucketOrder.key(true)));
+        multiSearchRequest.add(searchRequest2);
+        SearchRequest searchRequest3 = new SearchRequest("index3");
+        searchRequest3.source().size(0).aggregation(new TermsAggregationBuilder("name", ValueType.STRING).field("field.keyword")
+                .order(BucketOrder.key(true)));
+        multiSearchRequest.add(searchRequest3);
+
+        MultiSearchResponse multiSearchResponse =
+                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+        assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
+
+        assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits(), Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getHits().length, Matchers.equalTo(0));
+        Terms terms = multiSearchResponse.getResponses()[0].getResponse().getAggregations().get("name");
+        assertThat(terms.getBuckets().size(), Matchers.equalTo(2));
+        assertThat(terms.getBuckets().get(0).getKeyAsString(), Matchers.equalTo("value1"));
+        assertThat(terms.getBuckets().get(1).getKeyAsString(), Matchers.equalTo("value2"));
+
+        assertThat(multiSearchResponse.getResponses()[1].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits(), Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getHits().length, Matchers.equalTo(0));
+        terms = multiSearchResponse.getResponses()[1].getResponse().getAggregations().get("name");
+        assertThat(terms.getBuckets().size(), Matchers.equalTo(2));
+        assertThat(terms.getBuckets().get(0).getKeyAsString(), Matchers.equalTo("value1"));
+        assertThat(terms.getBuckets().get(1).getKeyAsString(), Matchers.equalTo("value2"));
+
+        assertThat(multiSearchResponse.getResponses()[2].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[2].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits(), Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getHits().length, Matchers.equalTo(0));
+        terms = multiSearchResponse.getResponses()[2].getResponse().getAggregations().get("name");
+        assertThat(terms.getBuckets().size(), Matchers.equalTo(2));
+        assertThat(terms.getBuckets().get(0).getKeyAsString(), Matchers.equalTo("value1"));
+        assertThat(terms.getBuckets().get(1).getKeyAsString(), Matchers.equalTo("value2"));
+    }
+
+    public void testMultiSearch_withQuery() throws Exception {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        SearchRequest searchRequest1 = new SearchRequest("index1");
+        searchRequest1.source().query(new TermsQueryBuilder("field", "value2"));
+        multiSearchRequest.add(searchRequest1);
+        SearchRequest searchRequest2 = new SearchRequest("index2");
+        searchRequest2.source().query(new TermsQueryBuilder("field", "value2"));
+        multiSearchRequest.add(searchRequest2);
+        SearchRequest searchRequest3 = new SearchRequest("index3");
+        searchRequest3.source().query(new TermsQueryBuilder("field", "value2"));
+        multiSearchRequest.add(searchRequest3);
+
+        MultiSearchResponse multiSearchResponse =
+                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+        assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
+
+        assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits(), Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("2"));
+
+        assertThat(multiSearchResponse.getResponses()[1].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[1].getResponse());
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits(), Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("4"));
+
+        assertThat(multiSearchResponse.getResponses()[2].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[2].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[2].getResponse());
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits(), Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("6"));
+
+        searchRequest1.source().highlighter(new HighlightBuilder().field("field"));
+        searchRequest2.source().highlighter(new HighlightBuilder().field("field"));
+        searchRequest3.source().highlighter(new HighlightBuilder().field("field"));
+        multiSearchResponse = execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+        assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
+
+        assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits(), Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getAt(0).getHighlightFields()
+                .get("field").fragments()[0].string(), Matchers.equalTo("<em>value2</em>"));
+
+        assertThat(multiSearchResponse.getResponses()[1].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[1].getResponse());
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits(), Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("4"));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getHighlightFields()
+                .get("field").fragments()[0].string(), Matchers.equalTo("<em>value2</em>"));
+
+        assertThat(multiSearchResponse.getResponses()[2].getFailure(), Matchers.nullValue());
+        assertThat(multiSearchResponse.getResponses()[2].isFailure(), Matchers.is(false));
+        SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[2].getResponse());
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits(), Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("6"));
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getHighlightFields()
+                .get("field").fragments()[0].string(), Matchers.equalTo("<em>value2</em>"));
+    }
+
+    public void testMultiSearch_failure() throws Exception {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        SearchRequest searchRequest1 = new SearchRequest("index1");
+        searchRequest1.source().query(new ScriptQueryBuilder(new Script(ScriptType.INLINE, "invalid", "code", Collections.emptyMap())));
+        multiSearchRequest.add(searchRequest1);
+        SearchRequest searchRequest2 = new SearchRequest("index2");
+        searchRequest2.source().query(new ScriptQueryBuilder(new Script(ScriptType.INLINE, "invalid", "code", Collections.emptyMap())));
+        multiSearchRequest.add(searchRequest2);
+
+        MultiSearchResponse multiSearchResponse =
+                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+        assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(2));
+
+        assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(true));
+        assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), containsString("search_phase_execution_exception"));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+
+        assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(true));
+        assertThat(multiSearchResponse.getResponses()[1].getFailure().getMessage(), containsString("search_phase_execution_exception"));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse(), nullValue());
     }
 
     private static void assertSearchHeader(SearchResponse searchResponse) {

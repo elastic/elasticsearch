@@ -22,3 +22,14 @@ PUT /_cluster/settings
 --------------------------------------------------
 // CONSOLE
 
+==== Search API returns `400` for invalid requests
+
+The Search API returns `400 - Bad request` while it would previously return
+`500 - Internal Server Error` in the following cases of invalid request:
+
+*   the result window is too large
+*   sort is used in  combination with rescore
+*   the rescore window is too large
+*   the number of slices is too large
+*   keep alive for scroll is too large
+*   number of filters in the adjacency matrix aggregation is too large

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.scroll;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -37,7 +36,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -575,10 +573,10 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .setSize(1)
                 .setScroll(TimeValue.timeValueHours(2))
                 .execute().actionGet());
-        QueryPhaseExecutionException queryPhaseExecutionException =
-            (QueryPhaseExecutionException) ExceptionsHelper.unwrap(exc, QueryPhaseExecutionException.class);
-        assertNotNull(queryPhaseExecutionException);
-        assertThat(queryPhaseExecutionException.getMessage(), containsString("Keep alive for scroll (2 hours) is too large"));
+        IllegalArgumentException illegalArgumentException =
+            (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
+        assertNotNull(illegalArgumentException);
+        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for scroll (2 hours) is too large"));
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -592,10 +590,10 @@ public class SearchScrollIT extends ESIntegTestCase {
         exc = expectThrows(Exception.class,
             () -> client().prepareSearchScroll(searchResponse.getScrollId())
                     .setScroll(TimeValue.timeValueHours(3)).get());
-        queryPhaseExecutionException =
-            (QueryPhaseExecutionException) ExceptionsHelper.unwrap(exc, QueryPhaseExecutionException.class);
-        assertNotNull(queryPhaseExecutionException);
-        assertThat(queryPhaseExecutionException.getMessage(), containsString("Keep alive for scroll (3 hours) is too large"));
+        illegalArgumentException =
+            (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
+        assertNotNull(illegalArgumentException);
+        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for scroll (3 hours) is too large"));
     }
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {

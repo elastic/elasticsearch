@@ -149,6 +149,15 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         securityIndex.addIndexHealthChangeListener(listener);
     }
 
+    /**
+     * Adds a listener which will be notified when the security index out of date value changes. The previous and
+     * current value will be provided to the listener so that the listener can determine if any action
+     * needs to be taken.
+     */
+    public void addSecurityIndexOutOfDateListener(BiConsumer<Boolean, Boolean> listener) {
+        securityIndex.addIndexOutOfDateListener(listener);
+    }
+
     // this is called in a lifecycle listener beforeStop on the cluster service
     private void close() {
         if (indexAuditTrail != null) {

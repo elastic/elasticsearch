@@ -152,38 +152,46 @@ public class CompositeRolesStore extends AbstractComponent {
         } else {
             nativeRolesStore.getRoleDescriptors(remainingRoleNames.toArray(Strings.EMPTY_ARRAY), ActionListener.wrap((descriptors) -> {
                 builtInRoleDescriptors.addAll(descriptors);
-                if (builtInRoleDescriptors.size() != filteredRoleNames.size()) {
-                    final Set<String> missing = difference(filteredRoleNames, builtInRoleDescriptors);
-                    assert missing.isEmpty() == false : "the missing set should not be empty if the sizes didn't match";
-                    if (licenseState.isCustomRoleProvidersAllowed() && !customRolesProviders.isEmpty()) {
-                        new IteratingActionListener<>(roleDescriptorActionListener, (rolesProvider, listener) -> {
-                            // resolve descriptors with role provider
-                            rolesProvider.accept(missing, ActionListener.wrap((resolvedDescriptors) -> {
-                                builtInRoleDescriptors.addAll(resolvedDescriptors);
-                                // remove resolved descriptors from the set of roles still needed to be resolved
-                                for (RoleDescriptor descriptor : resolvedDescriptors) {
-                                    missing.remove(descriptor.getName());
-                                }
-                                if (missing.isEmpty()) {
-                                    // no more roles to resolve, send the response
-                                    listener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
-                                } else {
-                                    // still have roles to resolve, keep trying with the next roles provider
-                                    listener.onResponse(null);
-                                }
-                            }, listener::onFailure));
-                        }, customRolesProviders, threadContext, () -> {
-                            negativeLookupCache.addAll(missing);
-                            return builtInRoleDescriptors;
-                        }).run();
-                    } else {
-                        negativeLookupCache.addAll(missing);
-                        roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
-                    }
-                } else {
-                    roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
-                }
-            }, roleDescriptorActionListener::onFailure));
+                callCustomRoleProvidersIfEnabled(builtInRoleDescriptors, filteredRoleNames, roleDescriptorActionListener);
+            }, e -> {
+                logger.warn("role retrieval failed from the native roles store", e);
+                callCustomRoleProvidersIfEnabled(builtInRoleDescriptors, filteredRoleNames, roleDescriptorActionListener);
+            }));
+        }
+    }
+
+    private void callCustomRoleProvidersIfEnabled(Set<RoleDescriptor> builtInRoleDescriptors, Set<String> filteredRoleNames,
+                                                  ActionListener<Set<RoleDescriptor>> roleDescriptorActionListener) {
+        if (builtInRoleDescriptors.size() != filteredRoleNames.size()) {
+            final Set<String> missing = difference(filteredRoleNames, builtInRoleDescriptors);
+            assert missing.isEmpty() == false : "the missing set should not be empty if the sizes didn't match";
+            if (licenseState.isCustomRoleProvidersAllowed() && !customRolesProviders.isEmpty()) {
+                new IteratingActionListener<>(roleDescriptorActionListener, (rolesProvider, listener) -> {
+                    // resolve descriptors with role provider
+                    rolesProvider.accept(missing, ActionListener.wrap((resolvedDescriptors) -> {
+                        builtInRoleDescriptors.addAll(resolvedDescriptors);
+                        // remove resolved descriptors from the set of roles still needed to be resolved
+                        for (RoleDescriptor descriptor : resolvedDescriptors) {
+                            missing.remove(descriptor.getName());
+                        }
+                        if (missing.isEmpty()) {
+                            // no more roles to resolve, send the response
+                            listener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
+                        } else {
+                            // still have roles to resolve, keep trying with the next roles provider
+                            listener.onResponse(null);
+                        }
+                    }, listener::onFailure));
+                }, customRolesProviders, threadContext, () -> {
+                    negativeLookupCache.addAll(missing);
+                    return builtInRoleDescriptors;
+                }).run();
+            } else {
+                negativeLookupCache.addAll(missing);
+                roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
+            }
+        } else {
+            roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
         }
     }
 
@@ -298,6 +306,11 @@ public class CompositeRolesStore extends AbstractComponent {
         if (movedFromRedToNonRed || indexDeleted) {
             invalidateAll();
         }
+    }
+
+    public void onSecurityIndexOutOfDateChange(boolean prevOutOfDate, boolean outOfDate) {
+        assert prevOutOfDate != outOfDate : "this method should only be called if the two values are different";
+        invalidateAll();
     }
 
     /**

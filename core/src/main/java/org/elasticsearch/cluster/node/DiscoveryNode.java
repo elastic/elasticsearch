@@ -84,7 +84,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * <p>
      * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
      * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
      * and updated.
      * </p>
      *
@@ -101,7 +101,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * <p>
      * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
      * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
      * and updated.
      * </p>
      *
@@ -121,7 +121,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * <p>
      * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
      * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
      * and updated.
      * </p>
      *
@@ -143,7 +143,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * <p>
      * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
      * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
      * and updated.
      * </p>
      *
@@ -189,9 +189,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /** Creates a DiscoveryNode representing the local node. */
     public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
-        Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(settings).getAsMap());
+        Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
         Set<Role> roles = getRolesFromSettings(settings);
-
         return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
     }
 

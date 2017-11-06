@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.rest.RestStatus;
@@ -38,9 +39,8 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
 
     public void testQueryRewriteOnRefresh() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "s", "type=text")
-                .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true,
-                        IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1,
-                        IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                 .get());
 
         // Index some documents

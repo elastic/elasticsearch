@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -58,9 +59,10 @@ final class DocumentParser {
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
-        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(), source.source())) {
-            context = new ParseContext.InternalParseContext(indexSettings.getSettings(),
-                    docMapperParser, docMapper, source, parser);
+        final XContentType xContentType = source.getXContentType();
+
+        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(), source.source(), xContentType)) {
+            context = new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, context, parser);
             validateEnd(parser);
@@ -74,8 +76,7 @@ final class DocumentParser {
 
         reverseOrder(context);
 
-        ParsedDocument doc = parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
-        return doc;
+        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
     }
 
     private static void internalParseDocument(Mapping mapping, ParseContext.InternalParseContext context, XContentParser parser) throws IOException {
@@ -89,7 +90,7 @@ final class DocumentParser {
             // entire type is disabled
             parser.skipChildren();
         } else if (emptyDoc == false) {
-            parseObjectOrNested(context, mapping.root, true);
+            parseObjectOrNested(context, mapping.root);
         }
 
         for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
@@ -338,7 +339,7 @@ final class DocumentParser {
         return parent.mappingUpdate(mapper);
     }
 
-    static void parseObjectOrNested(ParseContext context, ObjectMapper mapper, boolean atRoot) throws IOException {
+    static void parseObjectOrNested(ParseContext context, ObjectMapper mapper) throws IOException {
         if (mapper.isEnabled() == false) {
             context.parser().skipChildren();
             return;
@@ -467,7 +468,7 @@ final class DocumentParser {
 
     private static void parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper) {
-            parseObjectOrNested(context, (ObjectMapper) mapper, false);
+            parseObjectOrNested(context, (ObjectMapper) mapper);
         } else {
             FieldMapper fieldMapper = (FieldMapper)mapper;
             Mapper update = fieldMapper.parse(context);
@@ -481,14 +482,13 @@ final class DocumentParser {
     private static void parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
         assert currentFieldName != null;
 
-        Mapper objectMapper = getMapper(mapper, currentFieldName);
+        final String[] paths = splitAndValidatePath(currentFieldName);
+        Mapper objectMapper = getMapper(mapper, currentFieldName, paths);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
             parseObjectOrField(context, objectMapper);
             context.path().remove();
         } else {
-
-            final String[] paths = splitAndValidatePath(currentFieldName);
             currentFieldName = paths[paths.length - 1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, mapper);
             ObjectMapper parentMapper = parentMapperTuple.v2();
@@ -518,7 +518,9 @@ final class DocumentParser {
 
     private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
         String arrayFieldName = lastFieldName;
-        Mapper mapper = getMapper(parentMapper, lastFieldName);
+
+        final String[] paths = splitAndValidatePath(arrayFieldName);
+        Mapper mapper = getMapper(parentMapper, lastFieldName, paths);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
@@ -529,8 +531,6 @@ final class DocumentParser {
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             }
         } else {
-
-            final String[] paths = splitAndValidatePath(arrayFieldName);
             arrayFieldName = paths[paths.length - 1];
             lastFieldName = arrayFieldName;
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
@@ -589,12 +589,12 @@ final class DocumentParser {
         if (currentFieldName == null) {
             throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with no field associated with it, current value [" + context.parser().textOrNull() + "]");
         }
-        Mapper mapper = getMapper(parentMapper, currentFieldName);
+
+        final String[] paths = splitAndValidatePath(currentFieldName);
+        Mapper mapper = getMapper(parentMapper, currentFieldName, paths);
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
-
-            final String[] paths = splitAndValidatePath(currentFieldName);
             currentFieldName = paths[paths.length - 1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
             parentMapper = parentMapperTuple.v2();
@@ -607,7 +607,7 @@ final class DocumentParser {
 
     private static void parseNullValue(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
         // we can only handle null values if we have mappings for them
-        Mapper mapper = getMapper(parentMapper, lastFieldName);
+        Mapper mapper = getMapper(parentMapper, lastFieldName, splitAndValidatePath(lastFieldName));
         if (mapper != null) {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
@@ -893,7 +893,7 @@ final class DocumentParser {
                             break;
                         case FALSE:
                            // Should not dynamically create any more mappers so return the last mapper
-                        return new Tuple<Integer, ObjectMapper>(pathsAdded, parent);
+                        return new Tuple<>(pathsAdded, parent);
 
                     }
                 }
@@ -901,7 +901,7 @@ final class DocumentParser {
                 pathsAdded++;
                 parent = mapper;
             }
-        return new Tuple<Integer, ObjectMapper>(pathsAdded, mapper);
+        return new Tuple<>(pathsAdded, mapper);
     }
 
     // find what the dynamic setting is given the current parse context and parent
@@ -929,8 +929,7 @@ final class DocumentParser {
     }
 
     // looks up a child mapper, but takes into account field names that expand to objects
-    static Mapper getMapper(ObjectMapper objectMapper, String fieldName) {
-        String[] subfields = splitAndValidatePath(fieldName);
+    private static Mapper getMapper(ObjectMapper objectMapper, String fieldName, String[] subfields) {
         for (int i = 0; i < subfields.length - 1; ++i) {
             Mapper mapper = objectMapper.getMapper(subfields[i]);
             if (mapper == null || (mapper instanceof ObjectMapper) == false) {

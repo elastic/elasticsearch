@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
@@ -106,6 +107,9 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             ExecutableScript.Factory factory = (p) -> new ExpressionExecutableScript(expr, p);
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(FilterScript.class)) {
+            FilterScript.Factory factory = (p, lookup) -> newFilterScript(expr, lookup, p);
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
@@ -234,6 +238,27 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             }
         }
         return new ExpressionSearchScript(expr, bindings, specialValue, needsScores);
+    }
+
+    /**
+     * This is a hack for filter scripts, which must return booleans instead of doubles as expression do.
+     * See https://github.com/elastic/elasticsearch/issues/26429.
+     */
+    private FilterScript.LeafFactory newFilterScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        SearchScript.LeafFactory searchLeafFactory = newSearchScript(expr, lookup, vars);
+        return ctx -> {
+            SearchScript script = searchLeafFactory.newInstance(ctx);
+            return new FilterScript(vars, lookup, ctx) {
+                @Override
+                public boolean execute() {
+                    return script.runAsDouble() != 0.0;
+                }
+                @Override
+                public void setDocument(int docid) {
+                    script.setDocument(docid);
+                }
+            };
+        };
     }
 
     /**

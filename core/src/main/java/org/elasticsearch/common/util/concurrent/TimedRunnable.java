@@ -23,25 +23,51 @@ package org.elasticsearch.common.util.concurrent;
  * A class used to wrap a {@code Runnable} that allows capturing the time of the task since creation
  * through execution as well as only execution time.
  */
-class TimedRunnable implements Runnable {
+class TimedRunnable extends AbstractRunnable {
     private final Runnable original;
     private final long creationTimeNanos;
     private long startTimeNanos;
     private long finishTimeNanos = -1;
 
-    TimedRunnable(Runnable original) {
+    TimedRunnable(final Runnable original) {
         this.original = original;
         this.creationTimeNanos = System.nanoTime();
     }
 
     @Override
-    public void run() {
+    public void doRun() {
         try {
             startTimeNanos = System.nanoTime();
             original.run();
         } finally {
             finishTimeNanos = System.nanoTime();
         }
+    }
+
+    @Override
+    public void onRejection(final Exception e) {
+        if (original instanceof AbstractRunnable) {
+            ((AbstractRunnable) original).onRejection(e);
+        }
+    }
+
+    @Override
+    public void onAfter() {
+        if (original instanceof AbstractRunnable) {
+            ((AbstractRunnable) original).onAfter();
+        }
+    }
+
+    @Override
+    public void onFailure(final Exception e) {
+        if (original instanceof AbstractRunnable) {
+            ((AbstractRunnable) original).onFailure(e);
+        }
+    }
+
+    @Override
+    public boolean isForceExecution() {
+        return original instanceof AbstractRunnable && ((AbstractRunnable) original).isForceExecution();
     }
 
     /**
@@ -67,4 +93,5 @@ class TimedRunnable implements Runnable {
         }
         return finishTimeNanos - startTimeNanos;
     }
+
 }

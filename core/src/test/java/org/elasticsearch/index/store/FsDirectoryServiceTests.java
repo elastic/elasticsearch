@@ -21,9 +21,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SleepingLockWrapper;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -48,7 +46,7 @@ public class FsDirectoryServiceTests extends ESTestCase {
     private void doTestPreload(String...preload) throws IOException {
         Settings build = Settings.builder()
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mmapfs")
-                .putArray(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
+                .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
                 .build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("foo", build);
         IndexStore store = new IndexStore(settings);

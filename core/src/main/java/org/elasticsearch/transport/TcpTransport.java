@@ -110,7 +110,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.settings.Setting.affixKeySetting;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
-import static org.elasticsearch.common.settings.Setting.groupSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
@@ -184,7 +183,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
 
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
-    private static final int PING_DATA_SIZE = -1;
+    public static final int PING_DATA_SIZE = -1;
     private final CircuitBreakerService circuitBreakerService;
     // package visibility for tests
     protected final ScheduledPing scheduledPing;
@@ -442,7 +441,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         public void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
                 try {
-                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false);
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false,
+                        lifecycle.stopped());
                 } finally {
                     transportService.onConnectionClosed(this);
                 }
@@ -599,6 +599,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
                 transportService.onConnectionOpened(nodeChannels);
                 connectionRef.set(nodeChannels);
+                if (Arrays.stream(nodeChannels.channels).allMatch(this::isOpen) == false) {
+                    throw new ConnectTransportException(node, "a channel closed while connecting");
+                }
                 success = true;
                 return nodeChannels;
             } catch (ConnectTransportException e) {
@@ -640,7 +643,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final void closeChannelWhileHandlingExceptions(final Channel channel) {
         if (isOpen(channel)) {
             try {
-                closeChannels(Collections.singletonList(channel), false);
+                closeChannels(Collections.singletonList(channel), false, false);
             } catch (IOException e) {
                 logger.warn("failed to close channel", e);
             }
@@ -902,11 +905,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
                     try {
-                        closeChannels(entry.getValue(), true);
+                        closeChannels(entry.getValue(), true, false);
                     } catch (Exception e) {
-                        logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "Error closing serverChannel for profile [{}]", entry.getKey()), e);
+                        logger.warn(new ParameterizedMessage("Error closing serverChannel for profile [{}]", entry.getKey()), e);
                     }
                 }
                 // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
@@ -975,7 +976,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     @Override
                     protected void innerInnerOnResponse(Channel channel) {
                         try {
-                            closeChannels(Collections.singletonList(channel), false);
+                            closeChannels(Collections.singletonList(channel), false, false);
                         } catch (IOException e1) {
                             logger.debug("failed to close httpOnTransport channel", e1);
                         }
@@ -984,7 +985,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     @Override
                     protected void innerOnFailure(Exception e) {
                         try {
-                            closeChannels(Collections.singletonList(channel), false);
+                            closeChannels(Collections.singletonList(channel), false, false);
                         } catch (IOException e1) {
                             e.addSuppressed(e1);
                             logger.debug("failed to close httpOnTransport channel", e1);
@@ -1021,8 +1022,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      *
      * @param channels the channels to close
      * @param blocking whether the channels should be closed synchronously
+     * @param doNotLinger whether we abort the connection on RST instead of FIN
      */
-    protected abstract void closeChannels(List<Channel> channels, boolean blocking) throws IOException;
+    protected abstract void closeChannels(List<Channel> channels, boolean blocking, boolean doNotLinger) throws IOException;
 
     /**
      * Sends message to channel. The listener's onResponse method will be called when the send is complete unless an exception
@@ -1033,7 +1035,18 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener);
 
-    protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile connectionProfile,
+    /**
+     * Connect to the node with channels as defined by the specified connection profile. Implementations must invoke the specified channel
+     * close callback when a channel is closed.
+     *
+     * @param node              the node to connect to
+     * @param connectionProfile the connection profile
+     * @param onChannelClose    callback to invoke when a channel is closed
+     * @return the channels
+     * @throws IOException if an I/O exception occurs while opening channels
+     */
+    protected abstract NodeChannels connectToChannels(DiscoveryNode node,
+                                                      ConnectionProfile connectionProfile,
                                                       Consumer<Channel> onChannelClose) throws IOException;
 
     /**

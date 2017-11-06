@@ -316,7 +316,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             assert documentFailureMessage != null;
                             throw new IOException(documentFailureMessage);
                         }
-                    }, null, config);
+                    }, null, null, config);
         }
     }
 

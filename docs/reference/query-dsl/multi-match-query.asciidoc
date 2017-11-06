@@ -58,6 +58,8 @@ GET /_search
 
 <1> The `subject` field is three times as important as the `message` field.
 
+WARNING: There is a limit of no more than 1024 fields being queried at once.
+
 [[multi-match-types]]
 [float]
 ==== Types of `multi_match` query:
@@ -137,7 +139,8 @@ follows:
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`,
- `cutoff_frequency` and `auto_generate_synonyms_phrase_query`, as explained in <<query-dsl-match-query, match query>>.
+ `cutoff_frequency`, `auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`,
+  as explained in <<query-dsl-match-query, match query>>.
 
 [IMPORTANT]
 [[operator-min]]

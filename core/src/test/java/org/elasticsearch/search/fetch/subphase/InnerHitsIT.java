@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
@@ -386,6 +387,9 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testInnerHitsWithObjectFieldThatHasANestedField() throws Exception {
         assertAcked(prepareCreate("articles")
+                        // number_of_shards = 1, because then we catch the expected exception in the same way.
+                        // (See expectThrows(...) below)
+                        .setSettings(Settings.builder().put("index.number_of_shards", 1))
                         .addMapping("article", jsonBuilder().startObject()
                                         .startObject("properties")
                                             .startObject("comments")
@@ -402,32 +406,54 @@ public class InnerHitsIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
                 .field("title", "quick brown fox")
-                .startObject("comments")
-                .startArray("messages")
-                    .startObject().field("message", "fox eat quick").endObject()
-                    .startObject().field("message", "bear eat quick").endObject()
+                .startArray("comments")
+                    .startObject()
+                        .startArray("messages")
+                            .startObject().field("message", "fox eat quick").endObject()
+                            .startObject().field("message", "bear eat quick").endObject()
+                        .endArray()
+                    .endObject()
+                    .startObject()
+                        .startArray("messages")
+                            .startObject().field("message", "no fox").endObject()
+                        .endArray()
+                    .endObject()
                 .endArray()
-                .endObject()
                 .endObject()));
         indexRandom(true, requests);
 
+        Exception e = expectThrows(Exception.class, () -> client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
+            matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(new InnerHitBuilder())).get());
+        assertEquals("Cannot execute inner hits. One or more parent object fields of nested field [comments.messages] are " +
+            "not nested. All parent fields need to be nested fields too", e.getCause().getCause().getMessage());
+
+        e = expectThrows(Exception.class, () -> client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
+            matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(new InnerHitBuilder()
+            .setFetchSourceContext(new FetchSourceContext(true)))).get());
+        assertEquals("Cannot execute inner hits. One or more parent object fields of nested field [comments.messages] are " +
+            "not nested. All parent fields need to be nested fields too", e.getCause().getCause().getMessage());
+
         SearchResponse response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg)
-                        .innerHit(new InnerHitBuilder())).get();
+                        .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         SearchHit hit = response.getHits().getAt(0);
         assertThat(hit.getId(), equalTo("1"));
         SearchHits messages = hit.getInnerHits().get("comments.messages");
-        assertThat(messages.getTotalHits(), equalTo(1L));
+        assertThat(messages.getTotalHits(), equalTo(2L));
         assertThat(messages.getAt(0).getId(), equalTo("1"));
         assertThat(messages.getAt(0).getNestedIdentity().getField().string(), equalTo("comments.messages"));
-        assertThat(messages.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(messages.getAt(0).getNestedIdentity().getOffset(), equalTo(2));
         assertThat(messages.getAt(0).getNestedIdentity().getChild(), nullValue());
+        assertThat(messages.getAt(1).getId(), equalTo("1"));
+        assertThat(messages.getAt(1).getNestedIdentity().getField().string(), equalTo("comments.messages"));
+        assertThat(messages.getAt(1).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(messages.getAt(1).getNestedIdentity().getChild(), nullValue());
 
         response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "bear"), ScoreMode.Avg)
-                        .innerHit(new InnerHitBuilder())).get();
+                        .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         hit = response.getHits().getAt(0);
@@ -448,7 +474,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         indexRandom(true, requests);
         response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg)
-                        .innerHit(new InnerHitBuilder())).get();
+                        .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         hit = response.getHits().getAt(0);;
@@ -570,9 +596,9 @@ public class InnerHitsIT extends ESIntegTestCase {
         client().prepareIndex("index1", "message", "1").setSource(jsonBuilder().startObject()
                 .field("message", "quick brown fox")
                 .startArray("comments")
-                .startObject().field("message", "fox eat quick").endObject()
-                .startObject().field("message", "fox ate rabbit x y z").endObject()
-                .startObject().field("message", "rabbit got away").endObject()
+                .startObject().field("message", "fox eat quick").field("x", "y").endObject()
+                .startObject().field("message", "fox ate rabbit x y z").field("x", "y").endObject()
+                .startObject().field("message", "rabbit got away").field("x", "y").endObject()
                 .endArray()
                 .endObject()).get();
         refresh();
@@ -588,9 +614,11 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertHitCount(response, 1);
 
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(2L));
-        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap()),
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().get("message"),
                 equalTo("fox eat quick"));
-        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap()),
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap().get("message"),
                 equalTo("fox ate rabbit x y z"));
 
         response = client().prepareSearch()
@@ -601,15 +629,17 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertHitCount(response, 1);
 
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(2L));
-        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap()),
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(2));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().get("message"),
                 equalTo("fox eat quick"));
-        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap()),
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(2));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap().get("message"),
                 equalTo("fox ate rabbit x y z"));
     }
 
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("index1")
-            .setSettings("index.version.created", Version.V_5_6_0.id)
+            .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
             .addMapping("parent_type", "nested_type", "type=nested")
             .addMapping("child_type", "_parent", "type=parent_type")
         );

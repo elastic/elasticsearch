@@ -43,7 +43,7 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
         super(settings, GetStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, GetStoredScriptRequest::new);
+            GetStoredScriptRequest::new, indexNameExpressionResolver);
         this.scriptService = scriptService;
     }
 

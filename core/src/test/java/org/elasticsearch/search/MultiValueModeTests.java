@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
@@ -41,7 +39,6 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.MultiValueMode.UnsortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -92,7 +89,7 @@ public class MultiValueModeTests extends ESTestCase {
                 docsWithValue.set(i);
             }
         }
-        
+
         final Supplier<SortedNumericDocValues> multiValues = () -> DocValues.singleton(new AbstractNumericDocValues() {
             int docId = -1;
             @Override
@@ -161,6 +158,8 @@ public class MultiValueModeTests extends ESTestCase {
                 for (int i = 0; i < maxDoc; ++i) {
                     assertTrue(selected.advanceExact(i));
                     final long actual = selected.longValue();
+                    verifyLongValueCanCalledMoreThanOnce(selected, actual);
+
                     long expected = 0;
                     if (values.advanceExact(i) == false) {
                         expected = missingValue;
@@ -204,6 +203,12 @@ public class MultiValueModeTests extends ESTestCase {
         }
     }
 
+    private void verifyLongValueCanCalledMoreThanOnce(NumericDocValues values, long expected) throws IOException {
+        for (int j = 0, numCall = randomIntBetween(1, 10); j < numCall; j++) {
+            assertEquals(expected, values.longValue());
+        }
+    }
+
     private void verifySortedNumeric(Supplier<SortedNumericDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
@@ -213,6 +218,8 @@ public class MultiValueModeTests extends ESTestCase {
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     assertTrue(selected.advanceExact(root));
                     final long actual = selected.longValue();
+                    verifyLongValueCanCalledMoreThanOnce(selected, actual);
+
                     long expected = 0;
                     if (mode == MultiValueMode.MAX) {
                         expected = Long.MIN_VALUE;
@@ -321,14 +328,13 @@ public class MultiValueModeTests extends ESTestCase {
     private void verifySortedNumericDouble(Supplier<SortedNumericDoubleValues> supplier, int maxDoc) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : MultiValueMode.values()) {
-                if (MultiValueMode.MEDIAN.equals(mode)) {
-                    continue;
-                }
                 SortedNumericDoubleValues values = supplier.get();
                 final NumericDoubleValues selected = mode.select(values, missingValue);
                 for (int i = 0; i < maxDoc; ++i) {
                     assertTrue(selected.advanceExact(i));
                     final double actual = selected.doubleValue();
+                    verifyDoubleValueCanCalledMoreThanOnce(selected, actual);
+
                     double expected = 0.0;
                     if (values.advanceExact(i) == false) {
                         expected = missingValue;
@@ -372,6 +378,12 @@ public class MultiValueModeTests extends ESTestCase {
         }
     }
 
+    private void verifyDoubleValueCanCalledMoreThanOnce(NumericDoubleValues values, double expected) throws IOException {
+        for (int j = 0, numCall = randomIntBetween(1, 10); j < numCall; j++) {
+            assertTrue(Double.compare(values.doubleValue(), expected) == 0);
+        }
+    }
+
     private void verifySortedNumericDouble(Supplier<SortedNumericDoubleValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
@@ -380,7 +392,9 @@ public class MultiValueModeTests extends ESTestCase {
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     assertTrue(selected.advanceExact(root));
-                    final double actual = selected.doubleValue();;
+                    final double actual = selected.doubleValue();
+                    verifyDoubleValueCanCalledMoreThanOnce(selected, actual);
+
                     double expected = 0.0;
                     if (mode == MultiValueMode.MAX) {
                         expected = Long.MIN_VALUE;
@@ -422,7 +436,7 @@ public class MultiValueModeTests extends ESTestCase {
         final FixedBitSet docsWithValue = randomBoolean() ? null : new FixedBitSet(numDocs);
         for (int i = 0; i < array.length; ++i) {
             if (randomBoolean()) {
-                array[i] = new BytesRef(RandomStrings.randomAsciiOfLength(random(), 8));
+                array[i] = new BytesRef(randomAlphaOfLengthBetween(8, 8));
                 if (docsWithValue != null) {
                     docsWithValue.set(i);
                 }
@@ -457,7 +471,7 @@ public class MultiValueModeTests extends ESTestCase {
         for (int i = 0; i < numDocs; ++i) {
             final BytesRef[] values = new BytesRef[randomInt(4)];
             for (int j = 0; j < values.length; ++j) {
-                values[j] = new BytesRef(RandomStrings.randomAsciiOfLength(random(), 8));
+                values[j] = new BytesRef(randomAlphaOfLengthBetween(8, 8));
             }
             Arrays.sort(values);
             array[i] = values;
@@ -490,13 +504,15 @@ public class MultiValueModeTests extends ESTestCase {
     }
 
     private void verifySortedBinary(Supplier<SortedBinaryDocValues> supplier, int maxDoc) throws IOException {
-        for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(RandomStrings.randomAsciiOfLength(random(), 8)) }) {
+        for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(randomAlphaOfLengthBetween(8, 8)) }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
                 SortedBinaryDocValues values = supplier.get();
                 final BinaryDocValues selected = mode.select(values, missingValue);
                 for (int i = 0; i < maxDoc; ++i) {
                     assertTrue(selected.advanceExact(i));
                     final BytesRef actual = selected.binaryValue();
+                    verifyBinaryValueCanCalledMoreThanOnce(selected, actual);
+
                     BytesRef expected = null;
                     if (values.advanceExact(i) == false) {
                         expected = missingValue;
@@ -525,8 +541,14 @@ public class MultiValueModeTests extends ESTestCase {
         }
     }
 
+    private void verifyBinaryValueCanCalledMoreThanOnce(BinaryDocValues values, BytesRef expected) throws IOException {
+        for (int j = 0, numCall = randomIntBetween(1, 10); j < numCall; j++) {
+            assertEquals(values.binaryValue(), expected);
+        }
+    }
+
     private void verifySortedBinary(Supplier<SortedBinaryDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
-        for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(RandomStrings.randomAsciiOfLength(random(), 8)) }) {
+        for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(randomAlphaOfLengthBetween(8, 8)) }) {
             for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
                 SortedBinaryDocValues values = supplier.get();
                 final BinaryDocValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc);
@@ -534,6 +556,8 @@ public class MultiValueModeTests extends ESTestCase {
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     assertTrue(selected.advanceExact(root));
                     final BytesRef actual = selected.binaryValue();
+                    verifyBinaryValueCanCalledMoreThanOnce(selected, actual);
+
                     BytesRef expected = null;
                     for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                         if (values.advanceExact(child)) {
@@ -659,7 +683,11 @@ public class MultiValueModeTests extends ESTestCase {
             SortedSetDocValues values = supplier.get();
             final SortedDocValues selected = mode.select(values);
             for (int i = 0; i < maxDoc; ++i) {
-                final long actual = selected.advanceExact(i) ? selected.ordValue() : -1;
+                long actual = -1;
+                if (selected.advanceExact(i)) {
+                    actual = selected.ordValue();
+                    verifyOrdValueCanCalledMoreThanOnce(selected, selected.ordValue());
+                }
                 int expected = -1;
                 if (values.advanceExact(i)) {
                     for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
@@ -680,13 +708,23 @@ public class MultiValueModeTests extends ESTestCase {
         }
     }
 
+    private void verifyOrdValueCanCalledMoreThanOnce(SortedDocValues values, long expected) throws IOException {
+        for (int j = 0, numCall = randomIntBetween(1, 10); j < numCall; j++) {
+            assertEquals(values.ordValue(), expected);
+        }
+    }
+
     private void verifySortedSet(Supplier<SortedSetDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
             SortedSetDocValues values = supplier.get();
             final SortedDocValues selected = mode.select(values, rootDocs, new BitSetIterator(innerDocs, 0L));
             int prevRoot = -1;
             for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
-                final int actual = selected.advanceExact(root) ? selected.ordValue() : -1;
+                int actual = -1;
+                if (selected.advanceExact(root)) {
+                    actual = selected.ordValue();
+                    verifyOrdValueCanCalledMoreThanOnce(selected, actual);
+                }
                 int expected = -1;
                 for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                     if (values.advanceExact(child)) {
@@ -707,126 +745,6 @@ public class MultiValueModeTests extends ESTestCase {
                 assertEquals(mode.toString() + " docId=" + root, expected, actual);
 
                 prevRoot = root;
-            }
-        }
-    }
-
-    public void testUnsortedSingleValuedDoubles() throws Exception  {
-        final int numDocs = scaledRandomIntBetween(1, 100);
-        final double[] array = new double[numDocs];
-        final FixedBitSet docsWithValue = randomBoolean() ? null : new FixedBitSet(numDocs);
-        for (int i = 0; i < array.length; ++i) {
-            if (randomBoolean()) {
-                array[i] = randomDouble();
-                if (docsWithValue != null) {
-                    docsWithValue.set(i);
-                }
-            } else if (docsWithValue != null && randomBoolean()) {
-                docsWithValue.set(i);
-            }
-        }
-        final NumericDoubleValues singleValues = new NumericDoubleValues() {
-            private int docID;
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                docID = doc;
-                return docsWithValue == null || docsWithValue.get(docID);
-            }
-            @Override
-            public double doubleValue() {
-                return array[docID];
-            }
-        };
-        final SortedNumericDoubleValues singletonValues = FieldData.singleton(singleValues);
-        final MultiValueMode.UnsortedNumericDoubleValues multiValues = new MultiValueMode.UnsortedNumericDoubleValues() {
-
-            @Override
-            public int docValueCount() {
-                return singletonValues.docValueCount();
-            }
-
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                return singletonValues.advanceExact(doc);
-            }
-
-            @Override
-            public double nextValue() throws IOException {
-                return Math.cos(singletonValues.nextValue());
-            }
-        };
-        verifyUnsortedNumeric(() -> multiValues, numDocs);
-    }
-
-    public void testUnsortedMultiValuedDoubles() throws Exception  {
-        final int numDocs = scaledRandomIntBetween(1, 100);
-        final double[][] array = new double[numDocs][];
-        for (int i = 0; i < numDocs; ++i) {
-            final double[] values = new double[randomInt(4)];
-            for (int j = 0; j < values.length; ++j) {
-                values[j] = randomDouble();
-            }
-            Arrays.sort(values);
-            array[i] = values;
-        }
-        final MultiValueMode.UnsortedNumericDoubleValues multiValues = new MultiValueMode.UnsortedNumericDoubleValues() {
-            int doc;
-            int i;
-
-            @Override
-            public int docValueCount() {
-                return array[doc].length;
-            }
-
-            @Override
-            public boolean advanceExact(int doc) {
-                this.doc = doc;
-                i = 0;
-                return array[doc].length > 0;
-            }
-
-            @Override
-            public double nextValue() {
-                return Math.sin(array[doc][i++]);
-            }
-        };
-        verifyUnsortedNumeric(() -> multiValues, numDocs);
-    }
-
-    private void verifyUnsortedNumeric(Supplier<MultiValueMode.UnsortedNumericDoubleValues> supplier, int maxDoc) throws IOException {
-        for (double missingValue : new double[] { 0, randomDouble() }) {
-            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
-                UnsortedNumericDoubleValues values = supplier.get();
-                final NumericDoubleValues selected = mode.select(values, missingValue);
-                for (int i = 0; i < maxDoc; ++i) {
-                    assertTrue(selected.advanceExact(i));
-                    final double actual = selected.doubleValue();
-                    double expected = 0.0;
-                    if (values.advanceExact(i) == false) {
-                        expected = missingValue;
-                    } else {
-                        int numValues = values.docValueCount();
-                        if (mode == MultiValueMode.MAX) {
-                            expected = Long.MIN_VALUE;
-                        } else if (mode == MultiValueMode.MIN) {
-                            expected = Long.MAX_VALUE;
-                        }
-                        for (int j = 0; j < numValues; ++j) {
-                            if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
-                                expected += values.nextValue();
-                            } else if (mode == MultiValueMode.MIN) {
-                                expected = Math.min(expected, values.nextValue());
-                            } else if (mode == MultiValueMode.MAX) {
-                                expected = Math.max(expected, values.nextValue());
-                            }
-                        }
-                        if (mode == MultiValueMode.AVG) {
-                            expected = expected/numValues;
-                        }
-                    }
-
-                    assertEquals(mode.toString() + " docId=" + i, expected, actual, 0.1);
-                }
             }
         }
     }

@@ -243,7 +243,7 @@ public class RecoverySourceHandler {
 
             logger.trace("all operations up to [{}] completed, checking translog content", endingSeqNo);
 
-            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(shard.indexSettings(), startingSeqNo, startingSeqNo - 1);
+            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
             try (Translog.Snapshot snapshot = shard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {
@@ -475,7 +475,9 @@ public class RecoverySourceHandler {
          * the permit then the state of the shard will be relocated and this recovery will fail.
          */
         runUnderPrimaryPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint));
-        cancellableThreads.execute(() -> recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint()));
+        final long globalCheckpoint = shard.getGlobalCheckpoint();
+        cancellableThreads.execute(() -> recoveryTarget.finalizeRecovery(globalCheckpoint));
+        runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint));
 
         if (request.isPrimaryRelocation()) {
             logger.trace("performing relocation hand-off");

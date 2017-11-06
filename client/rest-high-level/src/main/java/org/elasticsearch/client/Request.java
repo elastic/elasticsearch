@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -63,22 +64,39 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.StringJoiner;
 
-final class Request {
+public final class Request {
 
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
-    final String method;
-    final String endpoint;
-    final Map<String, String> params;
-    final HttpEntity entity;
+    private final String method;
+    private final String endpoint;
+    private final Map<String, String> parameters;
+    private final HttpEntity entity;
 
-    Request(String method, String endpoint, Map<String, String> params, HttpEntity entity) {
-        this.method = method;
-        this.endpoint = endpoint;
-        this.params = params;
+    public Request(String method, String endpoint, Map<String, String> parameters, HttpEntity entity) {
+        this.method = Objects.requireNonNull(method, "method cannot be null");
+        this.endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
+        this.parameters = Objects.requireNonNull(parameters, "parameters cannot be null");
         this.entity = entity;
+    }
+
+    public String getMethod() {
+        return method;
+    }
+
+    public String getEndpoint() {
+        return endpoint;
+    }
+
+    public Map<String, String> getParameters() {
+        return parameters;
+    }
+
+    public HttpEntity getEntity() {
+        return entity;
     }
 
     @Override
@@ -86,7 +104,7 @@ final class Request {
         return "Request{" +
                 "method='" + method + '\'' +
                 ", endpoint='" + endpoint + '\'' +
-                ", params=" + params +
+                ", params=" + parameters +
                 ", hasBody=" + (entity != null) +
                 '}';
     }
@@ -102,6 +120,17 @@ final class Request {
         parameters.withVersionType(deleteRequest.versionType());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
+
+        return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
+        String endpoint = endpoint(deleteIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(deleteIndexRequest.timeout());
+        parameters.withMasterTimeout(deleteIndexRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(deleteIndexRequest.indicesOptions());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
@@ -233,7 +262,7 @@ final class Request {
 
     static Request exists(GetRequest getRequest) {
         Request request = get(getRequest);
-        return new Request(HttpHead.METHOD_NAME, request.endpoint, request.params, null);
+        return new Request(HttpHead.METHOD_NAME, request.endpoint, request.parameters, null);
     }
 
     static Request get(GetRequest getRequest) {
@@ -381,7 +410,7 @@ final class Request {
      * @return the {@link ContentType}
      */
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
-    static ContentType createContentType(final XContentType xContentType) {
+    public static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
@@ -430,6 +459,10 @@ final class Request {
                 }
             }
             return this;
+        }
+
+        Params withMasterTimeout(TimeValue masterTimeout) {
+            return putParam("master_timeout", masterTimeout);
         }
 
         Params withParent(String parent) {

@@ -33,7 +33,6 @@ import org.objectweb.asm.Type;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.painless.Definition.VOID_TYPE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
@@ -83,11 +82,11 @@ public final class EFunctionRef extends AExpression implements ILambda {
                     for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
                         Definition.Type from = interfaceMethod.arguments.get(i);
                         Definition.Type to = delegateMethod.arguments.get(i);
-                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
+                        locals.getDefinition().caster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (interfaceMethod.rtn != VOID_TYPE) {
-                        AnalyzerCaster.getLegalCast(location, delegateMethod.rtn, interfaceMethod.rtn, false, true);
+                    if (interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
+                        locals.getDefinition().caster.getLegalCast(location, delegateMethod.rtn, interfaceMethod.rtn, false, true);
                     }
                 } else {
                     // whitelist lookup

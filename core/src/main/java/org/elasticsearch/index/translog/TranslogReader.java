@@ -79,7 +79,8 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID) throws IOException {
 
         try {
-            InputStreamStreamInput headerStream = new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel)); // don't close
+            InputStreamStreamInput headerStream = new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel),
+                channel.size()); // don't close
             // Lucene's CodecUtil writes a magic number of 0x3FD76C17 with the
             // header, in binary this looks like:
             //

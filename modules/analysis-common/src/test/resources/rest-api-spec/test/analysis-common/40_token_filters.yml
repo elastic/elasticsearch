@@ -696,6 +696,37 @@
     - match:  { tokens.0.token: اجن }
 
 ---
+"bengali_normalization":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_bengali_normalization:
+                    type: bengali_normalization
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      চাঁদ
+            tokenizer: keyword
+            filter:    [my_bengali_normalization]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: চাদ }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text:      চাঁদ
+            tokenizer: keyword
+            filter:    [bengali_normalization]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: চাদ }
+
+---
 "german_normalization":
     - do:
         indices.create:
@@ -1475,3 +1506,26 @@
             filter:    [russian_stem]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: журнал }
+
+---
+"bengali_stem":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_bengali_stem:
+                    type: stemmer
+                    language: bengali
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: করেছিলাম
+            tokenizer: keyword
+            filter:    [my_bengali_stem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: কর }

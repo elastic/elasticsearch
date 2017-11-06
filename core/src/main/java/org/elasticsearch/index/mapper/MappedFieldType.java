@@ -379,6 +379,8 @@ public abstract class MappedFieldType extends FieldType {
         return new ConstantScoreQuery(termQuery(nullValue, null));
     }
 
+    public abstract Query existsQuery(QueryShardContext context);
+
     /**
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range

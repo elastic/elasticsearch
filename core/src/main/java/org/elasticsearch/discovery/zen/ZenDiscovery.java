@@ -127,9 +127,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private final TimeValue pingTimeout;
     private final TimeValue joinTimeout;
 
-    /** how many retry attempts to perform if join request failed with an retriable error */
+    /** how many retry attempts to perform if join request failed with an retryable error */
     private final int joinRetryAttempts;
-    /** how long to wait before performing another join attempt after a join request failed with an retriable error */
+    /** how long to wait before performing another join attempt after a join request failed with an retryable error */
     private final TimeValue joinRetryDelay;
 
     /** how many pings from *another* master to tolerate before forcing a rejoin on other or local master */
@@ -412,8 +412,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     @Override
     public DiscoveryStats stats() {
-        PendingClusterStateStats queueStats = pendingStatesQueue.stats();
-        return new DiscoveryStats(queueStats);
+        return new DiscoveryStats(pendingStatesQueue.stats(), publishClusterState.stats());
     }
 
     public DiscoverySettings getDiscoverySettings() {

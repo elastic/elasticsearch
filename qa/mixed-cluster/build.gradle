@@ -37,14 +37,14 @@ for (Version version : wireCompatVersions) {
     includePackaged = true
   }
 
-  /* This project runs the core REST tests against a 2 node cluster where one of
+  /* This project runs the core REST tests against a 4 node cluster where two of
      the nodes has a different minor.  */
   Object extension = extensions.findByName("${baseName}#mixedClusterTestCluster")
-  configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
+  configure(extension) {
     distribution = 'zip'
     numNodes = 4
     numBwcNodes = 2
-    bwcVersion = project.wireCompatVersions[-1]
+    bwcVersion = version
   }
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {

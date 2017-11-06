@@ -31,6 +31,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -45,6 +46,7 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -161,6 +163,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
+        if (randomBoolean()) {
+            queryStringQueryBuilder.fuzzyTranspositions(randomBoolean());
         }
         queryStringQueryBuilder.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
         return queryStringQueryBuilder;
@@ -798,19 +803,22 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testExistsFieldQuery() throws Exception {
         QueryShardContext context = createShardContext();
-        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
+        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(STRING_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
-        Query expected;
         if (getCurrentTypes().length > 0) {
-            expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "foo")));
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                    && (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false)) {
+                assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
+            } else {
+                assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));
+            }
         } else {
-            expected = new MatchNoDocsQuery();
+            assertThat(query, equalTo(new MatchNoDocsQuery()));
         }
-        assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("*:*");
         query = queryBuilder.toQuery(context);
-        expected = new MatchAllDocsQuery();
+        Query expected = new MatchAllDocsQuery();
         assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("*");
@@ -864,6 +872,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"phrase_slop\" : 0,\n" +
                 "    \"escape\" : false,\n" +
                 "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
+                "    \"fuzzy_transpositions\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -873,6 +882,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
         assertEquals(json, "this AND that OR thus", parsed.queryString());
         assertEquals(json, "content", parsed.defaultField());
+        assertEquals(json, false, parsed.fuzzyTranspositions());
     }
 
     public void testExpandedTerms() throws Exception {
@@ -988,7 +998,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field",
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
         );
         Query query = new QueryStringQueryBuilder("hello")
@@ -1003,7 +1013,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         // Reset the default value
         context.getIndexSettings().updateIndexMetaData(
             newIndexMeta("index",
-                context.getIndexSettings().getSettings(), Settings.builder().putArray("index.query.default_field", "*").build())
+                context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
         );
     }
 
@@ -1027,6 +1037,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                                 .build(), Occur.SHOULD))
                     .build();
         assertEquals(expectedQuery, query);
+    }
+
+    public void testToFuzzyQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        Query query = new QueryStringQueryBuilder("text~2")
+            .field(STRING_FIELD_NAME)
+            .fuzzyPrefixLength(2)
+            .fuzzyMaxExpansions(5)
+            .fuzzyTranspositions(false)
+            .toQuery(createShardContext());
+        FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+        assertEquals(expected, query);
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

@@ -42,26 +42,9 @@ import java.util.stream.Collectors;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingIT extends ESRestTestCase {
-
-    private void assertOK(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
-    }
-
-    private void ensureGreen() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("wait_for_status", "green");
-        params.put("wait_for_no_relocating_shards", "true");
-        assertOK(client().performRequest("GET", "_cluster/health", params));
-    }
-
-    private void createIndex(String name, Settings settings) throws IOException {
-        assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-            new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }", ContentType.APPLICATION_JSON)));
-    }
 
     private void updateIndexSetting(String name, Settings.Builder settings) throws IOException {
         updateIndexSetting(name, settings.build());
@@ -188,9 +171,6 @@ public class IndexingIT extends ESRestTestCase {
                 assertVersion(index, 5, "_only_nodes:" + shard.getNode().getNodeName(), finalVersionForDoc5);
                 assertCount(index, "_only_nodes:" + shard.getNode().getNodeName(), 5);
             }
-            // the number of documents on the primary and on the recovered replica should match the number of indexed documents
-            assertCount(index, "_primary", 5);
-            assertCount(index, "_replica", 5);
         }
     }
 
@@ -212,20 +192,19 @@ public class IndexingIT extends ESRestTestCase {
             int numDocs = 0;
             final int numberOfInitialDocs = 1 + randomInt(5);
             logger.info("indexing [{}] docs initially", numberOfInitialDocs);
-            numDocs += indexDocs(index, numDocs, numberOfInitialDocs);
-            assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
-            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
+            numDocs += indexDocs(index, 0, numberOfInitialDocs);
+            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             ensureGreen();
+            assertOK(client().performRequest("POST", index + "/_refresh"));
             for (final String bwcName : bwcNamesList) {
                 assertCount(index, "_only_nodes:" + bwcName, numDocs);
             }
             final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
             logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
             numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
-            assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
-            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
+            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
             updateIndexSetting(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
@@ -235,8 +214,7 @@ public class IndexingIT extends ESRestTestCase {
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
-            assertOK(client().performRequest("POST", index + "/_refresh")); // this forces a global checkpoint sync
-            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
+            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
             /*
              * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in
              * the recovery code.
@@ -251,10 +229,11 @@ public class IndexingIT extends ESRestTestCase {
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
             ensureGreen();
             assertOK(client().performRequest("POST", index + "/_refresh"));
-            // the number of documents on the primary and on the recovered replica should match the number of indexed documents
-            assertCount(index, "_primary", numDocs);
-            assertCount(index, "_replica", numDocs);
-            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
+
+            for (Shard shard : buildShards(index, nodes, newNodeClient)) {
+                assertCount(index, "_only_nodes:" + shard.node.nodeName, numDocs);
+            }
+            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
         }
     }
 

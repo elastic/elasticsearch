@@ -362,7 +362,11 @@ public class DeprecationLogger {
         doesNotNeedEncoding.set(' ');
         doesNotNeedEncoding.set('!');
         doesNotNeedEncoding.set('"');
-        for (int i = 0x23; i <= 0x5B; i++) {
+        // we have to skip '%' which is 0x25 so that it is percent-encoded too
+        for (int i = 0x24; i <= 0x24; i++) {
+            doesNotNeedEncoding.set(i);
+        }
+        for (int i = 0x26; i <= 0x5B; i++) {
             doesNotNeedEncoding.set(i);
         }
         for (int i = 0x5D; i <= 0x7E; i++) {
@@ -371,6 +375,7 @@ public class DeprecationLogger {
         for (int i = 0x80; i <= 0xFF; i++) {
             doesNotNeedEncoding.set(i);
         }
+        assert !doesNotNeedEncoding.get('%');
     }
 
     private static final Charset UTF_8 = Charset.forName("UTF-8");

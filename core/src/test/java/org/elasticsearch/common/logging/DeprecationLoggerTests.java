@@ -227,7 +227,7 @@ public class DeprecationLoggerTests extends ESTestCase {
         assertThat(DeprecationLogger.escapeBackslashesAndQuotes("\\\""), equalTo("\\\\\\\""));
         assertThat(DeprecationLogger.escapeBackslashesAndQuotes("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
         // test that characters other than '\' and '"' are left unchanged
-        String chars = "\t !" + range(0x23, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff);
+        String chars = "\t !" + range(0x23, 0x24) + range(0x26, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff);
         final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
         assertThat(DeprecationLogger.escapeBackslashesAndQuotes(s), equalTo(s));
     }
@@ -236,6 +236,7 @@ public class DeprecationLoggerTests extends ESTestCase {
         assertThat(DeprecationLogger.encode("\n"), equalTo("%0A"));
         assertThat(DeprecationLogger.encode("😱"), equalTo("%F0%9F%98%B1"));
         assertThat(DeprecationLogger.encode("福島深雪"), equalTo("%E7%A6%8F%E5%B3%B6%E6%B7%B1%E9%9B%AA"));
+        assertThat(DeprecationLogger.encode("100%\n"), equalTo("100%25%0A"));
         // test that valid characters are left unchanged
         String chars = "\t !" + range(0x23, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff) + '\\' + '"';
         final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);

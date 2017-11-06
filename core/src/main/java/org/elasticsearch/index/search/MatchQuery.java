@@ -29,6 +29,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -57,6 +58,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
@@ -473,7 +476,18 @@ public class MatchQuery {
     }
 
     protected Query blendTermsQuery(Term[] terms, MappedFieldType fieldType) {
-        return new SynonymQuery(terms);
+        if (fuzziness != null) {
+            List<Query> queries = new ArrayList<>(terms.length);
+            for (Term term : terms) {
+                Query query = blendTermQuery(term, fieldType);
+                if (query != null) {
+                    queries.add(query);
+                }
+            }
+            return new DisjunctionMaxQuery(queries, 0.0f);
+        } else {
+            return new SynonymQuery(terms);
+        }
     }
 
     protected Query blendTermQuery(Term term, MappedFieldType fieldType) {
@@ -491,8 +505,9 @@ public class MatchQuery {
                     throw e;
                 }
             }
+        } else {
+            return termQuery(fieldType, term.bytes(), lenient);
         }
-        return termQuery(fieldType, term.bytes(), lenient);
     }
 
 }

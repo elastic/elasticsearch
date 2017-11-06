@@ -26,6 +26,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -73,11 +74,11 @@ public class RemovePluginCommandTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("path.home", home)
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
     }
 
     static MockTerminal removePlugin(String name, Path home, boolean purge) throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", home).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
         new MockRemovePluginCommand(env).execute(terminal, env, name, purge);
         return terminal;

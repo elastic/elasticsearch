@@ -63,6 +63,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -1048,7 +1049,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     ).flatMap(Function.identity()).collect(toList()));
             IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
-            AnalysisModule analysisModule = new AnalysisModule(new Environment(nodeSettings), emptyList());
+            AnalysisModule analysisModule = new AnalysisModule(TestEnvironment.newEnvironment(nodeSettings), emptyList());
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
             scriptService = scriptModule.getScriptService();
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());

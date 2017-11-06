@@ -23,7 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -280,10 +280,10 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
+            if (omitNorms()) {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            } else {
+                return new NormsFieldExistsQuery(name());
             }
         }
 
@@ -345,7 +345,9 @@ public class TextFieldMapper extends FieldMapper {
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), value, fieldType());
             fields.add(field);
-            createFieldNamesField(context, fields);
+            if (fieldType().omitNorms()) {
+                createFieldNamesField(context, fields);
+            }
         }
     }
 

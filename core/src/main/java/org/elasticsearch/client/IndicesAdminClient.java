@@ -50,9 +50,6 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -98,9 +95,9 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRespons
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
+import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -792,19 +789,19 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     GetSettingsRequestBuilder prepareGetSettings(String... indices);
 
     /**
-     * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
+     * Resize an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
-    ShrinkRequestBuilder prepareShrinkIndex(String sourceIndex, String targetIndex);
+    ResizeRequestBuilder prepareResizeIndex(String sourceIndex, String targetIndex);
+
+    /**
+     * Resize an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
+     */
+    ActionFuture<ResizeResponse> resizeIndex(ResizeRequest request);
 
     /**
      * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
-    ActionFuture<ShrinkResponse> shrinkIndex(ShrinkRequest request);
-
-    /**
-     * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
-     */
-    void shrinkIndex(ShrinkRequest request, ActionListener<ShrinkResponse> listener);
+    void resizeIndex(ResizeRequest request, ActionListener<ResizeResponse> listener);
 
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied

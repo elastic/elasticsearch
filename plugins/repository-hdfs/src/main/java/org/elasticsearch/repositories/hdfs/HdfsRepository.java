@@ -106,7 +106,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             SpecialPermission.check();
             FileContext fileContext = AccessController.doPrivileged((PrivilegedAction<FileContext>)
                 () -> createContext(uri, getMetadata().settings()));
-            blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize);
+            blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize, isReadOnly());
             logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), pathSetting);
         } catch (IOException e) {
             throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);

@@ -256,19 +256,19 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
-                double dValue = parse(lowerTerm);
+                double dValue = parse(lowerTerm) * scalingFactor;
                 if (includeLower == false) {
                     dValue = Math.nextUp(dValue);
                 }
-                lo = Math.round(Math.ceil(dValue * scalingFactor));
+                lo = Math.round(Math.ceil(dValue));
             }
             Long hi = null;
             if (upperTerm != null) {
-                double dValue = parse(upperTerm);
+                double dValue = parse(upperTerm) * scalingFactor;
                 if (includeUpper == false) {
                     dValue = Math.nextDown(dValue);
                 }
-                hi = Math.round(Math.floor(dValue * scalingFactor));
+                hi = Math.round(Math.floor(dValue));
             }
             Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues());
             if (boost() != 1f) {

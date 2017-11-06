@@ -124,6 +124,7 @@ volumes: {"esdata_01": {"driver": "local"}, "esdata_02": {"driver": "local"}}
 . Access the elasticsearch API over SSL/TLS using the bootstrapped password:
 +
 `curl --cacert certs/ca/ca.crt -u elastic:PleaseChangeMe https://localhost:9200`
+// NOTCONSOLE
 +
 . The `setup-passwords` tool can also be used to generate random passwords for all users:
 +

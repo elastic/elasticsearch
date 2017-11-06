@@ -44,7 +44,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.template.TemplateUtils;
@@ -204,6 +203,32 @@ public class IndexLifecycleManagerTests extends ESTestCase {
         assertEquals(ClusterHealthStatus.GREEN, currentHealth.get().getStatus());
     }
 
+    public void testIndexOutOfDateListeners() throws Exception {
+        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        manager.addIndexOutOfDateListener((prev, current) -> {
+            listenerCalled.set(true);
+            assertNotEquals(prev, current);
+        });
+        assertFalse(manager.isIndexUpToDate());
+
+        manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
+        assertFalse(listenerCalled.get());
+        assertFalse(manager.isIndexUpToDate());
+
+        // index doesn't exist and now exists
+        final ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME);
+        markShardsAvailable(clusterStateBuilder);
+        manager.clusterChanged(event(clusterStateBuilder));
+        assertTrue(listenerCalled.get());
+        assertTrue(manager.isIndexUpToDate());
+
+        listenerCalled.set(false);
+        assertFalse(listenerCalled.get());
+        manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
+        assertTrue(listenerCalled.get());
+        assertFalse(manager.isIndexUpToDate());
+    }
+
     private void assertInitialState() {
         assertThat(manager.indexExists(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
@@ -250,6 +275,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), IndexLifecycleManager.INTERNAL_INDEX_FORMAT)
                 .build());
 
         final Map<String, String> mappings = getTemplateMappings(templateName);

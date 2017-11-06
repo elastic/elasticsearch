@@ -109,14 +109,13 @@ public class NativeRolesStore extends AbstractComponent {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
-            return;
         } else {
             try {
                 QueryBuilder query;
                 if (names == null || names.length == 0) {
                     query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
                 } else {
-                    final String[] roleNames = Arrays.asList(names).stream().map(s -> getIdForUser(s)).toArray(String[]::new);
+                    final String[] roleNames = Arrays.stream(names).map(s -> getIdForUser(s)).toArray(String[]::new);
                     query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(ROLE_DOC_TYPE).addIds(roleNames));
                 }
                 SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
@@ -129,7 +128,7 @@ public class NativeRolesStore extends AbstractComponent {
                 InternalClient.fetchAllByEntity(client, request, listener,
                         (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState));
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve roles {}", Arrays.toString(names)), e);
+                logger.error(new ParameterizedMessage("unable to retrieve roles {}", Arrays.toString(names)), e);
                 listener.onFailure(e);
             }
         }

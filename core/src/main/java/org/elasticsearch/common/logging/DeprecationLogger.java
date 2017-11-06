@@ -363,7 +363,7 @@ public class DeprecationLogger {
         doesNotNeedEncoding.set('!');
         doesNotNeedEncoding.set('"');
         // we have to skip '%' which is 0x25 so that it is percent-encoded too
-        for (int i = 0x24; i <= 0x24; i++) {
+        for (int i = 0x23; i <= 0x24; i++) {
             doesNotNeedEncoding.set(i);
         }
         for (int i = 0x26; i <= 0x5B; i++) {

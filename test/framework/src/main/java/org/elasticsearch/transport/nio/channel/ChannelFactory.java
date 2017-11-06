@@ -26,7 +26,6 @@ import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.SocketSelector;
-import org.elasticsearch.transport.nio.TcpReadHandler;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -39,15 +38,19 @@ import java.util.function.Consumer;
 
 public class ChannelFactory {
 
-    private final TcpReadHandler handler;
+    private final Consumer<NioSocketChannel> contextSetter;
     private final RawChannelFactory rawChannelFactory;
 
-    public ChannelFactory(TcpTransport.ProfileSettings profileSettings, TcpReadHandler handler) {
-        this(new RawChannelFactory(profileSettings), handler);
+    public ChannelFactory(TcpTransport.ProfileSettings profileSettings, Consumer<NioSocketChannel> contextSetter) {
+        this(new RawChannelFactory(profileSettings.tcpNoDelay,
+                profileSettings.tcpKeepAlive,
+                profileSettings.reuseAddress,
+                Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
+                Math.toIntExact(profileSettings.receiveBufferSize.getBytes())), contextSetter);
     }
 
-    ChannelFactory(RawChannelFactory rawChannelFactory, TcpReadHandler handler) {
-        this.handler = handler;
+    ChannelFactory(RawChannelFactory rawChannelFactory, Consumer<NioSocketChannel> contextSetter) {
+        this.contextSetter = contextSetter;
         this.rawChannelFactory = rawChannelFactory;
     }
 
@@ -55,7 +58,7 @@ public class ChannelFactory {
                                            Consumer<NioChannel> closeListener) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
         NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel, selector);
-        channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
+        contextSetter.accept(channel);
         channel.getCloseFuture().addListener(ActionListener.wrap(closeListener::accept, (e) -> closeListener.accept(channel)));
         scheduleChannel(channel, selector);
         return channel;
@@ -65,7 +68,7 @@ public class ChannelFactory {
                                              Consumer<NioChannel> closeListener) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel, selector);
-        channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
+        contextSetter.accept(channel);
         channel.getCloseFuture().addListener(ActionListener.wrap(closeListener::accept, (e) -> closeListener.accept(channel)));
         scheduleChannel(channel, selector);
         return channel;
@@ -105,12 +108,13 @@ public class ChannelFactory {
         private final int tcpSendBufferSize;
         private final int tcpReceiveBufferSize;
 
-        RawChannelFactory(TcpTransport.ProfileSettings profileSettings) {
-            tcpNoDelay = profileSettings.tcpNoDelay;
-            tcpKeepAlive = profileSettings.tcpKeepAlive;
-            tcpReusedAddress = profileSettings.reuseAddress;
-            tcpSendBufferSize = Math.toIntExact(profileSettings.sendBufferSize.getBytes());
-            tcpReceiveBufferSize = Math.toIntExact(profileSettings.receiveBufferSize.getBytes());
+        RawChannelFactory(boolean tcpNoDelay, boolean tcpKeepAlive, boolean tcpReusedAddress, int tcpSendBufferSize,
+                          int tcpReceiveBufferSize) {
+            this.tcpNoDelay = tcpNoDelay;
+            this.tcpKeepAlive = tcpKeepAlive;
+            this.tcpReusedAddress = tcpReusedAddress;
+            this.tcpSendBufferSize = tcpSendBufferSize;
+            this.tcpReceiveBufferSize = tcpReceiveBufferSize;
         }
 
         SocketChannel openNioChannel(InetSocketAddress remoteAddress) throws IOException {

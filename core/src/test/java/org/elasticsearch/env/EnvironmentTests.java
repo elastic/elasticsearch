@@ -43,7 +43,7 @@ public class EnvironmentTests extends ESTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
-        return new Environment(build);
+        return new Environment(build, null);
     }
 
     public void testRepositoryResolution() throws IOException {
@@ -76,21 +76,21 @@ public class EnvironmentTests extends ESTestCase {
     public void testPathDataWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
-        final Environment environment = new Environment(settings);
+        final Environment environment = new Environment(settings, null);
         assertThat(environment.dataFiles(), equalTo(new Path[]{pathHome.resolve("data")}));
     }
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
         final Settings settings = Settings.builder().put("path.home", createTempDir().toAbsolutePath()).build();
         assertFalse(Environment.PATH_DATA_SETTING.exists(settings));
-        final Environment environment = new Environment(settings);
+        final Environment environment = new Environment(settings, null);
         assertFalse(Environment.PATH_DATA_SETTING.exists(environment.settings()));
     }
 
     public void testPathLogsWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
-        final Environment environment = new Environment(settings);
+        final Environment environment = new Environment(settings, null);
         assertThat(environment.logsFile(), equalTo(pathHome.resolve("logs")));
     }
 
@@ -111,7 +111,7 @@ public class EnvironmentTests extends ESTestCase {
     public void testConfigPathWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
-        final Environment environment = new Environment(settings);
+        final Environment environment = new Environment(settings, null);
         assertThat(environment.configFile(), equalTo(pathHome.resolve("config")));
     }
 

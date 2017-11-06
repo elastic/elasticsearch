@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
+import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -238,11 +239,11 @@ public class DeprecationLoggerTests extends ESTestCase {
         assertThat(DeprecationLogger.encode("福島深雪"), equalTo("%E7%A6%8F%E5%B3%B6%E6%B7%B1%E9%9B%AA"));
         assertThat(DeprecationLogger.encode("100%\n"), equalTo("100%25%0A"));
         // test that valid characters are left unchanged
-        String chars = "\t !" + range(0x23, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff) + '\\' + '"';
+        String chars = "\t !" + range(0x23, 0x24) + range(0x26, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff) + '\\' + '"';
         final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
         assertThat(DeprecationLogger.encode(s), equalTo(s));
-        // noinspection StringEquality
-        assertTrue(DeprecationLogger.encode(s) == s); // when no encoding is needed, the original string is returned (optimization)
+        // when no encoding is needed, the original string is returned (optimization)
+        assertThat(DeprecationLogger.encode(s), IsSame.sameInstance(s));
     }
 
     private String range(int lowerInclusive, int upperInclusive) {

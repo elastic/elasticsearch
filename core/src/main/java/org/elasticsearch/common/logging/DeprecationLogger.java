@@ -361,6 +361,7 @@ public class DeprecationLogger {
         doesNotNeedEncoding.set('\t');
         doesNotNeedEncoding.set(' ');
         doesNotNeedEncoding.set('!');
+        doesNotNeedEncoding.set('\\');
         doesNotNeedEncoding.set('"');
         // we have to skip '%' which is 0x25 so that it is percent-encoded too
         for (int i = 0x23; i <= 0x24; i++) {
@@ -388,7 +389,6 @@ public class DeprecationLogger {
      */
     static String encode(final String s) {
         final StringBuilder sb = new StringBuilder(s.length());
-        final CharArrayWriter writer = new CharArrayWriter();
         boolean encodingNeeded = false;
         for (int i = 0; i < s.length();) {
             int current = (int) s.charAt(i);
@@ -402,28 +402,16 @@ public class DeprecationLogger {
                 sb.append((char) current);
                 i++;
             } else {
+                int startIndex = i;
                 do {
-                    writer.write(current);
-                    // this character might represent a UTF-16 surrogate pair
-                    if (current >= 0xD800 && current <= 0xDBFF) {
-                        if ((i + 1) < s.length()) {
-                            final int next = (int) s.charAt(i + 1);
-                            if (next >= 0xDC00 && next <= 0xDFFF) {
-                                writer.write(next);
-                                i++;
-                            }
-                        }
-                    }
                     i++;
-                } while (i < s.length() && !doesNotNeedEncoding.get((current = (int) s.charAt(i))));
+                } while (i < s.length() && !doesNotNeedEncoding.get(s.charAt(i)));
 
-                writer.flush();
-                final byte[] bytes = new String(writer.toCharArray()).getBytes(UTF_8);
+                final byte[] bytes = s.substring(startIndex, i).getBytes(UTF_8);
                 // noinspection ForLoopReplaceableByForEach
                 for (int j = 0; j < bytes.length; j++) {
                     sb.append('%').append(hex(bytes[j] >> 4)).append(hex(bytes[j]));
                 }
-                writer.reset();
                 encodingNeeded = true;
             }
         }

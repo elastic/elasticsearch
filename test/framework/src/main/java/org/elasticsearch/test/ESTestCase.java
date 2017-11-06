@@ -318,7 +318,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             final Set<String> actualWarningValues =
                     actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
-                assertThat(actualWarningValues, hasItem(DeprecationLogger.escape(msg)));
+                assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
             }
             assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
                 + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings, expectedWarnings.length, actualWarnings.size());

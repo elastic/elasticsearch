@@ -488,6 +488,25 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertEquals(expectedInvalidation, numInvalidation.get());
     }
 
+    public void testCacheClearOnIndexOutOfDateChange() {
+        final AtomicInteger numInvalidation = new AtomicInteger(0);
+
+        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
+                Settings.EMPTY, mock(FileRolesStore.class), mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
+                Collections.emptyList(), new ThreadContext(Settings.EMPTY), new XPackLicenseState()) {
+            @Override
+            public void invalidateAll() {
+                numInvalidation.incrementAndGet();
+            }
+        };
+
+        compositeRolesStore.onSecurityIndexOutOfDateChange(false, true);
+        assertEquals(1, numInvalidation.get());
+
+        compositeRolesStore.onSecurityIndexOutOfDateChange(true, false);
+        assertEquals(2, numInvalidation.get());
+    }
+
     private static class InMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>> {
         private final Function<Set<String>, Set<RoleDescriptor>> roleDescriptorsFunc;
 

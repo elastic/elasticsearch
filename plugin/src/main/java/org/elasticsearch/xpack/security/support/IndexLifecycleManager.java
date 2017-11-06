@@ -62,6 +62,7 @@ public class IndexLifecycleManager extends AbstractComponent {
     private final InternalSecurityClient client;
 
     private final List<BiConsumer<ClusterIndexHealth, ClusterIndexHealth>> indexHealthChangeListeners = new CopyOnWriteArrayList<>();
+    private final List<BiConsumer<Boolean, Boolean>> indexOutOfDateListeners = new CopyOnWriteArrayList<>();
 
     private volatile boolean templateIsUpToDate;
     private volatile boolean indexExists;
@@ -107,9 +108,22 @@ public class IndexLifecycleManager extends AbstractComponent {
         indexHealthChangeListeners.add(listener);
     }
 
+    /**
+     * Adds a listener which will be notified when the security index out of date value changes. The previous and
+     * current value will be provided to the listener so that the listener can determine if any action
+     * needs to be taken.
+     */
+    public void addIndexOutOfDateListener(BiConsumer<Boolean, Boolean> listener) {
+        indexOutOfDateListeners.add(listener);
+    }
+
     public void clusterChanged(ClusterChangedEvent event) {
+        final boolean previousUpToDate = this.isIndexUpToDate;
         processClusterState(event.state());
         checkIndexHealthChange(event);
+        if (previousUpToDate != this.isIndexUpToDate) {
+            notifyIndexOutOfDateListeners(previousUpToDate, this.isIndexUpToDate);
+        }
     }
 
     private void processClusterState(ClusterState state) {
@@ -153,6 +167,16 @@ public class IndexLifecycleManager extends AbstractComponent {
                 consumer.accept(previousHealth, currentHealth);
             } catch (Exception e) {
                 logger.warn(new ParameterizedMessage("failed to notify listener [{}] of index health change", consumer), e);
+            }
+        }
+    }
+
+    private void notifyIndexOutOfDateListeners(boolean previous, boolean current) {
+        for (BiConsumer<Boolean, Boolean> consumer : indexOutOfDateListeners) {
+            try {
+                consumer.accept(previous, current);
+            } catch (Exception e) {
+                logger.warn(new ParameterizedMessage("failed to notify listener [{}] of index out of date change", consumer), e);
             }
         }
     }

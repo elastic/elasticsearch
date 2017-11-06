@@ -79,7 +79,7 @@ number of shards in the request can be large.
 |`lenient` |If set to true will cause format based failures (like
 providing text to a numeric field) to be ignored. Defaults to false.
 
-|`check_fieldnames` |If set to true can cause search to fail with an
+|`check_field_names` |If set to true can cause search to fail with an
 error if all searched indexes fail to find a field mapping. This is 
 a best-efforts check. Defaults to false.
 

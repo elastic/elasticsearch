@@ -58,7 +58,7 @@ public class ChannelFactory {
                                            Consumer<NioChannel> closeListener) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
         NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel, selector);
-        contextSetter.accept(channel);
+        setContexts(channel);
         channel.getCloseFuture().addListener(ActionListener.wrap(closeListener::accept, (e) -> closeListener.accept(channel)));
         scheduleChannel(channel, selector);
         return channel;
@@ -68,7 +68,7 @@ public class ChannelFactory {
                                              Consumer<NioChannel> closeListener) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel, selector);
-        contextSetter.accept(channel);
+        setContexts(channel);
         channel.getCloseFuture().addListener(ActionListener.wrap(closeListener::accept, (e) -> closeListener.accept(channel)));
         scheduleChannel(channel, selector);
         return channel;
@@ -98,6 +98,12 @@ public class ChannelFactory {
             IOUtils.closeWhileHandlingException(channel.getRawChannel());
             throw e;
         }
+    }
+
+    private void setContexts(NioSocketChannel channel) {
+        contextSetter.accept(channel);
+        assert channel.getReadContext() != null : "read context should have been set on channel";
+        assert channel.getWriteContext() != null : "write context should have been set on channel";
     }
 
     static class RawChannelFactory {

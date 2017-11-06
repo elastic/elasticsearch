@@ -87,7 +87,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         if (shardFailures.length == 0) {
             // If we have a cause that can report a REST status code then return that.
             // One such failure occurs when a globally unmapped field is searched with 
-            // check_fieldnames search mode on.
+            // check_field_names search mode on.
             Throwable cause = unwrapCause();
             if (cause instanceof ElasticsearchException) {
                 return ((ElasticsearchException) getCause()).status();

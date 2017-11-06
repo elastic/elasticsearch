@@ -175,7 +175,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
-                        } else if ("check_fieldnames".equals(entry.getKey())) {
+                        } else if ("check_field_names".equals(entry.getKey())) {
                             searchRequest.checkFieldNames(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {
                             searchRequest.preference(nodeStringValue(value, null));

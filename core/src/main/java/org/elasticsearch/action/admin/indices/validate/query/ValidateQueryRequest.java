@@ -45,7 +45,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     private boolean explain;
     private boolean rewrite;
-    private boolean checkFieldNames = SearchRequest.DEFAULT_CHECK_FIELDNAMES;
+    private boolean checkFieldNames = SearchRequest.DEFAULT_CHECK_FIELD_NAMES;
     private boolean allShards;
 
     private String[] types = Strings.EMPTY_ARRAY;

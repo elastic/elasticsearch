@@ -100,15 +100,15 @@ setup:
         typed_keys: true                        
         body:
       # TODO reinstate this in master once backport to 6.x is backported
-#          - { index: test-*, check_fieldnames: false}
+#          - { index: test-*, check_field_names: false}
           - { index: test-*}
           - {query: {match_all: {} }, size: 0, aggs: {test_sampler: {sampler: {shard_size: 200}, aggs: {test_significant_terms: {significant_terms: {field:  name} } } } } }
       # TODO reinstate this in master once backport to 6.x is backported
-#          - { index: test-*, check_fieldnames: false}
+#          - { index: test-*, check_field_names: false}
           - { index: test-*}
           - {query: {match_all: {} }, size: 0, aggs: {test_umterms: {terms: {field: surname} } } }
       # TODO reinstate this in master once backport to 6.x is backported
-#          - { index: test-*, check_fieldnames: false}
+#          - { index: test-*, check_field_names: false}
           - { index: test-*}
           - {query: {match_all: {} }, size: 0, aggs: {test_sterms: {terms: {field: name}, aggs: {test_umsignificant_terms: {significant_terms: {field:  surname} } } } } }
 

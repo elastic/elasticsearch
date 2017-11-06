@@ -516,7 +516,7 @@ public final class SearchPhaseController extends AbstractComponent {
         for (Set<String> unmappedFields : perIndexUnmappedFieldsNames.values()) {
             if (unanimouslyUnmappedFieldNames == null){
                 unanimouslyUnmappedFieldNames  = new HashSet<>(unmappedFields);
-            }else{
+            } else {
                 unanimouslyUnmappedFieldNames.retainAll(unmappedFields);                
             }
         }
@@ -640,7 +640,7 @@ public final class SearchPhaseController extends AbstractComponent {
         /**
          * Throws an error if all indices have reported the same query field names as unmapped.
          */
-        public void fieldNamesCheck() {
+        public void checkFieldNames() {
             if (unanimouslyUnmappedFieldNames.size() > 0) {
                 throw new ParsingException(null, "The following fields were unmapped in all indices searched: " + unanimouslyUnmappedFieldNames);
             }

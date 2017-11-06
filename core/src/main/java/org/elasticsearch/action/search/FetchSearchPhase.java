@@ -106,7 +106,7 @@ final class FetchSearchPhase extends SearchPhase {
             queryResults : fetchResults);
 
         if (context.getRequest().checkFieldNames() && context.getNumSkippedShards() == 0) {
-            reducedQueryPhase.fieldNamesCheck();
+            reducedQueryPhase.checkFieldNames();
         }
 
         if (queryAndFetchOptimization) {

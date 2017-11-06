@@ -73,9 +73,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private Boolean requestCache;
     
-    public static final boolean DEFAULT_CHECK_FIELDNAMES = false;
+    public static final boolean DEFAULT_CHECK_FIELD_NAMES = false;
 
-    private boolean checkFieldNames = DEFAULT_CHECK_FIELDNAMES;
+    private boolean checkFieldNames = DEFAULT_CHECK_FIELD_NAMES;
     
     private Scroll scroll;
 

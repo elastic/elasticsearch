@@ -69,7 +69,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
         validateQueryRequest.allShards(request.paramAsBoolean("all_shards", false));
-        validateQueryRequest.checkFieldNames(request.paramAsBoolean("check_fieldnames", SearchRequest.DEFAULT_CHECK_FIELDNAMES));
+        validateQueryRequest.checkFieldNames(request.paramAsBoolean("check_field_names", SearchRequest.DEFAULT_CHECK_FIELD_NAMES));
 
         Exception bodyParsingException = null;
         try {

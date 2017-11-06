@@ -101,9 +101,14 @@ And here is a sample response:
     reduce the memory overhead per search request if the potential  number of
     shards in the request can be large.
 
+`check_field_names`::
 
+    Set to true if field names passed in searches are to be checked against
+    index mappings. When true an error will be returned if it can be confirmed
+    that a provided field name is unmapped in all indices. Default to false.
+ 
 
-Out of the above, the `search_type` and the `request_cache` must be passed as
+Out of the above, the `search_type`, `check_field_names` and the `request_cache` must be passed as
 query-string parameters. The rest of the search request should be passed
 within the body itself. The body content can also be passed as a REST
 parameter named `source`.

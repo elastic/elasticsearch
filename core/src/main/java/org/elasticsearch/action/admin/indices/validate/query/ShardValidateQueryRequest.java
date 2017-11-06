@@ -41,7 +41,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean explain;
     private boolean rewrite;
-    private boolean checkFieldNames = SearchRequest.DEFAULT_CHECK_FIELDNAMES;
+    private boolean checkFieldNames = SearchRequest.DEFAULT_CHECK_FIELD_NAMES;
     private long nowInMillis;
     private AliasFilter filteringAliases;
 

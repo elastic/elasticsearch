@@ -92,15 +92,11 @@ public class UnmappedFieldValidationIT extends ESIntegTestCase {
     }  
     
     public void testStrictUnmappedStringTermsMultiIndexMultiReduce() {
-        try {
-            client().prepareSearch("idx","idx_unmapped").setBatchedReduceSize(2).setCheckFieldNames(true)
-                .addAggregation(terms("my_terms").field("all_unmapped_str")).get();
-            fail("All unmapped fields failure expected");
-        } catch (SearchPhaseExecutionException e) {
-            assertTrue(e.getCause().getMessage().contains(
-                    "The following fields were unmapped in all indices searched: [all_unmapped_str]"));
-        }
-    }      
+        expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("idx", "idx_unmapped").setBatchedReduceSize(2).setCheckFieldNames(true)
+                        .addAggregation(terms("my_terms").field("all_unmapped_str")).get()
+               );
+    }
     
     public void testStrictPartiallyUnmappedStringTerms() {
         SearchResponse response = client().prepareSearch("idx","idx_unmapped").setBatchedReduceSize(2)

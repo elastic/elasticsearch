@@ -491,7 +491,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     
 
     /**
-     * Sets if this request should try validate field names
+     * Sets if this request should try check field names are mapped. When set
+     * to true, an error will be thrown if it can be confirmed that all searched 
+     * indices failed to identify a mapping for a field name provided in the search. 
      */
     public SearchRequestBuilder setCheckFieldNames(boolean checkFieldNames) {
         request.checkFieldNames(checkFieldNames);

@@ -32,18 +32,16 @@ public class RatedDocumentTests extends ESTestCase {
 
     public static RatedDocument createRatedDocument() {
         String index = randomAlphaOfLength(10);
-        String type = randomAlphaOfLength(10);
         String docId = randomAlphaOfLength(10);
         int rating = randomInt();
 
-        return new RatedDocument(index, type, docId, rating);
+        return new RatedDocument(index, docId, rating);
     }
 
     public void testXContentParsing() throws IOException {
         RatedDocument testItem = createRatedDocument();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        XContentBuilder shuffled = shuffleXContent(
-                testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
         try (XContentParser itemParser = createParser(shuffled)) {
             RatedDocument parsedItem = RatedDocument.fromXContent(itemParser);
             assertNotSame(testItem, parsedItem);
@@ -62,29 +60,22 @@ public class RatedDocumentTests extends ESTestCase {
 
     public void testEqualsAndHash() throws IOException {
         RatedDocument testItem = createRatedDocument();
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
-                RankEvalTestHelper.copy(testItem, RatedDocument::new));
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem), RankEvalTestHelper.copy(testItem, RatedDocument::new));
     }
 
     public void testInvalidParsing() {
-        expectThrows(IllegalArgumentException.class,
-                () -> new RatedDocument(null, "abc", "abc", 10));
-        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("", "abc", "abc", 10));
-        expectThrows(IllegalArgumentException.class,
-                () -> new RatedDocument("abc", null, "abc", 10));
-        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "", "abc", 10));
-        expectThrows(IllegalArgumentException.class,
-                () -> new RatedDocument("abc", "abc", null, 10));
-        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "abc", "", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument(null, "abc", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("", "abc", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", null, 10));
     }
 
     private static RatedDocument mutateTestItem(RatedDocument original) {
         int rating = original.getRating();
         String index = original.getIndex();
-        String type = original.getType();
         String docId = original.getDocID();
 
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 2)) {
         case 0:
             rating = randomValueOtherThan(rating, () -> randomInt());
             break;
@@ -92,14 +83,11 @@ public class RatedDocumentTests extends ESTestCase {
             index = randomValueOtherThan(index, () -> randomAlphaOfLength(10));
             break;
         case 2:
-            type = randomValueOtherThan(type, () -> randomAlphaOfLength(10));
-            break;
-        case 3:
             docId = randomValueOtherThan(docId, () -> randomAlphaOfLength(10));
             break;
         default:
             throw new IllegalStateException("The test should only allow two parameters mutated");
         }
-        return new RatedDocument(index, type, docId, rating);
+        return new RatedDocument(index, docId, rating);
     }
 }

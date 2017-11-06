@@ -45,75 +45,67 @@ public class ReciprocalRankTests extends ESTestCase {
 
         int searchHits = randomIntBetween(1, 50);
 
-        SearchHit[] hits = createSearchHits(0, searchHits, "test", "type");
+        SearchHit[] hits = createSearchHits(0, searchHits, "test");
         List<RatedDocument> ratedDocs = new ArrayList<>();
         int relevantAt = randomIntBetween(0, searchHits);
         for (int i = 0; i <= searchHits; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument("test", "type", Integer.toString(i),
-                        Rating.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), Rating.RELEVANT.ordinal()));
             } else {
-                ratedDocs.add(new RatedDocument("test", "type", Integer.toString(i),
-                        Rating.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), Rating.IRRELEVANT.ordinal()));
             }
         }
 
         int rankAtFirstRelevant = relevantAt + 1;
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
         assertEquals(1.0 / rankAtFirstRelevant, evaluation.getQualityLevel(), Double.MIN_VALUE);
-        assertEquals(rankAtFirstRelevant,
-                ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
+        assertEquals(rankAtFirstRelevant, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
 
         // check that if we have fewer search hits than relevant doc position,
         // we don't find any result and get 0.0 quality level
         reciprocalRank = new ReciprocalRank();
-        evaluation = reciprocalRank.evaluate("id", Arrays.copyOfRange(hits, 0, relevantAt),
-                ratedDocs);
+        evaluation = reciprocalRank.evaluate("id", Arrays.copyOfRange(hits, 0, relevantAt), ratedDocs);
         assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
     }
 
     public void testEvaluationOneRelevantInResults() {
         ReciprocalRank reciprocalRank = new ReciprocalRank();
-        SearchHit[] hits = createSearchHits(0, 9, "test", "type");
+        SearchHit[] hits = createSearchHits(0, 9, "test");
         List<RatedDocument> ratedDocs = new ArrayList<>();
         // mark one of the ten docs relevant
         int relevantAt = randomIntBetween(0, 9);
         for (int i = 0; i <= 20; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument("test", "type", Integer.toString(i),
-                        Rating.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), Rating.RELEVANT.ordinal()));
             } else {
-                ratedDocs.add(new RatedDocument("test", "type", Integer.toString(i),
-                        Rating.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), Rating.IRRELEVANT.ordinal()));
             }
         }
 
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
         assertEquals(1.0 / (relevantAt + 1), evaluation.getQualityLevel(), Double.MIN_VALUE);
-        assertEquals(relevantAt + 1,
-                ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
+        assertEquals(relevantAt + 1, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
     }
 
     /**
-     * test that the relevant rating threshold can be set to something larger
-     * than 1. e.g. we set it to 2 here and expect dics 0-2 to be not relevant,
-     * so first relevant doc has third ranking position, so RR should be 1/3
+     * test that the relevant rating threshold can be set to something larger than
+     * 1. e.g. we set it to 2 here and expect dics 0-2 to be not relevant, so first
+     * relevant doc has third ranking position, so RR should be 1/3
      */
     public void testPrecisionAtFiveRelevanceThreshold() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument("test", "testtype", "0", 0));
-        rated.add(new RatedDocument("test", "testtype", "1", 1));
-        rated.add(new RatedDocument("test", "testtype", "2", 2));
-        rated.add(new RatedDocument("test", "testtype", "3", 3));
-        rated.add(new RatedDocument("test", "testtype", "4", 4));
-        SearchHit[] hits = createSearchHits(0, 5, "test", "testtype");
+        rated.add(new RatedDocument("test",  "0", 0));
+        rated.add(new RatedDocument("test",  "1", 1));
+        rated.add(new RatedDocument("test",  "2", 2));
+        rated.add(new RatedDocument("test",  "3", 3));
+        rated.add(new RatedDocument("test",  "4", 4));
+        SearchHit[] hits = createSearchHits(0, 5, "test");
 
         ReciprocalRank reciprocalRank = new ReciprocalRank();
         reciprocalRank.setRelevantRatingThreshhold(2);
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, rated);
         assertEquals((double) 1 / 3, evaluation.getQualityLevel(), 0.00001);
-        assertEquals(3,
-                ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
+        assertEquals(3, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
     }
 
     public void testCombine() {
@@ -127,7 +119,7 @@ public class ReciprocalRankTests extends ESTestCase {
 
     public void testEvaluationNoRelevantInResults() {
         ReciprocalRank reciprocalRank = new ReciprocalRank();
-        SearchHit[] hits = createSearchHits(0, 9, "test", "type");
+        SearchHit[] hits = createSearchHits(0, 9, "test");
         List<RatedDocument> ratedDocs = new ArrayList<>();
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
         assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
@@ -136,8 +128,7 @@ public class ReciprocalRankTests extends ESTestCase {
     public void testXContentRoundtrip() throws IOException {
         ReciprocalRank testItem = createTestItem();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        XContentBuilder shuffled = shuffleXContent(
-                testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
         try (XContentParser itemParser = createParser(shuffled)) {
             itemParser.nextToken();
             itemParser.nextToken();
@@ -149,13 +140,13 @@ public class ReciprocalRankTests extends ESTestCase {
     }
 
     /**
-     * Create SearchHits for testing, starting from dociId 'from' up to docId
-     * 'to'. The search hits index and type also need to be provided
+     * Create SearchHits for testing, starting from dociId 'from' up to docId 'to'.
+     * The search hits index also need to be provided
      */
-    private static SearchHit[] createSearchHits(int from, int to, String index, String type) {
+    private static SearchHit[] createSearchHits(int from, int to, String index) {
         SearchHit[] hits = new SearchHit[to + 1 - from];
         for (int i = from; i <= to; i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(type), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0, null));
         }
         return hits;
@@ -185,8 +176,7 @@ public class ReciprocalRankTests extends ESTestCase {
     private static ReciprocalRank mutateTestItem(ReciprocalRank testItem) {
         int relevantThreshold = testItem.getRelevantRatingThreshold();
         ReciprocalRank rank = new ReciprocalRank();
-        rank.setRelevantRatingThreshhold(
-                randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10)));
+        rank.setRelevantRatingThreshhold(randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10)));
         return rank;
     }
 

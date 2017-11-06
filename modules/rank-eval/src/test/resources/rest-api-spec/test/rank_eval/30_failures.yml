@@ -19,12 +19,12 @@
                 "id": "amsterdam_query",
                 "request": { "query": { "match_all" : { }}},
                 "ratings": [
-                    {"_index": "foo", "_type": "bar", "_id": "doc1", "rating": 1}]
+                    {"_index": "foo", "_id": "doc1", "rating": 1}]
             },
             {
                 "id" : "invalid_query",
                 "request": { "query": { "range" : { "bar" : { "from" : "Basel", "time_zone": "+01:00" }}}},
-                "ratings": [{"_index": "foo", "_type": "bar", "_id": "doc1", "rating": 1}]
+                "ratings": [{"_index": "foo", "_id": "doc1", "rating": 1}]
             }
           ],
           "metric" : { "precision": { "ignore_unlabeled" : true }}

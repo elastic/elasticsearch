@@ -65,7 +65,6 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
     public void testPrecisionAtRequest() {
         List<String> indices = Arrays.asList(new String[] { "test" });
-        List<String> types = Arrays.asList(new String[] { "testtype" });
 
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
@@ -73,14 +72,12 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
                 createRelevant("2", "3", "4", "5"), testQuery);
         amsterdamRequest.setIndices(indices);
-        amsterdamRequest.setTypes(types);
         amsterdamRequest.setSummaryFields(Arrays.asList(new String[] { "text", "title" }));
 
         specifications.add(amsterdamRequest);
         RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("1"),
                 testQuery);
         berlinRequest.setIndices(indices);
-        berlinRequest.setTypes(types);
         berlinRequest.setSummaryFields(Arrays.asList(new String[] { "text", "title" }));
 
         specifications.add(berlinRequest);
@@ -135,7 +132,6 @@ public class RankEvalRequestIT extends ESIntegTestCase {
      */
     public void testBadQuery() {
         List<String> indices = Arrays.asList(new String[] { "test" });
-        List<String> types = Arrays.asList(new String[] { "testtype" });
 
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder();
@@ -143,7 +139,6 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
                 createRelevant("2", "3", "4", "5"), amsterdamQuery);
         amsterdamRequest.setIndices(indices);
-        amsterdamRequest.setTypes(types);
         specifications.add(amsterdamRequest);
 
         SearchSourceBuilder brokenQuery = new SearchSourceBuilder();
@@ -151,7 +146,6 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         RatedRequest brokenRequest = new RatedRequest("broken_query", createRelevant("1"),
                 brokenQuery);
         brokenRequest.setIndices(indices);
-        brokenRequest.setTypes(types);
         specifications.add(brokenRequest);
 
         RankEvalSpec task = new RankEvalSpec(specifications, new Precision());
@@ -173,7 +167,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
     private static List<RatedDocument> createRelevant(String... docs) {
         List<RatedDocument> relevant = new ArrayList<>();
         for (String doc : docs) {
-            relevant.add(new RatedDocument("test", "testtype", doc, Rating.RELEVANT.ordinal()));
+            relevant.add(new RatedDocument("test", doc, Rating.RELEVANT.ordinal()));
         }
         return relevant;
     }

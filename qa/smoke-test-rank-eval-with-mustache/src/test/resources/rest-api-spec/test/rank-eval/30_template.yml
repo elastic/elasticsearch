@@ -41,22 +41,22 @@
   - do:
       rank_eval:
         body: {
-          "templates": [ { "id": "match", "template": {"inline": "{\"query\": { \"match\" : {\"text\" : \"{{query_string}}\" }}}" }} ],
+          "templates": [ { "id": "match", "template": {"source": "{\"query\": { \"match\" : {\"text\" : \"{{query_string}}\" }}}" }} ],
           "requests" : [
             {
                 "id": "amsterdam_query",
                 "params": { "query_string": "amsterdam" },
                 "template_id": "match",
                 "ratings": [
-                    {"_index": "foo", "_type": "bar", "_id": "doc1", "rating": 0},
-                    {"_index": "foo", "_type": "bar", "_id": "doc2", "rating": 1},
-                    {"_index": "foo", "_type": "bar", "_id": "doc3", "rating": 1}]
+                    {"_index": "foo", "_id": "doc1", "rating": 0},
+                    {"_index": "foo", "_id": "doc2", "rating": 1},
+                    {"_index": "foo", "_id": "doc3", "rating": 1}]
             },
             {
                 "id" : "berlin_query",
                 "params": { "query_string": "berlin" },
                 "template_id": "match",
-                "ratings": [{"_index": "foo", "_type": "bar", "_id": "doc1", "rating": 1}]
+                "ratings": [{"_index": "foo", "_id": "doc1", "rating": 1}]
             }
           ],
           "metric" : { "precision": { }}

@@ -26,9 +26,9 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalRequestBuilder;
 import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
+import org.elasticsearch.index.rankeval.RankEvalSpec.ScriptWithId;
 import org.elasticsearch.index.rankeval.RatedDocument;
 import org.elasticsearch.index.rankeval.RatedRequest;
-import org.elasticsearch.index.rankeval.RankEvalSpec.ScriptWithId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -82,7 +82,6 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
 
     public void testPrecisionAtRequest() throws IOException {
         List<String> indices = Arrays.asList(new String[] { "test" });
-        List<String> types = Arrays.asList(new String[] { "testtype" });
 
         List<RatedRequest> specifications = new ArrayList<>();
         Map<String, Object> ams_params = new HashMap<>();
@@ -90,7 +89,6 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         RatedRequest amsterdamRequest = new RatedRequest(
                 "amsterdam_query", createRelevant("2", "3", "4", "5"), ams_params, MATCH_TEMPLATE);
         amsterdamRequest.setIndices(indices);
-        amsterdamRequest.setTypes(types);
 
         specifications.add(amsterdamRequest);
 
@@ -99,12 +97,11 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         RatedRequest berlinRequest = new RatedRequest(
                 "berlin_query", createRelevant("1"), berlin_params, MATCH_TEMPLATE);
         berlinRequest.setIndices(indices);
-        berlinRequest.setTypes(types);
         specifications.add(berlinRequest);
 
         Precision metric = new Precision();
 
-        ScriptWithId template = 
+        ScriptWithId template =
                 new ScriptWithId(
                         MATCH_TEMPLATE,
                         new Script(
@@ -124,7 +121,7 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
     private static List<RatedDocument> createRelevant(String... docs) {
         List<RatedDocument> relevant = new ArrayList<>();
         for (String doc : docs) {
-            relevant.add(new RatedDocument("test", "testtype", doc, Rating.RELEVANT.ordinal()));
+            relevant.add(new RatedDocument("test", doc, Rating.RELEVANT.ordinal()));
         }
         return relevant;
     }

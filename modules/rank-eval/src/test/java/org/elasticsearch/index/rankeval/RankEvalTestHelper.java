@@ -36,6 +36,7 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+// TODO replace by infra from ESTestCase
 public class RankEvalTestHelper {
 
     public static <T> void testHashCodeAndEquals(T testItem, T mutation, T secondCopy) {

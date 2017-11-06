@@ -54,7 +54,6 @@ import java.util.Set;
 public class RatedRequest implements Writeable, ToXContentObject {
     private String id;
     private List<String> indices = new ArrayList<>();
-    private List<String> types = new ArrayList<>();
     private List<String> summaryFields = new ArrayList<>();
     /** Collection of rated queries for this query QA specification. */
     private List<RatedDocument> ratedDocs = new ArrayList<>();
@@ -93,7 +92,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
                     "If template parameters are supplied need to set id of template to apply "
                     + "them to too.");
         }
-        // No documents with same _index/_type/id allowed.
+        // No documents with same _index/id allowed.
         Set<DocumentKey> docKeys = new HashSet<>();
         for (RatedDocument doc : ratedDocs) {
             if (docKeys.add(doc.getKey()) == false) {
@@ -131,11 +130,6 @@ public class RatedRequest implements Writeable, ToXContentObject {
         for (int i = 0; i < indicesSize; i++) {
             this.indices.add(in.readString());
         }
-        int typesSize = in.readInt();
-        types = new ArrayList<>(typesSize);
-        for (int i = 0; i < typesSize; i++) {
-            this.types.add(in.readString());
-        }
         int intentSize = in.readInt();
         ratedDocs = new ArrayList<>(intentSize);
         for (int i = 0; i < intentSize; i++) {
@@ -159,10 +153,6 @@ public class RatedRequest implements Writeable, ToXContentObject {
         for (String index : indices) {
             out.writeString(index);
         }
-        out.writeInt(types.size());
-        for (String type : types) {
-            out.writeString(type);
-        }
         out.writeInt(ratedDocs.size());
         for (RatedDocument ratedDoc : ratedDocs) {
             ratedDoc.writeTo(out);
@@ -185,14 +175,6 @@ public class RatedRequest implements Writeable, ToXContentObject {
 
     public List<String> getIndices() {
         return indices;
-    }
-
-    public void setTypes(List<String> types) {
-        this.types = types;
-    }
-
-    public List<String> getTypes() {
-        return types;
     }
 
     /** Returns a user supplied spec id for easier referencing. */
@@ -314,7 +296,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         RatedRequest other = (RatedRequest) obj;
 
         return Objects.equals(id, other.id) && Objects.equals(testRequest, other.testRequest)
-                && Objects.equals(indices, other.indices) && Objects.equals(types, other.types)
+                && Objects.equals(indices, other.indices)
                 && Objects.equals(summaryFields, other.summaryFields)
                 && Objects.equals(ratedDocs, other.ratedDocs)
                 && Objects.equals(params, other.params)
@@ -323,7 +305,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
 
     @Override
     public final int hashCode() {
-        return Objects.hash(id, testRequest, indices, types, summaryFields, ratedDocs, params,
+        return Objects.hash(id, testRequest, indices, summaryFields, ratedDocs, params,
                 templateId);
     }
 }

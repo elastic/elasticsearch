@@ -128,10 +128,6 @@ public class TransportRankEvalAction
             indices = ratedRequest.getIndices().toArray(indices);
             SearchRequest templatedRequest = new SearchRequest(indices, ratedSearchSource);
 
-            String[] types = new String[ratedRequest.getTypes().size()];
-            types = ratedRequest.getTypes().toArray(types);
-            templatedRequest.types(types);
-
             RequestTask task = new RequestTask(templatedRequest, searchListener);
             taskQueue.add(task);
         }

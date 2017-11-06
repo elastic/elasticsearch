@@ -35,29 +35,23 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Classes implementing this interface provide a means to compute the quality of
- * a result list returned by some search.
- *
- * RelevancyLevel specifies the type of object determining the relevancy level
- * of some known docid.
+ * Classes implementing this interface provide a means to compute the quality of a result list returned by some search.
  */
 public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
 
     /**
-     * Returns a single metric representing the ranking quality of a set of
-     * returned documents wrt. to a set of document Ids labeled as relevant for
-     * this search.
+     * Returns a single metric representing the ranking quality of a set of returned
+     * documents wrt. to a set of document Ids labeled as relevant for this search.
      *
      * @param taskId
-     *            the id of the query for which the ranking is currently
-     *            evaluated
+     *            the id of the query for which the ranking is currently evaluated
      * @param hits
      *            the result hits as returned by a search request
      * @param ratedDocs
-     *            the documents that were ranked by human annotators for this
-     *            query case
-     * @return some metric representing the quality of the result hit list wrt.
-     *         to relevant doc ids.
+     *            the documents that were ranked by human annotators for this query
+     *            case
+     * @return some metric representing the quality of the result hit list wrt. to
+     *         relevant doc ids.
      */
     EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs);
 
@@ -65,8 +59,7 @@ public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
         RankedListQualityMetric rc;
         Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "[_na] missing required metric name");
+            throw new ParsingException(parser.getTokenLocation(), "[_na] missing required metric name");
         }
         String metricName = parser.currentName();
 
@@ -82,8 +75,7 @@ public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
             rc = DiscountedCumulativeGain.fromXContent(parser);
             break;
         default:
-            throw new ParsingException(parser.getTokenLocation(),
-                    "[_na] unknown query metric name [{}]", metricName);
+            throw new ParsingException(parser.getTokenLocation(), "[_na] unknown query metric name [{}]", metricName);
         }
         if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
             // if we are at END_OBJECT, move to the next one...
@@ -92,14 +84,13 @@ public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
         return rc;
     }
 
-    static List<RatedSearchHit> joinHitsWithRatings(SearchHit[] hits,
-            List<RatedDocument> ratedDocs) {
+    static List<RatedSearchHit> joinHitsWithRatings(SearchHit[] hits, List<RatedDocument> ratedDocs) {
         // join hits with rated documents
         Map<DocumentKey, RatedDocument> ratedDocumentMap = ratedDocs.stream()
                 .collect(Collectors.toMap(RatedDocument::getKey, item -> item));
         List<RatedSearchHit> ratedSearchHits = new ArrayList<>(hits.length);
         for (SearchHit hit : hits) {
-            DocumentKey key = new DocumentKey(hit.getIndex(), hit.getType(), hit.getId());
+            DocumentKey key = new DocumentKey(hit.getIndex(), hit.getId());
             RatedDocument ratedDoc = ratedDocumentMap.get(key);
             if (ratedDoc != null) {
                 ratedSearchHits.add(new RatedSearchHit(hit, Optional.of(ratedDoc.getRating())));
@@ -112,16 +103,12 @@ public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
 
     static List<DocumentKey> filterUnknownDocuments(List<RatedSearchHit> ratedHits) {
         // join hits with rated documents
-        List<DocumentKey> unknownDocs = ratedHits.stream()
-                .filter(hit -> hit.getRating().isPresent() == false)
-                .map(hit -> new DocumentKey(hit.getSearchHit().getIndex(),
-                        hit.getSearchHit().getType(), hit.getSearchHit().getId()))
-                .collect(Collectors.toList());
+        List<DocumentKey> unknownDocs = ratedHits.stream().filter(hit -> hit.getRating().isPresent() == false)
+                .map(hit -> new DocumentKey(hit.getSearchHit().getIndex(), hit.getSearchHit().getId())).collect(Collectors.toList());
         return unknownDocs;
     }
 
     default double combine(Collection<EvalQueryQuality> partialResults) {
-        return partialResults.stream().mapToDouble(EvalQueryQuality::getQualityLevel).sum()
-                / partialResults.size();
+        return partialResults.stream().mapToDouble(EvalQueryQuality::getQualityLevel).sum() / partialResults.size();
     }
 }

@@ -32,49 +32,35 @@ import java.util.Objects;
 public class DocumentKey implements Writeable, ToXContentObject {
 
     private String docId;
-    private String type;
     private String index;
 
     void setIndex(String index) {
         this.index = index;
     }
 
-    void setType(String type) {
-        this.type = type;
-    }
-
     void setDocId(String docId) {
         this.docId = docId;
     }
 
-    public DocumentKey(String index, String type, String docId) {
+    public DocumentKey(String index, String docId) {
         if (Strings.isNullOrEmpty(index)) {
             throw new IllegalArgumentException("Index must be set for each rated document");
-        }
-        if(Strings.isNullOrEmpty(type)) {
-            throw new IllegalArgumentException("Type must be set for each rated document");
         }
         if (Strings.isNullOrEmpty(docId)) {
             throw new IllegalArgumentException("DocId must be set for each rated document");
         }
 
         this.index = index;
-        this.type = type;
         this.docId = docId;
     }
 
     public DocumentKey(StreamInput in) throws IOException {
         this.index = in.readString();
-        this.type = in.readString();
         this.docId = in.readString();
     }
 
     public String getIndex() {
         return index;
-    }
-
-    public String getType() {
-        return type;
     }
 
     public String getDocID() {
@@ -84,7 +70,6 @@ public class DocumentKey implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeString(type);
         out.writeString(docId);
     }
 
@@ -97,21 +82,18 @@ public class DocumentKey implements Writeable, ToXContentObject {
             return false;
         }
         DocumentKey other = (DocumentKey) obj;
-        return Objects.equals(index, other.index) &&
-                Objects.equals(type, other.type) &&
-                Objects.equals(docId, other.docId);
+        return Objects.equals(index, other.index) && Objects.equals(docId, other.docId);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(index, type, docId);
+        return Objects.hash(index, docId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), index);
-        builder.field(RatedDocument.TYPE_FIELD.getPreferredName(), type);
         builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), docId);
         builder.endObject();
         return builder;

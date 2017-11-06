@@ -135,13 +135,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
         "quality_level": 0.4,
         "unknown_docs": {
             "amsterdam_query": [
-                { "index" : "test", "type" : "my_type", "doc_id" : "21"},
-                { "index" : "test", "type" : "my_type", "doc_id" : "5"},
-                { "index" : "test", "type" : "my_type", "doc_id" : "9"}
+                { "index" : "test", "doc_id" : "21"},
+                { "index" : "test", "doc_id" : "5"},
+                { "index" : "test", "doc_id" : "9"}
             ]
         }, {
             "berlin_query": [
-                { "index" : "test", "type" : "my_type", "doc_id" : "42"}
+                { "index" : "test", "doc_id" : "42"}
             ]
         }
     }]
@@ -157,8 +157,6 @@ public class RestRankEvalAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_rank_eval", this);
         controller.registerHandler(GET, "/{index}/_rank_eval", this);
         controller.registerHandler(POST, "/{index}/_rank_eval", this);
-        controller.registerHandler(GET, "/{index}/{type}/_rank_eval", this);
-        controller.registerHandler(POST, "/{index}/{type}/_rank_eval", this);
     }
 
     @Override
@@ -176,13 +174,10 @@ public class RestRankEvalAction extends BaseRestHandler {
             XContentParser parser) {
         List<String> indices = Arrays
                 .asList(Strings.splitStringByCommaToArray(request.param("index")));
-        List<String> types = Arrays
-                .asList(Strings.splitStringByCommaToArray(request.param("type")));
         RankEvalSpec spec = null;
         spec = RankEvalSpec.parse(parser);
         for (RatedRequest specification : spec.getRatedRequests()) {
             specification.setIndices(indices);
-            specification.setTypes(types);
         }
         ;
 

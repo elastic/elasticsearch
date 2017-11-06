@@ -34,21 +34,18 @@ import java.util.Objects;
 
 /**
  * A document ID and its rating for the query QA use case.
- * */
+ */
 public class RatedDocument implements Writeable, ToXContentObject {
 
     public static final ParseField RATING_FIELD = new ParseField("rating");
     public static final ParseField DOC_ID_FIELD = new ParseField("_id");
-    public static final ParseField TYPE_FIELD = new ParseField("_type");
     public static final ParseField INDEX_FIELD = new ParseField("_index");
 
-    private static final ConstructingObjectParser<RatedDocument, Void> PARSER =
-            new ConstructingObjectParser<>("rated_document",
-            a -> new RatedDocument((String) a[0], (String) a[1], (String) a[2], (Integer) a[3]));
+    private static final ConstructingObjectParser<RatedDocument, Void> PARSER = new ConstructingObjectParser<>("rated_document",
+            a -> new RatedDocument((String) a[0], (String) a[1], (Integer) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DOC_ID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), RATING_FIELD);
     }
@@ -56,8 +53,8 @@ public class RatedDocument implements Writeable, ToXContentObject {
     private int rating;
     private DocumentKey key;
 
-    public RatedDocument(String index, String type, String docId, int rating) {
-        this(new DocumentKey(index, type, docId), rating);
+    public RatedDocument(String index, String docId, int rating) {
+        this(new DocumentKey(index, docId), rating);
     }
 
     public RatedDocument(StreamInput in) throws IOException {
@@ -76,10 +73,6 @@ public class RatedDocument implements Writeable, ToXContentObject {
 
     public String getIndex() {
         return key.getIndex();
-    }
-
-    public String getType() {
-        return key.getType();
     }
 
     public String getDocID() {
@@ -104,7 +97,6 @@ public class RatedDocument implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), key.getIndex());
-        builder.field(TYPE_FIELD.getPreferredName(), key.getType());
         builder.field(DOC_ID_FIELD.getPreferredName(), key.getDocID());
         builder.field(RATING_FIELD.getPreferredName(), rating);
         builder.endObject();
@@ -125,8 +117,7 @@ public class RatedDocument implements Writeable, ToXContentObject {
             return false;
         }
         RatedDocument other = (RatedDocument) obj;
-        return Objects.equals(key, other.key) &&
-                Objects.equals(rating, other.rating);
+        return Objects.equals(key, other.key) && Objects.equals(rating, other.rating);
     }
 
     @Override

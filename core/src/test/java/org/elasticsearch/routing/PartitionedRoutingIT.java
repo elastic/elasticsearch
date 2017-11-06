@@ -105,7 +105,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             index = "index_" + currentShards;
 
             logger.info("--> shrinking index [" + previousIndex + "] to [" + index + "]");
-            client().admin().indices().prepareShrinkIndex(previousIndex, index)
+            client().admin().indices().prepareResizeIndex(previousIndex, index)
                 .setSettings(Settings.builder()
                     .put("index.number_of_shards", currentShards)
                     .put("index.number_of_replicas", numberOfReplicas())

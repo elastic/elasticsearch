@@ -33,16 +33,16 @@ import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import java.io.IOException;
 
-public class RestShrinkIndexAction extends BaseRestHandler {
-    public RestShrinkIndexAction(Settings settings, RestController controller) {
+public class RestSplitIndexAction extends BaseRestHandler {
+    public RestSplitIndexAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/{index}/_shrink/{target}", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_shrink/{target}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/{index}/_split/{target}", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_split/{target}", this);
     }
 
     @Override
     public String getName() {
-        return "shrink_index_action";
+        return "split_index_action";
     }
 
     @Override
@@ -54,7 +54,7 @@ public class RestShrinkIndexAction extends BaseRestHandler {
             throw new IllegalArgumentException("no source index");
         }
         ResizeRequest shrinkIndexRequest = new ResizeRequest(request.param("target"), request.param("index"));
-        shrinkIndexRequest.setResizeType(ResizeType.SHRINK);
+        shrinkIndexRequest.setResizeType(ResizeType.SPLIT);
         request.applyContentParser(parser -> ResizeRequest.PARSER.parse(parser, shrinkIndexRequest, null));
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -34,7 +35,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
@@ -178,7 +178,7 @@ public class NewPathForShardTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
-        NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
         NodePath[] nodePaths = nodeEnv.nodePaths();
@@ -233,7 +233,7 @@ public class NewPathForShardTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
-        NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
         NodePath[] nodePaths = nodeEnv.nodePaths();
@@ -290,7 +290,7 @@ public class NewPathForShardTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
-        NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 1000;
@@ -315,7 +315,7 @@ public class NewPathForShardTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
-        NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
         NodePath[] nodePaths = nodeEnv.nodePaths();

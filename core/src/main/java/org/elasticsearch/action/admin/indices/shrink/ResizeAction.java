@@ -19,13 +19,27 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public final class ShrinkResponse extends CreateIndexResponse {
-    ShrinkResponse() {
+public class ResizeAction extends Action<ResizeRequest, ResizeResponse, ResizeRequestBuilder> {
+
+    public static final ResizeAction INSTANCE = new ResizeAction();
+    public static final String NAME = "indices:admin/resize";
+    public static final Version COMPATIBILITY_VERSION = Version.V_7_0_0_alpha1; // TODO remove this once it's backported
+
+    private ResizeAction() {
+        super(NAME);
     }
 
-    ShrinkResponse(boolean acknowledged, boolean shardsAcked, String index) {
-        super(acknowledged, shardsAcked, index);
+    @Override
+    public ResizeResponse newResponse() {
+        return new ResizeResponse();
+    }
+
+    @Override
+    public ResizeRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ResizeRequestBuilder(client, this);
     }
 }

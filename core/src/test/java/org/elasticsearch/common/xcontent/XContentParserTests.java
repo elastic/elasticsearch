@@ -42,6 +42,48 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class XContentParserTests extends ESTestCase {
 
+    public void testFloat() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final String field = randomAlphaOfLengthBetween(1, 5);
+        final Float value = randomFloat();
+
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            if (randomBoolean()) {
+                builder.field(field, value);
+            } else {
+                builder.field(field).value(value);
+            }
+            builder.endObject();
+
+            final Number number;
+            try (XContentParser parser = createParser(xContentType.xContent(), builder.bytes())) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals(field, parser.currentName());
+                assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+
+                number = parser.numberValue();
+
+                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                assertNull(parser.nextToken());
+            }
+
+            assertEquals(value, number.floatValue(), 0.0f);
+
+            if (xContentType == XContentType.CBOR) {
+                // CBOR parses back a float
+                assertTrue(number instanceof Float);
+            } else {
+                // JSON, YAML and SMILE parses back the float value as a double
+                // This will change for SMILE in Jackson 2.9 where all binary based
+                // formats will return a float
+                assertTrue(number instanceof Double);
+            }
+        }
+    }
+
     public void testReadList() throws IOException {
         assertThat(readList("{\"foo\": [\"bar\"]}"), contains("bar"));
         assertThat(readList("{\"foo\": [\"bar\",\"baz\"]}"), contains("bar", "baz"));

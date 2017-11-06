@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 
 import java.util.Objects;
@@ -63,6 +64,6 @@ final class ECast extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(cast.to, child);
+        return singleLineToString(Definition.ClassToName(cast.to), child);
     }
 }

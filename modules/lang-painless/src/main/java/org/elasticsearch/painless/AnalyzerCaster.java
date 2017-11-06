@@ -41,445 +41,455 @@ public final class AnalyzerCaster {
         Objects.requireNonNull(actualType);
         Objects.requireNonNull(expectedType);
 
-        Class<?> actual = actualType.dynamic ? def.class : actualType.clazz;
+        Class<?> actual = actualType.clazz;
+        Class<?> expected = expectedType.clazz;
 
-        if (actual.equals(expected)) {
+        if (actualType.dynamic) {
+            actual = Definition.ObjectClassTodefClass(actual);
+        }
+
+        if (expectedType.dynamic) {
+            expected = Definition.ObjectClassTodefClass(expected);
+        }
+
+        if (actual == expected) {
             return null;
         }
 
-        if (actual.dynamic) {
-            if (expected.clazz == boolean.class) {
-                return Cast.unboxTo(definition.DefType, definition.BooleanType, explicit, definition.booleanType);
-            } else if (expected.clazz == byte.class) {
-                return Cast.unboxTo(definition.DefType, definition.ByteType, explicit, definition.byteType);
-            } else if (expected.clazz == short.class) {
-                return Cast.unboxTo(definition.DefType, definition.ShortType, explicit, definition.shortType);
-            } else if (expected.clazz == char.class) {
-                return Cast.unboxTo(definition.DefType, definition.CharacterType, explicit, definition.charType);
-            } else if (expected.clazz == int.class) {
-                return Cast.unboxTo(definition.DefType, definition.IntegerType, explicit, definition.intType);
-            } else if (expected.clazz == long.class) {
-                return Cast.unboxTo(definition.DefType, definition.LongType, explicit, definition.longType);
-            } else if (expected.clazz == float.class) {
-                return Cast.unboxTo(definition.DefType, definition.FloatType, explicit, definition.floatType);
-            } else if (expected.clazz == double.class) {
-                return Cast.unboxTo(definition.DefType, definition.DoubleType, explicit, definition.doubleType);
+        if (actual == def.class) {
+            if (expected == boolean.class) {
+                return Cast.unboxTo(def.class, Boolean.class, explicit, boolean.class);
+            } else if (expected == byte.class) {
+                return Cast.unboxTo(def.class, Byte.class, explicit, byte.class);
+            } else if (expected == short.class) {
+                return Cast.unboxTo(def.class, Short.class, explicit, short.class);
+            } else if (expected == char.class) {
+                return Cast.unboxTo(def.class, Character.class, explicit, char.class);
+            } else if (expected == int.class) {
+                return Cast.unboxTo(def.class, Integer.class, explicit, int.class);
+            } else if (expected == long.class) {
+                return Cast.unboxTo(def.class, Long.class, explicit, long.class);
+            } else if (expected == float.class) {
+                return Cast.unboxTo(def.class, Float.class, explicit, float.class);
+            } else if (expected == double.class) {
+                return Cast.unboxTo(def.class, Double.class, explicit, double.class);
             }
-        } else if (actual.clazz == Object.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return Cast.unboxTo(definition.ObjectType, definition.ByteType, true, definition.byteType);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return Cast.unboxTo(definition.ObjectType, definition.ShortType, true, definition.shortType);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return Cast.unboxTo(definition.ObjectType, definition.CharacterType, true, definition.charType);
-            } else if (expected.clazz == int.class && explicit && internal) {
-                return Cast.unboxTo(definition.ObjectType, definition.IntegerType, true, definition.intType);
-            } else if (expected.clazz == long.class && explicit && internal) {
-                return Cast.unboxTo(definition.ObjectType, definition.LongType, true, definition.longType);
-            } else if (expected.clazz == float.class && explicit && internal) {
-                return Cast.unboxTo(definition.ObjectType, definition.FloatType, true, definition.floatType);
-            } else if (expected.clazz == double.class && explicit && internal) {
-                return Cast.unboxTo(definition.ObjectType, definition.DoubleType, true, definition.doubleType);
+        } else if (actual == Object.class) {
+            if (expected == byte.class && explicit && internal) {
+                return Cast.unboxTo(Object.class, Byte.class, true, byte.class);
+            } else if (expected == short.class && explicit && internal) {
+                return Cast.unboxTo(Object.class, Short.class, true, short.class);
+            } else if (expected == char.class && explicit && internal) {
+                return Cast.unboxTo(Object.class, Character.class, true, char.class);
+            } else if (expected == int.class && explicit && internal) {
+                return Cast.unboxTo(Object.class, Integer.class, true, int.class);
+            } else if (expected == long.class && explicit && internal) {
+                return Cast.unboxTo(Object.class, Long.class, true, long.class);
+            } else if (expected == float.class && explicit && internal) {
+                return Cast.unboxTo(Object.class, Float.class, true, float.class);
+            } else if (expected == double.class && explicit && internal) {
+                return Cast.unboxTo(Object.class, Double.class, true, double.class);
             }
-        } else if (actual.clazz == Number.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return Cast.unboxTo(definition.NumberType, definition.ByteType, true, definition.byteType);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return Cast.unboxTo(definition.NumberType, definition.ShortType, true, definition.shortType);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return Cast.unboxTo(definition.NumberType, definition.CharacterType, true, definition.charType);
-            } else if (expected.clazz == int.class && explicit && internal) {
-                return Cast.unboxTo(definition.NumberType, definition.IntegerType, true, definition.intType);
-            } else if (expected.clazz == long.class && explicit && internal) {
-                return Cast.unboxTo(definition.NumberType, definition.LongType, true, definition.longType);
-            } else if (expected.clazz == float.class && explicit && internal) {
-                return Cast.unboxTo(definition.NumberType, definition.FloatType, true, definition.floatType);
-            } else if (expected.clazz == double.class && explicit && internal) {
-                return Cast.unboxTo(definition.NumberType, definition.DoubleType, true, definition.doubleType);
+        } else if (actual == Number.class) {
+            if (expected == byte.class && explicit && internal) {
+                return Cast.unboxTo(Number.class, Byte.class, true, byte.class);
+            } else if (expected == short.class && explicit && internal) {
+                return Cast.unboxTo(Number.class, Short.class, true, short.class);
+            } else if (expected == char.class && explicit && internal) {
+                return Cast.unboxTo(Number.class, Character.class, true, char.class);
+            } else if (expected == int.class && explicit && internal) {
+                return Cast.unboxTo(Number.class, Integer.class, true, int.class);
+            } else if (expected == long.class && explicit && internal) {
+                return Cast.unboxTo(Number.class, Long.class, true, long.class);
+            } else if (expected == float.class && explicit && internal) {
+                return Cast.unboxTo(Number.class, Float.class, true, float.class);
+            } else if (expected == double.class && explicit && internal) {
+                return Cast.unboxTo(Number.class, Double.class, true, double.class);
             }
-        } else if (actual.clazz == String.class) {
-            if (expected.clazz == char.class && explicit) {
-                return Cast.standard(definition.StringType, definition.charType, true);
+        } else if (actual == String.class) {
+            if (expected == char.class && explicit) {
+                return Cast.standard(String.class, char.class, true);
             }
-        } else if (actual.clazz == boolean.class) {
-            if (expected.dynamic) {
-                return Cast.boxFrom(definition.BooleanType, definition.DefType, explicit, definition.booleanType);
-            } else if (expected.clazz == Object.class && internal) {
-                return Cast.boxFrom(definition.BooleanType, definition.ObjectType, explicit, definition.booleanType);
-            } else if (expected.clazz == Boolean.class && internal) {
-                return Cast.boxTo(definition.booleanType, definition.booleanType, explicit, definition.booleanType);
+        } else if (actual == boolean.class) {
+            if (expected == def.class) {
+                return Cast.boxFrom(Boolean.class, def.class, explicit, boolean.class);
+            } else if (expected == Object.class && internal) {
+                return Cast.boxFrom(Boolean.class, Object.class, explicit, boolean.class);
+            } else if (expected == Boolean.class && internal) {
+                return Cast.boxTo(boolean.class, boolean.class, explicit, boolean.class);
             }
-        } else if (actual.clazz == byte.class) {
-            if (expected.dynamic) {
-                return Cast.boxFrom(definition.ByteType, definition.DefType, explicit, definition.byteType);
-            } else if (expected.clazz == Object.class && internal) {
-                return Cast.boxFrom(definition.ByteType, definition.ObjectType, explicit, definition.byteType);
-            } else if (expected.clazz == Number.class && internal) {
-                return Cast.boxFrom(definition.ByteType, definition.NumberType, explicit, definition.byteType);
-            } else if (expected.clazz == short.class) {
-                return Cast.standard(definition.byteType, definition.shortType, explicit);
-            } else if (expected.clazz == char.class && explicit) {
-                return Cast.standard(definition.byteType, definition.charType, true);
-            } else if (expected.clazz == int.class) {
-                return Cast.standard(definition.byteType, definition.intType, explicit);
-            } else if (expected.clazz == long.class) {
-                return Cast.standard(definition.byteType, definition.longType, explicit);
-            } else if (expected.clazz == float.class) {
-                return Cast.standard(definition.byteType, definition.floatType, explicit);
-            } else if (expected.clazz == double.class) {
-                return Cast.standard(definition.byteType, definition.doubleType, explicit);
-            } else if (expected.clazz == Byte.class && internal) {
-                return Cast.boxTo(definition.byteType, definition.byteType, explicit, definition.byteType);
-            } else if (expected.clazz == Short.class && internal) {
-                return Cast.boxTo(definition.byteType, definition.shortType, explicit, definition.shortType);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return Cast.boxTo(definition.byteType, definition.charType, true, definition.charType);
-            } else if (expected.clazz == Integer.class && internal) {
-                return Cast.boxTo(definition.byteType, definition.intType, explicit, definition.intType);
-            } else if (expected.clazz == Long.class && internal) {
-                return Cast.boxTo(definition.byteType, definition.longType, explicit, definition.longType);
-            } else if (expected.clazz == Float.class && internal) {
-                return Cast.boxTo(definition.byteType, definition.floatType, explicit, definition.floatType);
-            } else if (expected.clazz == Double.class && internal) {
-                return Cast.boxTo(definition.byteType, definition.doubleType, explicit, definition.doubleType);
+        } else if (actual == byte.class) {
+            if (expected == def.class) {
+                return Cast.boxFrom(Byte.class, def.class, explicit, byte.class);
+            } else if (expected == Object.class && internal) {
+                return Cast.boxFrom(Byte.class, Object.class, explicit, byte.class);
+            } else if (expected == Number.class && internal) {
+                return Cast.boxFrom(Byte.class, Number.class, explicit, byte.class);
+            } else if (expected == short.class) {
+                return Cast.standard(byte.class, short.class, explicit);
+            } else if (expected == char.class && explicit) {
+                return Cast.standard(byte.class, char.class, true);
+            } else if (expected == int.class) {
+                return Cast.standard(byte.class, int.class, explicit);
+            } else if (expected == long.class) {
+                return Cast.standard(byte.class, long.class, explicit);
+            } else if (expected == float.class) {
+                return Cast.standard(byte.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return Cast.standard(byte.class, double.class, explicit);
+            } else if (expected == Byte.class && internal) {
+                return Cast.boxTo(byte.class, byte.class, explicit, byte.class);
+            } else if (expected == Short.class && internal) {
+                return Cast.boxTo(byte.class, short.class, explicit, short.class);
+            } else if (expected == Character.class && explicit && internal) {
+                return Cast.boxTo(byte.class, char.class, true, char.class);
+            } else if (expected == Integer.class && internal) {
+                return Cast.boxTo(byte.class, int.class, explicit, int.class);
+            } else if (expected == Long.class && internal) {
+                return Cast.boxTo(byte.class, long.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return Cast.boxTo(byte.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return Cast.boxTo(byte.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == short.class) {
-            if (expected.dynamic) {
-                return Cast.boxFrom(definition.ShortType, definition.DefType, explicit, definition.shortType);
-            } else if (expected.clazz == Object.class && internal) {
-                return Cast.boxFrom(definition.ShortType, definition.ObjectType, explicit, definition.shortType);
-            } else if (expected.clazz == Number.class && internal) {
-                return Cast.boxFrom(definition.ShortType, definition.NumberType, explicit, definition.shortType);
-            } else if (expected.clazz == byte.class && explicit) {
-                return Cast.standard(definition.shortType, definition.byteType, true);
-            } else if (expected.clazz == char.class && explicit) {
-                return Cast.standard(definition.shortType, definition.charType, true);
-            } else if (expected.clazz == int.class) {
-                return Cast.standard(definition.shortType, definition.intType, explicit);
-            } else if (expected.clazz == long.class) {
-                return Cast.standard(definition.shortType, definition.longType, explicit);
-            } else if (expected.clazz == float.class) {
-                return Cast.standard(definition.shortType, definition.floatType, explicit);
-            } else if (expected.clazz == double.class) {
-                return Cast.standard(definition.shortType, definition.doubleType, explicit);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return Cast.boxTo(definition.shortType, definition.byteType, true, definition.byteType);
-            } else if (expected.clazz == Short.class && internal) {
-                return Cast.boxTo(definition.shortType, definition.shortType, explicit, definition.shortType);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return Cast.boxTo(definition.shortType, definition.charType, true, definition.charType);
-            } else if (expected.clazz == Integer.class && internal) {
-                return Cast.boxTo(definition.shortType, definition.intType, explicit, definition.intType);
-            } else if (expected.clazz == Long.class && internal) {
-                return Cast.boxTo(definition.shortType, definition.longType, explicit, definition.longType);
-            } else if (expected.clazz == Float.class && internal) {
-                return Cast.boxTo(definition.shortType, definition.floatType, explicit, definition.floatType);
-            } else if (expected.clazz == Double.class && internal) {
-                return Cast.boxTo(definition.shortType, definition.doubleType, explicit, definition.doubleType);
+        } else if (actual == short.class) {
+            if (expected == def.class) {
+                return Cast.boxFrom(Short.class, def.class, explicit, short.class);
+            } else if (expected == Object.class && internal) {
+                return Cast.boxFrom(Short.class, Object.class, explicit, short.class);
+            } else if (expected == Number.class && internal) {
+                return Cast.boxFrom(Short.class, Number.class, explicit, short.class);
+            } else if (expected == byte.class && explicit) {
+                return Cast.standard(short.class, byte.class, true);
+            } else if (expected == char.class && explicit) {
+                return Cast.standard(short.class, char.class, true);
+            } else if (expected == int.class) {
+                return Cast.standard(short.class, int.class, explicit);
+            } else if (expected == long.class) {
+                return Cast.standard(short.class, long.class, explicit);
+            } else if (expected == float.class) {
+                return Cast.standard(short.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return Cast.standard(short.class, double.class, explicit);
+            } else if (expected == Byte.class && explicit && internal) {
+                return Cast.boxTo(short.class, byte.class, true, byte.class);
+            } else if (expected == Short.class && internal) {
+                return Cast.boxTo(short.class, short.class, explicit, short.class);
+            } else if (expected == Character.class && explicit && internal) {
+                return Cast.boxTo(short.class, char.class, true, char.class);
+            } else if (expected == Integer.class && internal) {
+                return Cast.boxTo(short.class, int.class, explicit, int.class);
+            } else if (expected == Long.class && internal) {
+                return Cast.boxTo(short.class, long.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return Cast.boxTo(short.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return Cast.boxTo(short.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == char.class) {
-            if (expected.dynamic) {
-                return Cast.boxFrom(definition.CharacterType, definition.DefType, explicit, definition.charType);
-            } else if (expected.clazz == Object.class && internal) {
-                return Cast.boxFrom(definition.CharacterType, definition.ObjectType, explicit, definition.charType);
-            } else if (expected.clazz == Number.class && internal) {
-                return Cast.boxFrom(definition.CharacterType, definition.NumberType, explicit, definition.charType);
-            } else if (expected.clazz == String.class) {
-                return Cast.standard(definition.charType, definition.StringType, explicit);
-            } else if (expected.clazz == byte.class && explicit) {
-                return Cast.standard(definition.charType, definition.byteType, true);
-            } else if (expected.clazz == short.class && explicit) {
-                return Cast.standard(definition.charType, definition.shortType, true);
-            } else if (expected.clazz == int.class) {
-                return Cast.standard(definition.charType, definition.intType, explicit);
-            } else if (expected.clazz == long.class) {
-                return Cast.standard(definition.charType, definition.longType, explicit);
-            } else if (expected.clazz == float.class) {
-                return Cast.standard(definition.charType, definition.floatType, explicit);
-            } else if (expected.clazz == double.class) {
-                return Cast.standard(definition.charType, definition.doubleType, explicit);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return Cast.boxTo(definition.charType, definition.byteType, true, definition.byteType);
-            } else if (expected.clazz == Short.class && internal) {
-                return Cast.boxTo(definition.charType, definition.shortType, explicit, definition.shortType);
-            } else if (expected.clazz == Character.class && internal) {
-                return Cast.boxTo(definition.charType, definition.charType, true, definition.charType);
-            } else if (expected.clazz == Integer.class && internal) {
-                return Cast.boxTo(definition.charType, definition.intType, explicit, definition.intType);
-            } else if (expected.clazz == Long.class && internal) {
-                return Cast.boxTo(definition.charType, definition.longType, explicit, definition.longType);
-            } else if (expected.clazz == Float.class && internal) {
-                return Cast.boxTo(definition.charType, definition.floatType, explicit, definition.floatType);
-            } else if (expected.clazz == Double.class && internal) {
-                return Cast.boxTo(definition.charType, definition.doubleType, explicit, definition.doubleType);
+        } else if (actual == char.class) {
+            if (expected == def.class) {
+                return Cast.boxFrom(Character.class, def.class, explicit, char.class);
+            } else if (expected == Object.class && internal) {
+                return Cast.boxFrom(Character.class, Object.class, explicit, char.class);
+            } else if (expected == Number.class && internal) {
+                return Cast.boxFrom(Character.class, Number.class, explicit, char.class);
+            } else if (expected == String.class) {
+                return Cast.standard(char.class, String.class, explicit);
+            } else if (expected == byte.class && explicit) {
+                return Cast.standard(char.class, byte.class, true);
+            } else if (expected == short.class && explicit) {
+                return Cast.standard(char.class, short.class, true);
+            } else if (expected == int.class) {
+                return Cast.standard(char.class, int.class, explicit);
+            } else if (expected == long.class) {
+                return Cast.standard(char.class, long.class, explicit);
+            } else if (expected == float.class) {
+                return Cast.standard(char.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return Cast.standard(char.class, double.class, explicit);
+            } else if (expected == Byte.class && explicit && internal) {
+                return Cast.boxTo(char.class, byte.class, true, byte.class);
+            } else if (expected == Short.class && internal) {
+                return Cast.boxTo(char.class, short.class, explicit, short.class);
+            } else if (expected == Character.class && internal) {
+                return Cast.boxTo(char.class, char.class, true, char.class);
+            } else if (expected == Integer.class && internal) {
+                return Cast.boxTo(char.class, int.class, explicit, int.class);
+            } else if (expected == Long.class && internal) {
+                return Cast.boxTo(char.class, long.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return Cast.boxTo(char.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return Cast.boxTo(char.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == int.class) {
-            if (expected.dynamic) {
-                return Cast.boxFrom(definition.IntegerType, definition.DefType, explicit, definition.intType);
-            } else if (expected.clazz == Object.class && internal) {
-                return Cast.boxFrom(definition.IntegerType, definition.ObjectType, explicit, definition.intType);
-            } else if (expected.clazz == Number.class && internal) {
-                return Cast.boxFrom(definition.IntegerType, definition.NumberType, explicit, definition.intType);
-            } else if (expected.clazz == byte.class && explicit) {
-                return Cast.standard(definition.intType, definition.byteType, true);
-            } else if (expected.clazz == char.class && explicit) {
-                return Cast.standard(definition.intType, definition.charType, true);
-            } else if (expected.clazz == short.class && explicit) {
-                return Cast.standard(definition.intType, definition.shortType, true);
-            } else if (expected.clazz == long.class) {
-                return Cast.standard(definition.intType, definition.longType, explicit);
-            } else if (expected.clazz == float.class) {
-                return Cast.standard(definition.intType, definition.floatType, explicit);
-            } else if (expected.clazz == double.class) {
-                return Cast.standard(definition.intType, definition.doubleType, explicit);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return Cast.boxTo(definition.intType, definition.byteType, true, definition.byteType);
-            } else if (expected.clazz == Short.class && explicit && internal) {
-                return Cast.boxTo(definition.intType, definition.shortType, true, definition.shortType);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return Cast.boxTo(definition.intType, definition.charType, true, definition.charType);
-            } else if (expected.clazz == Integer.class && internal) {
-                return Cast.boxTo(definition.intType, definition.intType, explicit, definition.intType);
-            } else if (expected.clazz == Long.class && internal) {
-                return Cast.boxTo(definition.intType, definition.longType, explicit, definition.longType);
-            } else if (expected.clazz == Float.class && internal) {
-                return Cast.boxTo(definition.intType, definition.floatType, explicit, definition.floatType);
-            } else if (expected.clazz == Double.class && internal) {
-                return Cast.boxTo(definition.intType, definition.doubleType, explicit, definition.doubleType);
+        } else if (actual == int.class) {
+            if (expected == def.class) {
+                return Cast.boxFrom(Integer.class, def.class, explicit, int.class);
+            } else if (expected == Object.class && internal) {
+                return Cast.boxFrom(Integer.class, Object.class, explicit, int.class);
+            } else if (expected == Number.class && internal) {
+                return Cast.boxFrom(Integer.class, Number.class, explicit, int.class);
+            } else if (expected == byte.class && explicit) {
+                return Cast.standard(int.class, byte.class, true);
+            } else if (expected == char.class && explicit) {
+                return Cast.standard(int.class, char.class, true);
+            } else if (expected == short.class && explicit) {
+                return Cast.standard(int.class, short.class, true);
+            } else if (expected == long.class) {
+                return Cast.standard(int.class, long.class, explicit);
+            } else if (expected == float.class) {
+                return Cast.standard(int.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return Cast.standard(int.class, double.class, explicit);
+            } else if (expected == Byte.class && explicit && internal) {
+                return Cast.boxTo(int.class, byte.class, true, byte.class);
+            } else if (expected == Short.class && explicit && internal) {
+                return Cast.boxTo(int.class, short.class, true, short.class);
+            } else if (expected == Character.class && explicit && internal) {
+                return Cast.boxTo(int.class, char.class, true, char.class);
+            } else if (expected == Integer.class && internal) {
+                return Cast.boxTo(int.class, int.class, explicit, int.class);
+            } else if (expected == Long.class && internal) {
+                return Cast.boxTo(int.class, long.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return Cast.boxTo(int.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return Cast.boxTo(int.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == long.class) {
-            if (expected.dynamic) {
-                return Cast.boxFrom(definition.LongType, definition.DefType, explicit, definition.longType);
-            } else if (expected.clazz == Object.class && internal) {
-                return Cast.boxFrom(definition.LongType, definition.ObjectType, explicit, definition.longType);
-            } else if (expected.clazz == Number.class && internal) {
-                return Cast.boxFrom(definition.LongType, definition.NumberType, explicit, definition.longType);
-            } else if (expected.clazz == byte.class && explicit) {
-                return Cast.standard(definition.longType, definition.byteType, true);
-            } else if (expected.clazz == char.class && explicit) {
-                return Cast.standard(definition.longType, definition.charType, true);
-            } else if (expected.clazz == short.class && explicit) {
-                return Cast.standard(definition.longType, definition.shortType, true);
-            } else if (expected.clazz == int.class && explicit) {
-                return Cast.standard(definition.longType, definition.intType, true);
-            } else if (expected.clazz == float.class) {
-                return Cast.standard(definition.longType, definition.floatType, explicit);
-            } else if (expected.clazz == double.class) {
-                return Cast.standard(definition.longType, definition.doubleType, explicit);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return Cast.boxTo(definition.longType, definition.byteType, true, definition.byteType);
-            } else if (expected.clazz == Short.class && explicit && internal) {
-                return Cast.boxTo(definition.longType, definition.shortType, true, definition.shortType);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return Cast.boxTo(definition.longType, definition.charType, true, definition.charType);
-            } else if (expected.clazz == Integer.class && explicit && internal) {
-                return Cast.boxTo(definition.longType, definition.intType, true, definition.intType);
-            } else if (expected.clazz == Long.class && internal) {
-                return Cast.boxTo(definition.longType, definition.longType, explicit, definition.longType);
-            } else if (expected.clazz == Float.class && internal) {
-                return Cast.boxTo(definition.longType, definition.floatType, explicit, definition.floatType);
-            } else if (expected.clazz == Double.class && internal) {
-                return Cast.boxTo(definition.longType, definition.doubleType, explicit, definition.doubleType);
+        } else if (actual == long.class) {
+            if (expected == def.class) {
+                return Cast.boxFrom(Long.class, def.class, explicit, long.class);
+            } else if (expected == Object.class && internal) {
+                return Cast.boxFrom(Long.class, Object.class, explicit, long.class);
+            } else if (expected == Number.class && internal) {
+                return Cast.boxFrom(Long.class, Number.class, explicit, long.class);
+            } else if (expected == byte.class && explicit) {
+                return Cast.standard(long.class, byte.class, true);
+            } else if (expected == char.class && explicit) {
+                return Cast.standard(long.class, char.class, true);
+            } else if (expected == short.class && explicit) {
+                return Cast.standard(long.class, short.class, true);
+            } else if (expected == int.class && explicit) {
+                return Cast.standard(long.class, int.class, true);
+            } else if (expected == float.class) {
+                return Cast.standard(long.class, float.class, explicit);
+            } else if (expected == double.class) {
+                return Cast.standard(long.class, double.class, explicit);
+            } else if (expected == Byte.class && explicit && internal) {
+                return Cast.boxTo(long.class, byte.class, true, byte.class);
+            } else if (expected == Short.class && explicit && internal) {
+                return Cast.boxTo(long.class, short.class, true, short.class);
+            } else if (expected == Character.class && explicit && internal) {
+                return Cast.boxTo(long.class, char.class, true, char.class);
+            } else if (expected == Integer.class && explicit && internal) {
+                return Cast.boxTo(long.class, int.class, true, int.class);
+            } else if (expected == Long.class && internal) {
+                return Cast.boxTo(long.class, long.class, explicit, long.class);
+            } else if (expected == Float.class && internal) {
+                return Cast.boxTo(long.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return Cast.boxTo(long.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == float.class) {
-            if (expected.dynamic) {
-                return Cast.boxFrom(definition.FloatType, definition.DefType, explicit, definition.floatType);
-            } else if (expected.clazz == Object.class && internal) {
-                return Cast.boxFrom(definition.FloatType, definition.ObjectType, explicit, definition.floatType);
-            } else if (expected.clazz == Number.class && internal) {
-                return Cast.boxFrom(definition.FloatType, definition.NumberType, explicit, definition.floatType);
-            } else if (expected.clazz == byte.class && explicit) {
-                return Cast.standard(definition.floatType, definition.byteType, true);
-            } else if (expected.clazz == char.class && explicit) {
-                return Cast.standard(definition.floatType, definition.charType, true);
-            } else if (expected.clazz == short.class && explicit) {
-                return Cast.standard(definition.floatType, definition.shortType, true);
-            } else if (expected.clazz == int.class && explicit) {
-                return Cast.standard(definition.floatType, definition.intType, true);
-            } else if (expected.clazz == long.class && explicit) {
-                return Cast.standard(definition.floatType, definition.longType, true);
-            } else if (expected.clazz == double.class) {
-                return Cast.standard(definition.floatType, definition.doubleType, explicit);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return Cast.boxTo(definition.floatType, definition.byteType, true, definition.byteType);
-            } else if (expected.clazz == Short.class && explicit && internal) {
-                return Cast.boxTo(definition.floatType, definition.shortType, true, definition.shortType);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return Cast.boxTo(definition.floatType, definition.charType, true, definition.charType);
-            } else if (expected.clazz == Integer.class && explicit && internal) {
-                return Cast.boxTo(definition.floatType, definition.intType, true, definition.intType);
-            } else if (expected.clazz == Long.class && explicit && internal) {
-                return Cast.boxTo(definition.floatType, definition.longType, true, definition.longType);
-            } else if (expected.clazz == Float.class && internal) {
-                return Cast.boxTo(definition.floatType, definition.floatType, explicit, definition.floatType);
-            } else if (expected.clazz == Double.class && internal) {
-                return Cast.boxTo(definition.floatType, definition.doubleType, explicit, definition.doubleType);
+        } else if (actual == float.class) {
+            if (expected == def.class) {
+                return Cast.boxFrom(Float.class, def.class, explicit, float.class);
+            } else if (expected == Object.class && internal) {
+                return Cast.boxFrom(Float.class, Object.class, explicit, float.class);
+            } else if (expected == Number.class && internal) {
+                return Cast.boxFrom(Float.class, Number.class, explicit, float.class);
+            } else if (expected == byte.class && explicit) {
+                return Cast.standard(float.class, byte.class, true);
+            } else if (expected == char.class && explicit) {
+                return Cast.standard(float.class, char.class, true);
+            } else if (expected == short.class && explicit) {
+                return Cast.standard(float.class, short.class, true);
+            } else if (expected == int.class && explicit) {
+                return Cast.standard(float.class, int.class, true);
+            } else if (expected == long.class && explicit) {
+                return Cast.standard(float.class, long.class, true);
+            } else if (expected == double.class) {
+                return Cast.standard(float.class, double.class, explicit);
+            } else if (expected == Byte.class && explicit && internal) {
+                return Cast.boxTo(float.class, byte.class, true, byte.class);
+            } else if (expected == Short.class && explicit && internal) {
+                return Cast.boxTo(float.class, short.class, true, short.class);
+            } else if (expected == Character.class && explicit && internal) {
+                return Cast.boxTo(float.class, char.class, true, char.class);
+            } else if (expected == Integer.class && explicit && internal) {
+                return Cast.boxTo(float.class, int.class, true, int.class);
+            } else if (expected == Long.class && explicit && internal) {
+                return Cast.boxTo(float.class, long.class, true, long.class);
+            } else if (expected == Float.class && internal) {
+                return Cast.boxTo(float.class, float.class, explicit, float.class);
+            } else if (expected == Double.class && internal) {
+                return Cast.boxTo(float.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == double.class) {
-            if (expected.dynamic) {
-                return Cast.boxFrom(definition.DoubleType, definition.DefType, explicit, definition.doubleType);
-            } else if (expected.clazz == Object.class && internal) {
-                return Cast.boxFrom(definition.DoubleType, definition.ObjectType, explicit, definition.doubleType);
-            } else if (expected.clazz == Number.class && internal) {
-                return Cast.boxFrom(definition.DoubleType, definition.NumberType, explicit, definition.doubleType);
-            } else if (expected.clazz == byte.class && explicit) {
-                return Cast.standard(definition.doubleType, definition.byteType, true);
-            } else if (expected.clazz == char.class && explicit) {
-                return Cast.standard(definition.doubleType, definition.charType, true);
-            } else if (expected.clazz == short.class && explicit) {
-                return Cast.standard(definition.doubleType, definition.shortType, true);
-            } else if (expected.clazz == int.class && explicit) {
-                return Cast.standard(definition.doubleType, definition.intType, true);
-            } else if (expected.clazz == long.class && explicit) {
-                return Cast.standard(definition.doubleType, definition.longType, true);
-            } else if (expected.clazz == float.class && explicit) {
-                return Cast.standard(definition.doubleType, definition.floatType, true);
-            } else if (expected.clazz == Byte.class && explicit && internal) {
-                return Cast.boxTo(definition.doubleType, definition.byteType, true, definition.byteType);
-            } else if (expected.clazz == Short.class && explicit && internal) {
-                return Cast.boxTo(definition.doubleType, definition.shortType, true, definition.shortType);
-            } else if (expected.clazz == Character.class && explicit && internal) {
-                return Cast.boxTo(definition.doubleType, definition.charType, true, definition.charType);
-            } else if (expected.clazz == Integer.class && explicit && internal) {
-                return Cast.boxTo(definition.doubleType, definition.intType, true, definition.intType);
-            } else if (expected.clazz == Long.class && explicit && internal) {
-                return Cast.boxTo(definition.doubleType, definition.longType, true, definition.longType);
-            } else if (expected.clazz == Float.class && explicit && internal) {
-                return Cast.boxTo(definition.doubleType, definition.floatType, true, definition.floatType);
-            } else if (expected.clazz == Double.class && internal) {
-                return Cast.boxTo(definition.doubleType, definition.doubleType, explicit, definition.doubleType);
+        } else if (actual == double.class) {
+            if (expected == def.class) {
+                return Cast.boxFrom(Double.class, def.class, explicit, double.class);
+            } else if (expected == Object.class && internal) {
+                return Cast.boxFrom(Double.class, Object.class, explicit, double.class);
+            } else if (expected == Number.class && internal) {
+                return Cast.boxFrom(Double.class, Number.class, explicit, double.class);
+            } else if (expected == byte.class && explicit) {
+                return Cast.standard(double.class, byte.class, true);
+            } else if (expected == char.class && explicit) {
+                return Cast.standard(double.class, char.class, true);
+            } else if (expected == short.class && explicit) {
+                return Cast.standard(double.class, short.class, true);
+            } else if (expected == int.class && explicit) {
+                return Cast.standard(double.class, int.class, true);
+            } else if (expected == long.class && explicit) {
+                return Cast.standard(double.class, long.class, true);
+            } else if (expected == float.class && explicit) {
+                return Cast.standard(double.class, float.class, true);
+            } else if (expected == Byte.class && explicit && internal) {
+                return Cast.boxTo(double.class, byte.class, true, byte.class);
+            } else if (expected == Short.class && explicit && internal) {
+                return Cast.boxTo(double.class, short.class, true, short.class);
+            } else if (expected == Character.class && explicit && internal) {
+                return Cast.boxTo(double.class, char.class, true, char.class);
+            } else if (expected == Integer.class && explicit && internal) {
+                return Cast.boxTo(double.class, int.class, true, int.class);
+            } else if (expected == Long.class && explicit && internal) {
+                return Cast.boxTo(double.class, long.class, true, long.class);
+            } else if (expected == Float.class && explicit && internal) {
+                return Cast.boxTo(double.class, float.class, true, float.class);
+            } else if (expected == Double.class && internal) {
+                return Cast.boxTo(double.class, double.class, explicit, double.class);
             }
-        } else if (actual.clazz == Boolean.class) {
-            if (expected.clazz == boolean.class && internal) {
-                return Cast.unboxFrom(definition.booleanType, definition.booleanType, explicit, definition.booleanType);
+        } else if (actual == Boolean.class) {
+            if (expected == boolean.class && internal) {
+                return Cast.unboxFrom(boolean.class, boolean.class, explicit, boolean.class);
             }
-        } else if (actual.clazz == Byte.class) {
-            if (expected.clazz == byte.class && internal) {
-                return Cast.unboxFrom(definition.byteType, definition.byteType, explicit, definition.byteType);
-            } else if (expected.clazz == short.class && internal) {
-                return Cast.unboxFrom(definition.byteType, definition.shortType, explicit, definition.byteType);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return Cast.unboxFrom(definition.byteType, definition.charType, true, definition.byteType);
-            } else if (expected.clazz == int.class && internal) {
-                return Cast.unboxFrom(definition.byteType, definition.intType, explicit, definition.byteType);
-            } else if (expected.clazz == long.class && internal) {
-                return Cast.unboxFrom(definition.byteType, definition.longType, explicit, definition.byteType);
-            } else if (expected.clazz == float.class && internal) {
-                return Cast.unboxFrom(definition.byteType, definition.floatType, explicit, definition.byteType);
-            } else if (expected.clazz == double.class && internal) {
-                return Cast.unboxFrom(definition.byteType, definition.doubleType, explicit, definition.byteType);
+        } else if (actual == Byte.class) {
+            if (expected == byte.class && internal) {
+                return Cast.unboxFrom(byte.class, byte.class, explicit, byte.class);
+            } else if (expected == short.class && internal) {
+                return Cast.unboxFrom(byte.class, short.class, explicit, byte.class);
+            } else if (expected == char.class && explicit && internal) {
+                return Cast.unboxFrom(byte.class, char.class, true, byte.class);
+            } else if (expected == int.class && internal) {
+                return Cast.unboxFrom(byte.class, int.class, explicit, byte.class);
+            } else if (expected == long.class && internal) {
+                return Cast.unboxFrom(byte.class, long.class, explicit, byte.class);
+            } else if (expected == float.class && internal) {
+                return Cast.unboxFrom(byte.class, float.class, explicit, byte.class);
+            } else if (expected == double.class && internal) {
+                return Cast.unboxFrom(byte.class, double.class, explicit, byte.class);
             }
-        } else if (actual.clazz == Short.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return Cast.unboxFrom(definition.shortType, definition.byteType, true, definition.shortType);
-            } else if (expected.clazz == short.class && internal) {
-                return Cast.unboxFrom(definition.shortType, definition.shortType, explicit, definition.shortType);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return Cast.unboxFrom(definition.shortType, definition.charType, true, definition.shortType);
-            } else if (expected.clazz == int.class && internal) {
-                return Cast.unboxFrom(definition.shortType, definition.intType, explicit, definition.shortType);
-            } else if (expected.clazz == long.class && internal) {
-                return Cast.unboxFrom(definition.shortType, definition.longType, explicit, definition.shortType);
-            } else if (expected.clazz == float.class && internal) {
-                return Cast.unboxFrom(definition.shortType, definition.floatType, explicit, definition.shortType);
-            } else if (expected.clazz == double.class && internal) {
-                return Cast.unboxFrom(definition.shortType, definition.doubleType, explicit, definition.shortType);
+        } else if (actual == Short.class) {
+            if (expected == byte.class && explicit && internal) {
+                return Cast.unboxFrom(short.class, byte.class, true, short.class);
+            } else if (expected == short.class && internal) {
+                return Cast.unboxFrom(short.class, short.class, explicit, short.class);
+            } else if (expected == char.class && explicit && internal) {
+                return Cast.unboxFrom(short.class, char.class, true, short.class);
+            } else if (expected == int.class && internal) {
+                return Cast.unboxFrom(short.class, int.class, explicit, short.class);
+            } else if (expected == long.class && internal) {
+                return Cast.unboxFrom(short.class, long.class, explicit, short.class);
+            } else if (expected == float.class && internal) {
+                return Cast.unboxFrom(short.class, float.class, explicit, short.class);
+            } else if (expected == double.class && internal) {
+                return Cast.unboxFrom(short.class, double.class, explicit, short.class);
             }
-        } else if (actual.clazz == Character.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return Cast.unboxFrom(definition.charType, definition.byteType, true, definition.charType);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return Cast.unboxFrom(definition.charType, definition.shortType, true, definition.charType);
-            } else if (expected.clazz == char.class && internal) {
-                return Cast.unboxFrom(definition.charType, definition.charType, explicit, definition.charType);
-            } else if (expected.clazz == int.class && internal) {
-                return Cast.unboxFrom(definition.charType, definition.intType, explicit, definition.charType);
-            } else if (expected.clazz == long.class && internal) {
-                return Cast.unboxFrom(definition.charType, definition.longType, explicit, definition.charType);
-            } else if (expected.clazz == float.class && internal) {
-                return Cast.unboxFrom(definition.charType, definition.floatType, explicit, definition.charType);
-            } else if (expected.clazz == double.class && internal) {
-                return Cast.unboxFrom(definition.charType, definition.doubleType, explicit, definition.charType);
+        } else if (actual == Character.class) {
+            if (expected == byte.class && explicit && internal) {
+                return Cast.unboxFrom(char.class, byte.class, true, char.class);
+            } else if (expected == short.class && explicit && internal) {
+                return Cast.unboxFrom(char.class, short.class, true, char.class);
+            } else if (expected == char.class && internal) {
+                return Cast.unboxFrom(char.class, char.class, explicit, char.class);
+            } else if (expected == int.class && internal) {
+                return Cast.unboxFrom(char.class, int.class, explicit, char.class);
+            } else if (expected == long.class && internal) {
+                return Cast.unboxFrom(char.class, long.class, explicit, char.class);
+            } else if (expected == float.class && internal) {
+                return Cast.unboxFrom(char.class, float.class, explicit, char.class);
+            } else if (expected == double.class && internal) {
+                return Cast.unboxFrom(char.class, double.class, explicit, char.class);
             }
-        } else if (actual.clazz == Integer.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return Cast.unboxFrom(definition.intType, definition.byteType, true, definition.intType);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return Cast.unboxFrom(definition.intType, definition.shortType, true, definition.intType);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return Cast.unboxFrom(definition.intType, definition.charType, true, definition.intType);
-            } else if (expected.clazz == int.class && internal) {
-                return Cast.unboxFrom(definition.intType, definition.intType, explicit, definition.intType);
-            } else if (expected.clazz == long.class && internal) {
-                return Cast.unboxFrom(definition.intType, definition.longType, explicit, definition.intType);
-            } else if (expected.clazz == float.class && internal) {
-                return Cast.unboxFrom(definition.intType, definition.floatType, explicit, definition.intType);
-            } else if (expected.clazz == double.class && internal) {
-                return Cast.unboxFrom(definition.intType, definition.doubleType, explicit, definition.intType);
+        } else if (actual == Integer.class) {
+            if (expected == byte.class && explicit && internal) {
+                return Cast.unboxFrom(int.class, byte.class, true, int.class);
+            } else if (expected == short.class && explicit && internal) {
+                return Cast.unboxFrom(int.class, short.class, true, int.class);
+            } else if (expected == char.class && explicit && internal) {
+                return Cast.unboxFrom(int.class, char.class, true, int.class);
+            } else if (expected == int.class && internal) {
+                return Cast.unboxFrom(int.class, int.class, explicit, int.class);
+            } else if (expected == long.class && internal) {
+                return Cast.unboxFrom(int.class, long.class, explicit, int.class);
+            } else if (expected == float.class && internal) {
+                return Cast.unboxFrom(int.class, float.class, explicit, int.class);
+            } else if (expected == double.class && internal) {
+                return Cast.unboxFrom(int.class, double.class, explicit, int.class);
             }
-        } else if (actual.clazz == Long.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return Cast.unboxFrom(definition.longType, definition.byteType, true, definition.longType);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return Cast.unboxFrom(definition.longType, definition.shortType, true, definition.longType);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return Cast.unboxFrom(definition.longType, definition.charType, true, definition.longType);
-            } else if (expected.clazz == int.class && explicit && internal) {
-                return Cast.unboxFrom(definition.longType, definition.intType, true, definition.longType);
-            } else if (expected.clazz == long.class && internal) {
-                return Cast.unboxFrom(definition.longType, definition.longType, explicit, definition.longType);
-            } else if (expected.clazz == float.class && internal) {
-                return Cast.unboxFrom(definition.longType, definition.floatType, explicit, definition.longType);
-            } else if (expected.clazz == double.class && internal) {
-                return Cast.unboxFrom(definition.longType, definition.doubleType, explicit, definition.longType);
+        } else if (actual == Long.class) {
+            if (expected == byte.class && explicit && internal) {
+                return Cast.unboxFrom(long.class, byte.class, true, long.class);
+            } else if (expected == short.class && explicit && internal) {
+                return Cast.unboxFrom(long.class, short.class, true, long.class);
+            } else if (expected == char.class && explicit && internal) {
+                return Cast.unboxFrom(long.class, char.class, true, long.class);
+            } else if (expected == int.class && explicit && internal) {
+                return Cast.unboxFrom(long.class, int.class, true, long.class);
+            } else if (expected == long.class && internal) {
+                return Cast.unboxFrom(long.class, long.class, explicit, long.class);
+            } else if (expected == float.class && internal) {
+                return Cast.unboxFrom(long.class, float.class, explicit, long.class);
+            } else if (expected == double.class && internal) {
+                return Cast.unboxFrom(long.class, double.class, explicit, long.class);
             }
-        } else if (actual.clazz == Float.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return Cast.unboxFrom(definition.floatType, definition.byteType, true, definition.floatType);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return Cast.unboxFrom(definition.floatType, definition.shortType, true, definition.floatType);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return Cast.unboxFrom(definition.floatType, definition.charType, true, definition.floatType);
-            } else if (expected.clazz == int.class && explicit && internal) {
-                return Cast.unboxFrom(definition.floatType, definition.intType, true, definition.floatType);
-            } else if (expected.clazz == long.class && explicit && internal) {
-                return Cast.unboxFrom(definition.floatType, definition.longType, true, definition.floatType);
-            } else if (expected.clazz == float.class && internal) {
-                return Cast.unboxFrom(definition.floatType, definition.floatType, explicit, definition.floatType);
-            } else if (expected.clazz == double.class && internal) {
-                return Cast.unboxFrom(definition.floatType, definition.doubleType, explicit, definition.floatType);
+        } else if (actual == Float.class) {
+            if (expected == byte.class && explicit && internal) {
+                return Cast.unboxFrom(float.class, byte.class, true, float.class);
+            } else if (expected == short.class && explicit && internal) {
+                return Cast.unboxFrom(float.class, short.class, true, float.class);
+            } else if (expected == char.class && explicit && internal) {
+                return Cast.unboxFrom(float.class, char.class, true, float.class);
+            } else if (expected == int.class && explicit && internal) {
+                return Cast.unboxFrom(float.class, int.class, true, float.class);
+            } else if (expected == long.class && explicit && internal) {
+                return Cast.unboxFrom(float.class, long.class, true, float.class);
+            } else if (expected == float.class && internal) {
+                return Cast.unboxFrom(float.class, float.class, explicit, float.class);
+            } else if (expected == double.class && internal) {
+                return Cast.unboxFrom(float.class, double.class, explicit, float.class);
             }
-        } else if (actual.clazz == Double.class) {
-            if (expected.clazz == byte.class && explicit && internal) {
-                return Cast.unboxFrom(definition.doubleType, definition.byteType, true, definition.doubleType);
-            } else if (expected.clazz == short.class && explicit && internal) {
-                return Cast.unboxFrom(definition.doubleType, definition.shortType, true, definition.doubleType);
-            } else if (expected.clazz == char.class && explicit && internal) {
-                return Cast.unboxFrom(definition.doubleType, definition.charType, true, definition.doubleType);
-            } else if (expected.clazz == int.class && explicit && internal) {
-                return Cast.unboxFrom(definition.doubleType, definition.intType, true, definition.doubleType);
-            } else if (expected.clazz == long.class && explicit && internal) {
-                return Cast.unboxFrom(definition.doubleType, definition.longType, true, definition.doubleType);
-            } else if (expected.clazz == float.class && explicit && internal) {
-                return Cast.unboxFrom(definition.doubleType, definition.floatType, true, definition.doubleType);
-            } else if (expected.clazz == double.class && internal) {
-                return Cast.unboxFrom(definition.doubleType, definition.doubleType, explicit, definition.doubleType);
+        } else if (actual == Double.class) {
+            if (expected == byte.class && explicit && internal) {
+                return Cast.unboxFrom(double.class, byte.class, true, double.class);
+            } else if (expected == short.class && explicit && internal) {
+                return Cast.unboxFrom(double.class, short.class, true, double.class);
+            } else if (expected == char.class && explicit && internal) {
+                return Cast.unboxFrom(double.class, char.class, true, double.class);
+            } else if (expected == int.class && explicit && internal) {
+                return Cast.unboxFrom(double.class, int.class, true, double.class);
+            } else if (expected == long.class && explicit && internal) {
+                return Cast.unboxFrom(double.class, long.class, true, double.class);
+            } else if (expected == float.class && explicit && internal) {
+                return Cast.unboxFrom(double.class, float.class, true, double.class);
+            } else if (expected == double.class && internal) {
+                return Cast.unboxFrom(double.class, double.class, explicit, double.class);
             }
         }
 
-        if (    actual.dynamic                                   ||
-                (actual.clazz != void.class && expected.dynamic) ||
-                expected.clazz.isAssignableFrom(actual.clazz)    ||
-                (actual.clazz.isAssignableFrom(expected.clazz) && explicit)) {
+        if (    actual == def.class                                   ||
+                (actual != void.class && expected == def.class) ||
+                expected.isAssignableFrom(actual)    ||
+                (actual.isAssignableFrom(expected) && explicit)) {
             return Cast.standard(actual, expected, explicit);
         } else {
-            throw location.createError(new ClassCastException("Cannot cast from [" + actual.name + "] to [" + expected.name + "]."));
+            throw location.createError(new ClassCastException(
+                    "Cannot cast from [" + Definition.ClassToName(actual) + "] to [" + Definition.ClassToName(expected) + "]."));
         }
     }
 
     public Object constCast(Location location, final Object constant, final Cast cast) {
-        Class<?> fsort = cast.from.clazz;
-        Class<?> tsort = cast.to.clazz;
+        Class<?> fsort = cast.from;
+        Class<?> tsort = cast.to;
 
         if (fsort == tsort) {
             return constant;
@@ -505,11 +515,11 @@ public final class AnalyzerCaster {
             else if (tsort == double.class) return number.doubleValue();
             else {
                 throw location.createError(new IllegalStateException("Cannot cast from " +
-                    "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "]."));
+                    "[" + cast.from.getCanonicalName() + "] to [" + cast.to.getCanonicalName() + "]."));
             }
         } else {
             throw location.createError(new IllegalStateException("Cannot cast from " +
-                "[" + cast.from.clazz.getCanonicalName() + "] to [" + cast.to.clazz.getCanonicalName() + "]."));
+                "[" + cast.from.getCanonicalName() + "] to [" + cast.to.getCanonicalName() + "]."));
         }
     }
 

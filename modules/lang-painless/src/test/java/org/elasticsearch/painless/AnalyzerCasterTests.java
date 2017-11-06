@@ -36,8 +36,8 @@ public class AnalyzerCasterTests extends ESTestCase {
         }
 
         Cast cast = Definition.DEFINITION.caster.getLegalCast(location, actual, expected, true, false);
-        assertEquals(actual, cast.from);
-        assertEquals(expected, cast.to);
+        assertEquals(actual.clazz, cast.from);
+        assertEquals(expected.clazz, cast.to);
 
         if (mustBeExplicit) {
             ClassCastException error = expectThrows(ClassCastException.class,
@@ -45,8 +45,8 @@ public class AnalyzerCasterTests extends ESTestCase {
             assertTrue(error.getMessage().startsWith("Cannot cast"));
         } else {
             cast = Definition.DEFINITION.caster.getLegalCast(location, actual, expected, false, false);
-            assertEquals(actual, cast.from);
-            assertEquals(expected, cast.to);
+            assertEquals(actual.clazz, cast.from);
+            assertEquals(expected.clazz, cast.to);
         }
     }
 

@@ -20,12 +20,14 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.util.SetOnce;
+import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -515,6 +517,92 @@ public final class Definition {
                constant.clazz == float.class   ||
                constant.clazz == double.class  ||
                constant.clazz == String.class;
+    }
+
+    public static Class<?> ObjectClassTodefClass(Class<?> clazz) {
+        if (clazz.isArray()) {
+            Class<?> component = clazz.getComponentType();
+            int dimensions = 1;
+
+            while (component.isArray()) {
+                component = component.getComponentType();
+                ++dimensions;
+            }
+
+            if (component == Object.class) {
+                char[] braces = new char[dimensions];
+                Arrays.fill(braces, '[');
+
+                String descriptor = new String(braces) + org.objectweb.asm.Type.getType(def.class).getDescriptor();
+                org.objectweb.asm.Type type = org.objectweb.asm.Type.getType(descriptor);
+
+                try {
+                    return Class.forName(type.getInternalName().replace('/', '.'));
+                } catch (ClassNotFoundException exception) {
+                    throw new IllegalStateException("internal error", exception);
+                }
+            }
+        } else if (clazz == Object.class) {
+            return def.class;
+        }
+
+        return clazz;
+    }
+
+    public static Class<?> defClassToObjectClass(Class<?> clazz) {
+        if (clazz.isArray()) {
+            Class<?> component = clazz.getComponentType();
+            int dimensions = 1;
+
+            while (component.isArray()) {
+                component = component.getComponentType();
+                ++dimensions;
+            }
+
+            if (component == def.class) {
+                char[] braces = new char[dimensions];
+                Arrays.fill(braces, '[');
+
+                String descriptor = new String(braces) + org.objectweb.asm.Type.getType(Object.class).getDescriptor();
+                org.objectweb.asm.Type type = org.objectweb.asm.Type.getType(descriptor);
+
+                try {
+                    return Class.forName(type.getInternalName().replace('/', '.'));
+                } catch (ClassNotFoundException exception) {
+                    throw new IllegalStateException("internal error", exception);
+                }
+            }
+        } else if (clazz == def.class) {
+            return Object.class;
+        }
+
+        return clazz;
+    }
+
+    public static String ClassToName(Class<?> clazz) {
+        if (clazz.isArray()) {
+            Class<?> component = clazz.getComponentType();
+            int dimensions = 1;
+
+            while (component.isArray()) {
+                component = component.getComponentType();
+                ++dimensions;
+            }
+
+            if (component == def.class) {
+                StringBuilder builder = new StringBuilder("def");
+
+                for (int dimension = 0; dimension < dimensions; dimensions++) {
+                    builder.append("[]");
+                }
+
+                return builder.toString();
+            }
+        } else if (clazz == def.class) {
+            return "def";
+        }
+
+        return clazz.getCanonicalName();
     }
 
     public RuntimeClass getRuntimeClass(Class<?> clazz) {

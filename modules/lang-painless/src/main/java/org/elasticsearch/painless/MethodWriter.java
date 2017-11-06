@@ -209,8 +209,8 @@ public final class MethodWriter extends GeneratorAdapter {
             Class<?> component = clazz.getComponentType();
             int dimensions = 1;
 
-            while (clazz.isArray()) {
-                component = clazz.getComponentType();
+            while (component.isArray()) {
+                component = component.getComponentType();
                 ++dimensions;
             }
 

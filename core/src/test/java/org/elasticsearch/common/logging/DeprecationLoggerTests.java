@@ -23,11 +23,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
+import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -68,6 +70,54 @@ public class DeprecationLoggerTests extends ESTestCase {
             assertThat(responses, hasSize(1));
             assertThat(responses.get(0), warningValueMatcher);
             assertThat(responses.get(0), containsString("\"A simple message [" + param + "]\""));
+        }
+    }
+
+    public void testContainingNewline() throws IOException {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+
+            logger.deprecated(threadContexts, "this message contains a newline\n");
+
+            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+
+            assertThat(responseHeaders.size(), equalTo(1));
+            final List<String> responses = responseHeaders.get("Warning");
+            assertThat(responses, hasSize(1));
+            assertThat(responses.get(0), warningValueMatcher);
+            assertThat(responses.get(0), containsString("\"this message contains a newline%0A\""));
+        }
+    }
+
+    public void testSurrogatePair() throws IOException {
+        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
+            final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+
+            logger.deprecated(threadContexts, "this message contains a surrogate pair 😱");
+
+            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+
+            assertThat(responseHeaders.size(), equalTo(1));
+            final List<String> responses = responseHeaders.get("Warning");
+            assertThat(responses, hasSize(1));
+            assertThat(responses.get(0), warningValueMatcher);
+
+            // convert UTF-16 to UTF-8 by hand to show the hard-coded constant below is correct
+            assertThat("😱", equalTo("\uD83D\uDE31"));
+            final int code = 0x10000 + ((0xD83D & 0x3FF) << 10) + (0xDE31 & 0x3FF);
+            @SuppressWarnings("PointlessBitwiseExpression")
+            final int[] points = new int[] {
+                    (code >> 18) & 0x07 | 0xF0,
+                    (code >> 12) & 0x3F | 0x80,
+                    (code >> 6) & 0x3F | 0x80,
+                    (code >> 0) & 0x3F | 0x80};
+            final StringBuilder sb = new StringBuilder();
+            // noinspection ForLoopReplaceableByForEach
+            for (int i = 0; i < points.length; i++) {
+                sb.append("%").append(Integer.toString(points[i], 16).toUpperCase(Locale.ROOT));
+            }
+            assertThat(sb.toString(), equalTo("%F0%9F%98%B1"));
+            assertThat(responses.get(0), containsString("\"this message contains a surrogate pair %F0%9F%98%B1\""));
         }
     }
 
@@ -172,15 +222,28 @@ public class DeprecationLoggerTests extends ESTestCase {
         assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(first), equalTo(s));
     }
 
-    public void testEscape() {
-        assertThat(DeprecationLogger.escape("\\"), equalTo("\\\\"));
-        assertThat(DeprecationLogger.escape("\""), equalTo("\\\""));
-        assertThat(DeprecationLogger.escape("\\\""), equalTo("\\\\\\\""));
-        assertThat(DeprecationLogger.escape("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
+    public void testEscapeBackslashesAndQuotes() {
+        assertThat(DeprecationLogger.escapeBackslashesAndQuotes("\\"), equalTo("\\\\"));
+        assertThat(DeprecationLogger.escapeBackslashesAndQuotes("\""), equalTo("\\\""));
+        assertThat(DeprecationLogger.escapeBackslashesAndQuotes("\\\""), equalTo("\\\\\\\""));
+        assertThat(DeprecationLogger.escapeBackslashesAndQuotes("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
         // test that characters other than '\' and '"' are left unchanged
-        String chars = "\t !" + range(0x23, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff);
+        String chars = "\t !" + range(0x23, 0x24) + range(0x26, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff);
         final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
-        assertThat(DeprecationLogger.escape(s), equalTo(s));
+        assertThat(DeprecationLogger.escapeBackslashesAndQuotes(s), equalTo(s));
+    }
+
+    public void testEncode() {
+        assertThat(DeprecationLogger.encode("\n"), equalTo("%0A"));
+        assertThat(DeprecationLogger.encode("😱"), equalTo("%F0%9F%98%B1"));
+        assertThat(DeprecationLogger.encode("福島深雪"), equalTo("%E7%A6%8F%E5%B3%B6%E6%B7%B1%E9%9B%AA"));
+        assertThat(DeprecationLogger.encode("100%\n"), equalTo("100%25%0A"));
+        // test that valid characters are left unchanged
+        String chars = "\t !" + range(0x23, 0x24) + range(0x26, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff) + '\\' + '"';
+        final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
+        assertThat(DeprecationLogger.encode(s), equalTo(s));
+        // when no encoding is needed, the original string is returned (optimization)
+        assertThat(DeprecationLogger.encode(s), IsSame.sameInstance(s));
     }
 
     private String range(int lowerInclusive, int upperInclusive) {

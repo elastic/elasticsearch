@@ -55,8 +55,8 @@ public interface CircuitBreaker {
      */
     String IN_FLIGHT_REQUESTS = "in_flight_requests";
     /**
-     * The accounting breaker tracks things held in memory that are not released
-     * when a request completes. This includes memory used by Lucene for
+     * The accounting breaker tracks things held in memory that is independent
+     * of the request lifecycle. This includes memory used by Lucene for
      * segments.
      */
     String ACCOUNTING = "accounting";

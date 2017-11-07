@@ -260,7 +260,8 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     /**
-     * Fire the recurring listeners after a refresh has occurred (passing 'true').
+     * Fire the recurring listeners after a refresh has occurred (passing 'true'
+     * to each recurring listener as a refresh has occurred).
      * Does nothing if the list of listeners is null.
      */
     private void fireRecurringListeners() {

@@ -292,8 +292,7 @@ public class AuthorizationService extends AbstractComponent {
         IndicesAccessControl indicesAccessControl = permission.authorize(action, localIndices, metaData, fieldPermissionsCache);
         if (!indicesAccessControl.isGranted()) {
             throw denial(authentication, action, request);
-        } else if (indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME) != null
-                && indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME).isGranted()
+        } else if (hasSecurityIndexAccess(indicesAccessControl)
                 && MONITOR_INDEX_PREDICATE.test(action) == false
                 && isSuperuser(authentication.getUser()) == false) {
             // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
@@ -332,6 +331,16 @@ public class AuthorizationService extends AbstractComponent {
         }
 
         grant(authentication, action, originalRequest);
+    }
+
+    private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
+        for (String index : SecurityLifecycleService.indexNames()) {
+            final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
+            if (indexPermissions != null && indexPermissions.isGranted()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

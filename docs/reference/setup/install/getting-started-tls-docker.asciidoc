@@ -12,7 +12,7 @@ For further details, please refer to {xpack-ref}/encrypting-communications.html[
 Inside a new, empty, directory create the following **four files**:
 
 `instances.yml`:
-[source,yaml]
+["source","yaml"]
 instances:
   - name: es01
     dns:
@@ -138,30 +138,34 @@ endif::[]
 ==== Run the example
 . Generate the certificates (only needed once):
 +
-[source,sh]
+--
+["source","sh"]
 ----
 docker-compose -f create-certs.yml up
 ----
-+
+--
 . Start two elasticsearch nodes configured for SSL/TLS:
 +
-[source,sh]
+--
+["source","sh"]
 ----
 docker-compose up -d
 ----
-+
+--
 . Access the elasticsearch API over SSL/TLS using the bootstrapped password:
 +
-[source,sh]
+--
+["source","sh"]
 ----
 curl --cacert certs/ca/ca.crt -u elastic:PleaseChangeMe https://localhost:9200
 ----
-+
 // NOTCONSOLE
-+
+--
 . The `setup-passwords` tool can also be used to generate random passwords for all users:
 +
-[source,sh]
+--
+["source","sh"]
 ----
 docker exec es01 /bin/bash -c "bin/x-pack/setup-passwords auto --batch -Expack.ssl.certificate=x-pack/certificates/es01/es01.crt -Expack.ssl.certificate_authorities=x-pack/certificates/ca/ca.crt -Expack.ssl.key=x-pack/certificates/es01/es01.key --url https://localhost:9200"
 ----
+--

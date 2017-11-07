@@ -27,9 +27,11 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
@@ -63,7 +65,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     /**
      * Set of refresh listeners that are called every time a refresh happens.
      */
-    private volatile Set<Runnable> recurringRefreshListeners = null;
+    private final Set<Runnable> recurringRefreshListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
     /**
      * The translog location that was last made visible by a refresh.
      */
@@ -125,15 +127,10 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         requireNonNull(listener, "listener cannot be null");
 
         synchronized (this) {
-            Set<Runnable> listeners = recurringRefreshListeners;
             if (closed) {
                 throw new IllegalStateException("can't wait for refresh on a closed index");
             }
-            if (listeners == null) {
-                listeners = new HashSet<>();
-                recurringRefreshListeners = listeners;
-            }
-            listeners.add(listener);
+            recurringRefreshListeners.add(listener);
         }
     }
 
@@ -265,17 +262,15 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * Does nothing if the list of listeners is null.
      */
     private void fireRecurringListeners() {
-        if (recurringRefreshListeners != null) {
-            listenerExecutor.execute(() -> {
-                for (Runnable listener : recurringRefreshListeners) {
-                    try {
-                        listener.run();
-                    } catch (Exception e) {
-                        logger.warn("Error firing recurring refresh listener", e);
-                    }
+        listenerExecutor.execute(() -> {
+            for (Runnable listener : recurringRefreshListeners) {
+                try {
+                    listener.run();
+                } catch (Exception e) {
+                    logger.warn("Error firing recurring refresh listener", e);
                 }
-            });
-        }
+            }
+        });
     }
 
     /**

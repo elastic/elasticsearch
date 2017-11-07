@@ -223,17 +223,17 @@ public final class Definition {
     public static final class Field {
         public final String name;
         public final Struct owner;
-        public final Type type;
+        public final Class<?> clazz;
         public final String javaName;
         public final int modifiers;
         private final MethodHandle getter;
         private final MethodHandle setter;
 
-        private Field(String name, String javaName, Struct owner, Type type, int modifiers, MethodHandle getter, MethodHandle setter) {
+        private Field(String name, String javaName, Struct owner, Class<?> clazz, int modifiers, MethodHandle getter, MethodHandle setter) {
             this.name = name;
             this.javaName = javaName;
             this.owner = owner;
-            this.type = type;
+            this.clazz = clazz;
             this.modifiers = modifiers;
             this.getter = getter;
             this.setter = setter;
@@ -1126,10 +1126,10 @@ public final class Definition {
                     "not found for class [" + ownerStruct.clazz.getName() + "].");
         }
 
-        Type painlessFieldType;
+        Class<?> painlessFieldClass;
 
         try {
-            painlessFieldType = getTypeInternal(whitelistField.painlessFieldTypeName);
+            painlessFieldClass = TypeToClass(getTypeInternal(whitelistField.painlessFieldTypeName));
         } catch (IllegalArgumentException iae) {
             throw new IllegalArgumentException("struct not defined for return type [" + whitelistField.painlessFieldTypeName + "] " +
                 "with owner struct [" + ownerStructName + "] and field with name [" + whitelistField.javaFieldName + "]", iae);
@@ -1145,11 +1145,11 @@ public final class Definition {
 
             if (painlessField == null) {
                 painlessField = fieldCache.computeIfAbsent(
-                        buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldType.name),
+                        buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldClass.getName()),
                         key -> new Field(whitelistField.javaFieldName, javaField.getName(),
-                                ownerStruct, painlessFieldType, javaField.getModifiers(), null, null));
+                                ownerStruct, painlessFieldClass, javaField.getModifiers(), null, null));
                 ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
-            } else if (painlessField.type.equals(painlessFieldType) == false) {
+            } else if (painlessField.clazz != painlessFieldClass) {
                 throw new IllegalArgumentException("illegal duplicate static fields [" + whitelistField.javaFieldName + "] " +
                     "found within the struct [" + ownerStruct.name + "] with type [" + whitelistField.painlessFieldTypeName + "]");
             }
@@ -1174,11 +1174,11 @@ public final class Definition {
 
             if (painlessField == null) {
                 painlessField = fieldCache.computeIfAbsent(
-                        buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldType.name),
+                        buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldClass.getName()),
                         key -> new Field(whitelistField.javaFieldName, javaField.getName(),
-                                ownerStruct, painlessFieldType, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter));
+                                ownerStruct, painlessFieldClass, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter));
                 ownerStruct.members.put(whitelistField.javaFieldName, painlessField);
-            } else if (painlessField.type.equals(painlessFieldType) == false) {
+            } else if (painlessField.clazz != painlessFieldClass) {
                 throw new IllegalArgumentException("illegal duplicate member fields [" + whitelistField.javaFieldName + "] " +
                     "found within the struct [" + ownerStruct.name + "] with type [" + whitelistField.painlessFieldTypeName + "]");
             }
@@ -1262,7 +1262,7 @@ public final class Definition {
             for (Field field : child.members.values()) {
                 if (owner.members.get(field.name) == null) {
                     owner.members.put(field.name,
-                        new Field(field.name, field.javaName, owner, field.type, field.modifiers, field.getter, field.setter));
+                        new Field(field.name, field.javaName, owner, field.clazz, field.modifiers, field.getter, field.setter));
                 }
             }
         }

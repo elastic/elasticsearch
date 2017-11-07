@@ -22,7 +22,6 @@ package org.elasticsearch.common.settings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -35,6 +34,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.junit.After;
 import org.junit.Before;
 
@@ -70,7 +70,7 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
         PathUtilsForTesting.installMock(fs); // restored by restoreFileSystem in ESTestCase
         Path home = fs.getPath("/", "test-home");
         Files.createDirectories(home.resolve("config"));
-        return new Environment(Settings.builder().put("path.home", home).build());
+        return TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
     }
 
     KeyStoreWrapper createKeystore(String password, String... settings) throws Exception {

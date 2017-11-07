@@ -50,7 +50,7 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "docuemnt_get_action";
+        return "document_get_action";
     }
 
     @Override

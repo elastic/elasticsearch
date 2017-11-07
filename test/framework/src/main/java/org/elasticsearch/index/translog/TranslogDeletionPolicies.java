@@ -17,15 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.shrink;
+package org.elasticsearch.index.translog;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 
-public final class ShrinkResponse extends CreateIndexResponse {
-    ShrinkResponse() {
+public class TranslogDeletionPolicies {
+
+    public static TranslogDeletionPolicy createTranslogDeletionPolicy() {
+        return new TranslogDeletionPolicy(
+                IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
+                IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getDefault(Settings.EMPTY).getMillis()
+        );
     }
 
-    ShrinkResponse(boolean acknowledged, boolean shardsAcked, String index) {
-        super(acknowledged, shardsAcked, index);
+    public static TranslogDeletionPolicy createTranslogDeletionPolicy(IndexSettings indexSettings) {
+        return new TranslogDeletionPolicy(indexSettings.getTranslogRetentionSize().getBytes(),
+                indexSettings.getTranslogRetentionAge().getMillis());
     }
+
 }

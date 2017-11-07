@@ -245,7 +245,8 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(defaultSettings, store, translogPath, newMergePolicy());
     }
 
-    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) throws IOException {
+    protected InternalEngine createEngine(
+            IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) throws IOException {
         return createEngine(indexSettings, store, translogPath, mergePolicy, null);
     }
 

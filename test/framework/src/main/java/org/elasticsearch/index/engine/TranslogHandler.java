@@ -45,6 +45,8 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyMap;
+
 public class TranslogHandler extends TranslogRecoveryPerformer {
 
     private final MapperService mapperService;
@@ -59,8 +61,8 @@ public class TranslogHandler extends TranslogRecoveryPerformer {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
         IndexAnalyzers indexAnalyzers = null;
         NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
-        indexAnalyzers = new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, Collections.emptyMap(), Collections.emptyMap());
-        SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
+        indexAnalyzers = new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, emptyMap(), emptyMap());
+        SimilarityService similarityService = new SimilarityService(indexSettings, emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                 () -> null);

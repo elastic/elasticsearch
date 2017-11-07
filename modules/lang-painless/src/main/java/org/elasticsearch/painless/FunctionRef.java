@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Method;
+import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
@@ -61,9 +62,9 @@ public class FunctionRef {
     /** factory method type descriptor */
     public final String factoryDescriptor;
     /** functional interface method as type */
-    public final org.objectweb.asm.Type interfaceType;
+    public final Type interfaceType;
     /** delegate method type method as type */
-    public final org.objectweb.asm.Type delegateType;
+    public final Type delegateType;
 
     /**
      * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
@@ -119,8 +120,8 @@ public class FunctionRef {
         this.delegateMethod = delegateMethod;
 
         factoryDescriptor = factoryMethodType.toMethodDescriptorString();
-        interfaceType = org.objectweb.asm.Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
-        delegateType = org.objectweb.asm.Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
+        interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
+        delegateType = Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
     }
 
     /**

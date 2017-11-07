@@ -452,60 +452,60 @@ public final class Definition {
         return getTypeInternal(struct, dimensions);
     }
 
-    public Type getBoxedType(Type unboxed) {
-        if (unboxed.clazz == boolean.class) {
-            return BooleanType;
-        } else if (unboxed.clazz == byte.class) {
-            return ByteType;
-        } else if (unboxed.clazz == short.class) {
-            return ShortType;
-        } else if (unboxed.clazz == char.class) {
-            return CharacterType;
-        } else if (unboxed.clazz == int.class) {
-            return IntegerType;
-        } else if (unboxed.clazz == long.class) {
-            return LongType;
-        } else if (unboxed.clazz == float.class) {
-            return FloatType;
-        } else if (unboxed.clazz == double.class) {
-            return DoubleType;
+    public static Class<?> getBoxedType(Class<?> clazz) {
+        if (clazz == boolean.class) {
+            return Boolean.class;
+        } else if (clazz == byte.class) {
+            return Byte.class;
+        } else if (clazz == short.class) {
+            return Short.class;
+        } else if (clazz == char.class) {
+            return Character.class;
+        } else if (clazz == int.class) {
+            return Integer.class;
+        } else if (clazz == long.class) {
+            return Long.class;
+        } else if (clazz == float.class) {
+            return Float.class;
+        } else if (clazz == double.class) {
+            return Double.class;
         }
 
-        return unboxed;
+        return clazz;
     }
 
-    public Type getUnboxedType(Type boxed) {
-        if (boxed.clazz == Boolean.class) {
-            return booleanType;
-        } else if (boxed.clazz == Byte.class) {
-            return byteType;
-        } else if (boxed.clazz == Short.class) {
-            return shortType;
-        } else if (boxed.clazz == Character.class) {
-            return charType;
-        } else if (boxed.clazz == Integer.class) {
-            return intType;
-        } else if (boxed.clazz == Long.class) {
-            return longType;
-        } else if (boxed.clazz == Float.class) {
-            return floatType;
-        } else if (boxed.clazz == Double.class) {
-            return doubleType;
+    public static Class<?> getUnboxedype(Class<?> clazz) {
+        if (clazz == Boolean.class) {
+            return boolean.class;
+        } else if (clazz == Byte.class) {
+            return byte.class;
+        } else if (clazz == Short.class) {
+            return short.class;
+        } else if (clazz == Character.class) {
+            return char.class;
+        } else if (clazz == Integer.class) {
+            return int.class;
+        } else if (clazz == Long.class) {
+            return long.class;
+        } else if (clazz == Float.class) {
+            return float.class;
+        } else if (clazz == Double.class) {
+            return double.class;
         }
 
-        return boxed;
+        return clazz;
     }
 
-    public static boolean isConstantType(Type constant) {
-        return constant.clazz == boolean.class ||
-               constant.clazz == byte.class    ||
-               constant.clazz == short.class   ||
-               constant.clazz == char.class    ||
-               constant.clazz == int.class     ||
-               constant.clazz == long.class    ||
-               constant.clazz == float.class   ||
-               constant.clazz == double.class  ||
-               constant.clazz == String.class;
+    public static boolean isConstantType(Class<?> clazz) {
+        return clazz == boolean.class ||
+               clazz == byte.class    ||
+               clazz == short.class   ||
+               clazz == char.class    ||
+               clazz == int.class     ||
+               clazz == long.class    ||
+               clazz == float.class   ||
+               clazz == double.class  ||
+               clazz == String.class;
     }
 
     public static Class<?> ObjectClassTodefClass(Class<?> clazz) {
@@ -606,10 +606,10 @@ public final class Definition {
                 ++dimensions;
             }
 
-            if (clazz == def.class) {
+            if (component == def.class) {
                 return getType(structsMap.get("def"), dimensions);
             } else {
-                return getType(runtimeMap.get(clazz).struct, dimensions);
+                return getType(runtimeMap.get(component).struct, dimensions);
             }
         } else if (clazz == def.class) {
             return getType(structsMap.get("def"), 0);
@@ -618,8 +618,8 @@ public final class Definition {
         return getType(structsMap.get(ClassToName(clazz)), 0);
     }
 
-    public static Class<?> TypeToClass (Type type) {
-        if (type.dynamic) {
+    public static Class<?> TypeToClass(Type type) {
+        if ("def".equals(type.struct.name)) {
             return ObjectClassTodefClass(type.clazz);
         }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -75,11 +74,11 @@ final class PSubListShortcut extends AStoreable {
         }
 
         if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
-            index.expected = locals.getDefinition().intType;
+            index.expected = int.class;
             index.analyze(locals);
             index = index.cast(locals);
 
-            actual = setter != null ? setter.arguments.get(1) : getter.rtn;
+            actual = setter != null ? Definition.TypeToClass(setter.arguments.get(1)) : Definition.TypeToClass(getter.rtn);
         } else {
             throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + struct.name + "]."));
         }
@@ -102,7 +101,7 @@ final class PSubListShortcut extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
     }
 

@@ -50,7 +50,7 @@ public class SharedSignificantTermsTestMethods {
 
     public static void aggregateAndCheckFromSeveralShards(ESIntegTestCase testCase) throws ExecutionException, InterruptedException {
         String type = ESTestCase.randomBoolean() ? "text" : "keyword";
-        String settings = "{\"index.number_of_shards\": 5, \"index.number_of_replicas\": 0}";
+        String settings = "{\"index.number_of_shards\": 7, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings, testCase);
         testCase.ensureGreen();
         testCase.logClusterState();

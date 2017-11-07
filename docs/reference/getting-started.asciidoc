@@ -586,7 +586,7 @@ POST /customer/doc/1/_update?pretty
 
 In the above example, `ctx._source` refers to the current source document that is about to be updated.
 
-Note that as of this writing, updates can only be performed on a single document at a time. In the future, Elasticsearch might provide the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement).
+Elasticsearch provides the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement). See {ref}/docs-update-by-query.html[`docs-update-by-query` API]
 
 === Deleting Documents
 

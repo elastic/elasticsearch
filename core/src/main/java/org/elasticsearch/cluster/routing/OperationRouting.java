@@ -275,7 +275,7 @@ public class OperationRouting extends AbstractComponent {
         return new ShardId(indexMetaData.getIndex(), generateShardId(indexMetaData, id, routing));
     }
 
-    static int generateShardId(IndexMetaData indexMetaData, @Nullable String id, @Nullable String routing) {
+    public static int generateShardId(IndexMetaData indexMetaData, @Nullable String id, @Nullable String routing) {
         final String effectiveRouting;
         final int partitionOffset;
 

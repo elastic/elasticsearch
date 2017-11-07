@@ -144,6 +144,16 @@ specific index module:
     The maximum number of `script_fields` that are allowed in a query.
     Defaults to `32`.
 
+`index.max_ngram_diff`::
+
+    The maximum allowed difference between min_gram and max_gram for NGramTokenizer and NGramTokenFilter.
+    Defaults to `1`.
+
+`index.max_shingle_diff`::
+
+    The maximum allowed difference between max_shingle_size and min_shingle_size for ShingleTokenFilter.
+    Defaults to `3`.
+
 `index.blocks.read_only`::
 
     Set to `true` to make the index and index metadata read only, `false` to

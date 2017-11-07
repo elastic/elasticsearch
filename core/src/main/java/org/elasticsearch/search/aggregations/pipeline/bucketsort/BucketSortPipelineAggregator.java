@@ -35,6 +35,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -85,97 +86,93 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
         int bucketsCount = buckets.size();
-        int offset = reduceContext.isFinalReduce() ? from : 0;
         int currentSize = size == null ? bucketsCount : size;
 
-        if (offset >= bucketsCount) {
+        if (from >= bucketsCount) {
             return originalAgg.create(Collections.emptyList());
         }
 
-        int resultSize = Math.min(currentSize, bucketsCount - offset);
-
         // If no sorting needs to take place, we just truncate and return
         if (sorts.size() == 0) {
-            return originalAgg.create(truncate(buckets, offset, currentSize));
+            return originalAgg.create(new ArrayList<>(buckets.subList(from, Math.min(from + currentSize, bucketsCount))));
         }
 
-        int queueSize = Math.min(offset + currentSize, bucketsCount);
+        int queueSize = Math.min(from + currentSize, bucketsCount);
         PriorityQueue<ComparableBucket> ordered = new TopNPriorityQueue(queueSize);
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-            ordered.insertWithOverflow(new ComparableBucket(originalAgg, bucket));
+            ComparableBucket comparableBucket = new ComparableBucket(originalAgg, bucket);
+            if (comparableBucket.skip() == false) {
+                ordered.insertWithOverflow(new ComparableBucket(originalAgg, bucket));
+            }
         }
+
+        int resultSize = Math.max(ordered.size() - from, 0);
 
         // Popping from the priority queue returns the least element. The elements we want to skip due to offset would pop last.
         // Thus, we just have to pop as many elements as we expect in results and store them in reverse order.
         LinkedList<InternalMultiBucketAggregation.InternalBucket> newBuckets = new LinkedList<>();
-        for (int i = resultSize - 1; i >= 0; --i) {
-            ComparableBucket comparableBucket = ordered.pop();
-            if (comparableBucket.skip == false) {
-                newBuckets.addFirst(comparableBucket.getInternalBucket());
-            }
+        for (int i = 0; i < resultSize; ++i) {
+            newBuckets.addFirst(ordered.pop().internalBucket);
         }
         return originalAgg.create(newBuckets);
-    }
-
-    private static List<InternalMultiBucketAggregation.InternalBucket> truncate(
-            List<? extends InternalMultiBucketAggregation.InternalBucket> buckets, int offset, int size) {
-
-        List<InternalMultiBucketAggregation.InternalBucket> truncated = new ArrayList<>(size);
-        for (int i = offset; i < offset + size; ++i) {
-            truncated.add(buckets.get(i));
-        }
-        return truncated;
     }
 
     private class ComparableBucket implements Comparable<ComparableBucket> {
 
         private final MultiBucketsAggregation parentAgg;
         private final InternalMultiBucketAggregation.InternalBucket internalBucket;
-
-        /**
-         * Whether the bucket should be skipped due to the gap policy
-         */
-        private boolean skip = false;
+        private final Map<FieldSortBuilder, Comparable<Object>> sortValues;
 
         private ComparableBucket(MultiBucketsAggregation parentAgg, InternalMultiBucketAggregation.InternalBucket internalBucket) {
             this.parentAgg = parentAgg;
             this.internalBucket = internalBucket;
+            this.sortValues = resolveAndCacheSortValues();
         }
 
-        private InternalMultiBucketAggregation.InternalBucket getInternalBucket() {
-            return internalBucket;
+        private final Map<FieldSortBuilder, Comparable<Object>> resolveAndCacheSortValues() {
+            Map<FieldSortBuilder, Comparable<Object>> resolved = new HashMap<>();
+            for (FieldSortBuilder sort : sorts) {
+                String sortField = sort.getFieldName();
+                if ("_key".equals(sortField)) {
+                    resolved.put(sort, (Comparable<Object>) internalBucket.getKey());
+                } else {
+                    Double bucketValue = BucketHelpers.resolveBucketValue(parentAgg, internalBucket, sortField, gapPolicy);
+                    if (GapPolicy.SKIP == gapPolicy && Double.isNaN(bucketValue)) {
+                        continue;
+                    }
+                    resolved.put(sort, (Comparable<Object>) (Object) bucketValue);
+                }
+            }
+            return resolved;
+        }
+
+        /**
+         * Whether the bucket should be skipped due to the gap policy
+         */
+        private boolean skip() {
+            return sortValues.isEmpty();
         }
 
         @Override
         public int compareTo(ComparableBucket that) {
+            int compareResult = 0;
             for (FieldSortBuilder sort : sorts) {
-                String sortField = sort.getFieldName();
-                int compareResult = "_key".equals(sortField) ? compareKeys(this, that) : comparePathValues(sortField, this, that);
+                Comparable<Object> thisValue = this.sortValues.get(sort);
+                Comparable<Object> thatValue = that.sortValues.get(sort);
+                if (thisValue == null && thatValue == null) {
+                    continue;
+                } else if (thisValue == null) {
+                    return -1;
+                } else if (thatValue == null) {
+                    return 1;
+                } else {
+                    compareResult = sort.order() == SortOrder.DESC ? thisValue.compareTo(thatValue) : -thisValue.compareTo(thatValue);
+                }
                 if (compareResult != 0) {
-                    return sort.order() == SortOrder.DESC ? compareResult : -compareResult;
+                    break;
                 }
             }
-            return 0;
-        }
-
-        private int compareKeys(ComparableBucket b1, ComparableBucket b2) {
-            Comparable<Object> b1Key = (Comparable<Object>) b1.internalBucket.getKey();
-            Comparable<Object> b2Key = (Comparable<Object>) b2.internalBucket.getKey();
-            return b1Key.compareTo(b2Key);
-        }
-
-        private int comparePathValues(String sortField, ComparableBucket b1, ComparableBucket b2) {
-            Double b1Value = BucketHelpers.resolveBucketValue(parentAgg, b1.internalBucket, sortField, gapPolicy);
-            Double b2Value = BucketHelpers.resolveBucketValue(parentAgg, b2.internalBucket, sortField, gapPolicy);
-            if (GapPolicy.SKIP == gapPolicy) {
-                if (Double.isNaN(b1Value)) {
-                    b1.skip = true;
-                }
-                if (Double.isNaN(b2Value)) {
-                    b2.skip = true;
-                }
-            }
-            return b1Value.compareTo(b2Value);
+            return compareResult;
         }
     }
 

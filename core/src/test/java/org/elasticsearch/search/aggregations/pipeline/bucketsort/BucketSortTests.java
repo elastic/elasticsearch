@@ -43,14 +43,20 @@ public class BucketSortTests extends BasePipelineAggregationTestCase<BucketSortP
             sorts.add(fieldSortBuilder);
         }
         BucketSortPipelineAggregationBuilder factory = new BucketSortPipelineAggregationBuilder(randomAlphaOfLengthBetween(3, 20), sorts);
+        Integer from = randomIntBetween(0, 20);
+        Integer size = randomBoolean() ? randomIntBetween(1, 1000) : null;
         if (randomBoolean()) {
-            factory.from(randomIntBetween(0, 20));
+            factory.from(from);
         }
-        if (randomBoolean()) {
-            factory.size(randomIntBetween(1, 1000));
+        if (size != null) {
+            factory.size(size);
         }
         if (randomBoolean()) {
             factory.gapPolicy(randomFrom(BucketHelpers.GapPolicy.values()));
+        }
+        // Check if the combination ended up being invalid
+        if (sorts.isEmpty() && size == null && from == 0) {
+            factory.size(42);
         }
         return factory;
     }

@@ -6,7 +6,7 @@ Zero or more sort fields may be specified together with the corresponding sort o
 Each bucket may be sorted based on its `_key`, `_count` or its sub-aggregations.
 In addition, parameters `from` and `size` may be set in order to truncate the result buckets.
 
-NOTE: The `bucket_sort` aggregation, like all pipeline aggregations, is executed after all other sibling aggregations.
+NOTE: The `bucket_sort` aggregation, like all pipeline aggregations, is executed after all other non-pipeline aggregations.
 This means the sorting only applies to whatever buckets are already returned from the parent aggregation. For example,
 if the parent aggregation is `terms` and its `size` is set to `10`, the `bucket_sort` will only sort over those 10
 returned term buckets.
@@ -122,5 +122,60 @@ And the following may be the response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 82/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+
+The following snippet has no sorts specified; it simply truncates the result so that
+only the second bucket is returned:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search
+{
+    "size": 0,
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "month"
+            },
+            "aggs": {
+                "bucket_truncate": {
+                    "bucket_sort": {
+                        "from": 1,
+                        "size": 1
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+And the following may be the response:
+
+[source,js]
+--------------------------------------------------
+{
+   "took": 11,
+   "timed_out": false,
+   "_shards": ...,
+   "hits": ...,
+   "aggregations": {
+      "sales_per_month": {
+         "buckets": [
+            {
+               "key_as_string": "2015/02/01 00:00:00",
+               "key": 1422748800000,
+               "doc_count": 2
+            }
+         ]
+      }
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 11/"took": $body.took/]
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]

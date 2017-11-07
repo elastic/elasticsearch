@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,14 +62,15 @@ public class BucketSortIT extends ESIntegTestCase {
 
     private static final String TIME_FIELD = "time";
     private static final String TERM_FIELD = "foo";
-    private static final String VALUE_FIELD = "value";
+    private static final String VALUE_1_FIELD = "value_1";
+    private static final String VALUE_2_FIELD = "value_2";
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(INDEX, INDEX_WITH_GAPS);
         client().admin().indices().preparePutMapping(INDEX)
                 .setType("doc")
-                .setSource("time", "type=date", "foo", "type=keyword", "value", "type=float")
+                .setSource("time", "type=date", "foo", "type=keyword", "value_1", "type=float", "value_2", "type=float")
                 .get();
 
         int numTerms = 10;
@@ -91,19 +93,29 @@ public class BucketSortIT extends ESIntegTestCase {
             time += TimeValue.timeValueHours(1).millis();
         }
 
-        builders.add(client().prepareIndex(INDEX_WITH_GAPS, "doc").setSource(newDocBuilder(1, "foo", 1.0)));
-        builders.add(client().prepareIndex(INDEX_WITH_GAPS, "doc").setSource(newDocBuilder(3, "foo", 3.0)));
+        builders.add(client().prepareIndex(INDEX_WITH_GAPS, "doc").setSource(newDocBuilder(1, "foo", 1.0, 42.0)));
+        builders.add(client().prepareIndex(INDEX_WITH_GAPS, "doc").setSource(newDocBuilder(2, "foo", null, 42.0)));
+        builders.add(client().prepareIndex(INDEX_WITH_GAPS, "doc").setSource(newDocBuilder(3, "foo", 3.0, 42.0)));
 
         indexRandom(true, builders);
         ensureSearchable();
     }
 
-    private XContentBuilder newDocBuilder(long timeMillis, String fooValue, double value) throws IOException {
+    private XContentBuilder newDocBuilder(long timeMillis, String fooValue, Double value1) throws IOException {
+        return newDocBuilder(timeMillis, fooValue, value1, null);
+    }
+
+    private XContentBuilder newDocBuilder(long timeMillis, String fooValue, Double value1, Double value2) throws IOException {
         XContentBuilder jsonBuilder = jsonBuilder();
         jsonBuilder.startObject();
         jsonBuilder.field(TIME_FIELD, timeMillis);
         jsonBuilder.field(TERM_FIELD, fooValue);
-        jsonBuilder.field(VALUE_FIELD, value);
+        if (value1 != null) {
+            jsonBuilder.field(VALUE_1_FIELD, value1);
+        }
+        if (value2 != null) {
+            jsonBuilder.field(VALUE_2_FIELD, value2);
+        }
         jsonBuilder.endObject();
         return jsonBuilder;
     }
@@ -111,51 +123,53 @@ public class BucketSortIT extends ESIntegTestCase {
     public void testEmptyBucketSort() {
         SearchResponse response = client().prepareSearch(INDEX)
                 .setSize(0)
-                .addAggregation(terms("foos").field(TERM_FIELD)
-                    .subAggregation(bucketSort("bucketSort", Collections.emptyList())))
+                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).interval(TimeValue.timeValueHours(1).millis()))
                 .execute().actionGet();
 
         assertSearchResponse(response);
 
-        Terms terms = response.getAggregations().get("foos");
-        assertThat(terms, notNullValue());
-        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
-        long previousCount = termsBuckets.get(0).getDocCount();
-        for (Terms.Bucket termBucket : termsBuckets) {
-            assertThat(previousCount, greaterThanOrEqualTo(termBucket.getDocCount()));
-            previousCount = termBucket.getDocCount();
+        Histogram histogram = response.getAggregations().get("time_buckets");
+        assertThat(histogram, notNullValue());
+        // These become our baseline
+        List<? extends Histogram.Bucket> timeBuckets = histogram.getBuckets();
+        DateTime previousKey = (DateTime) timeBuckets.get(0).getKey();
+        for (Histogram.Bucket timeBucket : timeBuckets) {
+            assertThat(previousKey, lessThanOrEqualTo((DateTime) timeBucket.getKey()));
+            previousKey = (DateTime) timeBucket.getKey();
         }
 
+        // Now let's test using size
         response = client().prepareSearch(INDEX)
                 .setSize(0)
-                .addAggregation(terms("foos").field(TERM_FIELD)
+                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).interval(TimeValue.timeValueHours(1).millis())
                         .subAggregation(bucketSort("bucketSort", Collections.emptyList()).size(3)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
 
-        Terms size3Terms = response.getAggregations().get("foos");
-        assertThat(size3Terms, notNullValue());
-        List<? extends Terms.Bucket> size3TermsBuckets = size3Terms.getBuckets();
+        Histogram size3Histogram = response.getAggregations().get("time_buckets");
+        assertThat(size3Histogram, notNullValue());
+        List<? extends Histogram.Bucket> size3TimeBuckets = size3Histogram.getBuckets();
 
-        for (int i = 0; i < size3TermsBuckets.size(); ++i) {
-            assertThat(size3TermsBuckets.get(i), equalTo(termsBuckets.get(i)));
+        for (int i = 0; i < size3TimeBuckets.size(); ++i) {
+            assertThat(size3TimeBuckets.get(i), equalTo(timeBuckets.get(i)));
         }
 
+        // Finally, let's test using size + from
         response = client().prepareSearch(INDEX)
                 .setSize(0)
-                .addAggregation(terms("foos").field(TERM_FIELD)
+                .addAggregation(dateHistogram("time_buckets").field(TIME_FIELD).interval(TimeValue.timeValueHours(1).millis())
                         .subAggregation(bucketSort("bucketSort", Collections.emptyList()).size(3).from(2)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
 
-        Terms size3From2Terms = response.getAggregations().get("foos");
-        assertThat(size3From2Terms, notNullValue());
-        List<? extends Terms.Bucket> size3From2TermsBuckets = size3From2Terms.getBuckets();
+        Histogram size3From2Histogram = response.getAggregations().get("time_buckets");
+        assertThat(size3From2Histogram, notNullValue());
+        List<? extends Histogram.Bucket> size3From2TimeBuckets = size3From2Histogram.getBuckets();
 
-        for (int i = 0; i < size3From2TermsBuckets.size(); ++i) {
-            assertThat(size3From2TermsBuckets.get(i), equalTo(termsBuckets.get(i + 2)));
+        for (int i = 0; i < size3From2TimeBuckets.size(); ++i) {
+            assertThat(size3From2TimeBuckets.get(i), equalTo(timeBuckets.get(i + 2)));
         }
     }
 
@@ -182,7 +196,7 @@ public class BucketSortIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch(INDEX)
                 .setSize(0)
                 .addAggregation(terms("foos").field(TERM_FIELD)
-                        .subAggregation(avg("avg_value").field(VALUE_FIELD))
+                        .subAggregation(avg("avg_value").field(VALUE_1_FIELD))
                         .subAggregation(bucketSort("bucketSort", Arrays.asList(
                                 new FieldSortBuilder("avg_value").order(SortOrder.DESC)))))
                 .execute().actionGet();
@@ -203,7 +217,7 @@ public class BucketSortIT extends ESIntegTestCase {
         response = client().prepareSearch(INDEX)
                 .setSize(0)
                 .addAggregation(terms("foos").field(TERM_FIELD)
-                        .subAggregation(avg("avg_value").field(VALUE_FIELD))
+                        .subAggregation(avg("avg_value").field(VALUE_1_FIELD))
                         .subAggregation(bucketSort("bucketSort", Arrays.asList(
                                 new FieldSortBuilder("avg_value").order(SortOrder.DESC))).size(2).from(3)))
                 .execute().actionGet();
@@ -222,7 +236,7 @@ public class BucketSortIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch(INDEX)
                 .setSize(0)
                 .addAggregation(terms("foos").field(TERM_FIELD)
-                        .subAggregation(avg("avg_value").field(VALUE_FIELD))
+                        .subAggregation(avg("avg_value").field(VALUE_1_FIELD))
                         .subAggregation(bucketSort("bucketSort", Arrays.asList(
                                 new FieldSortBuilder("_count").order(SortOrder.ASC),
                                 new FieldSortBuilder("avg_value").order(SortOrder.DESC)))))
@@ -282,7 +296,7 @@ public class BucketSortIT extends ESIntegTestCase {
     public void testSortHistogram_GivenGapsAndGapPolicyIsSkip() {
         SearchResponse response = client().prepareSearch(INDEX_WITH_GAPS)
                 .addAggregation(histogram("time_buckets").field(TIME_FIELD).interval(1)
-                        .subAggregation(avg("avg_value").field("value"))
+                        .subAggregation(avg("avg_value").field(VALUE_1_FIELD))
                         .subAggregation(bucketSort("bucketSort", Arrays.asList(
                                 new FieldSortBuilder("avg_value").order(SortOrder.DESC))).gapPolicy(
                                         BucketHelpers.GapPolicy.SKIP)))
@@ -299,10 +313,76 @@ public class BucketSortIT extends ESIntegTestCase {
         assertThat(timeBuckets.get(1).getKey(), equalTo(1.0));
     }
 
+    public void testSortHistogram_GivenGapsAndGapPolicyIsSkipAndSizeIsLessThanAvailableBuckets() {
+        SearchResponse response = client().prepareSearch(INDEX_WITH_GAPS)
+                .addAggregation(histogram("time_buckets").field(TIME_FIELD).interval(1)
+                        .subAggregation(avg("avg_value").field(VALUE_1_FIELD))
+                        .subAggregation(bucketSort("bucketSort", Arrays.asList(
+                                new FieldSortBuilder("avg_value").order(SortOrder.DESC))).gapPolicy(
+                                        BucketHelpers.GapPolicy.SKIP).size(2)))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("time_buckets");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("time_buckets"));
+        List<? extends Histogram.Bucket> timeBuckets = histo.getBuckets();
+        assertThat(timeBuckets.size(), equalTo(2));
+        assertThat(timeBuckets.get(0).getKey(), equalTo(3.0));
+        assertThat(timeBuckets.get(1).getKey(), equalTo(1.0));
+    }
+
+    public void testSortHistogram_GivenGapsAndGapPolicyIsSkipAndPrimarySortHasGaps() {
+        SearchResponse response = client().prepareSearch(INDEX_WITH_GAPS)
+                .addAggregation(histogram("time_buckets").field(TIME_FIELD).interval(1)
+                        .subAggregation(avg("avg_value_1").field(VALUE_1_FIELD))
+                        .subAggregation(avg("avg_value_2").field(VALUE_2_FIELD))
+                        .subAggregation(bucketSort("bucketSort", Arrays.asList(
+                                new FieldSortBuilder("avg_value_1").order(SortOrder.DESC),
+                                new FieldSortBuilder("avg_value_2").order(SortOrder.DESC))).gapPolicy(
+                                BucketHelpers.GapPolicy.SKIP)))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("time_buckets");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("time_buckets"));
+        List<? extends Histogram.Bucket> timeBuckets = histo.getBuckets();
+        assertThat(timeBuckets.size(), equalTo(3));
+        assertThat(timeBuckets.get(0).getKey(), equalTo(3.0));
+        assertThat(timeBuckets.get(1).getKey(), equalTo(1.0));
+        assertThat(timeBuckets.get(2).getKey(), equalTo(2.0));
+    }
+
+    public void testSortHistogram_GivenGapsAndGapPolicyIsSkipAndSecondarySortHasGaps() {
+        SearchResponse response = client().prepareSearch(INDEX_WITH_GAPS)
+                .addAggregation(histogram("time_buckets").field(TIME_FIELD).interval(1)
+                        .subAggregation(avg("avg_value_1").field(VALUE_1_FIELD))
+                        .subAggregation(avg("avg_value_2").field(VALUE_2_FIELD))
+                        .subAggregation(bucketSort("bucketSort", Arrays.asList(
+                                new FieldSortBuilder("avg_value_2").order(SortOrder.DESC),
+                                new FieldSortBuilder("avg_value_1").order(SortOrder.ASC))).gapPolicy(
+                                BucketHelpers.GapPolicy.SKIP)))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("time_buckets");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("time_buckets"));
+        List<? extends Histogram.Bucket> timeBuckets = histo.getBuckets();
+        assertThat(timeBuckets.size(), equalTo(3));
+        assertThat(timeBuckets.get(0).getKey(), equalTo(1.0));
+        assertThat(timeBuckets.get(1).getKey(), equalTo(3.0));
+        assertThat(timeBuckets.get(2).getKey(), equalTo(2.0));
+    }
+
     public void testSortHistogram_GivenGapsAndGapPolicyIsInsertZeros() {
         SearchResponse response = client().prepareSearch(INDEX_WITH_GAPS)
                 .addAggregation(histogram("time_buckets").field(TIME_FIELD).interval(1)
-                        .subAggregation(avg("avg_value").field("value"))
+                        .subAggregation(avg("avg_value").field(VALUE_1_FIELD))
                         .subAggregation(bucketSort("bucketSort", Arrays.asList(
                                 new FieldSortBuilder("avg_value").order(SortOrder.DESC))).gapPolicy(
                                         BucketHelpers.GapPolicy.INSERT_ZEROS)))
@@ -339,10 +419,19 @@ public class BucketSortIT extends ESIntegTestCase {
     public void testInvalidPath() {
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
                 () -> client().prepareSearch(INDEX)
-                .setSize(0)
                 .addAggregation(terms("foos").field(TERM_FIELD)
                         .subAggregation(bucketSort("bucketSort", Arrays.asList(new FieldSortBuilder("invalid")))))
                 .execute().actionGet());
         assertThat(e.getCause().getMessage(), containsString("No aggregation found for path [invalid]"));
+    }
+
+    public void testNeitherSortsNorSizeSpecifiedAndFromIsDefault_ShouldThrowValidation() {
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch(INDEX)
+                        .addAggregation(terms("foos").field(TERM_FIELD)
+                                .subAggregation(bucketSort("bucketSort", Collections.emptyList())))
+                        .execute().actionGet());
+        assertThat(e.getCause().getMessage(), containsString("[bucketSort] is configured to perform nothing." +
+                " Please set either of [sort, size, from] to use bucket_sort"));
     }
 }

@@ -25,6 +25,9 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -34,6 +37,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -138,6 +142,16 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
         return new BucketSortPipelineAggregator(name, sorts, from, size, gapPolicy, metaData);
+    }
+
+    @Override
+    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggFactories,
+                           List<PipelineAggregationBuilder> pipelineAggregatoractories) {
+        if (sorts.isEmpty() && size == null && from == 0) {
+            throw new IllegalStateException("[" + name + "] is configured to perform nothing. Please set either of "
+                    + Arrays.asList(SearchSourceBuilder.SORT_FIELD.getPreferredName(), SIZE.getPreferredName(), FROM.getPreferredName())
+                    + " to use " + NAME);
+        }
     }
 
     @Override

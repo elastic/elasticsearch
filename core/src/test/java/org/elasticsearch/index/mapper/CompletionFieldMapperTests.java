@@ -179,7 +179,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                     .bytes(),
                 XContentType.JSON)));
-        assertEquals("failed to parse [completion][1:15]: expected text or object, but got VALUE_NUMBER", e.getCause().getMessage());
+        assertEquals("failed to parse [completion]: expected text or object, but got VALUE_NUMBER", e.getCause().getMessage());
     }
 
     public void testParsingMultiValued() throws Exception {

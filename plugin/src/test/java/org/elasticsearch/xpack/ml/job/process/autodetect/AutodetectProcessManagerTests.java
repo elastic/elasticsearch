@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.action.OpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -60,6 +61,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -305,6 +307,46 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         // job is created
         assertEquals(1, manager.numberOfOpenJobs());
         manager.closeJob(jobTask, false, null);
+        assertEquals(0, manager.numberOfOpenJobs());
+    }
+
+    // DEBUG logging makes it possible to see exactly how the two threads
+    // interleaved in the AutodetectProcessManager.close() call
+    @TestLogging("org.elasticsearch.xpack.ml.job.process.autodetect:DEBUG")
+    public void testCanCloseClosingJob() throws Exception {
+        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
+        AtomicInteger numberOfCommunicatorCloses = new AtomicInteger(0);
+        doAnswer(invocationOnMock -> {
+            numberOfCommunicatorCloses.incrementAndGet();
+            // This increases the chance of the two threads both getting into
+            // the middle of the AutodetectProcessManager.close() method
+            Thread.yield();
+            return null;
+        }).when(communicator).close(anyBoolean(), anyString());
+        AutodetectProcessManager manager = createManager(communicator);
+        assertEquals(0, manager.numberOfOpenJobs());
+
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        manager.openJob(jobTask, e -> {});
+        manager.processData(jobTask, createInputStream(""), randomFrom(XContentType.values()),
+                mock(DataLoadParams.class), (dataCounts1, e) -> {});
+
+        assertEquals(1, manager.numberOfOpenJobs());
+
+        // Close the job in a separate thread
+        Thread closeThread = new Thread(() -> manager.closeJob(jobTask, false, "in separate thread"));
+        closeThread.start();
+        Thread.yield();
+
+        // Also close the job in the current thread, so that we have two simultaneous close requests
+        manager.closeJob(jobTask, false, "in main test thread");
+
+        closeThread.join(500);
+        assertFalse(closeThread.isAlive());
+
+        // Only one of the threads should have called AutodetectCommunicator.close()
+        assertEquals(1, numberOfCommunicatorCloses.get());
         assertEquals(0, manager.numberOfOpenJobs());
     }
 

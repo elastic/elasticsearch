@@ -183,7 +183,7 @@ public final class ELambda extends AExpression implements ILambda {
         } else {
             defPointer = null;
             try {
-                ref = new FunctionRef(locals.getDefinition().ClassToType(expected), interfaceMethod, desugared.method, captures.size());
+                ref = new FunctionRef(expected, interfaceMethod, desugared.method, captures.size());
             } catch (IllegalArgumentException e) {
                 throw createError(e);
             }

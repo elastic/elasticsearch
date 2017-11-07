@@ -76,7 +76,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + Definition.ClassToName(expected) + "], function not found");
                     }
-                    ref = new FunctionRef(locals.getDefinition().ClassToType(expected), interfaceMethod, delegateMethod, 0);
+                    ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
@@ -91,7 +91,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
                     }
                 } else {
                     // whitelist lookup
-                    ref = new FunctionRef(locals.getDefinition(), locals.getDefinition().ClassToType(expected), type, call, 0);
+                    ref = new FunctionRef(locals.getDefinition(), expected, type, call, 0);
                 }
 
             } catch (IllegalArgumentException e) {

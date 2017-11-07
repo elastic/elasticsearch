@@ -29,7 +29,7 @@ import java.util.Locale;
 public interface CircuitBreaker {
 
     /**
-     * The parent breaker is a sum of all the previous breakers combined. With
+     * The parent breaker is a sum of all the following breakers combined. With
      * this we allow a single breaker to have a significant amount of memory
      * available while still having a "total" limit for all breakers. Note that
      * it's not a "real" breaker in that it cannot be added to or subtracted

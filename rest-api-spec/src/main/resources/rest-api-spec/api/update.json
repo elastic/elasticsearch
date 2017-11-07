@@ -88,7 +88,8 @@
       }
     },
     "body": {
-      "description": "The request definition using either `script` or partial `doc`"
+      "description": "The request definition requires either `script` or partial `doc`",
+      "required": true
     }
   }
 }

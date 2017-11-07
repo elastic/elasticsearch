@@ -31,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -116,7 +117,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
-    private final ThreadPool threadPool;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
@@ -132,7 +132,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
-        this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -298,9 +297,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     customs.put(entry.getKey(), entry.getValue());
                 }
 
-                final Index shrinkFromIndex = request.shrinkFrom();
+                final Index recoverFromIndex = request.recoverFrom();
 
-                if (shrinkFromIndex == null) {
+                if (recoverFromIndex == null) {
                     // apply templates, merging the mappings into the request mapping if exists
                     for (IndexTemplateMetaData template : templates) {
                         templateNames.add(template.getName());
@@ -351,7 +350,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
                 }
                 Settings.Builder indexSettingsBuilder = Settings.builder();
-                if (shrinkFromIndex == null) {
+                if (recoverFromIndex == null) {
                     // apply templates, here, in reverse order, since first ones are better matching
                     for (int i = templates.size() - 1; i >= 0; i--) {
                         indexSettingsBuilder.put(templates.get(i).settings());
@@ -383,28 +382,34 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
 
                 final int routingNumShards;
-                if (shrinkFromIndex == null) {
-                    routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());
+                if (recoverFromIndex == null) {
+                    Settings idxSettings = indexSettingsBuilder.build();
+                    routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);
                 } else {
-                    final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
+                    assert IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettingsBuilder.build()) == false
+                        : "index.number_of_routing_shards should be present on the target index on resize";
+                    final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(recoverFromIndex);
                     routingNumShards = sourceMetaData.getRoutingNumShards();
                 }
+                // remove the setting it's temporary and is only relevant once we create the index
+                indexSettingsBuilder.remove(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
                 tmpImdBuilder.setRoutingNumShards(routingNumShards);
 
-                if (shrinkFromIndex != null) {
-                    prepareShrinkIndexSettings(
-                        currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex, request.index());
+                if (recoverFromIndex != null) {
+                    assert request.resizeType() != null;
+                    prepareResizeIndexSettings(
+                        currentState, mappings.keySet(), indexSettingsBuilder, recoverFromIndex, request.index(), request.resizeType());
                 }
                 final Settings actualIndexSettings = indexSettingsBuilder.build();
                 tmpImdBuilder.settings(actualIndexSettings);
 
-                if (shrinkFromIndex != null) {
+                if (recoverFromIndex != null) {
                     /*
                      * We need to arrange that the primary term on all the shards in the shrunken index is at least as large as
                      * the maximum primary term on all the shards in the source index. This ensures that we have correct
                      * document-level semantics regarding sequence numbers in the shrunken index.
                      */
-                    final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
+                    final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(recoverFromIndex);
                     final long primaryTerm =
                         IntStream
                             .range(0, sourceMetaData.getNumberOfShards())
@@ -439,7 +444,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     throw e;
                 }
 
-                if (request.shrinkFrom() == null) {
+                if (request.recoverFrom() == null) {
                     // now that the mapping is merged we can validate the index sort.
                     // we cannot validate for index shrinking since the mapping is empty
                     // at this point. The validation will take place later in the process
@@ -606,33 +611,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     static List<String> validateShrinkIndex(ClusterState state, String sourceIndex,
                                         Set<String> targetIndexMappingsTypes, String targetIndexName,
                                         Settings targetIndexSettings) {
-        if (state.metaData().hasIndex(targetIndexName)) {
-            throw new ResourceAlreadyExistsException(state.metaData().index(targetIndexName).getIndex());
-        }
-        final IndexMetaData sourceMetaData = state.metaData().index(sourceIndex);
-        if (sourceMetaData == null) {
-            throw new IndexNotFoundException(sourceIndex);
-        }
-        // ensure index is read-only
-        if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
-            throw new IllegalStateException("index " + sourceIndex + " must be read-only to shrink index. use \"index.blocks.write=true\"");
-        }
+        IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
+        assert IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
+        IndexMetaData.selectShrinkShards(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
 
         if (sourceMetaData.getNumberOfShards() == 1) {
             throw new IllegalArgumentException("can't shrink an index with only one shard");
-        }
-
-
-        if ((targetIndexMappingsTypes.size() > 1 ||
-            (targetIndexMappingsTypes.isEmpty() || targetIndexMappingsTypes.contains(MapperService.DEFAULT_MAPPING)) == false)) {
-            throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
-                ", all mappings are copied from the source index");
-        }
-
-        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
-            // this method applies all necessary checks ie. if the target shards are less than the source shards
-            // of if the source shards are divisible by the number of target shards
-            IndexMetaData.getRoutingFactor(sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
         }
 
         // now check that index is all on one node
@@ -657,27 +641,82 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         return nodesToAllocateOn;
     }
 
-    static void prepareShrinkIndexSettings(ClusterState currentState, Set<String> mappingKeys, Settings.Builder indexSettingsBuilder, Index shrinkFromIndex, String shrinkIntoName) {
-        final IndexMetaData sourceMetaData = currentState.metaData().index(shrinkFromIndex.getName());
+    static void validateSplitIndex(ClusterState state, String sourceIndex,
+                                   Set<String> targetIndexMappingsTypes, String targetIndexName,
+                                   Settings targetIndexSettings) {
+        IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
+        IndexMetaData.selectSplitShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+        if (sourceMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
+            // ensure we have a single type since this would make the splitting code considerably more complex
+            // and a 5.x index would not be splittable unless it has been shrunk before so rather opt out of the complexity
+            // since in 5.x we don't have a setting to artificially set the number of routing shards
+            throw new IllegalStateException("source index created version is too old to apply a split operation");
+        }
 
-        final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, shrinkFromIndex.getName(),
-            mappingKeys, shrinkIntoName, indexSettingsBuilder.build());
+    }
+
+    static IndexMetaData validateResize(ClusterState state, String sourceIndex,
+                                           Set<String> targetIndexMappingsTypes, String targetIndexName,
+                                           Settings targetIndexSettings) {
+        if (state.metaData().hasIndex(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(state.metaData().index(targetIndexName).getIndex());
+        }
+        final IndexMetaData sourceMetaData = state.metaData().index(sourceIndex);
+        if (sourceMetaData == null) {
+            throw new IndexNotFoundException(sourceIndex);
+        }
+        // ensure index is read-only
+        if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
+            throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
+        }
+
+        if ((targetIndexMappingsTypes.size() > 1 ||
+            (targetIndexMappingsTypes.isEmpty() || targetIndexMappingsTypes.contains(MapperService.DEFAULT_MAPPING)) == false)) {
+            throw new IllegalArgumentException("mappings are not allowed when resizing indices" +
+                ", all mappings are copied from the source index");
+        }
+
+        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
+            // this method applies all necessary checks ie. if the target shards are less than the source shards
+            // of if the source shards are divisible by the number of target shards
+            IndexMetaData.getRoutingFactor(sourceMetaData.getNumberOfShards(),
+                IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+        }
+        return sourceMetaData;
+    }
+
+    static void prepareResizeIndexSettings(ClusterState currentState, Set<String> mappingKeys, Settings.Builder indexSettingsBuilder,
+                                           Index resizeSourceIndex, String resizeIntoName, ResizeType type) {
+        final IndexMetaData sourceMetaData = currentState.metaData().index(resizeSourceIndex.getName());
+        if (type == ResizeType.SHRINK) {
+            final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, resizeSourceIndex.getName(),
+                mappingKeys, resizeIntoName, indexSettingsBuilder.build());
+            indexSettingsBuilder
+                // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
+                // once we are allocated.
+                .put(IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id",
+                    Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
+                // we only try once and then give up with a shrink index
+                .put("index.allocation.max_retries", 1)
+                // we add the legacy way of specifying it here for BWC. We can remove this once it's backported to 6.x
+                .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
+                .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());
+        } else if (type == ResizeType.SPLIT) {
+            validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
+        } else {
+            throw new IllegalStateException("unknown resize type is " + type);
+        }
+
         final Predicate<String> sourceSettingsPredicate = (s) -> s.startsWith("index.similarity.")
             || s.startsWith("index.analysis.") || s.startsWith("index.sort.");
         indexSettingsBuilder
-            // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
-            // once we are allocated.
-            .put(IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id",
-                Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
-            // we only try once and then give up with a shrink index
-            .put("index.allocation.max_retries", 1)
             // now copy all similarity / analysis / sort settings - this overrides all settings from the user unless they
             // wanna add extra settings
             .put(IndexMetaData.SETTING_VERSION_CREATED, sourceMetaData.getCreationVersion())
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())
             .put(sourceMetaData.getSettings().filter(sourceSettingsPredicate))
             .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())
-            .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName())
-            .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());
+            .put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
+            .put(IndexMetaData.INDEX_RESIZE_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());
     }
 }

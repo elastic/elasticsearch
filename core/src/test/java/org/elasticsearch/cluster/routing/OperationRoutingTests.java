@@ -23,9 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,6 +52,7 @@ import static org.hamcrest.object.HasToString.hasToString;
 
 public class OperationRoutingTests extends ESTestCase{
 
+
     public void testGenerateShardId() {
         int[][] possibleValues = new int[][] {
             {8,4,2}, {20, 10, 2}, {36, 12, 3}, {15,5,1}
@@ -70,6 +69,7 @@ public class OperationRoutingTests extends ESTestCase{
                 .numberOfReplicas(1)
                 .setRoutingNumShards(shardSplits[0]).build();
             int shrunkShard = OperationRouting.generateShardId(shrunk, term, null);
+
             Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(shrunkShard, metaData, shrunk.getNumberOfShards());
             assertEquals(1, shardIds.stream().filter((sid) -> sid.id() == shard).count());
 
@@ -78,6 +78,36 @@ public class OperationRoutingTests extends ESTestCase{
             shrunkShard = OperationRouting.generateShardId(shrunk, term, null);
             shardIds = IndexMetaData.selectShrinkShards(shrunkShard, metaData, shrunk.getNumberOfShards());
             assertEquals(Arrays.toString(shardSplits), 1, shardIds.stream().filter((sid) -> sid.id() == shard).count());
+        }
+    }
+
+    public void testGenerateShardIdSplit() {
+        int[][] possibleValues = new int[][] {
+            {2,4,8}, {2, 10, 20}, {3, 12, 36}, {1,5,15}
+        };
+        for (int i = 0; i < 10; i++) {
+            int[] shardSplits = randomFrom(possibleValues);
+            assertEquals(shardSplits[0], (shardSplits[0] * shardSplits[1]) / shardSplits[1]);
+            assertEquals(shardSplits[1], (shardSplits[1] * shardSplits[2]) / shardSplits[2]);
+            IndexMetaData metaData = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[0])
+                .numberOfReplicas(1).setRoutingNumShards(shardSplits[2]).build();
+            String term = randomAlphaOfLength(10);
+            final int shard = OperationRouting.generateShardId(metaData, term, null);
+            IndexMetaData split = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[1])
+                .numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[2]).build();
+            int shrunkShard = OperationRouting.generateShardId(split, term, null);
+
+            ShardId shardId = IndexMetaData.selectSplitShard(shrunkShard, metaData, split.getNumberOfShards());
+            assertNotNull(shardId);
+            assertEquals(shard, shardId.getId());
+
+            split = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[2]).numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[2]).build();
+            shrunkShard = OperationRouting.generateShardId(split, term, null);
+            shardId = IndexMetaData.selectSplitShard(shrunkShard, metaData, split.getNumberOfShards());
+            assertNotNull(shardId);
+            assertEquals(shard, shardId.getId());
         }
     }
 
@@ -373,7 +403,7 @@ public class OperationRoutingTests extends ESTestCase{
             terminate(threadPool);
         }
     }
-    
+
     public void testFairSessionIdPreferences() throws InterruptedException, IOException {
         // Ensure that a user session is re-routed back to same nodes for
         // subsequent searches and that the nodes are selected fairly i.e.
@@ -424,13 +454,13 @@ public class OperationRoutingTests extends ESTestCase{
             assertThat("Search should use more than one of the nodes", selectedNodes.size(), greaterThan(1));
         }
     }
-    
+
     // Regression test for the routing logic - implements same hashing logic
     private ShardIterator duelGetShards(ClusterState clusterState, ShardId shardId, String sessionId) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(shardId.getIndexName(), shardId.getId());
         int routingHash = Murmur3HashFunction.hash(sessionId);
         routingHash = 31 * routingHash + indexShard.shardId.hashCode();
-        return indexShard.activeInitializingShardsIt(routingHash);        
+        return indexShard.activeInitializingShardsIt(routingHash);
     }
 
     public void testThatOnlyNodesSupportNodeIds() throws InterruptedException, IOException {

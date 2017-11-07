@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.suggest.document.Completion50PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
@@ -40,11 +42,13 @@ import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -257,6 +261,11 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             return postingsFormat;
         }
 
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        }
+
         /**
          * Completion prefix query
          */
@@ -455,6 +464,11 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             } else {
                 context.doc().add(new SuggestField(fieldType().name(), input, metaData.weight));
             }
+        }
+        List<IndexableField> fields = new ArrayList<>(1);
+        createFieldNamesField(context, fields);
+        for (IndexableField field : fields) {
+            context.doc().add(field);
         }
         multiFields.parse(this, context);
         return null;

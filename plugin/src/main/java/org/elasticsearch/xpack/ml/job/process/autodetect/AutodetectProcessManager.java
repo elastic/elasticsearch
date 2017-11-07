@@ -325,12 +325,12 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     private void createProcessAndSetRunning(ProcessContext processContext, AutodetectParams params, Consumer<Exception> handler) {
+        // At this point we lock the process context until the process has been started.
+        // The reason behind this is to ensure closing the job does not happen before
+        // the process is started as that can result to the job getting seemingly closed
+        // but the actual process is hanging alive.
+        processContext.tryLock();
         try {
-            // At this point we lock the process context until the process has been started.
-            // The reason behind this is to ensure closing the job does not happen before
-            // the process is started as that can result to the job getting seemingly closed
-            // but the actual process is hanging alive.
-            processContext.tryLock();
             AutodetectCommunicator communicator = create(processContext.getJobTask(), params, handler);
             processContext.setRunning(communicator);
         } finally {
@@ -444,29 +444,36 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
 
         processContext.tryLock();
-        processContext.setDying();
-        processContext.unlock();
-
-        if (reason == null) {
-            logger.info("Closing job [{}]", jobId);
-        } else {
-            logger.info("Closing job [{}], because [{}]", jobId, reason);
-        }
-
-        AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
-        if (communicator == null) {
-            logger.debug("Job [{}] is being closed before its process is started", jobId);
-            jobTask.markAsCompleted();
-            return;
-        }
-
         try {
+            if (processContext.setDying() == false) {
+                logger.debug("Cannot close job [{}] as it has already been closed", jobId);
+                return;
+            }
+
+            if (reason == null) {
+                logger.info("Closing job [{}]", jobId);
+            } else {
+                logger.info("Closing job [{}], because [{}]", jobId, reason);
+            }
+
+            AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
+            if (communicator == null) {
+                logger.debug("Job [{}] is being closed before its process is started", jobId);
+                jobTask.markAsCompleted();
+                return;
+            }
+
             communicator.close(restart, reason);
             processByAllocation.remove(allocationId);
         } catch (Exception e) {
             logger.warn("[" + jobId + "] Exception closing autodetect process", e);
             setJobState(jobTask, JobState.FAILED);
             throw ExceptionsHelper.serverError("Exception closing autodetect process", e);
+        } finally {
+            // to ensure the contract that multiple simultaneous close calls for the same job wait until
+            // the job is closed is honoured, hold the lock throughout the close procedure so that another
+            // thread that gets into this method blocks until the first thread has finished closing the job
+            processContext.unlock();
         }
     }
 

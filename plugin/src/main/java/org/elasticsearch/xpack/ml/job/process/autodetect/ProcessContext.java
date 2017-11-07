@@ -72,9 +72,9 @@ final class ProcessContext {
         state.setRunning(this, autodetectCommunicator);
     }
 
-    void setDying() {
+    boolean setDying() {
         assert lock.isHeldByCurrentThread();
-        state.setDying(this);
+        return state.setDying(this);
     }
 
     KillBuilder newKillBuilder() {
@@ -134,21 +134,29 @@ final class ProcessContext {
     }
 
     private interface ProcessState {
-        void setRunning(ProcessContext processContext, AutodetectCommunicator autodetectCommunicator);
-        void setDying(ProcessContext processContext);
+        /**
+         * @return was a state change made?
+         * */
+        boolean setRunning(ProcessContext processContext, AutodetectCommunicator autodetectCommunicator);
+        /**
+         * @return was a state change made?
+         */
+        boolean setDying(ProcessContext processContext);
         ProcessStateName getName();
     }
 
     private static class ProcessNotRunningState implements ProcessState {
         @Override
-        public void setRunning(ProcessContext processContext, AutodetectCommunicator autodetectCommunicator) {
+        public boolean setRunning(ProcessContext processContext, AutodetectCommunicator autodetectCommunicator) {
             processContext.setAutodetectCommunicator(autodetectCommunicator);
             processContext.setState(new ProcessRunningState());
+            return true;
         }
 
         @Override
-        public void setDying(ProcessContext processContext) {
+        public boolean setDying(ProcessContext processContext) {
             processContext.setState(new ProcessDyingState());
+            return true;
         }
 
         @Override
@@ -160,13 +168,15 @@ final class ProcessContext {
     private static class ProcessRunningState implements ProcessState {
 
         @Override
-        public void setRunning(ProcessContext processContext, AutodetectCommunicator autodetectCommunicator) {
+        public boolean setRunning(ProcessContext processContext, AutodetectCommunicator autodetectCommunicator) {
             LOGGER.debug("Process set to [running] while it was already in that state");
+            return false;
         }
 
         @Override
-        public void setDying(ProcessContext processContext) {
+        public boolean setDying(ProcessContext processContext) {
             processContext.setState(new ProcessDyingState());
+            return true;
         }
 
         @Override
@@ -178,13 +188,15 @@ final class ProcessContext {
     private static class ProcessDyingState implements ProcessState {
 
         @Override
-        public void setRunning(ProcessContext processContext, AutodetectCommunicator autodetectCommunicator) {
+        public boolean setRunning(ProcessContext processContext, AutodetectCommunicator autodetectCommunicator) {
             LOGGER.debug("Process set to [running] while it was in [dying]");
+            return false;
         }
 
         @Override
-        public void setDying(ProcessContext processContext) {
+        public boolean setDying(ProcessContext processContext) {
             LOGGER.debug("Process set to [dying] while it was already in that state");
+            return false;
         }
 
         @Override

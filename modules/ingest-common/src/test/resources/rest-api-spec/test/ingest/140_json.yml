@@ -37,6 +37,11 @@ teardown:
                 "json" : {
                   "field" : "foo_number"
                 }
+              },
+              {
+                "json" : {
+                  "field" : "foo_boolean"
+                }
               }
             ]
           }
@@ -53,7 +58,8 @@ teardown:
           foo_array: "[1, 2, 3]",
           foo_null: null,
           foo_string: "bla bla",
-          foo_number: 3
+          foo_number: 3,
+          foo_boolean: "true"
         }
 
   - do:
@@ -66,3 +72,4 @@ teardown:
   - match: { _source.foo_null: null }
   - match: { _source.foo_string: "bla bla" }
   - match: { _source.foo_number: 3 }
+  - match: { _source.foo_boolean: "true" }

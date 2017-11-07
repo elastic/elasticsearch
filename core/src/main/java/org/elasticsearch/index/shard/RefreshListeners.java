@@ -126,10 +126,10 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
         synchronized (this) {
             Set<Runnable> listeners = recurringRefreshListeners;
+            if (closed) {
+                throw new IllegalStateException("can't wait for refresh on a closed index");
+            }
             if (listeners == null) {
-                if (closed) {
-                    throw new IllegalStateException("can't wait for refresh on a closed index");
-                }
                 listeners = new HashSet<>();
                 recurringRefreshListeners = listeners;
             }

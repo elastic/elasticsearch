@@ -102,11 +102,11 @@ task krb5AddPrincipals {
   dependsOn krb5kdcFixture
 }
 
-List<String> principals = [ "elasticsearch", "hdfs_hdfs.build.elastic.co" ]
+List<String> principals = [ "elasticsearch", "hdfs/hdfs.build.elastic.co" ]
 String realm = "BUILD.ELASTIC.CO"
 
 for (String principal : principals) {
-  Task create = project.tasks.create("addPrincipal#${principal}", org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
+  Task create = project.tasks.create("addPrincipal#${principal}".replace('/', '_'), org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
     command 'ssh'
     args '--command', "sudo bash /vagrant/src/main/resources/provision/addprinc.sh $principal"
     boxName box
@@ -132,7 +132,7 @@ task secureHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
 
   miniHDFSArgs.add('hdfs.MiniHDFS')
   miniHDFSArgs.add(baseDir)
-  miniHDFSArgs.add("hdfs_hdfs.build.elastic.co@${realm}")
+  miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
   miniHDFSArgs.add("${keytabPath}")
 
   args miniHDFSArgs.toArray()

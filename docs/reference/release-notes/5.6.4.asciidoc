@@ -1,0 +1,80 @@
+[[release-notes-5.6.4]]
+== 5.6.4 Release Notes
+
+Also see <<breaking-changes-5.6>>.
+
+[[deprecation-5.6.4]]
+[float]
+=== Deprecations
+
+Inner Hits::
+* Added deprecation logging about nested inner hits source response format change {pull}27169[#27169]
+
+
+
+[[enhancement-5.6.4]]
+[float]
+=== Enhancements
+
+Core::
+* Ignore .DS_Store files on macOS {pull}27108[#27108] (issue: {issue}23982[#23982])
+
+
+
+[[bug-5.6.4]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Create weights lazily in filter and filters aggregation {pull}26983[#26983]
+
+CAT API::
+* Fix NPE for /_cat/indices when no primary shard {pull}26953[#26953] (issue: {issue}26942[#26942])
+
+Cache::
+* Reduce the default number of cached queries. {pull}26949[#26949] (issue: {issue}26938[#26938])
+
+Core::
+* Stop invoking non-existent syscall {pull}27016[#27016] (issue: {issue}20179[#20179])
+
+Ingest::
+* date processor should not fail if timestamp is specified as json number {pull}26986[#26986] (issue: {issue}26967[#26967])
+
+Java High Level REST Client::
+* Make ShardSearchTarget optional when parsing ShardSearchFailure {pull}27078[#27078] (issue: {issue}27055[#27055])
+
+Java REST Client::
+* rest-client-sniffer: configurable threadfactory {pull}26897[#26897]
+
+Mapping::
+* wrong link target for datatype murmur3 {pull}27143[#27143]
+
+Network::
+* Check for closed connection while opening {pull}26932[#26932]
+
+Packaging::
+* Fix handling of Windows paths containing parentheses {pull}26916[#26916] (issue: {issue}26454[#26454])
+
+Plugin Analysis Phonetic::
+* Fix beidermorse phonetic token filter for unspecified `languageset` {pull}27112[#27112] (issue: {issue}26771[#26771])
+
+Plugin Lang Painless::
+* Misleading incorrect for in loop in painless documentation. {pull}27195[#27195]
+
+REST::
+* exists template needs a template name {pull}25988[#25988]
+
+Search::
+* Avoid stack overflow on search phases {pull}27069[#27069] (issue: {issue}27042[#27042])
+* Let search phases override max concurrent requests {pull}26484[#26484] (issue: {issue}26198[#26198])
+
+Settings::
+* Emit settings deprecation logging on empty update {pull}27017[#27017] (issue: {issue}26419[#26419])
+* Fix filtering for ListSetting {pull}26914[#26914]
+
+Snapshot/Restore::
+* Fix snapshot getting stuck in INIT state {pull}27214[#27214] (issue: {issue}27180[#27180])
+
+Stats::
+* Keep cumulative elapsed scroll time in microseconds {pull}27068[#27068] (issue: {issue}27046[#27046])
+

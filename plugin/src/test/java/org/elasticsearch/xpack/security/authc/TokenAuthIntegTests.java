@@ -196,6 +196,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             final boolean done = awaitBusy(() -> tokenService.isExpirationInProgress() == false);
             assertTrue(done);
         }
+        super.deleteSecurityIndex();
     }
 
     public void testMetadataIsNotSentToClient() {

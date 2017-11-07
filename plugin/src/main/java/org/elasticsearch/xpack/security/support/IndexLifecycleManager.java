@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.elasticsearch.xpack.upgrade.IndexUpgradeCheck;
@@ -50,12 +49,11 @@ import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY
  */
 public class IndexLifecycleManager extends AbstractComponent {
 
-    public static final String INTERNAL_SECURITY_INDEX = ".security-v6";
+    public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheck.UPRADE_VERSION;
     public static final int INTERNAL_INDEX_FORMAT = 6;
     public static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${security.template.version}");
-    public static int NEW_INDEX_VERSION = IndexUpgradeCheck.UPRADE_VERSION;
 
     private final String indexName;
     private final String templateName;

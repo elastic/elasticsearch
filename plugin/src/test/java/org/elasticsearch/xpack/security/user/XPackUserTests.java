@@ -31,7 +31,7 @@ public class XPackUserTests extends ESTestCase {
         final String action = randomFrom(GetAction.NAME, SearchAction.NAME, IndexAction.NAME);
         final Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
         assertThat(predicate.test(SecurityLifecycleService.SECURITY_INDEX_NAME), Matchers.is(false));
-        assertThat(predicate.test(SecurityLifecycleService.NEW_SECURITY_INDEX_NAME), Matchers.is(false));
+        assertThat(predicate.test(SecurityLifecycleService.INTERNAL_SECURITY_INDEX), Matchers.is(false));
     }
 
     public void testXPackUserCanReadAuditTrail() {

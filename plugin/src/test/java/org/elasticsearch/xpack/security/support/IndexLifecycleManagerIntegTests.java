@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,5 +37,10 @@ public class IndexLifecycleManagerIntegTests extends SecurityIntegTestCase {
         for (ActionFuture<PutUserResponse> future : futures) {
             assertTrue(future.actionGet().created());
         }
+    }
+
+    @After
+    public void cleanupSecurityIndex() throws Exception {
+        super.deleteSecurityIndex();
     }
 }

@@ -38,14 +38,23 @@ ELASTIC_PASSWORD=PleaseChangeMe <2>
 <1> The path, inside the docker image, where certificates are expected to be found.
 <2> Initial password for the `elastic` user.
 
+[[getting-starter-tls-create-certs-composefile]]
 `create-certs.yml`:
-[source,yaml]
+ifeval::["{release-state}"=="unreleased"]
 
+WARNING: Version {version} of Elasticsearch has not yet been released, so a
+`create-certs.yml` is not available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+["source","yaml",subs="attributes"]
+----
 version: '2.2'
 services:
   create_certs:
     container_name: create_certs
-    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:6.0.0-rc2
+    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
     command: >
       bash -c '
       if [[ ! -d config/x-pack/certificates/certs ]]; then
@@ -60,16 +69,28 @@ services:
     user: ${UID:-1000}
     working_dir: /usr/share/elasticsearch
     volumes: ['.:/usr/share/elasticsearch/config/x-pack/certificates']
+----
 
 <1> The new node certificates and CA certificate+key are placed under the local directory `certs`.
+endif::[]
 
+[[getting-starter-tls-create-docker-compose]]
 `docker-compose.yml`:
-[source,yaml]
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of Elasticsearch has not yet been released, so a
+`docker-compose.yml` is not available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+["source","yaml",subs="attributes"]
+----
 version: '2.2'
 services:
   es01:
     container_name: es01
-    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:6.0.0-rc2
+    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
     environment:
       - node.name=es01
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD <1>
@@ -90,7 +111,7 @@ services:
       retries: 5
   es02:
     container_name: es02
-    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:6.0.0-rc2
+    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
     environment:
       - node.name=es02
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD
@@ -104,13 +125,15 @@ services:
       - xpack.ssl.key=$CERTS_DIR/es02/es02.key
     volumes: ['esdata_02:/usr/share/elasticsearch/data', './certs:$CERTS_DIR']
   wait_until_ready:
-    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:6.0.0-rc2
+    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
     command: /usr/bin/true
     depends_on: {"es01": {"condition": "service_healthy"}}
 volumes: {"esdata_01": {"driver": "local"}, "esdata_02": {"driver": "local"}}
+----
 
 <1> Bootstrap `elastic` with the password defined in `.env`. See {xpack-ref}/setting-up-authentication.html#bootstrap-elastic-passwords[the Elastic Boostrap Password].
 <2> Disable verification of authenticity for inter-node communication. Allows creating self-signed certificates without having to pin specific internal IP addresses.
+endif::[]
 
 ==== Run the example
 . Generate the certificates (only needed once):

@@ -41,7 +41,7 @@ teardown:
             ]
           }
   - match: { acknowledged: true }
-Anywhere Full Time
+
   - do:
       index:
         index: test

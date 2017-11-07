@@ -880,7 +880,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Nullable
     public SeqNoStats seqNoStats() {
         Engine engine = getEngineOrNull();
-        return engine == null ? null : engine.seqNoService().stats();
+        return engine == null ? null : engine.seqNoService().stats(engine.getHistoryUUID());
     }
 
     public IndexingStats indexingStats(String... types) {
@@ -1756,7 +1756,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         // only sync if there are not operations in flight
-        final SeqNoStats stats = getEngine().seqNoService().stats();
+        final SeqNoStats stats = getEngine().seqNoService().stats(null);
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint()) {
             final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
             final String allocationId = routingEntry().allocationId().getId();

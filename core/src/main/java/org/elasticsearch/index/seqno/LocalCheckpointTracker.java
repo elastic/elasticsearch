@@ -140,8 +140,8 @@ public class LocalCheckpointTracker {
      *
      * @implNote this is needed to make sure the local checkpoint and max seq no are consistent
      */
-    synchronized SeqNoStats getStats(final long globalCheckpoint) {
-        return new SeqNoStats(getMaxSeqNo(), getCheckpoint(), globalCheckpoint);
+    synchronized SeqNoStats getStats(final long globalCheckpoint, String historyUUID) {
+        return new SeqNoStats(getMaxSeqNo(), getCheckpoint(), globalCheckpoint, historyUUID);
     }
 
     /**

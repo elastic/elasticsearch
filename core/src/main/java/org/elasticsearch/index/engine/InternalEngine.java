@@ -198,7 +198,8 @@ public class InternalEngine extends Engine {
                         seqNoStats = new SeqNoStats(
                                 SequenceNumbers.NO_OPS_PERFORMED,
                                 SequenceNumbers.NO_OPS_PERFORMED,
-                                SequenceNumbers.UNASSIGNED_SEQ_NO);
+                                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                                getHistoryUUID());
                         break;
                     default:
                         throw new IllegalArgumentException(openMode.toString());

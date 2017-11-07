@@ -60,7 +60,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
@@ -82,9 +81,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.ToLongBiFunction;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
@@ -202,7 +199,8 @@ public abstract class EngineTestCase extends ESTestCase {
         return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null);
     }
 
-    protected static ParsedDocument testParsedDocument(String id, String routing, ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
+    protected static ParsedDocument testParsedDocument(String id, String routing, ParseContext.Document document, BytesReference source,
+                                                       Mapping mappingUpdate) {
         Field uidField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
@@ -249,11 +247,13 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath,
-                                          Function<EngineConfig, SequenceNumbersService> sequenceNumbersServiceSupplier) throws IOException {
+                                          Function<EngineConfig, SequenceNumbersService> sequenceNumbersServiceSupplier)
+        throws IOException {
         return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null, sequenceNumbersServiceSupplier);
     }
 
-    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) throws IOException {
+    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy)
+        throws IOException {
         return createEngine(indexSettings, store, translogPath, mergePolicy, null);
 
     }
@@ -295,9 +295,10 @@ public abstract class EngineTestCase extends ESTestCase {
         IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException;
     }
 
-    public static InternalEngine createInternalEngine(@Nullable final IndexWriterFactory indexWriterFactory,
-                                                      @Nullable final Function<EngineConfig, SequenceNumbersService> sequenceNumbersServiceSupplier,
-                                                      final EngineConfig config) {
+    public static InternalEngine createInternalEngine(
+        @Nullable final IndexWriterFactory indexWriterFactory,
+        @Nullable final Function<EngineConfig, SequenceNumbersService> sequenceNumbersServiceSupplier,
+        final EngineConfig config) {
         return new InternalEngine(config) {
             @Override
             IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {

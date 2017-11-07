@@ -112,7 +112,8 @@ public class SettingsModule implements Module {
                 builder.append("Please ensure all required values are updated on all indices by executing: ");
                 builder.append(System.lineSeparator());
                 builder.append(System.lineSeparator());
-                builder.append("curl -XPUT 'http://localhost:9200/_all/_settings?preserve_existing=true' -d '");
+                builder.append("curl -XPUT -H 'Content-Type: application/json' ");
+                builder.append("'http://localhost:9200/_all/_settings?preserve_existing=true' -d '");
                 try (XContentBuilder xContentBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                     xContentBuilder.prettyPrint();
                     xContentBuilder.startObject();

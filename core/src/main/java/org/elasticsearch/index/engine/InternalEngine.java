@@ -1579,23 +1579,15 @@ public class InternalEngine extends Engine {
         }
     }
 
-    @SuppressWarnings("finally")
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
         final boolean engineFailed;
         // if we are already closed due to some tragic exception
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
         if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
-            if (indexWriter.getTragicException() instanceof Error) {
-                try {
-                    logger.error("tragic event in index writer", ex);
-                } finally {
-                    throw (Error) indexWriter.getTragicException();
-                }
-            } else {
-                failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
-                engineFailed = true;
-            }
+            maybeDie("tragic event in index writer", indexWriter.getTragicException());
+            failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
+            engineFailed = true;
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
             engineFailed = true;
@@ -1916,7 +1908,6 @@ public class InternalEngine extends Engine {
 
         @Override
         protected void handleMergeException(final Directory dir, final Throwable exc) {
-            logger.error("failed to merge", exc);
             engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -1925,10 +1916,36 @@ public class InternalEngine extends Engine {
 
                 @Override
                 protected void doRun() throws Exception {
-                    MergePolicy.MergeException e = new MergePolicy.MergeException(exc, dir);
-                    failEngine("merge failed", e);
+                    /*
+                     * We do this on another thread rather than the merge thread that we are initially called on so that we have complete
+                     * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
+                     * here from being caught and never reaching the uncaught exception handler.
+                     */
+                    maybeDie("fatal error while merging", exc);
+                    logger.error("failed to merge", exc);
+                    failEngine("merge failed", new MergePolicy.MergeException(exc, dir));
                 }
             });
+        }
+    }
+
+    /**
+     * If the specified throwable is a fatal error, this throwable will be thrown. Callers should ensure that there are no catch statements
+     * that would catch an error in the stack as the fatal error here should go uncaught and be handled by the uncaught exception handler
+     * that we install during bootstrap. If the specified throwable is indeed a fatal error, the specified message will attempt to be logged
+     * before throwing the fatal error. If the specified throwable is not a fatal error, this method is a no-op.
+     *
+     * @param maybeMessage the message to maybe log
+     * @param maybeFatal the throwable that is maybe fatal
+     */
+    @SuppressWarnings("finally")
+    private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
+        if (maybeFatal instanceof Error) {
+            try {
+                logger.error(maybeMessage, maybeFatal);
+            } finally {
+                throw (Error) maybeFatal;
+            }
         }
     }
 

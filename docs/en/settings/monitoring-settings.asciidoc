@@ -11,8 +11,9 @@ these monitoring settings in the `elasticsearch.yml` file.
 To adjust how monitoring data is displayed in the monitoring UI, configure
 {kibana-ref}/monitoring-settings-kb.html[`xpack.monitoring` settings] in
 `kibana.yml`. To control how monitoring data is collected from
-Logstash, configure {logstash-ref}/settings-xpack.html#monitoring-settings[
-`xpack.monitoring` settings] in `logstash.yml`.
+Logstash, configure
+{logstash-ref}/configuring-logstash.html#monitoring-settings[`xpack.monitoring` settings]
+in `logstash.yml`.
 
 For more information, see
 {xpack-ref}/xpack-monitoring.html[Monitoring the Elastic Stack].

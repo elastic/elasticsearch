@@ -278,7 +278,7 @@ docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclusternam
 [[next-getting-started-tls-docker]]
 ==== Configuring SSL/TLS with the Elasticsearch Docker image
 
-Please refer to the <<getting-started-tls-docker, Getting started with SSL/TLS and Elasticsearch>>.
+Please refer to the <<getting-started-tls-docker, Getting started with SSL/TLS and Elasticsearch>> guide.
 
 ==== Notes for production use and defaults
 

@@ -102,7 +102,7 @@ task krb5AddPrincipals {
   dependsOn krb5kdcFixture
 }
 
-List<String> principals = [ "elasticsearch", "hdfs/hdfs.build.elastic.co" ]
+List<String> principals = [ "elasticsearch", "hdfs_hdfs.build.elastic.co" ]
 String realm = "BUILD.ELASTIC.CO"
 
 for (String principal : principals) {
@@ -132,7 +132,7 @@ task secureHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
 
   miniHDFSArgs.add('hdfs.MiniHDFS')
   miniHDFSArgs.add(baseDir)
-  miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
+  miniHDFSArgs.add("hdfs_hdfs.build.elastic.co@${realm}")
   miniHDFSArgs.add("${keytabPath}")
 
   args miniHDFSArgs.toArray()

@@ -21,9 +21,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -109,6 +109,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         public boolean isSearchable() {
             // The _index field is always searchable.
             return true;
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new MatchAllDocsQuery();
         }
 
         /**

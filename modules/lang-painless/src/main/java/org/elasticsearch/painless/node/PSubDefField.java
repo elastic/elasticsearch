@@ -50,7 +50,7 @@ final class PSubDefField extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        actual = expected == null || explicit ? Definition.DEF_TYPE : expected;
+        actual = expected == null || explicit ? locals.getDefinition().DefType : expected;
     }
 
     @Override
@@ -58,7 +58,7 @@ final class PSubDefField extends AStoreable {
         writer.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(actual.type, Definition.DEF_TYPE.type);
+            org.objectweb.asm.Type.getMethodType(actual.type, org.objectweb.asm.Type.getType(Object.class));
         writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
@@ -87,7 +87,7 @@ final class PSubDefField extends AStoreable {
         writer.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(actual.type, Definition.DEF_TYPE.type);
+            org.objectweb.asm.Type.getMethodType(actual.type, org.objectweb.asm.Type.getType(Object.class));
         writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
@@ -95,8 +95,8 @@ final class PSubDefField extends AStoreable {
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, actual.type);
+        org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(
+            org.objectweb.asm.Type.getType(void.class), org.objectweb.asm.Type.getType(Object.class), actual.type);
         writer.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
 

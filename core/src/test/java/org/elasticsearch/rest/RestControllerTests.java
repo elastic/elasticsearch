@@ -395,7 +395,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchWithContentStream() {
-        final String mimeType = randomFrom("application/json", "application/smile");
+        final String mimeType = randomFrom("application/json", "application/smile", "application/x-ndjson; charset=UTF-8");
         String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")

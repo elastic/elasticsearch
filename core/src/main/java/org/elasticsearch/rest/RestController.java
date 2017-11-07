@@ -286,7 +286,10 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                     }
                 }
             } else if (restHandler != null && restHandler.supportsContentStream() && restRequest.header("Content-Type") != null) {
-                final String lowercaseMediaType = restRequest.header("Content-Type").toLowerCase(Locale.ROOT);
+                final String lowercaseContentType = restRequest.header("Content-Type").toLowerCase(Locale.ROOT);
+                final String[] elements = lowercaseContentType.split(";");
+                final String lowercaseMediaType = elements[0].trim();
+
                 // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
                 if (lowercaseMediaType.equals("application/x-ndjson")) {
                     restRequest.setXContentType(XContentType.JSON);

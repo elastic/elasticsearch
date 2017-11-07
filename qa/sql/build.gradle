@@ -19,7 +19,7 @@ dependencies {
       transitive = false
     }
   }
-  compile "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
+  compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
   runtime "com.h2database:h2:1.4.194"
   // used for running debug tests
   runtime 'org.antlr:antlr4-runtime:4.5.3'
@@ -115,7 +115,7 @@ subprojects {
         transitive = false
       }
     }
-    testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.31") {
+    testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.34") {
       transitive = false
     }
     testRuntime("com.h2database:h2:1.4.194") {

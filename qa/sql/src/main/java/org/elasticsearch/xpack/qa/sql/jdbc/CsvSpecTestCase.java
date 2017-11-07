@@ -102,9 +102,6 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
                 String header = bufferedReader.readLine();
                 if (!header.contains(":")) {
                     // No type information in headers, no need to parse columns - trigger auto-detection
-                    // TODO: Remove when type autodetection in JDBC CSV is fixed
-                    // See https://sourceforge.net/p/csvjdbc/discussion/56965/thread/6a910831/ for more info
-                    fail("The autodetection of types in JDBC CSV is currently broken. Please specify explicit types");
                     return new Tuple<>(expectedResults,"");
                 }
                 try (StringWriter writer = new StringWriter()) {

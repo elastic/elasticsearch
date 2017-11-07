@@ -48,10 +48,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
@@ -142,8 +140,8 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             try {
                 cluster2.wipe(Collections.emptySet());
                 try {
-                    // this is a hack to clean up the .security index since only the XPack user or superusers can delete it
-                    cluster2.getInstance(InternalClient.class)
+                    // this is a hack to clean up the .security index since only the XPackSecurity user or superusers can delete it
+                    internalSecurityClient(cluster2.client())
                             .admin().indices().prepareDelete(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get();
                 } catch (IndexNotFoundException e) {
                     // ignore it since not all tests create this index...

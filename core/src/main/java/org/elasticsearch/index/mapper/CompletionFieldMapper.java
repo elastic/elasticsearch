@@ -560,7 +560,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 }
             }
         } else {
-            throw new ElasticsearchParseException("failed to parse expected text or object got" + token.name());
+            throw new ElasticsearchParseException("failed to parse [" + parser.currentName() + "][" + parser.getTokenLocation() + "]: expected text or object, but got " + token.name());
         }
     }
 

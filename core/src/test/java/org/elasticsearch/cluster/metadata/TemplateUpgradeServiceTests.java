@@ -345,51 +345,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
     private static final int NODE_TEST_ITERS = 100;
 
-    public void testOnlyOneNodeRunsTemplateUpdates() {
-        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null, Collections.emptyList());
-        for (int i = 0; i < NODE_TEST_ITERS; i++) {
-            int nodesCount = randomIntBetween(1, 10);
-            int clientNodesCount = randomIntBetween(0, 4);
-            DiscoveryNodes nodes = randomNodes(nodesCount, clientNodesCount);
-            int updaterNode = -1;
-            for (int j = 0; j < nodesCount; j++) {
-                DiscoveryNodes localNodes = DiscoveryNodes.builder(nodes).localNodeId(nodes.resolveNode("node_" + j).getId()).build();
-                if (service.shouldLocalNodeUpdateTemplates(localNodes)) {
-                    assertThat("Expected only one node to update template, found " + updaterNode + " and " + j, updaterNode, lessThan(0));
-                    updaterNode = j;
-                }
-            }
-            assertThat("Expected one node to update template", updaterNode, greaterThanOrEqualTo(0));
-        }
-    }
-
-    public void testIfMasterHasTheHighestVersionItShouldRunsTemplateUpdates() {
-        for (int i = 0; i < NODE_TEST_ITERS; i++) {
-            int nodesCount = randomIntBetween(1, 10);
-            int clientNodesCount = randomIntBetween(0, 4);
-            DiscoveryNodes nodes = randomNodes(nodesCount, clientNodesCount);
-            DiscoveryNodes.Builder builder = DiscoveryNodes.builder(nodes).localNodeId(nodes.resolveNode("_master").getId());
-            nodes = builder.build();
-            TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null,
-                Collections.emptyList());
-            assertThat(service.shouldLocalNodeUpdateTemplates(nodes),
-                equalTo(nodes.getLargestNonClientNodeVersion().equals(nodes.getMasterNode().getVersion())));
-        }
-    }
-
-    public void testClientNodeDontRunTemplateUpdates() {
-        for (int i = 0; i < NODE_TEST_ITERS; i++) {
-            int nodesCount = randomIntBetween(1, 10);
-            int clientNodesCount = randomIntBetween(1, 4);
-            DiscoveryNodes nodes = randomNodes(nodesCount, clientNodesCount);
-            int testClient = randomIntBetween(0, clientNodesCount - 1);
-            DiscoveryNodes.Builder builder = DiscoveryNodes.builder(nodes).localNodeId(nodes.resolveNode("client_" + testClient).getId());
-            TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null,
-                Collections.emptyList());
-            assertThat(service.shouldLocalNodeUpdateTemplates(builder.build()), equalTo(false));
-        }
-    }
-
     private DiscoveryNodes randomNodes(int dataAndMasterNodes, int clientNodes) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         String masterNodeId = null;

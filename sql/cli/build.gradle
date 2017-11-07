@@ -73,6 +73,7 @@ thirdPartyAudit.excludes = [
 
 task run {
   description = 'Run the CLI and connect to elasticsearch running on 9200'
+  dependsOn 'assemble'
   doLast {
     List command = [new File(project.javaHome, 'bin/java').absolutePath]
     if ('true'.equals(System.getProperty('debug', 'false'))) {

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongObjectHashMap;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -68,7 +69,7 @@ final class MultiSnapshot implements Translog.Snapshot {
             final TranslogSnapshot current = translogs[index];
             Translog.Operation op;
             while ((op = current.next()) != null) {
-                if (op.seqNo() < 0 || seenSeqNo.getAndSet(op.seqNo()) == false) {
+                if (op.seqNo() < SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
                     return op;
                 } else {
                     overriddenOperations++;

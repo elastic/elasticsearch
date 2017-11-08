@@ -69,7 +69,7 @@ final class MultiSnapshot implements Translog.Snapshot {
             final TranslogSnapshot current = translogs[index];
             Translog.Operation op;
             while ((op = current.next()) != null) {
-                if (op.seqNo() < SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
+                if (op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
                     return op;
                 } else {
                     overriddenOperations++;

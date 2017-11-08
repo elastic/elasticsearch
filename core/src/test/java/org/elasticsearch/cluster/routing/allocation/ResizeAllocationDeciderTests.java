@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -245,7 +246,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testAllocateOnOldNode() {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-            VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1));
+            VersionUtils.getPreviousVersion(ResizeAction.COMPATIBILITY_VERSION));
         ClusterState clusterState = createInitialClusterState(true, version);
         MetaData.Builder metaBuilder = MetaData.builder(clusterState.metaData());
         metaBuilder.put(IndexMetaData.builder("target").settings(settings(Version.CURRENT)

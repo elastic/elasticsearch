@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
@@ -683,6 +684,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testShardFailures() throws IOException, InterruptedException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
+                .put(IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey(), 4)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
                 .putList("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
@@ -743,6 +745,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 endObject();
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
+                .put(IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey(), 4)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
                 .putList("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")

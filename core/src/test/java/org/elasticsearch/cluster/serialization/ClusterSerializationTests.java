@@ -194,9 +194,6 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         ClusterState clusterState3 = ClusterState.builder(clusterState1).incrementVersion()
             .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(2).build(), true)).build();
-        assertNotEquals("Should have created a new, different, IndexMetaData object in clusterState3",
-            clusterState2.metaData().index("test"), clusterState3.metaData().index("test"));
-
         ClusterState serializedClusterState3 = updateUsingSerialisedDiff(serializedClusterState2, clusterState3.diff(clusterState2));
         assertNotEquals("Should have a new IndexMetaData object",
             serializedClusterState2.metaData().index("test"), serializedClusterState3.metaData().index("test"));

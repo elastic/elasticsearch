@@ -637,18 +637,13 @@ public class InternalEngine extends Engine {
             assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no.;" +
                 " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ", seqNo: " + seqNo;
         } else if (origin == Operation.Origin.PRIMARY) {
-            assert assertOriginPrimarySequenceNumber(seqNo);
+            // sequence number should not be set when operation origin is primary
+            assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
+                    : "primary operations must never have an assigned sequence number but was [" + seqNo + "]";
         } else if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
             // sequence number should be set when operation origin is not primary
             assert seqNo >= 0 : "recovery or replica ops should have an assigned seq no.; origin: " + origin;
         }
-        return true;
-    }
-
-    protected boolean assertOriginPrimarySequenceNumber(final long seqNo) {
-        // sequence number should not be set when operation origin is primary
-        assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
-                : "primary operations must never have an assigned sequence number but was [" + seqNo + "]";
         return true;
     }
 
@@ -672,7 +667,7 @@ public class InternalEngine extends Engine {
      * @param operation the operation
      * @return the sequence number
      */
-    protected long doGenerateSeqNoForOperation(final Operation operation) {
+    long doGenerateSeqNoForOperation(final Operation operation) {
         return seqNoService.generateSeqNo();
     }
 

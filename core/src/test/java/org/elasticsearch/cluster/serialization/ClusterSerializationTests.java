@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -44,6 +45,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -168,7 +170,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
     public void testObjectReuseWhenApplyingClusterStateDiff() throws Exception {
         IndexMetaData indexMetaData
             = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1).build();
-        MetaData metaData = MetaData.builder().put(indexMetaData, true).build();
+        IndexTemplateMetaData indexTemplateMetaData
+            = IndexTemplateMetaData.builder("test-template").patterns(new ArrayList<>()).build();
+        MetaData metaData = MetaData.builder().put(indexMetaData, true).put(indexTemplateMetaData).build();
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
 
@@ -201,5 +205,10 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             serializedClusterState2.metaData().index("test"), serializedClusterState3.metaData().index("test"));
         assertSame("Unchanged routing table should not create new IndexRoutingTable objects",
             serializedClusterState2.routingTable().index("test"), serializedClusterState3.routingTable().index("test"));
+
+        assertSame("nodes", serializedClusterState2.nodes(), serializedClusterState3.nodes());
+        assertSame("blocks", serializedClusterState2.blocks(), serializedClusterState3.blocks());
+        assertSame("template", serializedClusterState2.metaData().templates().get("test-template"),
+            serializedClusterState3.metaData().templates().get("test-template"));
     }
 }

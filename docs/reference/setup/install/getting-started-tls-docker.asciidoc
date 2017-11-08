@@ -1,9 +1,9 @@
 [[getting-started-tls-docker]]
 === Getting started with TLS and Elasticsearch
 
-Starting with version 6.0.0, x-pack licensed for security (gold, platinum or enterprise subscriptions) https://www.elastic.co/guide/en/elasticsearch/reference/6.0/breaking-6.0.0-xes.html[requires SSL/TLS] encryption for the transport networking layer.
+Starting with version 6.0.0, X-Pack Security (Gold, Platinum or Enterprise subscriptions) https://www.elastic.co/guide/en/elasticsearch/reference/6.0/breaking-6.0.0-xes.html[requires SSL/TLS] encryption for the transport networking layer.
 
-This section demonstrates an easy path to get started with SSL/TLS for both http and transport using the elasticsearch-platinum docker image.
+This section demonstrates an easy path to get started with SSL/TLS for both HTTPS and transport using the `elasticsearch-platinum` docker image.
 
 For further details, please refer to {xpack-ref}/encrypting-communications.html[Encrypting Communications] and https://www.elastic.co/subscriptions[available subscriptions].
 
@@ -36,7 +36,7 @@ instances:
 CERTS_DIR=/usr/share/elasticsearch/config/x-pack/certificates <1>
 ELASTIC_PASSWORD=PleaseChangeMe <2>
 ----
-<1> The path, inside the docker image, where certificates are expected to be found.
+<1> The path, inside the Docker image, where certificates are expected to be found.
 <2> Initial password for the `elastic` user.
 
 [[getting-starter-tls-create-certs-composefile]]
@@ -134,7 +134,7 @@ services:
 volumes: {"esdata_01": {"driver": "local"}, "esdata_02": {"driver": "local"}}
 ----
 
-<1> Bootstrap `elastic` with the password defined in `.env`. See {xpack-ref}/setting-up-authentication.html#bootstrap-elastic-passwords[the Elastic Boostrap Password].
+<1> Bootstrap `elastic` with the password defined in `.env`. See {xpack-ref}/setting-up-authentication.html#bootstrap-elastic-passwords[the Elastic Bootstrap Password].
 <2> Disable verification of authenticity for inter-node communication. Allows creating self-signed certificates without having to pin specific internal IP addresses.
 endif::[]
 
@@ -147,7 +147,7 @@ endif::[]
 docker-compose -f create-certs.yml up
 ----
 --
-. Start two elasticsearch nodes configured for SSL/TLS:
+. Start two Elasticsearch nodes configured for SSL/TLS:
 +
 --
 ["source","sh"]
@@ -155,7 +155,7 @@ docker-compose -f create-certs.yml up
 docker-compose up -d
 ----
 --
-. Access the elasticsearch API over SSL/TLS using the bootstrapped password:
+. Access the Elasticsearch API over SSL/TLS using the bootstrapped password:
 +
 --
 ["source","sh"]

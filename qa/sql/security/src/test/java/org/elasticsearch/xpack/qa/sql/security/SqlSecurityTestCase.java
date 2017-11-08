@@ -571,7 +571,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                             * drops them from the interface. So we might have access to them, but we don't show
                             * them. */
                             indices.remove(".security");
-                            indices.remove(".security-v6");
+                            indices.remove(".security-6");
                         }
                         log.put("indices", indices);
                         log.put("request", m.group(i++));

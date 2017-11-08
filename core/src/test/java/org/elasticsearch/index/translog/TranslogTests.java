@@ -2497,7 +2497,7 @@ public class TranslogTests extends ESTestCase {
                     assertThat(Tuple.tuple(op.seqNo(), op.primaryTerm()), isIn(seenSeqNos));
                     readFromSnapshot++;
                 }
-                readFromSnapshot += snapshot.skippedOperations();
+                readFromSnapshot += snapshot.overriddenOperations();
             }
             assertThat(readFromSnapshot, equalTo(expectedSnapshotOps));
             final long seqNoLowerBound = seqNo;

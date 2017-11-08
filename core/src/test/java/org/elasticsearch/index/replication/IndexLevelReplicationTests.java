@@ -333,10 +333,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 op1 = snapshot.next();
                 assertThat(op1, notNullValue());
                 assertThat(snapshot.next(), nullValue());
-                assertThat(snapshot.skippedOperations(), equalTo(0));
+                assertThat(snapshot.overriddenOperations(), equalTo(0));
             }
 
-            // Make sure that replica2 receives translog from replica1 and overwrites its stale operation (op1).
+            // Make sure that replica2 receives translog ops (eg. op2) from replica1 and overwrites its stale operation (op1).
             logger.info("--> Promote replica1 as the primary");
             shards.promoteReplicaToPrimary(replica1);
             shards.index(new IndexRequest(index.getName(), "type", "d2").source("{}", XContentType.JSON));
@@ -347,10 +347,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(op2.seqNo(), equalTo(op1.seqNo()));
                 assertThat(op2.primaryTerm(), greaterThan(op1.primaryTerm()));
                 assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
-                assertThat(snapshot.skippedOperations(), greaterThanOrEqualTo(1));
+                assertThat(snapshot.overriddenOperations(), greaterThanOrEqualTo(1));
             }
 
-            // Make sure that peer-recovery transfers all but non-duplicated operations.
+            // Make sure that peer-recovery transfers all but non-overridden operations.
             IndexShard replica3 = shards.addReplica();
             logger.info("--> Promote replica2 as the primary");
             shards.promoteReplicaToPrimary(replica2);
@@ -360,7 +360,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 assertThat(snapshot.next(), equalTo(op2));
                 assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
-                assertThat(snapshot.skippedOperations(), equalTo(0));
+                assertThat("Peer-recovery should not send overridden operations", snapshot.overriddenOperations(), equalTo(0));
             }
         }
     }

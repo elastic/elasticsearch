@@ -837,10 +837,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         int totalOperations();
 
         /**
-         * The number of operations has been skipped in the snapshot so far.
-         * Unlike {@link #totalOperations()}, this value is updated each time after {@link #next()}) is called.
+         * The number of operations has been overridden (eg. superseded) in the snapshot so far.
+         * If two operations have the same sequence number, the operation with a lower term will be overridden by the operation
+         * with a higher term. Unlike {@link #totalOperations()}, this value is updated each time after {@link #next()}) is called.
          */
-        default int skippedOperations() {
+        default int overriddenOperations() {
             return 0;
         }
 

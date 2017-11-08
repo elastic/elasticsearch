@@ -735,7 +735,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         final ClusterState newClusterState = pendingStatesQueue.getNextClusterStateToProcess();
         final ClusterState currentState = committedState.get();
-        final ClusterState adaptedNewClusterState;
         // all pending states have been processed
         if (newClusterState == null) {
             return false;
@@ -774,23 +773,22 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // its a fresh update from the master as we transition from a start of not having a master to having one
             logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
         }
-        adaptedNewClusterState = newClusterState;
 
-        if (currentState == adaptedNewClusterState) {
+        if (currentState == newClusterState) {
             return false;
         }
 
-        committedState.set(adaptedNewClusterState);
+        committedState.set(newClusterState);
 
         // update failure detection only after the state has been updated to prevent race condition with handleLeaveRequest
         // and handleNodeFailure as those check the current state to determine whether the failure is to be handled by this node
-        if (adaptedNewClusterState.nodes().isLocalNodeElectedMaster()) {
+        if (newClusterState.nodes().isLocalNodeElectedMaster()) {
             // update the set of nodes to ping
-            nodesFD.updateNodesAndPing(adaptedNewClusterState);
+            nodesFD.updateNodesAndPing(newClusterState);
         } else {
             // check to see that we monitor the correct master of the cluster
-            if (masterFD.masterNode() == null || !masterFD.masterNode().equals(adaptedNewClusterState.nodes().getMasterNode())) {
-                masterFD.restart(adaptedNewClusterState.nodes().getMasterNode(),
+            if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().getMasterNode())) {
+                masterFD.restart(newClusterState.nodes().getMasterNode(),
                     "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
             }
         }

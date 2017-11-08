@@ -94,6 +94,10 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             scripts.put("_agg.add(1)", vars ->
                     aggScript(vars, agg -> ((List) agg).add(1)));
 
+            scripts.put("_agg[param1] = param2", vars ->
+                    aggScript(vars, agg -> ((Map) agg).put(XContentMapValues.extractValue("params.param1", vars),
+                        XContentMapValues.extractValue("params.param2", vars))));
+
             scripts.put("vars.multiplier = 3", vars ->
                     ((Map<String, Object>) vars.get("vars")).put("multiplier", 3));
 
@@ -354,6 +358,52 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             }
         }
         assertThat(totalCount, equalTo(numDocs));
+    }
+
+    public void testMapWithParamsAndImplicitAggMap() {
+        Map<String, Object> params = new HashMap<>();
+        // don't put any _agg map in params
+        params.put("param1", "12");
+        params.put("param2", 1);
+
+        // The _agg hashmap will be available even if not declared in the params map
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg[param1] = param2", params);
+
+        SearchResponse response = client().prepareSearch("idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(scriptedMetric("scripted").params(params).mapScript(mapScript))
+            .get();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
+
+        Aggregation aggregation = response.getAggregations().get("scripted");
+        assertThat(aggregation, notNullValue());
+        assertThat(aggregation, instanceOf(ScriptedMetric.class));
+        ScriptedMetric scriptedMetricAggregation = (ScriptedMetric) aggregation;
+        assertThat(scriptedMetricAggregation.getName(), equalTo("scripted"));
+        assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
+        assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
+        List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
+        assertThat(aggregationList.size(), equalTo(getNumShards("idx").numPrimaries));
+        int numShardsRun = 0;
+        for (Object object : aggregationList) {
+            assertThat(object, notNullValue());
+            assertThat(object, instanceOf(Map.class));
+            Map<?,?> map = (Map<?,?>) object;
+            for (Map.Entry<?,?> entry : map.entrySet()) {
+                assertThat(entry, notNullValue());
+                assertThat(entry.getKey(), notNullValue());
+                assertThat(entry.getKey(), instanceOf(String.class));
+                assertThat(entry.getValue(), notNullValue());
+                assertThat(entry.getValue(), instanceOf(Number.class));
+                String stringValue = (String) entry.getKey();
+                assertThat(stringValue, equalTo("12"));
+                Number numberValue = (Number) entry.getValue();
+                assertThat(numberValue, equalTo((Number) 1));
+                numShardsRun++;
+            }
+        }
+        assertThat(numShardsRun, greaterThan(0));
     }
 
     public void testInitMapWithParams() {

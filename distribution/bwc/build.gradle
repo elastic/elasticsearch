@@ -74,6 +74,8 @@ if (enabled) {
     dependsOn createClone
     workingDir = checkoutDir
     commandLine = ['git', 'remote', '-v']
+    ByteArrayOutputStream output = new ByteArrayOutputStream()
+    standardOutput = output
     doLast {
       project.ext.remoteExists = false
       output.toString('UTF-8').eachLine {

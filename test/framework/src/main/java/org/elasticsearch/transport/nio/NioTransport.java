@@ -39,12 +39,15 @@ import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.channel.TcpReadContext;
+import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -65,7 +68,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
     protected final OpenChannels openChannels = new OpenChannels(logger);
-    private final TcpReadHandler tcpReadHandler = new TcpReadHandler(this);
+    private final Consumer<NioSocketChannel> contextSetter;
     private final ConcurrentMap<String, ChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
@@ -75,6 +78,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                         NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        contextSetter = (c) -> c.setContexts(new TcpReadContext(c, new TcpReadHandler(this)), new TcpWriteContext(c));
     }
 
     @Override
@@ -155,7 +159,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
-                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, tcpReadHandler));
+                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, contextSetter));
                     bindServer(profileSettings);
                 }
             }
@@ -192,7 +196,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
     private NioClient createClient() {
         Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), tcpReadHandler);
+        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), contextSetter);
         return new NioClient(openChannels, selectorSupplier, channelFactory);
     }
 }

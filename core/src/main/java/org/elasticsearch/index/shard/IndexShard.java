@@ -139,6 +139,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -291,11 +292,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
-            QueryCachingPolicy cachingPolicy = new UsageTrackingQueryCachingPolicy();
-            if (IndexModule.INDEX_QUERY_CACHE_TERM_QUERIES_SETTING.get(settings) == false) {
-                cachingPolicy = new ElasticsearchQueryCachingPolicy(cachingPolicy);
-            }
-            this.cachingPolicy = cachingPolicy;
+            cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, logger, threadPool);
         searcherWrapper = indexSearcherWrapper;
@@ -475,8 +472,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * subsequently fails before the primary/replica re-sync completes successfully and we are now being
                                  * promoted, the local checkpoint tracker here could be left in a state where it would re-issue sequence
                                  * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
-                                 * replaying the translog and marking any operations there are completed.
+                                 * replaying the translog and marking any operations there are completed. Rolling the translog generation is
+                                 * not strictly needed here (as we will never have collisions between sequence numbers in a translog
+                                 * generation in a new primary as it takes the last known sequence number as a starting point), but it
+                                 * simplifies reasoning about the relationship between primary terms and translog generations.
                                  */
+                                getEngine().rollTranslogGeneration();
                                 getEngine().restoreLocalCheckpointFromTranslog();
                                 getEngine().fillSeqNoGaps(newPrimaryTerm);
                                 getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
@@ -2000,25 +2001,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 break;
             case LOCAL_SHARDS:
                 final IndexMetaData indexMetaData = indexSettings().getIndexMetaData();
-                final Index mergeSourceIndex = indexMetaData.getMergeSourceIndex();
+                final Index resizeSourceIndex = indexMetaData.getResizeSourceIndex();
                 final List<IndexShard> startedShards = new ArrayList<>();
-                final IndexService sourceIndexService = indicesService.indexService(mergeSourceIndex);
-                final int numShards = sourceIndexService != null ? sourceIndexService.getIndexSettings().getNumberOfShards() : -1;
+                final IndexService sourceIndexService = indicesService.indexService(resizeSourceIndex);
+                final Set<ShardId> requiredShards;
+                final int numShards;
                 if (sourceIndexService != null) {
+                    requiredShards = IndexMetaData.selectRecoverFromShards(shardId().id(),
+                        sourceIndexService.getMetaData(), indexMetaData.getNumberOfShards());
                     for (IndexShard shard : sourceIndexService) {
-                        if (shard.state() == IndexShardState.STARTED) {
+                        if (shard.state() == IndexShardState.STARTED && requiredShards.contains(shard.shardId())) {
                             startedShards.add(shard);
                         }
                     }
+                    numShards = requiredShards.size();
+                } else {
+                    numShards = -1;
+                    requiredShards = Collections.emptySet();
                 }
+
                 if (numShards == startedShards.size()) {
+                    assert requiredShards.isEmpty() == false;
                     markAsRecovering("from local shards", recoveryState); // mark the shard as recovering on the cluster state thread
                     threadPool.generic().execute(() -> {
                         try {
-                            final Set<ShardId> shards = IndexMetaData.selectShrinkShards(shardId().id(), sourceIndexService.getMetaData(),
-                                +indexMetaData.getNumberOfShards());
                             if (recoverFromLocalShards(mappingUpdateConsumer, startedShards.stream()
-                                .filter((s) -> shards.contains(s.shardId())).collect(Collectors.toList()))) {
+                                .filter((s) -> requiredShards.contains(s.shardId())).collect(Collectors.toList()))) {
                                 recoveryListener.onRecoveryDone(recoveryState);
                             }
                         } catch (Exception e) {
@@ -2029,9 +2037,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } else {
                     final RuntimeException e;
                     if (numShards == -1) {
-                        e = new IndexNotFoundException(mergeSourceIndex);
+                        e = new IndexNotFoundException(resizeSourceIndex);
                     } else {
-                        e = new IllegalStateException("not all shards from index " + mergeSourceIndex
+                        e = new IllegalStateException("not all required shards of index " + resizeSourceIndex
                             + " are started yet, expected " + numShards + " found " + startedShards.size() + " can't recover shard "
                             + shardId());
                     }

@@ -51,6 +51,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -907,12 +908,22 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, key), properties);
     }
 
+    public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, Validator<Integer> validator,
+                                              Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseInt(s, minValue, key),validator,
+            properties);
+    }
+
     public static Setting<Long> longSetting(String key, long defaultValue, long minValue, Property... properties) {
         return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), properties);
     }
 
     public static Setting<String> simpleString(String key, Property... properties) {
         return new Setting<>(key, s -> "", Function.identity(), properties);
+    }
+
+    public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
+        return new Setting<>(key, fallback, Function.identity(), properties);
     }
 
     public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {

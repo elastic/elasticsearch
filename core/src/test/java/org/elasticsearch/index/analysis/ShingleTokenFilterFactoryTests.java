@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
@@ -100,6 +101,27 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         try (TokenStream stream = shingleInverse.create(tokenizer)) {
             // This config uses a single size of shingles so graph analysis is enabled
             assertFalse(stream.hasAttribute(DisableGraphAttribute.class));
+        }
+    }
+
+    /*`
+    * test that throws an error when trying to get a ShingleTokenFilter where difference between max_shingle_size and min_shingle_size
+    * is greater than the allowed value of max_shingle_diff
+     */
+    public void testMaxShingleDiffException() throws Exception{
+        String RESOURCE2 = "/org/elasticsearch/index/analysis/shingle_analysis2.json";
+        int maxAllowedShingleDiff = 3;
+        int shingleDiff = 8;
+        try {
+            ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE2);
+            analysis.tokenFilter.get("shingle");
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertEquals(
+                "In Shingle TokenFilter the difference between max_shingle_size and min_shingle_size (and +1 if outputting unigrams)"
+                    + " must be less than or equal to: [" + maxAllowedShingleDiff + "] but was [" + shingleDiff + "]. This limit"
+                    + " can be set by changing the [" + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey() + "] index level setting.",
+                ex.getMessage());
         }
     }
 }

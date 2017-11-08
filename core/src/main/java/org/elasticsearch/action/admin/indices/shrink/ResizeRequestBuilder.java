@@ -18,31 +18,32 @@
  */
 package org.elasticsearch.action.admin.indices.shrink;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 
-public class ShrinkRequestBuilder extends AcknowledgedRequestBuilder<ShrinkRequest, ShrinkResponse,
-    ShrinkRequestBuilder> {
-    public ShrinkRequestBuilder(ElasticsearchClient client, ShrinkAction action) {
-        super(client, action, new ShrinkRequest());
+public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeRequest, ResizeResponse,
+    ResizeRequestBuilder> {
+    public ResizeRequestBuilder(ElasticsearchClient client, Action<ResizeRequest, ResizeResponse, ResizeRequestBuilder> action) {
+        super(client, action, new ResizeRequest());
     }
 
 
-    public ShrinkRequestBuilder setTargetIndex(CreateIndexRequest request) {
-        this.request.setShrinkIndex(request);
+    public ResizeRequestBuilder setTargetIndex(CreateIndexRequest request) {
+        this.request.setTargetIndex(request);
         return this;
     }
 
-    public ShrinkRequestBuilder setSourceIndex(String index) {
+    public ResizeRequestBuilder setSourceIndex(String index) {
         this.request.setSourceIndex(index);
         return this;
     }
 
-    public ShrinkRequestBuilder setSettings(Settings settings) {
-        this.request.getShrinkIndexRequest().settings(settings);
+    public ResizeRequestBuilder setSettings(Settings settings) {
+        this.request.getTargetIndexRequest().settings(settings);
         return this;
     }
 
@@ -55,12 +56,12 @@ public class ShrinkRequestBuilder extends AcknowledgedRequestBuilder<ShrinkReque
      * non-negative integer, up to the number of copies per shard (number of replicas + 1),
      * to wait for the desired amount of shard copies to become active before returning.
      * Index creation will only wait up until the timeout value for the number of shard copies
-     * to be active before returning.  Check {@link ShrinkResponse#isShardsAcked()} to
+     * to be active before returning.  Check {@link ResizeResponse#isShardsAcked()} to
      * determine if the requisite shard copies were all started before returning or timing out.
      *
      * @param waitForActiveShards number of active shard copies to wait on
      */
-    public ShrinkRequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+    public ResizeRequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
         this.request.setWaitForActiveShards(waitForActiveShards);
         return this;
     }
@@ -70,7 +71,12 @@ public class ShrinkRequestBuilder extends AcknowledgedRequestBuilder<ShrinkReque
      * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
      * to get the ActiveShardCount.
      */
-    public ShrinkRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
+    public ResizeRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
         return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+    public ResizeRequestBuilder setResizeType(ResizeType type) {
+        this.request.setResizeType(type);
+        return this;
     }
 }

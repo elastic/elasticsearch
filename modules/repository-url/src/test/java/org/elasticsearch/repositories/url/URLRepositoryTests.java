@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,7 +41,8 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        new URLRepository(repositoryMetaData, new Environment(baseSettings), new NamedXContentRegistry(Collections.emptyList()));
+        new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
+            new NamedXContentRegistry(Collections.emptyList()));
     }
 
     public void testIfNotWhiteListedMustSetRepoURL() throws IOException {
@@ -51,7 +53,8 @@ public class URLRepositoryTests extends ESTestCase {
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
         try {
-            new URLRepository(repositoryMetaData, new Environment(baseSettings), new NamedXContentRegistry(Collections.emptyList()));
+            new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
+                new NamedXContentRegistry(Collections.emptyList()));
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
             String msg = "[url] file url [" + repoPath
@@ -71,7 +74,8 @@ public class URLRepositoryTests extends ESTestCase {
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
         try {
-            new URLRepository(repositoryMetaData, new Environment(baseSettings), new NamedXContentRegistry(Collections.emptyList()));
+            new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
+                new NamedXContentRegistry(Collections.emptyList()));
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
             assertEquals("[url] unsupported url protocol [file] from URL [" + repoPath +"]", e.getMessage());

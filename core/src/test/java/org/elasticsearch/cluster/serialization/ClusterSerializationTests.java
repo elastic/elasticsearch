@@ -154,4 +154,58 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         assertThat(stateAfterDiffs.custom(SnapshotDeletionsInProgress.TYPE), notNullValue());
     }
 
+    public void testObjectReuseWhenApplyingClusterStateDiff() throws Exception {
+        IndexMetaData indexMetaData
+            = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1).build();
+        MetaData metaData = MetaData.builder().put(indexMetaData, true).build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+
+        ClusterState clusterState1 = ClusterState.builder(new ClusterName("clusterName1"))
+            .metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState2 = ClusterState.builder(clusterState1).incrementVersion()
+            .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(1).build(), true)).build();
+        ClusterState clusterState3 = ClusterState.builder(clusterState1).incrementVersion()
+            .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(2).build(), true)).build();
+
+        assertNotSame("Should have created a new, equivalent, IndexMetaData object in clusterState2",
+            clusterState1.metaData().index("test"), clusterState2.metaData().index("test"));
+        assertNotEquals("Should have created a new, different, IndexMetaData object in clusterState3",
+            clusterState2.metaData().index("test"), clusterState3.metaData().index("test"));
+
+        BytesStreamOutput outStream = new BytesStreamOutput();
+        outStream.setVersion(Version.CURRENT);
+        clusterState1.writeTo(outStream);
+        StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        ClusterState serializedClusterState1 = ClusterState.readFrom(inStream, newNode("node4"));
+
+        outStream = new BytesStreamOutput();
+        outStream.setVersion(Version.CURRENT);
+        clusterState2.diff(clusterState1).writeTo(outStream);
+        inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        Diff<ClusterState> diff = ClusterState.readDiffFrom(inStream, newNode("node4"));
+
+        ClusterState serializedClusterState2 = diff.apply(serializedClusterState1);
+
+        assertSame("Unchanged metadata should not create new IndexMetaData objects",
+            serializedClusterState1.metaData().index("test"), serializedClusterState2.metaData().index("test"));
+        assertSame("Unchanged routing table should not create new IndexRoutingTable objects",
+            serializedClusterState1.routingTable().index("test"), serializedClusterState2.routingTable().index("test"));
+
+        outStream = new BytesStreamOutput();
+        outStream.setVersion(Version.CURRENT);
+        clusterState3.diff(clusterState2).writeTo(outStream);
+        inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        diff = ClusterState.readDiffFrom(inStream, newNode("node4"));
+
+        ClusterState serializedClusterState3 = diff.apply(serializedClusterState2);
+
+        assertNotEquals("Should have a new IndexMetaData object",
+            serializedClusterState2.metaData().index("test"), serializedClusterState3.metaData().index("test"));
+        assertSame("Unchanged routing table should not create new IndexRoutingTable objects",
+            serializedClusterState2.routingTable().index("test"), serializedClusterState3.routingTable().index("test"));
+    }
 }

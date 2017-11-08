@@ -238,7 +238,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Return the configuration name used for finding transitive deps of the given dependency. */
     private static String transitiveDepConfigName(String groupId, String artifactId, String version) {
-        return "_transitive_${groupId}:${artifactId}:${version}"
+        return "_transitive_${groupId}_${artifactId}_${version}"
     }
 
     /**

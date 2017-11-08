@@ -162,7 +162,7 @@ public final class ELambda extends AExpression implements ILambda {
         List<String> paramTypes = new ArrayList<>(captures.size() + actualParamTypeStrs.size());
         List<String> paramNames = new ArrayList<>(captures.size() + paramNameStrs.size());
         for (Variable var : captures) {
-            paramTypes.add(var.type.name);
+            paramTypes.add(Definition.ClassToName(var.clazz));
             paramNames.add(var.name);
         }
         paramTypes.addAll(actualParamTypeStrs);
@@ -172,7 +172,7 @@ public final class ELambda extends AExpression implements ILambda {
         desugared = new SFunction(reserved, location, Definition.ClassToName(returnType), name,
                                             paramTypes, paramNames, statements, true);
         desugared.generateSignature(locals.getDefinition());
-        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), locals.getDefinition().ClassToType(returnType),
+        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType,
                                                 desugared.parameters, captures.size(), reserved.getMaxLoopCounter()));
 
         // setup method reference to synthetic method
@@ -191,7 +191,7 @@ public final class ELambda extends AExpression implements ILambda {
             // check casts between the interface method and the delegate method are legal
             for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
                 Class<?> from = interfaceMethod.arguments.get(i);
-                Class<?> to = Definition.TypeToClass(desugared.parameters.get(i + captures.size()).type);
+                Class<?> to = desugared.parameters.get(i + captures.size()).clazz;
                 AnalyzerCaster.getLegalCast(location, from, to, false, true);
             }
 
@@ -211,7 +211,7 @@ public final class ELambda extends AExpression implements ILambda {
             writer.writeDebugInfo(location);
             // load captures
             for (Variable capture : captures) {
-                writer.visitVarInsn(MethodWriter.getType(capture.type.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
+                writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
 
             writer.invokeDynamic(
@@ -229,7 +229,7 @@ public final class ELambda extends AExpression implements ILambda {
             writer.push((String)null);
             // load captures
             for (Variable capture : captures) {
-                writer.visitVarInsn(MethodWriter.getType(capture.type.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
+                writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
         }
 
@@ -246,7 +246,7 @@ public final class ELambda extends AExpression implements ILambda {
     public org.objectweb.asm.Type[] getCaptures() {
         org.objectweb.asm.Type[] types = new org.objectweb.asm.Type[captures.size()];
         for (int i = 0; i < types.length; i++) {
-            types[i] = MethodWriter.getType(captures.get(i).type.clazz);
+            types[i] = MethodWriter.getType(captures.get(i).clazz);
         }
         return types;
     }

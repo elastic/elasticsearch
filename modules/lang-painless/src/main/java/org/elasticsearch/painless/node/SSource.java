@@ -186,8 +186,8 @@ public final class SSource extends AStatement {
     @Override
     void analyze(Locals program) {
         for (SFunction function : functions) {
-            Locals functionLocals = Locals.newFunctionScope(program, program.getDefinition().ClassToType(function.rtnType),
-                                                            function.parameters, function.reserved.getMaxLoopCounter());
+            Locals functionLocals =
+                Locals.newFunctionScope(program, function.rtnType, function.parameters, function.reserved.getMaxLoopCounter());
             function.analyze(functionLocals);
         }
 
@@ -204,7 +204,7 @@ public final class SSource extends AStatement {
 
             if (reserved.getUsedVariables().contains(name)) {
                 Definition.Type rtn = scriptClassInfo.getGetReturns().get(get);
-                mainMethod.addVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
+                mainMethod.addVariable(new Location("getter [" + name + "]", 0), Definition.TypeToClass(rtn), name, true);
                 getMethods.add(method);
             }
         }

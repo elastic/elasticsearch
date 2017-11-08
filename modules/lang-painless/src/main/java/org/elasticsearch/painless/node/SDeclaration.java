@@ -61,21 +61,21 @@ public final class SDeclaration extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        final Type type;
+        Class<?> clazz;
 
         try {
-            type = locals.getDefinition().getType(this.type);
+            clazz = Definition.TypeToClass(locals.getDefinition().getType(this.type));
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         if (expression != null) {
-            expression.expected = Definition.TypeToClass(type);
+            expression.expected = clazz;
             expression.analyze(locals);
             expression = expression.cast(locals);
         }
 
-        variable = locals.addVariable(location, type, name, false);
+        variable = locals.addVariable(location, clazz, name, false);
     }
 
     @Override
@@ -83,7 +83,7 @@ public final class SDeclaration extends AStatement {
         writer.writeStatementOffset(location);
 
         if (expression == null) {
-            Class<?> sort = variable.type.clazz;
+            Class<?> sort = variable.clazz;
 
             if (sort == void.class || sort == boolean.class || sort == byte.class ||
                 sort == short.class || sort == char.class || sort == int.class) {
@@ -101,7 +101,7 @@ public final class SDeclaration extends AStatement {
             expression.write(writer, globals);
         }
 
-        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 
     @Override

@@ -224,8 +224,7 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
-            externalSearcherManager = createSearcherManager(new SearchFactory(logger, isClosed,
-                engineConfig));
+            externalSearcherManager = createSearcherManager(new SearchFactory(logger, isClosed, engineConfig));
             internalSearcherManager = externalSearcherManager.internalSearcherManager;
             this.internalSearcherManager = internalSearcherManager;
             this.externalSearcherManager = externalSearcherManager;
@@ -265,8 +264,8 @@ public class InternalEngine extends Engine {
         private final SearcherFactory searcherFactory;
         private final SearcherManager internalSearcherManager;
 
-        ExternalSearcherManager(SearcherManager manager, SearcherFactory searcherFactory) throws IOException {
-            IndexSearcher acquire = manager.acquire();
+        ExternalSearcherManager(SearcherManager internalSearcherManager, SearcherFactory searcherFactory) throws IOException {
+            IndexSearcher acquire = internalSearcherManager.acquire();
             try {
                 IndexReader indexReader = acquire.getIndexReader();
                 assert indexReader instanceof ElasticsearchDirectoryReader:
@@ -274,10 +273,10 @@ public class InternalEngine extends Engine {
                 indexReader.incRef(); // steal the reader - getSearcher will decrement if it fails
                 current = SearcherManager.getSearcher(searcherFactory, indexReader, null);
             } finally {
-                manager.release(acquire);
+                internalSearcherManager.release(acquire);
             }
             this.searcherFactory = searcherFactory;
-            this.internalSearcherManager = manager;
+            this.internalSearcherManager = internalSearcherManager;
         }
 
         @Override
@@ -526,15 +525,16 @@ public class InternalEngine extends Engine {
         return uuid;
     }
 
-    private ExternalSearcherManager createSearcherManager(SearchFactory factory) throws EngineException {
+    private ExternalSearcherManager createSearcherManager(SearchFactory externalSearcherFactory) throws EngineException {
         boolean success = false;
-        SearcherManager searcherManager = null;
+        SearcherManager internalSearcherManager = null;
         try {
             try {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                searcherManager = new SearcherManager(directoryReader, new SearcherFactory());
-                lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
-                ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(searcherManager, factory);
+                internalSearcherManager = new SearcherManager(directoryReader, new SearcherFactory());
+                lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
+                ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
+                    externalSearcherFactory);
                 success = true;
                 return externalSearcherManager;
             } catch (IOException e) {
@@ -548,7 +548,7 @@ public class InternalEngine extends Engine {
             }
         } finally {
             if (success == false) { // release everything we created on a failure
-                IOUtils.closeWhileHandlingException(searcherManager, indexWriter);
+                IOUtils.closeWhileHandlingException(internalSearcherManager, indexWriter);
             }
         }
     }

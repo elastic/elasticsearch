@@ -775,32 +775,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
             adaptedNewClusterState = newClusterState;
         } else if (newClusterState.nodes().isLocalNodeElectedMaster() == false) {
-            // some optimizations to make sure we keep old objects where possible
             ClusterState.Builder builder = ClusterState.builder(newClusterState);
-
-            // if the routing table did not change, use the original one
-            if (newClusterState.routingTable().version() == currentState.routingTable().version()) {
-                builder.routingTable(currentState.routingTable());
-            }
-            // same for metadata
-            if (newClusterState.metaData().version() == currentState.metaData().version()) {
-                builder.metaData(currentState.metaData());
-            } else {
-                // if its not the same version, only copy over new indices or ones that changed the version
-                MetaData.Builder metaDataBuilder = MetaData.builder(newClusterState.metaData()).removeAllIndices();
-                for (IndexMetaData indexMetaData : newClusterState.metaData()) {
-                    IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.getIndex());
-                    if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.getIndexUUID()) &&
-                        currentIndexMetaData.getVersion() == indexMetaData.getVersion()) {
-                        // safe to reuse
-                        metaDataBuilder.put(currentIndexMetaData, false);
-                    } else {
-                        metaDataBuilder.put(indexMetaData, false);
-                    }
-                }
-                builder.metaData(metaDataBuilder);
-            }
-
             adaptedNewClusterState = builder.build();
         } else {
             adaptedNewClusterState = newClusterState;

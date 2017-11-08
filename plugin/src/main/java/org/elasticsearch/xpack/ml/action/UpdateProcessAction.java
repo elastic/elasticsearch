@@ -142,7 +142,7 @@ public class UpdateProcessAction extends
             super.readFrom(in);
             modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
             if (in.readBoolean()) {
-                in.readList(JobUpdate.DetectorUpdate::new);
+                detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
             }
         }
 

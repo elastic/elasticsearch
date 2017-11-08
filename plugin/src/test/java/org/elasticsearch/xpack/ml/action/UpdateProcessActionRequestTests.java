@@ -9,6 +9,7 @@ import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class UpdateProcessActionRequestTests extends AbstractStreamableTestCase<UpdateProcessAction.Request> {
@@ -22,9 +23,10 @@ public class UpdateProcessActionRequestTests extends AbstractStreamableTestCase<
         }
         List<JobUpdate.DetectorUpdate> updates = null;
         if (randomBoolean()) {
+            updates = new ArrayList<>();
             int detectorUpdateCount = randomIntBetween(0, 5);
             for (int i = 0; i < detectorUpdateCount; i++) {
-                new JobUpdate.DetectorUpdate(randomInt(), randomAlphaOfLength(10), null);
+                updates.add(new JobUpdate.DetectorUpdate(randomInt(), randomAlphaOfLength(10), null));
             }
         }
         return new UpdateProcessAction.Request(randomAlphaOfLength(10), config, updates);

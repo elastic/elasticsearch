@@ -125,8 +125,13 @@ And the following may be the response:
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
-The following snippet has no sorts specified; it simply truncates the result so that
-only the second bucket is returned:
+==== Truncating without sorting
+
+It is also possible to use this aggregation in order to truncate the result buckets
+without doing any sorting. To do so, just use the `from` and/or `size` parameters
+without specifying `sort`.
+
+The following example simply truncates the result so that only the second bucket is returned:
 
 [source,js]
 --------------------------------------------------
@@ -154,7 +159,7 @@ POST /sales/_search
 // CONSOLE
 // TEST[setup:sales]
 
-And the following may be the response:
+Response:
 
 [source,js]
 --------------------------------------------------

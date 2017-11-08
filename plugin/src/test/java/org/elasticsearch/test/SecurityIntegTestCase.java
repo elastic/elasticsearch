@@ -439,7 +439,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     protected InternalSecurityClient internalSecurityClient() {
-        Client client = client();
+        return internalSecurityClient(client());
+    }
+
+    protected InternalSecurityClient internalSecurityClient(Client client) {
         return new InternalSecurityClient(client.settings(), client.threadPool(), client);
     }
 

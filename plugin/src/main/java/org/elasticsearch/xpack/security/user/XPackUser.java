@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.user;
 
+import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
@@ -18,7 +19,9 @@ public class XPackUser extends User {
     public static final String ROLE_NAME = NAME;
     public static final Role ROLE = Role.builder(new RoleDescriptor(ROLE_NAME, new String[] { "all" },
             new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("/@&~(\\.security*)/").privileges("all").build()},
+                    RoleDescriptor.IndicesPrivileges.builder().indices("/@&~(\\.security.*)/").privileges("all").build(),
+                    RoleDescriptor.IndicesPrivileges.builder().indices(IndexAuditTrail.INDEX_NAME_PREFIX + "-*").privileges("read").build()
+            },
             new String[] { "*" },
             MetadataUtils.DEFAULT_RESERVED_METADATA), null).build();
     public static final XPackUser INSTANCE = new XPackUser();

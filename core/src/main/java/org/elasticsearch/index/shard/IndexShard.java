@@ -421,12 +421,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 final Runnable adjustBreaker = () -> {
                     CircuitBreaker cb = circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-                    final SegmentsStats ss = segmentStats(false);
-                    final long newMemory = ss.getMemoryInBytes();
-                    final long currentMemory = memoryAccountingBytes.get();
-                    if (newMemory != currentMemory) {
-                        // Being paranoid about multiple refresh listeners executing at a time here
-                        if (memoryAccountingBytes.compareAndSet(currentMemory, newMemory)) {
+                    synchronized (this) {
+                        final SegmentsStats ss = segmentStats(false);
+                        final long newMemory = ss.getMemoryInBytes();
+                        final long currentMemory = memoryAccountingBytes.get();
+                        if (newMemory != currentMemory) {
+                            memoryAccountingBytes.set(newMemory) ;
                             cb.addWithoutBreaking(newMemory - currentMemory);
                         }
                     }

@@ -19,15 +19,13 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.transport.nio.NetworkBytesReference;
+import org.elasticsearch.transport.nio.ChannelBuffer;
 import org.elasticsearch.transport.nio.SocketSelector;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
-import java.util.Arrays;
 
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
@@ -50,6 +48,8 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         if (writeContext.hasQueuedWriteOps()) {
             writeContext.clearQueuedWriteOps(new ClosedChannelException());
         }
+        // TODO: Look at testing this line
+        readContext.close();
 
         super.closeFromSelector();
     }
@@ -59,34 +59,36 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return socketSelector;
     }
 
-    public int write(NetworkBytesReference[] references) throws IOException {
+    public int write(ChannelBuffer bytes) throws IOException {
         int written;
-        if (references.length == 1) {
-            written = socketChannel.write(references[0].getReadByteBuffer());
+        if (bytes.isComposite() == false) {
+            written = socketChannel.write(bytes.postIndexByteBuffer());
         } else {
-            ByteBuffer[] buffers = new ByteBuffer[references.length];
-            for (int i = 0; i < references.length; ++i) {
-                buffers[i] = references[i].getReadByteBuffer();
-            }
-            written = (int) socketChannel.write(buffers);
+            written = (int) socketChannel.write(bytes.postIndexByteBuffers());
         }
         if (written <= 0) {
             return written;
         }
 
-        NetworkBytesReference.vectorizedIncrementReadIndexes(Arrays.asList(references), written);
+        bytes.incrementIndex(written);
 
         return written;
     }
 
-    public int read(NetworkBytesReference reference) throws IOException {
-        int bytesRead = socketChannel.read(reference.getWriteByteBuffer());
+    public int read(ChannelBuffer bytes) throws IOException {
+        int bytesRead;
+        if (bytes.isComposite()) {
+            bytesRead = (int) socketChannel.read(bytes.postIndexByteBuffers());
+        } else {
+            bytesRead = socketChannel.read(bytes.postIndexByteBuffer());
+
+        }
 
         if (bytesRead == -1) {
             return bytesRead;
         }
 
-        reference.incrementWrite(bytesRead);
+        bytes.incrementIndex(bytesRead);
         return bytesRead;
     }
 

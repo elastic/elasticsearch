@@ -73,12 +73,14 @@ public class NioTransport extends TcpTransport<NioChannel> {
     private final OpenChannels openChannels = new OpenChannels(logger);
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
+    private final BigArrays bigArrays;
     private NioClient client;
     private int acceptorNumber;
 
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                         NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        this.bigArrays = bigArrays;
     }
 
     @Override
@@ -206,7 +208,8 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
-                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, tcpReadHandler));
+                    ChannelFactory channelFactory = new ChannelFactory(profileSettings, tcpReadHandler, bigArrays);
+                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, channelFactory);
                     bindServer(profileSettings);
                 }
             }
@@ -243,7 +246,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
     private NioClient createClient() {
         Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), tcpReadHandler);
+        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), tcpReadHandler, bigArrays);
         return new NioClient(logger, openChannels, selectorSupplier, defaultConnectionProfile.getConnectTimeout(), channelFactory);
     }
 

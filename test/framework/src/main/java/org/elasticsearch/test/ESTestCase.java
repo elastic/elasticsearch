@@ -288,7 +288,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void after() throws Exception {
-        checkStaticState();
+        checkStaticState(false);
         // We check threadContext != null rather than enableWarningsCheck()
         // because after methods are still called in the event that before
         // methods failed, in which case threadContext might not have been
@@ -394,8 +394,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
-    protected static void checkStaticState() throws Exception {
-        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    protected static void checkStaticState(boolean afterClass) throws Exception {
+        if (afterClass) {
+            MockPageCacheRecycler.ensureAllPagesAreReleased();
+        }
         MockBigArrays.ensureAllArraysAreReleased();
 
         // ensure no one changed the status logger level on us

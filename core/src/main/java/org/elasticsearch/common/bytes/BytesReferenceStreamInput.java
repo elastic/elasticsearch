@@ -30,14 +30,14 @@ import java.io.IOException;
  * generic stream access to {@link BytesReference} instances without materializing the
  * underlying bytes reference.
  */
-final class BytesReferenceStreamInput extends StreamInput {
+public final class BytesReferenceStreamInput extends StreamInput {
     private final BytesRefIterator iterator;
     private int sliceIndex;
     private BytesRef slice;
     private final int length; // the total size of the stream
     private int offset; // the current position of the stream
 
-    BytesReferenceStreamInput(BytesRefIterator iterator, final int length) throws IOException {
+    public BytesReferenceStreamInput(BytesRefIterator iterator, final int length) throws IOException {
         this.iterator = iterator;
         this.slice = iterator.next();
         this.length = length;

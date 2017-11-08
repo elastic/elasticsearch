@@ -2072,7 +2072,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
-                checkStaticState();
+                checkStaticState(true);
             } finally {
                 INSTANCE = null;
             }

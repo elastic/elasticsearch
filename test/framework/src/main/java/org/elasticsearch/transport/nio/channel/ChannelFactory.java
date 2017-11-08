@@ -22,6 +22,7 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.AcceptingSelector;
@@ -41,21 +42,23 @@ public class ChannelFactory {
 
     private final TcpReadHandler handler;
     private final RawChannelFactory rawChannelFactory;
+    private final BigArrays bigArrays;
 
-    public ChannelFactory(TcpTransport.ProfileSettings profileSettings, TcpReadHandler handler) {
-        this(new RawChannelFactory(profileSettings), handler);
+    public ChannelFactory(TcpTransport.ProfileSettings profileSettings, TcpReadHandler handler, BigArrays bigArrays) {
+        this(new RawChannelFactory(profileSettings), handler, bigArrays);
     }
 
-    ChannelFactory(RawChannelFactory rawChannelFactory, TcpReadHandler handler) {
+    ChannelFactory(RawChannelFactory rawChannelFactory, TcpReadHandler handler, BigArrays bigArrays) {
         this.handler = handler;
         this.rawChannelFactory = rawChannelFactory;
+        this.bigArrays = bigArrays;
     }
 
     public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector,
                                            Consumer<NioChannel> closeListener) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
         NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel, selector);
-        channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
+        channel.setContexts(new TcpReadContext(channel, handler, bigArrays), new TcpWriteContext(channel));
         channel.getCloseFuture().addListener(ActionListener.wrap(closeListener::accept, (e) -> closeListener.accept(channel)));
         scheduleChannel(channel, selector);
         return channel;
@@ -65,7 +68,7 @@ public class ChannelFactory {
                                              Consumer<NioChannel> closeListener) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel, selector);
-        channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
+        channel.setContexts(new TcpReadContext(channel, handler, bigArrays), new TcpWriteContext(channel));
         channel.getCloseFuture().addListener(ActionListener.wrap(closeListener::accept, (e) -> closeListener.accept(channel)));
         scheduleChannel(channel, selector);
         return channel;

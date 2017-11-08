@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.SocketSelector;
@@ -55,7 +56,7 @@ public class ChannelFactoryTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setupFactory() throws IOException {
         rawChannelFactory = mock(ChannelFactory.RawChannelFactory.class);
-        channelFactory = new ChannelFactory(rawChannelFactory, mock(TcpReadHandler.class));
+        channelFactory = new ChannelFactory(rawChannelFactory, mock(TcpReadHandler.class), BigArrays.NON_RECYCLING_INSTANCE);
         listener = mock(Consumer.class);
         socketSelector = mock(SocketSelector.class);
         acceptingSelector = mock(AcceptingSelector.class);

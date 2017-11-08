@@ -25,6 +25,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
@@ -461,6 +462,18 @@ public class BigArrays implements Releasable {
             }
         }
         return array;
+    }
+
+    /**
+     * Allocate a new {@link BytesArray}.
+     */
+    public BytesArray newBytePage() {
+        if (recycler != null) {
+            final Recycler.V<byte[]> page = recycler.bytePage(false);
+            return new BytesArray(page.v(), page);
+        } else {
+            return new BytesArray(new byte[BYTE_PAGE_SIZE], null);
+        }
     }
 
     /**

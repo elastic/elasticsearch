@@ -80,7 +80,7 @@ public class TcpWriteContextTests extends ESTestCase {
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
-        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteReferences()[0].getReadByteBuffer());
+        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteReferences().postIndexByteBuffer());
     }
 
     public void testSendMessageFromSameThreadIsQueuedInChannel() throws Exception {
@@ -97,7 +97,7 @@ public class TcpWriteContextTests extends ESTestCase {
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
-        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteReferences()[0].getReadByteBuffer());
+        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteReferences().postIndexByteBuffer());
     }
 
     public void testWriteIsQueuedInChannel() throws Exception {
@@ -111,7 +111,9 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testWriteOpsCanBeCleared() throws Exception {
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        writeContext.queueWriteOperations(new WriteOperation(channel,  new BytesArray(generateBytes(10)), listener));
+        WriteOperation writeOperation = mock(WriteOperation.class);
+        when(writeOperation.getListener()).thenReturn(listener);
+        writeContext.queueWriteOperations(writeOperation);
 
         assertTrue(writeContext.hasQueuedWriteOps());
 
@@ -119,6 +121,7 @@ public class TcpWriteContextTests extends ESTestCase {
         writeContext.clearQueuedWriteOps(e);
 
         verify(listener).onFailure(e);
+        verify(writeOperation).close();
 
         assertFalse(writeContext.hasQueuedWriteOps());
     }
@@ -137,6 +140,7 @@ public class TcpWriteContextTests extends ESTestCase {
 
         verify(writeOperation).flush();
         verify(listener).onResponse(channel);
+        verify(writeOperation).close();
         assertFalse(writeContext.hasQueuedWriteOps());
     }
 
@@ -152,6 +156,7 @@ public class TcpWriteContextTests extends ESTestCase {
         writeContext.flushChannel();
 
         verify(listener, times(0)).onResponse(channel);
+        verify(writeOperation, times(0)).close();
         assertTrue(writeContext.hasQueuedWriteOps());
     }
 
@@ -174,7 +179,9 @@ public class TcpWriteContextTests extends ESTestCase {
         writeContext.flushChannel();
 
         verify(listener).onResponse(channel);
+        verify(writeOperation1).close();
         verify(listener2, times(0)).onResponse(channel);
+        verify(writeOperation2, times(0)).close();
         assertTrue(writeContext.hasQueuedWriteOps());
 
         when(writeOperation2.isFullyFlushed()).thenReturn(true);
@@ -182,6 +189,7 @@ public class TcpWriteContextTests extends ESTestCase {
         writeContext.flushChannel();
 
         verify(listener2).onResponse(channel);
+        verify(writeOperation2).close();
         assertFalse(writeContext.hasQueuedWriteOps());
     }
 
@@ -199,6 +207,7 @@ public class TcpWriteContextTests extends ESTestCase {
         expectThrows(IOException.class, () -> writeContext.flushChannel());
 
         verify(listener).onFailure(exception);
+        verify(writeOperation).close();
         assertFalse(writeContext.hasQueuedWriteOps());
     }
 

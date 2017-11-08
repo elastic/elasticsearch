@@ -19,9 +19,11 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.common.lease.Releasable;
+
 import java.io.IOException;
 
-public interface ReadContext {
+public interface ReadContext extends Releasable {
 
     int read() throws IOException;
 

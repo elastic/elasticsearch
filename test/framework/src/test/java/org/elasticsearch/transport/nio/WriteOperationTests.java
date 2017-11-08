@@ -30,7 +30,6 @@ import java.io.IOException;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class WriteOperationTests extends ESTestCase {
@@ -51,8 +50,8 @@ public class WriteOperationTests extends ESTestCase {
 
 
         when(channel.write(any())).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference[] refs = (NetworkBytesReference[]) invocationOnMock.getArguments()[0];
-            refs[0].incrementRead(10);
+            ChannelBuffer bytes = (ChannelBuffer) invocationOnMock.getArguments()[0];
+            bytes.incrementIndex(10);
             return 10;
         });
 
@@ -65,14 +64,14 @@ public class WriteOperationTests extends ESTestCase {
         WriteOperation writeOp = new WriteOperation(channel, new BytesArray(new byte[10]), listener);
 
         when(channel.write(any())).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference[] refs = (NetworkBytesReference[]) invocationOnMock.getArguments()[0];
-            refs[0].incrementRead(5);
+            ChannelBuffer bytes = (ChannelBuffer) invocationOnMock.getArguments()[0];
+            bytes.incrementIndex(5);
             return 5;
         });
 
         writeOp.flush();
 
         assertFalse(writeOp.isFullyFlushed());
-        assertEquals(5, writeOp.getByteReferences()[0].getReadRemaining());
+        assertEquals(5, writeOp.getByteReferences().getRemaining());
     }
 }

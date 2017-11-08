@@ -19,12 +19,13 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.nio.ChannelBuffer;
+import org.elasticsearch.transport.nio.ChannelMessage;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -36,19 +37,17 @@ public class TcpFrameDecoder {
 
     private int expectedMessageLength = -1;
 
-    public BytesReference decode(BytesReference bytesReference, int currentBufferSize) throws IOException {
+    public ChannelMessage decode(ChannelBuffer buffer) throws IOException {
+        int currentBufferSize = buffer.getIndex();
         if (currentBufferSize >= 6) {
-            int messageLength = readHeaderBuffer(bytesReference);
+            int messageLength = readHeaderBuffer(buffer);
             int totalLength = messageLength + HEADER_SIZE;
             if (totalLength > currentBufferSize) {
                 expectedMessageLength = totalLength;
                 return null;
-            } else if (totalLength == bytesReference.length()) {
-                expectedMessageLength = -1;
-                return bytesReference;
             } else {
                 expectedMessageLength = -1;
-                return bytesReference.slice(0, totalLength);
+                return buffer.sliceOffMessage(totalLength);
             }
         } else {
             return null;
@@ -59,7 +58,7 @@ public class TcpFrameDecoder {
         return expectedMessageLength;
     }
 
-    private int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
+    private int readHeaderBuffer(ChannelBuffer headerBuffer) throws IOException {
         if (headerBuffer.get(0) != 'E' || headerBuffer.get(1) != 'S') {
             if (appearsToBeHTTP(headerBuffer)) {
                 throw new TcpTransport.HttpOnTransportException("This is not a HTTP port");
@@ -94,7 +93,7 @@ public class TcpFrameDecoder {
         return messageLength;
     }
 
-    private static boolean appearsToBeHTTP(BytesReference headerBuffer) {
+    private static boolean appearsToBeHTTP(ChannelBuffer headerBuffer) {
         return bufferStartsWith(headerBuffer, "GET") ||
             bufferStartsWith(headerBuffer, "POST") ||
             bufferStartsWith(headerBuffer, "PUT") ||
@@ -106,7 +105,7 @@ public class TcpFrameDecoder {
             bufferStartsWith(headerBuffer, "TRACE");
     }
 
-    private static boolean bufferStartsWith(BytesReference buffer, String method) {
+    private static boolean bufferStartsWith(ChannelBuffer buffer, String method) {
         char[] chars = method.toCharArray();
         for (int i = 0; i < chars.length; i++) {
             if (buffer.get(i) != chars[i]) {

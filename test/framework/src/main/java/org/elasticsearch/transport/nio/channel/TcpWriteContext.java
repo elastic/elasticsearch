@@ -82,7 +82,11 @@ public class TcpWriteContext implements WriteContext {
     public void clearQueuedWriteOps(Exception e) {
         assert channel.getSelector().isOnCurrentThread() : "Must be on selector thread to clear queued writes";
         for (WriteOperation op : queued) {
-            op.getListener().onFailure(e);
+            try {
+                op.getListener().onFailure(e);
+            } finally {
+                op.close();
+            }
         }
         queued.clear();
     }
@@ -91,12 +95,20 @@ public class TcpWriteContext implements WriteContext {
         try {
             headOp.flush();
         } catch (IOException e) {
-            headOp.getListener().onFailure(e);
+            try {
+                headOp.getListener().onFailure(e);
+            } finally {
+                headOp.close();
+            }
             throw e;
         }
 
         if (headOp.isFullyFlushed()) {
-            headOp.getListener().onResponse(channel);
+            try {
+                headOp.getListener().onResponse(channel);
+            } finally {
+                headOp.close();
+            }
         } else {
             queued.push(headOp);
         }

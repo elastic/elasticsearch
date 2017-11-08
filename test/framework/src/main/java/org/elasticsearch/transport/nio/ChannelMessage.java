@@ -17,29 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.common.bytes;
+package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
 
-/**
- * An extension to {@link PagedBytesReference} that requires releasing its content. This
- * class exists to make it explicit when a bytes reference needs to be released, and when not.
- */
-public final class ReleasablePagedBytesReference extends PagedBytesReference implements Releasable {
+public class ChannelMessage implements Releasable {
 
-    private final Releasable releasable;
+    private final BytesReference content;
+    private final Releasable[] closeables;
 
-    public ReleasablePagedBytesReference(ByteArray byteArray, int length, Releasable releasable) {
-        super(byteArray, length);
-        this.releasable = releasable;
+    ChannelMessage(BytesReference[] messageReferences, Releasable[] closeables) {
+        content = new CompositeBytesReference(messageReferences);
+        this.closeables = closeables;
+    }
+
+
+    public BytesReference getContent() {
+        return content;
     }
 
     @Override
     public void close() {
-        Releasables.close(releasable);
+        Releasables.close(closeables);
     }
-
 }

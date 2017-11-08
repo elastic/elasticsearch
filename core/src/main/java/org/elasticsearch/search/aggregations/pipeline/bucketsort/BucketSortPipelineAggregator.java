@@ -129,7 +129,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
             this.sortValues = resolveAndCacheSortValues();
         }
 
-        private final Map<FieldSortBuilder, Comparable<Object>> resolveAndCacheSortValues() {
+        private Map<FieldSortBuilder, Comparable<Object>> resolveAndCacheSortValues() {
             Map<FieldSortBuilder, Comparable<Object>> resolved = new HashMap<>();
             for (FieldSortBuilder sort : sorts) {
                 String sortField = sort.getFieldName();

@@ -43,6 +43,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -154,6 +155,16 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         assertThat(stateAfterDiffs.custom(SnapshotDeletionsInProgress.TYPE), notNullValue());
     }
 
+    private ClusterState updateUsingSerialisedDiff(ClusterState original, Diff<ClusterState> diff) throws IOException {
+        BytesStreamOutput outStream = new BytesStreamOutput();
+        outStream.setVersion(Version.CURRENT);
+        diff.writeTo(outStream);
+        StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        diff = ClusterState.readDiffFrom(inStream, newNode("node-name"));
+        return diff.apply(original);
+    }
+
     public void testObjectReuseWhenApplyingClusterStateDiff() throws Exception {
         IndexMetaData indexMetaData
             = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1).build();
@@ -180,28 +191,14 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
         ClusterState serializedClusterState1 = ClusterState.readFrom(inStream, newNode("node4"));
 
-        outStream = new BytesStreamOutput();
-        outStream.setVersion(Version.CURRENT);
-        clusterState2.diff(clusterState1).writeTo(outStream);
-        inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
-            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
-        Diff<ClusterState> diff = ClusterState.readDiffFrom(inStream, newNode("node4"));
-
-        ClusterState serializedClusterState2 = diff.apply(serializedClusterState1);
+        ClusterState serializedClusterState2 = updateUsingSerialisedDiff(serializedClusterState1, clusterState2.diff(clusterState1));
 
         assertSame("Unchanged metadata should not create new IndexMetaData objects",
             serializedClusterState1.metaData().index("test"), serializedClusterState2.metaData().index("test"));
         assertSame("Unchanged routing table should not create new IndexRoutingTable objects",
             serializedClusterState1.routingTable().index("test"), serializedClusterState2.routingTable().index("test"));
 
-        outStream = new BytesStreamOutput();
-        outStream.setVersion(Version.CURRENT);
-        clusterState3.diff(clusterState2).writeTo(outStream);
-        inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
-            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
-        diff = ClusterState.readDiffFrom(inStream, newNode("node4"));
-
-        ClusterState serializedClusterState3 = diff.apply(serializedClusterState2);
+        ClusterState serializedClusterState3 = updateUsingSerialisedDiff(serializedClusterState2, clusterState3.diff(clusterState2));
 
         assertNotEquals("Should have a new IndexMetaData object",
             serializedClusterState2.metaData().index("test"), serializedClusterState3.metaData().index("test"));

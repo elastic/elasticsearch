@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.notification.email.attachment;
 
 import com.fasterxml.jackson.core.io.JsonEOFException;
+
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -225,7 +227,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
                 // closing json bracket is missing
                 .thenReturn(new HttpResponse(200, "{\"path\": { \"foo\" : \"anything\"}}"));
         ReportingAttachment attachment = new ReportingAttachment("foo", "http://www.example.org/", randomBoolean(), null, null, null, null);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+        ParsingException e = expectThrows(ParsingException.class,
                 () -> reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment));
         assertThat(e.getMessage(),
                 containsString("[reporting_attachment_kibana_payload] path doesn't support values of type: START_OBJECT"));

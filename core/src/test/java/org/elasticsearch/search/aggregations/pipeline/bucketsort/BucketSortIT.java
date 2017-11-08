@@ -152,7 +152,7 @@ public class BucketSortIT extends ESIntegTestCase {
         List<? extends Histogram.Bucket> size3TimeBuckets = size3Histogram.getBuckets();
 
         for (int i = 0; i < size3TimeBuckets.size(); ++i) {
-            assertThat(size3TimeBuckets.get(i), equalTo(timeBuckets.get(i)));
+            assertThat(size3TimeBuckets.get(i).getKey(), equalTo(timeBuckets.get(i).getKey()));
         }
 
         // Finally, let's test using size + from
@@ -169,7 +169,7 @@ public class BucketSortIT extends ESIntegTestCase {
         List<? extends Histogram.Bucket> size3From2TimeBuckets = size3From2Histogram.getBuckets();
 
         for (int i = 0; i < size3From2TimeBuckets.size(); ++i) {
-            assertThat(size3From2TimeBuckets.get(i), equalTo(timeBuckets.get(i + 2)));
+            assertThat(size3From2TimeBuckets.get(i).getKey(), equalTo(timeBuckets.get(i + 2).getKey()));
         }
     }
 
@@ -228,7 +228,7 @@ public class BucketSortIT extends ESIntegTestCase {
         assertThat(size2From3Terms, notNullValue());
         List<? extends Terms.Bucket> size2From3TermsBuckets = size2From3Terms.getBuckets();
         for (int i = 0; i < size2From3TermsBuckets.size(); ++i) {
-            assertThat(size2From3TermsBuckets.get(i), equalTo(termsBuckets.get(i + 3)));
+            assertThat(size2From3TermsBuckets.get(i).getKey(), equalTo(termsBuckets.get(i + 3).getKey()));
         }
     }
 
@@ -289,7 +289,7 @@ public class BucketSortIT extends ESIntegTestCase {
         assertThat(ascendingTimeBuckets.size(), equalTo(descendingTimeBuckets.size()));
         int bucketCount = ascendingTimeBuckets.size();
         for (int i = 0; i < bucketCount; ++i) {
-            assertThat(ascendingTimeBuckets.get(i), equalTo(descendingTimeBuckets.get(bucketCount - i - 1)));
+            assertThat(ascendingTimeBuckets.get(i).getKey(), equalTo(descendingTimeBuckets.get(bucketCount - i - 1).getKey()));
         }
     }
 

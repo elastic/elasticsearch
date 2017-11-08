@@ -492,8 +492,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             //Release searchContext if we have no more hits
             if ((context.queryResult().size()) >= context.scrollContext().totalHits) {
                 if (context.scrollContext() != null) {
-                    releasedContexts.add(context.id());
                     freeContext(context.id());
+                    releasedContexts.add(context.id());
                 }
             }
         }
@@ -617,19 +617,22 @@ private SearchContext findContext(long id, TransportRequest request) throws Sear
 
 
     public boolean freeContext(long id) {
-        final SearchContext context = removeContext(id);
-        if (context != null) {
-            assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
-            try {
-                context.indexShard().getSearchOperationListener().onFreeContext(context);
-                if (context.scrollContext() != null) {
-                    context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
+        if (!releasedContexts.contains(id)){
+            final SearchContext context = removeContext(id);
+            if (context != null) {
+                assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
+                try {
+                    context.indexShard().getSearchOperationListener().onFreeContext(context);
+                    if (context.scrollContext() != null) {
+                        context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
+                    }
+                } finally {
+                    context.close();
                 }
-            } finally {
-                context.close();
+                return true;
             }
-            return true;
         }
+        releasedContexts.remove(id);
         return false;
     }
 

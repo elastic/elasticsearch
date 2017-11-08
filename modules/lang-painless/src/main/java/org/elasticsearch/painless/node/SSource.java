@@ -203,8 +203,8 @@ public final class SSource extends AStatement {
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
 
             if (reserved.getUsedVariables().contains(name)) {
-                Definition.Type rtn = scriptClassInfo.getGetReturns().get(get);
-                mainMethod.addVariable(new Location("getter [" + name + "]", 0), Definition.TypeToClass(rtn), name, true);
+                Class<?> rtn = scriptClassInfo.getGetReturns().get(get);
+                mainMethod.addVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
                 getMethods.add(method);
             }
         }

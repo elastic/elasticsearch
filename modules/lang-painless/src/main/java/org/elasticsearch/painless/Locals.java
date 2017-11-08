@@ -92,13 +92,13 @@ public final class Locals {
     /** Creates a new main method scope */
     public static Locals newMainMethodScope(ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
         Locals locals = new Locals(
-            programScope, programScope.definition, Definition.TypeToClass(scriptClassInfo.getExecuteMethodReturnType()), KEYWORDS);
+            programScope, programScope.definition, scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
         // This reference. Internal use only.
         locals.defineVariable(null, Object.class, THIS, true);
 
         // Method arguments
         for (MethodArgument arg : scriptClassInfo.getExecuteArguments()) {
-            locals.defineVariable(null, Definition.TypeToClass(arg.getType()), arg.getName(), true);
+            locals.defineVariable(null, arg.getClazz(), arg.getName(), true);
         }
 
         // Loop counter to catch infinite loops.  Internal use only.

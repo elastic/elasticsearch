@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import org.elasticsearch.ElasticsearchException;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
-import org.hamcrest.TypeSafeDiagnosingMatcher;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
@@ -135,9 +134,10 @@ public final class SnapshotMatchers {
         }
     }
 
-
-    public static class ContainingInAnyOrderMatcher extends TypeSafeDiagnosingMatcher<Translog.Snapshot> {
+    public static class ContainingInAnyOrderMatcher extends TypeSafeMatcher<Translog.Snapshot> {
         private final Collection<Translog.Operation> expectedOps;
+        private List<Translog.Operation> notFoundOps;
+        private List<Translog.Operation> notExpectedOps;
 
         static List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
             final List<Translog.Operation> actualOps = new ArrayList<>();
@@ -153,34 +153,41 @@ public final class SnapshotMatchers {
         }
 
         @Override
-        protected boolean matchesSafely(Translog.Snapshot snapshot, Description mismatchDescription) {
+        protected boolean matchesSafely(Translog.Snapshot snapshot) {
             try {
                 List<Translog.Operation> actualOps = drainAll(snapshot);
-
-                List<Translog.Operation> notFound = expectedOps.stream()
+                notFoundOps = expectedOps.stream()
                     .filter(o -> actualOps.contains(o) == false)
                     .collect(Collectors.toList());
-                if (notFound.isEmpty() == false) {
-                    mismatchDescription
-                        .appendText(" Operations not found").appendValueList("[", ", ", "]", notFound);
-                }
-
-                List<Translog.Operation> notExpected = actualOps.stream()
+                notExpectedOps = actualOps.stream()
                     .filter(o -> expectedOps.contains(o) == false)
                     .collect(Collectors.toList());
-                if (notExpected.isEmpty() == false) {
-                    mismatchDescription
-                        .appendText(" Operations not expected ").appendValueList("[", ", ", "]", notExpected);
-                }
-                return notFound.isEmpty() && notExpected.isEmpty();
+                return notFoundOps.isEmpty() && notExpectedOps.isEmpty();
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read snapshot content", ex);
             }
         }
 
         @Override
-        public void describeTo(Description description) {
+        protected void describeMismatchSafely(Translog.Snapshot snapshot, Description mismatchDescription) {
+            if (notFoundOps.isEmpty() == false) {
+                mismatchDescription
+                    .appendText("not found ").appendValueList("[", ", ", "]", notFoundOps);
+            }
+            if (notExpectedOps.isEmpty() == false) {
+                if (notFoundOps.isEmpty() == false) {
+                    mismatchDescription.appendText("; ");
+                }
+                mismatchDescription
+                    .appendText("not expected ").appendValueList("[", ", ", "]", notExpectedOps);
+            }
+        }
 
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("snapshot contains ")
+                .appendValueList("[", ", ", "]", expectedOps)
+                .appendText(" in any order.");
         }
     }
 }

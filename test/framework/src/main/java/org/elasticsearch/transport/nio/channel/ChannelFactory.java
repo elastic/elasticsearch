@@ -41,6 +41,15 @@ public class ChannelFactory {
     private final Consumer<NioSocketChannel> contextSetter;
     private final RawChannelFactory rawChannelFactory;
 
+    /**
+     * This will create a {@link ChannelFactory} using the profile settings and context setter passed to this
+     * constructor. The context setter must be a {@link Consumer<NioSocketChannel>} that calls
+     * {@link NioSocketChannel#setContexts(ReadContext, WriteContext)} with the appropriate read and write
+     * contexts. The read and write contexts handle the protocol specific encoding and decoding of messages.
+     *
+     * @param profileSettings the profile settings channels opened by this factory
+     * @param contextSetter a consumer that takes a channel and sets the read and write contexts
+     */
     public ChannelFactory(TcpTransport.ProfileSettings profileSettings, Consumer<NioSocketChannel> contextSetter) {
         this(new RawChannelFactory(profileSettings.tcpNoDelay,
                 profileSettings.tcpKeepAlive,

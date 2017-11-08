@@ -70,7 +70,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -682,9 +681,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         }
 
         for (Map.Entry<String, Settings> tribeSettings : tribesSettings.entrySet()) {
-            String tribePrefix = "tribe." + tribeSettings.getKey() + ".";
+            final String tribeName = tribeSettings.getKey();
+            final String tribePrefix = "tribe." + tribeName + ".";
 
-            if (TribeService.TRIBE_SETTING_KEYS.stream().anyMatch(s -> s.startsWith(tribePrefix))) {
+            if ("blocks".equals(tribeName) || "on_conflict".equals(tribeName) || "name".equals(tribeName)) {
                 continue;
             }
 
@@ -714,7 +714,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
                 realmsSettings.entrySet().stream()
                         .anyMatch((e) -> NativeRealm.TYPE.equals(e.getValue().get("type")) && e.getValue().getAsBoolean("enabled", true));
         if (hasNativeRealm) {
-            if (TribeService.ON_CONFLICT_SETTING.get(settings).startsWith("prefer_") == false) {
+            if (settings.get("tribe.on_conflict", "").startsWith("prefer_") == false) {
                 throw new IllegalArgumentException("use of security on tribe nodes requires setting [tribe.on_conflict] to specify the " +
                         "name of the tribe to prefer such as [prefer_t1] as the security index can exist in multiple tribes but only one" +
                         " can be used by the tribe node");

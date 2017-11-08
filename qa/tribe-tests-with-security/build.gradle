@@ -2,13 +2,33 @@ import org.elasticsearch.gradle.test.ClusterConfiguration
 import org.elasticsearch.gradle.test.ClusterFormationTasks
 import org.elasticsearch.gradle.test.NodeInfo
 
+apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
+    testCompile project(path: ':modules:tribe', configuration: 'runtime')
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+}
+
+namingConventions.skipIntegTestInDisguise = true
+
+String xpackPath = project(':x-pack-elasticsearch:plugin').projectDir.toPath().resolve('src/test/resources').toString()
+sourceSets {
+    test {
+        resources {
+            srcDirs += [xpackPath]
+        }
+    }
+}
+
+forbiddenPatterns {
+    exclude '**/*.key'
+    exclude '**/*.p12'
+    exclude '**/*.der'
+    exclude '**/*.zip'
 }
 
 task setupClusterOne {}
@@ -84,6 +104,15 @@ integTestCluster {
                 retries: 10)
         return tmpFile.exists()
     }
+}
+
+test {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+    include '**/*Tests.class'
 }
 
 integTestRunner {

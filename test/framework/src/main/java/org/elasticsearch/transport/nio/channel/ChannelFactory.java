@@ -43,7 +43,7 @@ public class ChannelFactory {
 
     /**
      * This will create a {@link ChannelFactory} using the profile settings and context setter passed to this
-     * constructor. The context setter must be a {@link Consumer<NioSocketChannel>} that calls
+     * constructor. The context setter must be a {@link Consumer} that calls
      * {@link NioSocketChannel#setContexts(ReadContext, WriteContext)} with the appropriate read and write
      * contexts. The read and write contexts handle the protocol specific encoding and decoding of messages.
      *

@@ -70,7 +70,7 @@ final class MultiSnapshot implements Translog.Snapshot {
             while ((op = current.next()) != null) {
                 if (op.seqNo() < 0 || seenSeqNo.getAndSet(op.seqNo()) == false) {
                     return op;
-                }else {
+                } else {
                     skippedOperations++;
                 }
             }
@@ -111,12 +111,13 @@ final class MultiSnapshot implements Translog.Snapshot {
     }
 
     /**
-     * Sequence numbers from translog are likely to form contiguous ranges, thus using two tiers can reduce memory usage.
+     * Sequence numbers from translog are likely to form contiguous ranges,
+     * thus collapsing a completed bitset into a single entry will reduce memory usage.
      */
     static final class SeqNumSet {
         static final short BIT_SET_SIZE = 1024;
-        private final LongSet topTier = new LongHashSet();
-        private final LongObjectHashMap<CountedBitSet> bottomTier = new LongObjectHashMap<>();
+        private final LongSet completedSets = new LongHashSet();
+        private final LongObjectHashMap<CountedBitSet> ongoingSets = new LongObjectHashMap<>();
 
         /**
          * Marks this sequence number and returns <tt>true</tt> if it is seen before.
@@ -125,22 +126,32 @@ final class MultiSnapshot implements Translog.Snapshot {
             assert value >= 0;
             final long key = value / BIT_SET_SIZE;
 
-            if (topTier.contains(key)) {
+            if (completedSets.contains(key)) {
                 return true;
             }
 
-            CountedBitSet bitset = bottomTier.get(key);
+            CountedBitSet bitset = ongoingSets.get(key);
             if (bitset == null) {
                 bitset = new CountedBitSet(BIT_SET_SIZE);
-                bottomTier.put(key, bitset);
+                ongoingSets.put(key, bitset);
             }
 
             final boolean wasOn = bitset.getAndSet(Math.toIntExact(value % BIT_SET_SIZE));
             if (bitset.hasAllBitsOn()) {
-                bottomTier.remove(key);
-                topTier.add(key);
+                ongoingSets.remove(key);
+                completedSets.add(key);
             }
             return wasOn;
+        }
+
+        // For testing
+        long completeSetsSize() {
+            return completedSets.size();
+        }
+
+        // For testing
+        long ongoingSetsSize() {
+            return ongoingSets.size();
         }
     }
 }

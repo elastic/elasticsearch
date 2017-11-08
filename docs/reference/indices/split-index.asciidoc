@@ -1,0 +1,165 @@
+[[indices-split-index]]
+== Split Index
+
+number_of_routing_shards
+
+The split index API allows you to split an existing index into a new index
+with multiple of it's primary shards. Similarly to the <<indices-shrink-index,Shrink API>>
+where the number of primary shards in the shrunk index must be a factor of the source index.
+The `_split` API requires the source index to be created with a specific number of routing shards
+in order to be split in the future. (Note: this requirement might be remove in future releases)
+The number of routing shards specify the hashing space that is used internally to distribute documents
+across shards, in oder to have a consistent hashing that is compatible with the method elasticsearch
+uses today.
+For example an index with `8` primary shards and a `index.number_of_routing_shards` of `32`
+can be split into `16` and `32` primary shards. An index with `1` primary shard
+and `index.number_of_routing_shards` of `64` can be split into `2`, `4`, `8`, `16`, `32` or `64`.
+The same works for non power of two routing shards ie. an index with `1` primary shard and
+`index.number_of_routing_shards` set to `15` can be split into `3` and `15` or alternatively`5` and `15`.
+The number of shards in the split index must always be a factor of `index.number_of_routing_shards`
+in the source index. Before splitting, a (primary) copy of every shard in the index must be active in the cluster.
+
+Splitting works as follows:
+
+* First, it creates a new target index with the same definition as the source
+  index, but with a larger number of primary shards.
+
+* Then it hard-links segments from the source index into the target index. (If
+  the file system doesn't support hard-linking, then all segments are copied
+  into the new index, which is a much more time consuming process.)
+
+* Once the low level files are created all documents will be `hashed` again to delete
+  documents that belong in a different shard.
+
+* Finally, it recovers the target index as though it were a closed index which
+  had just been re-opened.
+
+[float]
+=== Preparing an index for splitting
+
+Create an index with a routing shards factor:
+
+[source,js]
+--------------------------------------------------
+PUT my_source_index
+{
+    "settings": {
+        "index.number_of_shards" : 1,
+        "index.number_of_routing_shards" : 2 <1>
+    }
+}
+-------------------------------------------------
+// CONSOLE
+
+<1> Allows to split the index into two shards or in other words, it allows
+    for a single split operation.
+
+In order to split an index, the index must be marked as read-only,
+and have <<cluster-health,health>> `green`.
+
+This can be achieved with the following request:
+
+[source,js]
+--------------------------------------------------
+PUT /my_source_index/_settings
+{
+  "settings": {
+    "index.blocks.write": true <1>
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> Prevents write operations to this index while still allowing metadata
+    changes like deleting the index.
+
+[float]
+=== Spitting an index
+
+To split `my_source_index` into a new index called `my_target_index`, issue
+the following request:
+
+[source,js]
+--------------------------------------------------
+POST my_source_index/_split/my_target_index
+{
+  "settings": {
+    "index.number_of_shards": 2
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The above request returns immediately once the target index has been added to
+the cluster state -- it doesn't wait for the split operation to start.
+
+[IMPORTANT]
+=====================================
+
+Indices can only be split if they satisfy the following requirements:
+
+* the target index must not exist
+
+* The index must have less primary shards than the target index.
+
+* The number of primary shards in the target index must be a factor of the
+  number of primary shards in the source index.
+
+* The node handling the split process must have sufficient free disk space to
+  accommodate a second copy of the existing index.
+
+=====================================
+
+The `_split` API is similar to the <<indices-create-index, `create index` API>>
+and accepts `settings` and `aliases` parameters for the target index:
+
+[source,js]
+--------------------------------------------------
+POST my_source_index/_split/my_target_index
+{
+  "settings": {
+    "index.number_of_shards": 5 <1>
+  },
+  "aliases": {
+    "my_search_indices": {}
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_source_index\n{"settings": {"index.blocks.write": true, "index.number_of_routing_shards" : 5, "index.number_of_shards": "1"}}\n/]
+
+<1> The number of shards in the target index. This must be a factor of the
+    number of shards in the source index.
+
+
+NOTE: Mappings may not be specified in the `_split` request, and all
+`index.analysis.*` and `index.similarity.*` settings will be overwritten with
+the settings from the source index.
+
+[float]
+=== Monitoring the split process
+
+The split process can be monitored with the <<cat-recovery,`_cat recovery`
+API>>, or the <<cluster-health, `cluster health` API>> can be used to wait
+until all primary shards have been allocated by setting the  `wait_for_status`
+parameter to `yellow`.
+
+The `_split` API returns as soon as the target index has been added to the
+cluster state, before any shards have been allocated. At this point, all
+shards are in the state `unassigned`. If, for any reason, the target index
+can't be allocated, its primary shard will remain `unassigned` until it
+can be allocated on that node.
+
+Once the primary shard is allocated, it moves to state `initializing`, and the
+split process begins. When the split operation completes, the shard will
+become `active`. At that  point, Elasticsearch will try to allocate any
+replicas and may decide to relocate the primary shard to another node.
+
+[float]
+=== Wait For Active Shards
+
+Because the split operation creates a new index to split the shards to,
+the <<create-index-wait-for-active-shards,wait for active shards>> setting
+on index creation applies to the split index action as well.

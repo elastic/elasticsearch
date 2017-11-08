@@ -21,7 +21,6 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 
@@ -68,11 +67,7 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
 
     // visible for testing
     static boolean isFatalUncaught(Throwable e) {
-        return isFatalCause(e) || (e instanceof MergePolicy.MergeException && isFatalCause(e.getCause()));
-    }
-
-    private static boolean isFatalCause(Throwable cause) {
-        return cause instanceof Error;
+        return e instanceof Error;
     }
 
     // visible for testing

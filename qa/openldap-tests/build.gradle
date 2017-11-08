@@ -12,6 +12,7 @@ task openLdapFixture {
 
 if (project.rootProject.vagrantSupported) {
   test.dependsOn openLdapFixture
+  test.finalizedBy ":x-pack-elasticsearch:test:openldap-fixture:halt"
 } else {
   test.enabled = false
 }

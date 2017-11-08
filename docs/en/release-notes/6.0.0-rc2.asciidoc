@@ -17,9 +17,6 @@ node attributes. These are reserved for internal use and their values should be
 set by using `xpack.ml.enabled` and `xpack.ml.max_open_jobs`
 <<ml-settings,{ml} settings>>.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2725[#2725] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2649[#2649])
-* Improved modeling of long periodic components, particularly when there is a
-long bucket span.
-// https://github.com/elastic/machine-learning-cpp/pull/298[#298] (issue: https://github.com/elastic/machine-learning-cpp/issues/272[#272])
 
 Security::
 * Improved the error messages that are returned by the `setup-passwords` command.

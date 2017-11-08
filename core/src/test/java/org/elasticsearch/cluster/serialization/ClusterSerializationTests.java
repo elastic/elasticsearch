@@ -174,16 +174,6 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         ClusterState clusterState1 = ClusterState.builder(new ClusterName("clusterName1"))
             .metaData(metaData).routingTable(routingTable).build();
-        ClusterState clusterState2 = ClusterState.builder(clusterState1).incrementVersion()
-            .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(1).build(), true)).build();
-        ClusterState clusterState3 = ClusterState.builder(clusterState1).incrementVersion()
-            .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(2).build(), true)).build();
-
-        assertNotSame("Should have created a new, equivalent, IndexMetaData object in clusterState2",
-            clusterState1.metaData().index("test"), clusterState2.metaData().index("test"));
-        assertNotEquals("Should have created a new, different, IndexMetaData object in clusterState3",
-            clusterState2.metaData().index("test"), clusterState3.metaData().index("test"));
-
         BytesStreamOutput outStream = new BytesStreamOutput();
         outStream.setVersion(Version.CURRENT);
         clusterState1.writeTo(outStream);
@@ -191,15 +181,23 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
         ClusterState serializedClusterState1 = ClusterState.readFrom(inStream, newNode("node4"));
 
-        ClusterState serializedClusterState2 = updateUsingSerialisedDiff(serializedClusterState1, clusterState2.diff(clusterState1));
+        ClusterState clusterState2 = ClusterState.builder(clusterState1).incrementVersion()
+            .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(1).build(), true)).build();
+        assertNotSame("Should have created a new, equivalent, IndexMetaData object in clusterState2",
+            clusterState1.metaData().index("test"), clusterState2.metaData().index("test"));
 
+        ClusterState serializedClusterState2 = updateUsingSerialisedDiff(serializedClusterState1, clusterState2.diff(clusterState1));
         assertSame("Unchanged metadata should not create new IndexMetaData objects",
             serializedClusterState1.metaData().index("test"), serializedClusterState2.metaData().index("test"));
         assertSame("Unchanged routing table should not create new IndexRoutingTable objects",
             serializedClusterState1.routingTable().index("test"), serializedClusterState2.routingTable().index("test"));
 
-        ClusterState serializedClusterState3 = updateUsingSerialisedDiff(serializedClusterState2, clusterState3.diff(clusterState2));
+        ClusterState clusterState3 = ClusterState.builder(clusterState1).incrementVersion()
+            .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(2).build(), true)).build();
+        assertNotEquals("Should have created a new, different, IndexMetaData object in clusterState3",
+            clusterState2.metaData().index("test"), clusterState3.metaData().index("test"));
 
+        ClusterState serializedClusterState3 = updateUsingSerialisedDiff(serializedClusterState2, clusterState3.diff(clusterState2));
         assertNotEquals("Should have a new IndexMetaData object",
             serializedClusterState2.metaData().index("test"), serializedClusterState3.metaData().index("test"));
         assertSame("Unchanged routing table should not create new IndexRoutingTable objects",

@@ -775,8 +775,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
             adaptedNewClusterState = newClusterState;
         } else if (newClusterState.nodes().isLocalNodeElectedMaster() == false) {
-            ClusterState.Builder builder = ClusterState.builder(newClusterState);
-            adaptedNewClusterState = builder.build();
+            adaptedNewClusterState = ClusterState.builder(newClusterState).build();
         } else {
             adaptedNewClusterState = newClusterState;
         }

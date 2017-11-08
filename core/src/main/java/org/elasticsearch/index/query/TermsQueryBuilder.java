@@ -391,7 +391,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 .queryName(queryName);
     }
 
-    private static List<Object> parseValues(XContentParser parser) throws IOException {
+    static List<Object> parseValues(XContentParser parser) throws IOException {
         List<Object> values = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             Object value = parser.objectBytes();

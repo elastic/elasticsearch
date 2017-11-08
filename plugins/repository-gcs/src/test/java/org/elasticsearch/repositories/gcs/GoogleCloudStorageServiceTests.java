@@ -21,18 +21,15 @@ package org.elasticsearch.repositories.gcs;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageService.InternalGoogleCloudStorageService;
 import org.elasticsearch.test.ESTestCase;
-
-import static org.hamcrest.Matchers.containsString;
 
 public class GoogleCloudStorageServiceTests extends ESTestCase {
 
@@ -41,7 +38,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
     }
 
     public void testDefaultCredential() throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         GoogleCredential cred = GoogleCredential.fromStream(getDummyCredentialStream());
         InternalGoogleCloudStorageService service = new InternalGoogleCloudStorageService(env, Collections.emptyMap()) {
             @Override
@@ -55,7 +52,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
     public void testClientCredential() throws Exception {
         GoogleCredential cred = GoogleCredential.fromStream(getDummyCredentialStream());
         Map<String, GoogleCredential> credentials = Collections.singletonMap("clientname", cred);
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         InternalGoogleCloudStorageService service = new InternalGoogleCloudStorageService(env, credentials);
         assertSame(cred, service.getCredential("clientname"));
     }

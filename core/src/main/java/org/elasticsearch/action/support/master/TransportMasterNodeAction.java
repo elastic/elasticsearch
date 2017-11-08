@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -189,7 +190,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     logger.debug("no known master node, scheduling a retry");
                     retry(null, masterChangePredicate);
                 } else {
-                    transportService.sendRequest(nodes.getMasterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::newResponse) {
+                    DiscoveryNode masterNode = nodes.getMasterNode();
+                    final String actionName = getMasterActionName(masterNode);
+                    transportService.sendRequest(masterNode, actionName, request, new ActionListenerResponseHandler<Response>(listener,
+                        TransportMasterNodeAction.this::newResponse) {
                         @Override
                         public void handleException(final TransportException exp) {
                             Throwable cause = exp.unwrapCause();
@@ -228,5 +232,13 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 }, statePredicate
             );
         }
+    }
+
+    /**
+     * Allows to conditionally return a different master node action name in the case an action gets renamed.
+     * This mainly for backwards compatibility should be used rarely
+     */
+    protected String getMasterActionName(DiscoveryNode node) {
+        return actionName;
     }
 }

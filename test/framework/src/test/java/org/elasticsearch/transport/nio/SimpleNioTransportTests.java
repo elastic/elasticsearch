@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
     public static MockTransportService nioFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-                                                           ClusterSettings clusterSettings, boolean doHandshake) {
+                                                         ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
         Transport transport = new NioTransport(settings, threadPool,
@@ -94,6 +94,13 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
         MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;
+    }
+
+    @Override
+    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
+        final NioTransport t = (NioTransport) transport;
+        @SuppressWarnings("unchecked") TcpTransport<NioChannel>.NodeChannels channels = (TcpTransport<NioChannel>.NodeChannels) connection;
+        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, false);
     }
 
     public void testConnectException() throws UnknownHostException {

@@ -82,17 +82,17 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> factory.create(null, randomAlphaOfLength(10), configMap));
-        assertThat(exception.getMessage(), is("Only one of [id] or [source] may be configured"));
+        assertThat(exception.getMessage(), is("[script] failed to parse field [source]"));
     }
 
     public void testFactoryValidationAtLeastOneScriptingType() throws Exception {
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("lang", "mockscript");
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> factory.create(null, randomAlphaOfLength(10), configMap));
 
-        assertThat(exception.getMessage(), is("Need [id] or [source] parameter to refer to scripts"));
+        assertThat(exception.getMessage(), is("must specify either [source] for an inline script or [id] for a stored script"));
     }
 
     public void testInlineBackcompat() throws Exception {
@@ -100,7 +100,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("inline", "code");
 
         factory.create(null, randomAlphaOfLength(10), configMap);
-        assertWarnings("Specifying script source with [inline] is deprecated, use [source] instead.");
+        assertWarnings("Deprecated field [inline] used, expected [source] instead");
     }
 
     public void testFactoryInvalidateWithInvalidCompiledScript() throws Exception {
@@ -112,7 +112,6 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         factory = new ScriptProcessor.Factory(mockedScriptService);
 
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put("lang", "mockscript");
         configMap.put(randomType, "my_script");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,

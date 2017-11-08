@@ -23,10 +23,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class SettingsUpdaterTests extends ESTestCase {
 
@@ -132,4 +137,30 @@ public class SettingsUpdaterTests extends ESTestCase {
         assertEquals(clusterState.blocks().global().size(), 0);
 
     }
+
+    public void testDeprecationLogging() {
+        Setting<String> deprecatedSetting =
+                Setting.simpleString("deprecated.setting", Property.Dynamic, Property.NodeScope, Property.Deprecated);
+        final Settings settings = Settings.builder().put("deprecated.setting", "foo").build();
+        final Set<Setting<?>> settingsSet =
+                Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Stream.of(deprecatedSetting)).collect(Collectors.toSet());
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, settingsSet);
+        clusterSettings.addSettingsUpdateConsumer(deprecatedSetting, s -> {});
+        final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
+        final ClusterState clusterState =
+                ClusterState.builder(new ClusterName("foo")).metaData(MetaData.builder().persistentSettings(settings).build()).build();
+
+        final Settings toApplyDebug = Settings.builder().put("logger.org.elasticsearch", "debug").build();
+        final ClusterState afterDebug = settingsUpdater.updateSettings(clusterState, toApplyDebug, Settings.EMPTY);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
+
+        final Settings toApplyUnset = Settings.builder().putNull("logger.org.elasticsearch").build();
+        final ClusterState afterUnset = settingsUpdater.updateSettings(afterDebug, toApplyUnset, Settings.EMPTY);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
+
+        // we also check that if no settings are changed, deprecation logging still occurs
+        settingsUpdater.updateSettings(afterUnset, toApplyUnset, Settings.EMPTY);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
+    }
+
 }

@@ -406,8 +406,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
         });
 
-        // Wait for document to be indexed on primary
-        assertBusy(() -> assertTrue(client().prepareGet("index", "type", "1").setPreference("_primary").get().isExists()));
+        assertBusy(() -> assertTrue(client().prepareGet("index", "type", "1").get().isExists()));
 
         // The mappings have not been propagated to the replica yet as a consequence the document count not be indexed
         // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled

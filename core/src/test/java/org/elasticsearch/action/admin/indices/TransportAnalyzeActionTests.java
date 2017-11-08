@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractCharFilterFactory;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
@@ -40,7 +41,6 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.AnalysisModuleTests.AppendCharFilter;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -73,9 +73,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
                 .put("index.analysis.analyzer.custom_analyzer.filter", "mock")
                 .put("index.analysis.normalizer.my_normalizer.type", "custom")
-                .putArray("index.analysis.normalizer.my_normalizer.filter", "lowercase").build();
+                .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase").build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        environment = new Environment(settings);
+        environment = TestEnvironment.newEnvironment(settings);
         AnalysisPlugin plugin = new AnalysisPlugin() {
             class MockFactory extends AbstractTokenFilterFactory {
                 MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {

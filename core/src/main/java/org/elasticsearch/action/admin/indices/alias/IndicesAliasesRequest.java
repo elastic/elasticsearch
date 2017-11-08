@@ -176,7 +176,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                             if (action == null) {
                                 action = (AliasActions) o;
                             } else {
-                                throw new IllegalArgumentException("Too many operations declared in on opeation entry");
+                                throw new IllegalArgumentException("Too many operations declared on operation entry");
                             }
                         }
                     }

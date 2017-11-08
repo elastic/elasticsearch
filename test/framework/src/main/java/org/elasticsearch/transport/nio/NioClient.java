@@ -56,7 +56,9 @@ public class NioClient {
         this.channelFactory = channelFactory;
     }
 
-    public boolean connectToChannels(DiscoveryNode node, NioSocketChannel[] channels, TimeValue connectTimeout,
+    public boolean connectToChannels(DiscoveryNode node,
+                                     NioSocketChannel[] channels,
+                                     TimeValue connectTimeout,
                                      Consumer<NioChannel> closeListener) throws IOException {
         boolean allowedToConnect = semaphore.tryAcquire();
         if (allowedToConnect == false) {

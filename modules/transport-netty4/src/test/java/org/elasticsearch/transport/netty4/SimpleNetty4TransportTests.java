@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
     public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-            ClusterSettings clusterSettings, boolean doHandshake) {
+                                                           ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
@@ -86,6 +86,13 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         return transportService;
     }
 
+    @Override
+    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
+        final Netty4Transport t = (Netty4Transport) transport;
+        @SuppressWarnings("unchecked") final TcpTransport<Channel>.NodeChannels channels = (TcpTransport<Channel>.NodeChannels) connection;
+        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, false);
+    }
+
     public void testConnectException() throws UnknownHostException {
         try {
             serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
@@ -108,7 +115,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
+            MockTransportService transportService =
+                    nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
             try {
                 transportService.start();
             } finally {

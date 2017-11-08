@@ -45,14 +45,12 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     private final String clientName;
     private final LocationMode locMode;
     private final String container;
-    private final String repositoryName;
 
     public AzureBlobStore(RepositoryMetaData metadata, Settings settings,
                           AzureStorageService client) throws URISyntaxException, StorageException {
         super(settings);
         this.client = client;
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
-        this.repositoryName = metadata.name();
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
 
         String modeStr = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
@@ -68,10 +66,6 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return container;
     }
 
-    public String container() {
-        return container;
-    }
-
     /**
      * Gets the configured {@link LocationMode} for the Azure storage requests.
      */
@@ -81,7 +75,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        return new AzureBlobContainer(repositoryName, path, this);
+        return new AzureBlobContainer(path, this);
     }
 
     @Override
@@ -98,37 +92,32 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     public void close() {
     }
 
-    public boolean doesContainerExist(String container)
+    public boolean doesContainerExist()
     {
         return this.client.doesContainerExist(this.clientName, this.locMode, container);
     }
 
-    public void deleteFiles(String container, String path) throws URISyntaxException, StorageException
-    {
-        this.client.deleteFiles(this.clientName, this.locMode, container, path);
-    }
-
-    public boolean blobExists(String container, String blob) throws URISyntaxException, StorageException
+    public boolean blobExists(String blob) throws URISyntaxException, StorageException
     {
         return this.client.blobExists(this.clientName, this.locMode, container, blob);
     }
 
-    public void deleteBlob(String container, String blob) throws URISyntaxException, StorageException
+    public void deleteBlob(String blob) throws URISyntaxException, StorageException
     {
         this.client.deleteBlob(this.clientName, this.locMode, container, blob);
     }
 
-    public InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException, IOException
+    public InputStream getInputStream(String blob) throws URISyntaxException, StorageException, IOException
     {
         return this.client.getInputStream(this.clientName, this.locMode, container, blob);
     }
 
-    public Map<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix)
+    public Map<String,BlobMetaData> listBlobsByPrefix(String keyPath, String prefix)
         throws URISyntaxException, StorageException {
         return this.client.listBlobsByPrefix(this.clientName, this.locMode, container, keyPath, prefix);
     }
 
-    public void moveBlob(String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException
+    public void moveBlob(String sourceBlob, String targetBlob) throws URISyntaxException, StorageException
     {
         this.client.moveBlob(this.clientName, this.locMode, container, sourceBlob, targetBlob);
     }

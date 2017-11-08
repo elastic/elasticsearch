@@ -65,7 +65,7 @@ public final class SIfElse extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        condition.expected = Definition.BOOLEAN_TYPE;
+        condition.expected = locals.getDefinition().booleanType;
         condition.analyze(locals);
         condition = condition.cast(locals);
 

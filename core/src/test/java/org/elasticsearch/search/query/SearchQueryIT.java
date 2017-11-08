@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -349,7 +350,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .put(indexSettings())
                         .put(SETTING_NUMBER_OF_SHARDS,1)
                         .put("index.analysis.filter.syns.type","synonym")
-                        .putArray("index.analysis.filter.syns.synonyms","quick,fast")
+                        .putList("index.analysis.filter.syns.synonyms","quick,fast")
                         .put("index.analysis.analyzer.syns.tokenizer","whitespace")
                         .put("index.analysis.analyzer.syns.filter","syns")
                         )
@@ -1572,9 +1573,9 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.analyzer.index.filter", "lowercase")
                 .put("index.analysis.analyzer.search.type", "custom")
                 .put("index.analysis.analyzer.search.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
+                .putList("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
-                .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
+                .putList("index.analysis.filter.synonym.synonyms", "fast, quick"));
         assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
 
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
@@ -1602,9 +1603,9 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.analyzer.index.filter", "lowercase")
                 .put("index.analysis.analyzer.search.type", "custom")
                 .put("index.analysis.analyzer.search.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
+                .putList("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
-                .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
+                .putList("index.analysis.filter.synonym.synonyms", "fast, quick"));
         assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
 
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
@@ -1802,12 +1803,13 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testNGramCopyField() {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
+                .put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 9)
                 .put("index.analysis.analyzer.my_ngram_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_ngram_analyzer.tokenizer", "my_ngram_tokenizer")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.type", "nGram")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.min_gram", "1")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.max_gram", "10")
-                .putArray("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
+                .putList("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
         assertAcked(builder.addMapping("test", "origin", "type=text,copy_to=meta", "meta", "type=text,analyzer=my_ngram_analyzer"));
         // we only have ngrams as the index analyzer so searches will get standard analyzer
 

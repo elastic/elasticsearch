@@ -322,7 +322,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
             } else {
                 final Throwable cause = f.cause();
                 Netty4Utils.maybeDie(cause);
-                logger.error("write and flush on the network layer failed", cause);
+                logger.warn((Supplier<?>) () ->
+                    new ParameterizedMessage("write and flush on the network layer failed (channel: {})", channel), cause);
                 assert cause instanceof Exception;
                 listener.onFailure((Exception) cause);
             }
@@ -330,8 +331,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void closeChannels(final List<Channel> channels, boolean blocking, boolean closingTransport) throws IOException {
-        if (closingTransport) {
+    protected void closeChannels(final List<Channel> channels, boolean blocking, boolean doNotLinger) throws IOException {
+        if (doNotLinger) {
             for (Channel channel : channels) {
                 /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
                  * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
@@ -408,6 +409,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, ".client"));
@@ -431,6 +433,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));

@@ -86,7 +86,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
     protected void validateSettingKey(Setting setting) {
         if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())
-            || isValidAffixKey(setting.getKey())) == false) {
+            || isValidAffixKey(setting.getKey())) == false || setting.getKey().endsWith(".0")) {
             throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
         }
     }
@@ -534,7 +534,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         boolean changed = false;
         for (String entry : deletes) {
             Set<String> keysToRemove = new HashSet<>();
-            Set<String> keySet = builder.internalMap().keySet();
+            Set<String> keySet = builder.keys();
             for (String key : keySet) {
                 if (Regex.simpleMatch(entry, key) && canRemove.test(key)) {
                     // we have to re-check with canRemove here since we might have a wildcard expression foo.* that matches

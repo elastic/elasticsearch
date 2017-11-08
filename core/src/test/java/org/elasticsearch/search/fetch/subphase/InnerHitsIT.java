@@ -596,9 +596,9 @@ public class InnerHitsIT extends ESIntegTestCase {
         client().prepareIndex("index1", "message", "1").setSource(jsonBuilder().startObject()
                 .field("message", "quick brown fox")
                 .startArray("comments")
-                .startObject().field("message", "fox eat quick").endObject()
-                .startObject().field("message", "fox ate rabbit x y z").endObject()
-                .startObject().field("message", "rabbit got away").endObject()
+                .startObject().field("message", "fox eat quick").field("x", "y").endObject()
+                .startObject().field("message", "fox ate rabbit x y z").field("x", "y").endObject()
+                .startObject().field("message", "rabbit got away").field("x", "y").endObject()
                 .endArray()
                 .endObject()).get();
         refresh();
@@ -614,9 +614,11 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertHitCount(response, 1);
 
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(2L));
-        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap()),
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().get("message"),
                 equalTo("fox eat quick"));
-        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap()),
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap().get("message"),
                 equalTo("fox ate rabbit x y z"));
 
         response = client().prepareSearch()
@@ -627,9 +629,11 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertHitCount(response, 1);
 
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(2L));
-        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap()),
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(2));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().get("message"),
                 equalTo("fox eat quick"));
-        assertThat(extractValue("comments.message", response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap()),
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(2));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(1).getSourceAsMap().get("message"),
                 equalTo("fox ate rabbit x y z"));
     }
 

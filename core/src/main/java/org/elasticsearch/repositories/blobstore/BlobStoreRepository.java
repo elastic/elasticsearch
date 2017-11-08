@@ -259,6 +259,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry);
         indexShardSnapshotsFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_INDEX_CODEC, SNAPSHOT_INDEX_NAME_FORMAT,
             BlobStoreIndexShardSnapshots::fromXContent, namedXContentRegistry, isCompress());
+        ByteSizeValue chunkSize = chunkSize();
+        if (chunkSize != null && chunkSize.getBytes() <= 0) {
+            throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
+        }
     }
 
     @Override

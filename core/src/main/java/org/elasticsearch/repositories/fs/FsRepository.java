@@ -54,10 +54,10 @@ public class FsRepository extends BlobStoreRepository {
         new Setting<>("location", "", Function.identity(), Property.NodeScope);
     public static final Setting<String> REPOSITORIES_LOCATION_SETTING =
         new Setting<>("repositories.fs.location", LOCATION_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-        Setting.byteSizeSetting("chunk_size", new ByteSizeValue(-1), Property.NodeScope);
-    public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING =
-        Setting.byteSizeSetting("repositories.fs.chunk_size", new ByteSizeValue(-1), Property.NodeScope);
+    public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size",
+            new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
+    public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting("repositories.fs.chunk_size",
+        new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
     public static final Setting<Boolean> REPOSITORIES_COMPRESS_SETTING =
         Setting.boolSetting("repositories.fs.compress", false, Property.NodeScope);
@@ -95,10 +95,8 @@ public class FsRepository extends BlobStoreRepository {
         blobStore = new FsBlobStore(settings, locationFile);
         if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
             this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
-        } else if (REPOSITORIES_CHUNK_SIZE_SETTING.exists(settings)) {
-            this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(settings);
         } else {
-            this.chunkSize = null;
+            this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(settings);
         }
         this.compress = COMPRESS_SETTING.exists(metadata.settings()) ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(settings);
         this.basePath = BlobPath.cleanPath();

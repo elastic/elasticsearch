@@ -18,8 +18,8 @@ dependencies {
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
 
-    // wait up to twenty seconds
-    final long stopTime = System.currentTimeMillis() + 20000L;
+    // wait up to two minutes
+    final long stopTime = System.currentTimeMillis() + (2 * 60000L);
     Exception lastException = null;
 
     while (System.currentTimeMillis() < stopTime) {
@@ -119,6 +119,7 @@ subprojects {
       bwcVersion = version
       numBwcNodes = 2
       numNodes = 2
+      minimumMasterNodes = { 2 }
       clusterName = 'rolling-upgrade'
       waitCondition = waitWithAuth
       setting 'xpack.security.transport.ssl.enabled', 'true'

@@ -13,6 +13,7 @@ Inside a new, empty, directory create the following **four files**:
 
 `instances.yml`:
 ["source","yaml"]
+----
 instances:
   - name: es01
     dns:
@@ -26,15 +27,15 @@ instances:
       - localhost
     ip:
       - 127.0.0.1
-
+----
 <1> Allow use of embedded Docker DNS server names.
 
 `.env`:
 [source,yaml]
-
+----
 CERTS_DIR=/usr/share/elasticsearch/config/x-pack/certificates <1>
 ELASTIC_PASSWORD=PleaseChangeMe <2>
-
+----
 <1> The path, inside the docker image, where certificates are expected to be found.
 <2> Initial password for the `elastic` user.
 

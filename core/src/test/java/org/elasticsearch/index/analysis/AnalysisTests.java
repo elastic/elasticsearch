@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedWriter;
@@ -61,7 +62,7 @@ public class AnalysisTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
             .put("foo.bar_path", tempDir.resolve("foo.dict"))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
-        Environment env = new Environment(nodeSettings);
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> Analysis.getWordList(env, nodeSettings, "foo.bar"));
         assertEquals("IOException while reading foo.bar_path: " +  tempDir.resolve("foo.dict").toString(), ex.getMessage());
@@ -80,7 +81,7 @@ public class AnalysisTests extends ESTestCase {
             writer.write(new byte[]{(byte) 0xff, 0x00, 0x00}); // some invalid UTF-8
             writer.write('\n');
         }
-        Environment env = new Environment(nodeSettings);
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> Analysis.getWordList(env, nodeSettings, "foo.bar"));
         assertEquals("Unsupported character encoding detected while reading foo.bar_path: " + tempDir.resolve("foo.dict").toString()
@@ -101,7 +102,7 @@ public class AnalysisTests extends ESTestCase {
             writer.write("world");
             writer.write('\n');
         }
-        Environment env = new Environment(nodeSettings);
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.bar");
         assertEquals(Arrays.asList("hello", "world"), wordList);
 

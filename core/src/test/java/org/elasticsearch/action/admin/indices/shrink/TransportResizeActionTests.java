@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -49,7 +48,7 @@ import java.util.HashSet;
 
 import static java.util.Collections.emptyMap;
 
-public class TransportShrinkActionTests extends ESTestCase {
+public class TransportResizeActionTests extends ESTestCase {
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
         MetaData.Builder metaBuilder = MetaData.builder();
@@ -72,20 +71,20 @@ public class TransportShrinkActionTests extends ESTestCase {
             Settings.builder().put("index.blocks.write", true).build());
         assertTrue(
             expectThrows(IllegalStateException.class, () ->
-            TransportShrinkAction.prepareCreateIndexRequest(new ShrinkRequest("target", "source"), state,
-                (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)), new IndexNameExpressionResolver(Settings.EMPTY))
+                TransportResizeAction.prepareCreateIndexRequest(new ResizeRequest("target", "source"), state,
+                (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)), "source", "target")
         ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
 
 
         assertTrue(
             expectThrows(IllegalStateException.class, () -> {
-                ShrinkRequest req = new ShrinkRequest("target", "source");
-                req.getShrinkIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4));
+                ResizeRequest req = new ResizeRequest("target", "source");
+                req.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4));
                 ClusterState clusterState = createClusterState("source", 8, 1,
                     Settings.builder().put("index.blocks.write", true).build());
-                    TransportShrinkAction.prepareCreateIndexRequest(req, clusterState,
-                        (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null,
-                        new IndexNameExpressionResolver(Settings.EMPTY));
+                    TransportResizeAction.prepareCreateIndexRequest(req, clusterState,
+                        (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null
+                        , "source", "target");
                 }
             ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
 
@@ -105,8 +104,8 @@ public class TransportShrinkActionTests extends ESTestCase {
             routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        TransportShrinkAction.prepareCreateIndexRequest(new ShrinkRequest("target", "source"), clusterState,
-            (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000)), new IndexNameExpressionResolver(Settings.EMPTY));
+        TransportResizeAction.prepareCreateIndexRequest(new ResizeRequest("target", "source"), clusterState,
+            (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000)), "source", "target");
     }
 
     public void testShrinkIndexSettings() {
@@ -129,14 +128,13 @@ public class TransportShrinkActionTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int numSourceShards = clusterState.metaData().index(indexName).getNumberOfShards();
         DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
-        ShrinkRequest target = new ShrinkRequest("target", indexName);
+        ResizeRequest target = new ResizeRequest("target", indexName);
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         target.setWaitForActiveShards(activeShardCount);
-        CreateIndexClusterStateUpdateRequest request = TransportShrinkAction.prepareCreateIndexRequest(
-            target, clusterState, (i) -> stats,
-            new IndexNameExpressionResolver(Settings.EMPTY));
-        assertNotNull(request.shrinkFrom());
-        assertEquals(indexName, request.shrinkFrom().getName());
+        CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(
+            target, clusterState, (i) -> stats, indexName, "target");
+        assertNotNull(request.recoverFrom());
+        assertEquals(indexName, request.recoverFrom().getName());
         assertEquals("1", request.settings().get("index.number_of_shards"));
         assertEquals("shrink_index", request.cause());
         assertEquals(request.waitForActiveShards(), activeShardCount);

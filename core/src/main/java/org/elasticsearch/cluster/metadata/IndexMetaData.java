@@ -65,6 +65,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -194,6 +195,24 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final String SETTING_ROUTING_PARTITION_SIZE = "index.routing_partition_size";
     public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
             Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
+
+    public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING =
+        Setting.intSetting("index.number_of_routing_shards", INDEX_NUMBER_OF_SHARDS_SETTING, 1, new Setting.Validator<Integer>() {
+            @Override
+            public void validate(Integer numRoutingShards, Map<Setting<Integer>, Integer> settings) {
+                Integer numShards = settings.get(INDEX_NUMBER_OF_SHARDS_SETTING);
+                if (numRoutingShards < numShards) {
+                    throw new IllegalArgumentException("index.number_of_routing_shards [" + numRoutingShards
+                        + "] must be >= index.number_of_shards [" + numShards + "]");
+                }
+                getRoutingFactor(numShards, numRoutingShards);
+            }
+
+            @Override
+            public Iterator<Setting<Integer>> settings() {
+                return Collections.singleton(INDEX_NUMBER_OF_SHARDS_SETTING).iterator();
+            }
+        }, Property.IndexScope);
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
@@ -453,14 +472,22 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return mappings.get(mappingType);
     }
 
+    // we keep the shrink settings for BWC - this can be removed in 8.0
+    // we can't remove in 7 since this setting might be baked into an index coming in via a full cluster restart from 6.0
     public static final String INDEX_SHRINK_SOURCE_UUID_KEY = "index.shrink.source.uuid";
     public static final String INDEX_SHRINK_SOURCE_NAME_KEY = "index.shrink.source.name";
+    public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
+    public static final String INDEX_RESIZE_SOURCE_NAME_KEY = "index.resize.source.name";
     public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString(INDEX_SHRINK_SOURCE_UUID_KEY);
     public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString(INDEX_SHRINK_SOURCE_NAME_KEY);
+    public static final Setting<String> INDEX_RESIZE_SOURCE_UUID = Setting.simpleString(INDEX_RESIZE_SOURCE_UUID_KEY,
+        INDEX_SHRINK_SOURCE_UUID);
+    public static final Setting<String> INDEX_RESIZE_SOURCE_NAME = Setting.simpleString(INDEX_RESIZE_SOURCE_NAME_KEY,
+        INDEX_SHRINK_SOURCE_NAME);
 
-
-    public Index getMergeSourceIndex() {
-        return INDEX_SHRINK_SOURCE_UUID.exists(settings) ? new Index(INDEX_SHRINK_SOURCE_NAME.get(settings), INDEX_SHRINK_SOURCE_UUID.get(settings)) : null;
+    public Index getResizeSourceIndex() {
+        return INDEX_RESIZE_SOURCE_UUID.exists(settings) || INDEX_SHRINK_SOURCE_UUID.exists(settings)
+            ? new Index(INDEX_RESIZE_SOURCE_NAME.get(settings), INDEX_RESIZE_SOURCE_UUID.get(settings)) : null;
     }
 
     /**
@@ -1006,7 +1033,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 throw new IllegalArgumentException("routing partition size [" + routingPartitionSize + "] should be a positive number"
                         + " less than the number of shards [" + getRoutingNumShards() + "] for [" + index + "]");
             }
-
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
             ImmutableOpenIntMap.Builder<Set<String>> filledInSyncAllocationIds = ImmutableOpenIntMap.builder();
             for (int i = 0; i < numberOfShards; i++) {
@@ -1293,10 +1319,48 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     /**
      * Returns the routing factor for this index. The default is <tt>1</tt>.
      *
-     * @see #getRoutingFactor(IndexMetaData, int) for details
+     * @see #getRoutingFactor(int, int) for details
      */
     public int getRoutingFactor() {
         return routingFactor;
+    }
+
+    /**
+     * Returns the source shard ID to split the given target shard off
+     * @param shardId the id of the target shard to split into
+     * @param sourceIndexMetadata the source index metadata
+     * @param numTargetShards the total number of shards in the target index
+     * @return a the source shard ID to split off from
+     */
+    public static ShardId selectSplitShard(int shardId, IndexMetaData sourceIndexMetadata, int numTargetShards) {
+        if (shardId >= numTargetShards) {
+            throw new IllegalArgumentException("the number of target shards (" + numTargetShards + ") must be greater than the shard id: "
+                + shardId);
+        }
+        int numSourceShards = sourceIndexMetadata.getNumberOfShards();
+        if (numSourceShards > numTargetShards) {
+            throw new IllegalArgumentException("the number of source shards [" + numSourceShards
+                 + "] must be less that the number of target shards [" + numTargetShards + "]");
+        }
+        int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
+        // this is just an additional assertion that ensures we are a factor of the routing num shards.
+        assert getRoutingFactor(numTargetShards, sourceIndexMetadata.getRoutingNumShards()) >= 0;
+        return new ShardId(sourceIndexMetadata.getIndex(), shardId/routingFactor);
+    }
+
+    /**
+     * Selects the source shards for a local shard recovery. This might either be a split or a shrink operation.
+     * @param shardId the target shard ID to select the source shards for
+     * @param sourceIndexMetadata the source metadata
+     * @param numTargetShards the number of target shards
+     */
+    public static Set<ShardId> selectRecoverFromShards(int shardId, IndexMetaData sourceIndexMetadata, int numTargetShards) {
+        if (sourceIndexMetadata.getNumberOfShards() > numTargetShards) {
+            return selectShrinkShards(shardId, sourceIndexMetadata, numTargetShards);
+        } else if (sourceIndexMetadata.getNumberOfShards() < numTargetShards) {
+            return Collections.singleton(selectSplitShard(shardId, sourceIndexMetadata, numTargetShards));
+        }
+        throw new IllegalArgumentException("can't select recover from shards if both indices have the same number of shards");
     }
 
     /**
@@ -1311,7 +1375,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             throw new IllegalArgumentException("the number of target shards (" + numTargetShards + ") must be greater than the shard id: "
                 + shardId);
         }
-        int routingFactor = getRoutingFactor(sourceIndexMetadata, numTargetShards);
+        if (sourceIndexMetadata.getNumberOfShards() < numTargetShards) {
+            throw new IllegalArgumentException("the number of target shards [" + numTargetShards
+                +"] must be less that the number of source shards [" + sourceIndexMetadata.getNumberOfShards() + "]");
+        }
+        int routingFactor = getRoutingFactor(sourceIndexMetadata.getNumberOfShards(), numTargetShards);
         Set<ShardId> shards = new HashSet<>(routingFactor);
         for (int i = shardId * routingFactor; i < routingFactor*shardId + routingFactor; i++) {
             shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
@@ -1325,21 +1393,30 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
      * {@link org.elasticsearch.cluster.routing.OperationRouting#generateShardId(IndexMetaData, String, String)} to guarantee consistent
      * hashing / routing of documents even if the number of shards changed (ie. a shrunk index).
      *
-     * @param sourceIndexMetadata the metadata of the source index
+     * @param sourceNumberOfShards the total number of shards in the source index
      * @param targetNumberOfShards the total number of shards in the target index
      * @return the routing factor for and shrunk index with the given number of target shards.
      * @throws IllegalArgumentException if the number of source shards is less than the number of target shards or if the source shards
      * are not divisible by the number of target shards.
      */
-    public static int getRoutingFactor(IndexMetaData sourceIndexMetadata, int targetNumberOfShards) {
-        int sourceNumberOfShards = sourceIndexMetadata.getNumberOfShards();
-        if (sourceNumberOfShards < targetNumberOfShards) {
-            throw new IllegalArgumentException("the number of target shards must be less that the number of source shards");
-        }
-        int factor = sourceNumberOfShards / targetNumberOfShards;
-        if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
-            throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a multiple of ["
-                + targetNumberOfShards + "]");
+    public static int getRoutingFactor(int sourceNumberOfShards, int targetNumberOfShards) {
+        final int factor;
+        if (sourceNumberOfShards < targetNumberOfShards) { // split
+            factor = targetNumberOfShards / sourceNumberOfShards;
+            if (factor * sourceNumberOfShards != targetNumberOfShards || factor <= 1) {
+                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
+                    "factor of ["
+                    + targetNumberOfShards + "]");
+            }
+        } else if (sourceNumberOfShards > targetNumberOfShards) { // shrink
+            factor = sourceNumberOfShards / targetNumberOfShards;
+            if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
+                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
+                    "multiple of ["
+                    + targetNumberOfShards + "]");
+            }
+        } else {
+            factor = 1;
         }
         return factor;
     }

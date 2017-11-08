@@ -526,7 +526,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         /*
          * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
-         * gaps are filled.
+         * translog generation has rolled.
          */
         final CountDownLatch latch = new CountDownLatch(1);
         indexShard.acquirePrimaryOperationPermit(

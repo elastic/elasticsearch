@@ -93,6 +93,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
     environment:
       - node.name=es01
+      - discovery.zen.minimum_master_nodes=2
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD <1>
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - xpack.security.http.ssl.enabled=true
@@ -114,6 +115,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
     environment:
       - node.name=es02
+      - discovery.zen.minimum_master_nodes=2
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD
       - discovery.zen.ping.unicast.hosts=es01
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"

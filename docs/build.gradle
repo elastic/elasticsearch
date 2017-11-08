@@ -46,6 +46,9 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
   if (subproj.path.startsWith(':plugins:repository-')) {
     return
   }
+  if (subproj.path.startsWith(':plugins:transport-nio')) {
+    return
+  }
   subproj.afterEvaluate { // need to wait until the project has been configured
     integTestCluster {
       plugin subproj.path

@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.SocketSelector;
-import org.elasticsearch.transport.nio.WriteOperation;
+import org.elasticsearch.transport.nio.ByteWriteOperation;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -68,7 +68,7 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testSendMessageFromDifferentThreadIsQueuedWithSelector() throws Exception {
         byte[] bytes = generateBytes(10);
         BytesArray bytesArray = new BytesArray(bytes);
-        ArgumentCaptor<WriteOperation> writeOpCaptor = ArgumentCaptor.forClass(WriteOperation.class);
+        ArgumentCaptor<ByteWriteOperation> writeOpCaptor = ArgumentCaptor.forClass(ByteWriteOperation.class);
 
         when(selector.isOnCurrentThread()).thenReturn(false);
         when(channel.isWritable()).thenReturn(true);
@@ -76,7 +76,7 @@ public class TcpWriteContextTests extends ESTestCase {
         writeContext.sendMessage(bytesArray, listener);
 
         verify(selector).queueWrite(writeOpCaptor.capture());
-        WriteOperation writeOp = writeOpCaptor.getValue();
+        ByteWriteOperation writeOp = writeOpCaptor.getValue();
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
@@ -86,14 +86,14 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testSendMessageFromSameThreadIsQueuedInChannel() throws Exception {
         byte[] bytes = generateBytes(10);
         BytesArray bytesArray = new BytesArray(bytes);
-        ArgumentCaptor<WriteOperation> writeOpCaptor = ArgumentCaptor.forClass(WriteOperation.class);
+        ArgumentCaptor<ByteWriteOperation> writeOpCaptor = ArgumentCaptor.forClass(ByteWriteOperation.class);
 
         when(channel.isWritable()).thenReturn(true);
 
         writeContext.sendMessage(bytesArray, listener);
 
         verify(selector).queueWriteInChannelBuffer(writeOpCaptor.capture());
-        WriteOperation writeOp = writeOpCaptor.getValue();
+        ByteWriteOperation writeOp = writeOpCaptor.getValue();
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
@@ -103,7 +103,7 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testWriteIsQueuedInChannel() throws Exception {
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        writeContext.queueWriteOperations(new WriteOperation(channel, new BytesArray(generateBytes(10)), listener));
+        writeContext.queueWriteOperations(new ByteWriteOperation(channel, new BytesArray(generateBytes(10)), listener));
 
         assertTrue(writeContext.hasQueuedWriteOps());
     }
@@ -111,7 +111,7 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testWriteOpsCanBeCleared() throws Exception {
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        writeContext.queueWriteOperations(new WriteOperation(channel,  new BytesArray(generateBytes(10)), listener));
+        writeContext.queueWriteOperations(new ByteWriteOperation(channel,  new BytesArray(generateBytes(10)), listener));
 
         assertTrue(writeContext.hasQueuedWriteOps());
 
@@ -126,7 +126,7 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testQueuedWriteIsFlushedInFlushCall() throws Exception {
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        WriteOperation writeOperation = mock(WriteOperation.class);
+        ByteWriteOperation writeOperation = mock(ByteWriteOperation.class);
         writeContext.queueWriteOperations(writeOperation);
 
         assertTrue(writeContext.hasQueuedWriteOps());
@@ -143,7 +143,7 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testPartialFlush() throws IOException {
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        WriteOperation writeOperation = mock(WriteOperation.class);
+        ByteWriteOperation writeOperation = mock(ByteWriteOperation.class);
         writeContext.queueWriteOperations(writeOperation);
 
         assertTrue(writeContext.hasQueuedWriteOps());
@@ -160,8 +160,8 @@ public class TcpWriteContextTests extends ESTestCase {
         assertFalse(writeContext.hasQueuedWriteOps());
 
         ActionListener listener2 = mock(ActionListener.class);
-        WriteOperation writeOperation1 = mock(WriteOperation.class);
-        WriteOperation writeOperation2 = mock(WriteOperation.class);
+        ByteWriteOperation writeOperation1 = mock(ByteWriteOperation.class);
+        ByteWriteOperation writeOperation2 = mock(ByteWriteOperation.class);
         when(writeOperation1.getListener()).thenReturn(listener);
         when(writeOperation2.getListener()).thenReturn(listener2);
         writeContext.queueWriteOperations(writeOperation1);
@@ -188,7 +188,7 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testWhenIOExceptionThrownListenerIsCalled() throws IOException {
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        WriteOperation writeOperation = mock(WriteOperation.class);
+        ByteWriteOperation writeOperation = mock(ByteWriteOperation.class);
         writeContext.queueWriteOperations(writeOperation);
 
         assertTrue(writeContext.hasQueuedWriteOps());

@@ -41,13 +41,14 @@ import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.channel.TcpReadContext;
+import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -68,17 +69,18 @@ public class NioTransport extends TcpTransport<NioChannel> {
     public static final Setting<Integer> NIO_ACCEPTOR_COUNT =
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
-    private final TcpReadHandler tcpReadHandler = new TcpReadHandler(this);
+    private final Consumer<NioSocketChannel> contextSetter;
     private final ConcurrentMap<String, ChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final OpenChannels openChannels = new OpenChannels(logger);
-    private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
-    private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
+    private ArrayList<AcceptingSelector> acceptors;
+    private ArrayList<SocketSelector> socketSelectors;
     private NioClient client;
     private int acceptorNumber;
 
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                         NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        contextSetter = (c) -> c.setContexts(new TcpReadContext(c, new TcpReadHandler(this)), new TcpWriteContext(c));
     }
 
     @Override
@@ -171,50 +173,27 @@ public class NioTransport extends TcpTransport<NioChannel> {
     protected void doStart() {
         boolean success = false;
         try {
-            int workerCount = NioTransport.NIO_WORKER_COUNT.get(settings);
-            for (int i = 0; i < workerCount; ++i) {
-                SocketSelector selector = new SocketSelector(getSocketEventHandler());
-                socketSelectors.add(selector);
-            }
-
-            for (SocketSelector selector : socketSelectors) {
-                if (selector.isRunning() == false) {
-                    ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
-                    threadFactory.newThread(selector::runLoop).start();
-                    selector.isRunningFuture().actionGet();
-                }
-            }
+            socketSelectors = NioSelectors.socketSelectors(settings, this::getSocketEventHandler,
+                NioTransport.NIO_WORKER_COUNT.get(settings), TRANSPORT_WORKER_THREAD_NAME_PREFIX);
 
             client = createClient();
 
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 int acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
-                for (int i = 0; i < acceptorCount; ++i) {
-                    Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-                    AcceptorEventHandler eventHandler = new AcceptorEventHandler(logger, openChannels, selectorSupplier);
-                    AcceptingSelector acceptor = new AcceptingSelector(eventHandler);
-                    acceptors.add(acceptor);
-                }
-
-                for (AcceptingSelector acceptor : acceptors) {
-                    if (acceptor.isRunning() == false) {
-                        ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
-                        threadFactory.newThread(acceptor::runLoop).start();
-                        acceptor.isRunningFuture().actionGet();
-                    }
-                }
+                acceptors = NioSelectors.acceptingSelectors(logger, settings, openChannels, socketSelectors, acceptorCount,
+                    TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
 
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
-                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, tcpReadHandler));
+                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, contextSetter));
                     bindServer(profileSettings);
                 }
+            } else {
+                acceptors = new ArrayList<>();
             }
 
             super.doStart();
             success = true;
-        } catch (IOException e) {
-            throw new ElasticsearchException(e);
         } finally {
             if (success == false) {
                 doStop();
@@ -243,7 +222,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
     private NioClient createClient() {
         Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), tcpReadHandler);
+        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), contextSetter);
         return new NioClient(logger, openChannels, selectorSupplier, defaultConnectionProfile.getConnectTimeout(), channelFactory);
     }
 

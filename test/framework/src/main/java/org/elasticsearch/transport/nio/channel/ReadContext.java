@@ -23,6 +23,8 @@ import java.io.IOException;
 
 public interface ReadContext {
 
+    int DEFAULT_READ_LENGTH = 1 << 14;
+
     int read() throws IOException;
 
 }

@@ -66,6 +66,7 @@ public class NioServerSocketChannelTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
 
         NioChannel channel = new DoNotCloseServerChannel("nio", mock(ServerSocketChannel.class), mock(ChannelFactory.class), selector);
+
         Consumer<NioChannel> listener = (c) -> {
             ref.set(c);
             latch.countDown();

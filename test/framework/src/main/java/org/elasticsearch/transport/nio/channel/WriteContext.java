@@ -21,13 +21,14 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.transport.nio.ByteWriteOperation;
 import org.elasticsearch.transport.nio.WriteOperation;
 
 import java.io.IOException;
 
 public interface WriteContext {
 
-    void sendMessage(BytesReference reference, ActionListener<NioChannel> listener);
+    void sendMessage(Object message, ActionListener<NioChannel> listener);
 
     void queueWriteOperations(WriteOperation writeOperation);
 
@@ -36,5 +37,21 @@ public interface WriteContext {
     boolean hasQueuedWriteOps();
 
     void clearQueuedWriteOps(Exception e);
+
+    static boolean flushOperation(NioSocketChannel channel, ByteWriteOperation op) throws IOException {
+        try {
+            op.flush();
+        } catch (IOException e) {
+            op.getListener().onFailure(e);
+            throw e;
+        }
+
+        if (op.isFullyFlushed()) {
+            op.getListener().onResponse(channel);
+            return true;
+        } else {
+            return false;
+        }
+    }
 
 }

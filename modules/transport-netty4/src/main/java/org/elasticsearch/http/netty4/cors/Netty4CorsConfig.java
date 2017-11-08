@@ -23,7 +23,11 @@ import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.EmptyHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestUtils;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -31,6 +35,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
+import static org.elasticsearch.http.netty4.cors.Netty4CorsHandler.ANY_ORIGIN;
 
 /**
  * Configuration for Cross-Origin Resource Sharing (CORS).
@@ -230,6 +242,39 @@ public final class Netty4CorsConfig {
             ", allowedRequestMethods=" + allowedRequestMethods +
             ", allowedRequestHeaders=" + allowedRequestHeaders +
             ", preflightHeaders=" + preflightHeaders + ']';
+    }
+
+    public static Netty4CorsConfig buildCorsConfig(Settings settings) {
+        if (SETTING_CORS_ENABLED.get(settings) == false) {
+            return Netty4CorsConfigBuilder.forOrigins().disable().build();
+        }
+        String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
+        final Netty4CorsConfigBuilder builder;
+        if (Strings.isNullOrEmpty(origin)) {
+            builder = Netty4CorsConfigBuilder.forOrigins();
+        } else if (origin.equals(ANY_ORIGIN)) {
+            builder = Netty4CorsConfigBuilder.forAnyOrigin();
+        } else {
+            Pattern p = RestUtils.checkCorsSettingForRegex(origin);
+            if (p == null) {
+                builder = Netty4CorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
+            } else {
+                builder = Netty4CorsConfigBuilder.forPattern(p);
+            }
+        }
+        if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
+            builder.allowCredentials();
+        }
+        String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
+        HttpMethod[] methods = Arrays.asList(strMethods)
+            .stream()
+            .map(HttpMethod::valueOf)
+            .toArray(size -> new HttpMethod[size]);
+        return builder.allowedRequestMethods(methods)
+            .maxAge(SETTING_CORS_MAX_AGE.get(settings))
+            .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
+            .shortCircuit()
+            .build();
     }
 
 }

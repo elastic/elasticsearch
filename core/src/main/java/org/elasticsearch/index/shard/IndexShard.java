@@ -472,8 +472,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * subsequently fails before the primary/replica re-sync completes successfully and we are now being
                                  * promoted, the local checkpoint tracker here could be left in a state where it would re-issue sequence
                                  * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
-                                 * replaying the translog and marking any operations there are completed.
+                                 * replaying the translog and marking any operations there are completed. Rolling the translog generation is
+                                 * not strictly needed here (as we will never have collisions between sequence numbers in a translog
+                                 * generation in a new primary as it takes the last known sequence number as a starting point), but it
+                                 * simplifies reasoning about the relationship between primary terms and translog generations.
                                  */
+                                getEngine().rollTranslogGeneration();
                                 getEngine().restoreLocalCheckpointFromTranslog();
                                 getEngine().fillSeqNoGaps(newPrimaryTerm);
                                 getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),

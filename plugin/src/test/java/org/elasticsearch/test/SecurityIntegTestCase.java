@@ -439,7 +439,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     protected InternalSecurityClient internalSecurityClient() {
-        Client client = client();
+        return internalSecurityClient(client());
+    }
+
+    protected InternalSecurityClient internalSecurityClient(Client client) {
         return new InternalSecurityClient(client.settings(), client.threadPool(), client);
     }
 
@@ -501,14 +504,15 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     protected void deleteSecurityIndex() {
+        final InternalSecurityClient securityClient = internalSecurityClient();
         GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(SECURITY_INDEX_NAME);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        GetIndexResponse getIndexResponse = internalClient().admin().indices().getIndex(getIndexRequest).actionGet();
+        GetIndexResponse getIndexResponse = securityClient.admin().indices().getIndex(getIndexRequest).actionGet();
         if (getIndexResponse.getIndices().length > 0) {
             // this is a hack to clean up the .security index since only the XPack user can delete it
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
-            internalClient().admin().indices().delete(deleteIndexRequest).actionGet();
+            securityClient.admin().indices().delete(deleteIndexRequest).actionGet();
         }
     }
 

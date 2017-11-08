@@ -46,7 +46,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
 
     public static final String SECURITY_INDEX_NAME = ".security";
     public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
-    public static final String NEW_SECURITY_INDEX_NAME = SECURITY_INDEX_NAME + "-" + IndexLifecycleManager.NEW_INDEX_VERSION;
+    public static final String INTERNAL_SECURITY_INDEX = IndexLifecycleManager.INTERNAL_SECURITY_INDEX;
 
     private static final Version MIN_READ_VERSION = Version.V_5_0_0;
 
@@ -188,7 +188,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     }
 
     public static List<String> indexNames() {
-        return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, NEW_SECURITY_INDEX_NAME));
+        return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
     }
 
     /**

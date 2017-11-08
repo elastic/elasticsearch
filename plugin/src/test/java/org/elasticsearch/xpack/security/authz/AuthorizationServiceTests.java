@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -134,8 +133,6 @@ import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlRequest;
-import org.joda.time.Instant;
-import org.joda.time.format.DateTimeFormat;
 import org.junit.Before;
 import org.mockito.Mockito;
 

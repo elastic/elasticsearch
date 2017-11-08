@@ -377,6 +377,16 @@ public class AuthorizationService extends AbstractComponent {
         grant(authentication, action, originalRequest, null);
     }
 
+    private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
+        for (String index : SecurityLifecycleService.indexNames()) {
+            final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
+            if (indexPermissions != null && indexPermissions.isGranted()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Performs authorization checks on the items within a {@link BulkShardRequest}.
      * This inspects the {@link BulkItemRequest items} within the request, computes an <em>implied</em> action for each item's
@@ -562,8 +572,7 @@ public class AuthorizationService extends AbstractComponent {
         if (!indicesAccessControl.isGranted()) {
             throw denial(authentication, action, request, specificIndices);
         }
-        if (indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME) != null
-                && indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME).isGranted()
+        if (hasSecurityIndexAccess(indicesAccessControl)
                 && MONITOR_INDEX_PREDICATE.test(action) == false
                 && isSuperuser(authentication.getUser()) == false) {
             // only the superusers are allowed to work with this index, but we should allow indices monitoring actions through for debugging

@@ -58,16 +58,16 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
     command: >
       bash -c '
-      if [[ ! -d config/x-pack/certificates/certs ]]; then
-      mkdir config/x-pack/certificates/certs;
-      fi;
-      if [[ ! -f /local/certs/bundle.zip ]]; then
-      bin/x-pack/certgen --silent --in config/x-pack/certificates/instances.yml --out config/x-pack/certificates/certs/bundle.zip;
-      unzip config/x-pack/certificates/certs/bundle.zip -d config/x-pack/certificates/certs; <1>
-      fi;
-      chgrp -R 0 config/x-pack/certificates/certs
+        if [[ ! -d config/x-pack/certificates/certs ]]; then
+          mkdir config/x-pack/certificates/certs;
+        fi;
+        if [[ ! -f /local/certs/bundle.zip ]]; then
+          bin/x-pack/certgen --silent --in config/x-pack/certificates/instances.yml --out config/x-pack/certificates/certs/bundle.zip;
+          unzip config/x-pack/certificates/certs/bundle.zip -d config/x-pack/certificates/certs; <1>
+        fi;
+        chgrp -R 0 config/x-pack/certificates/certs
       '
-    user: ${UID:-1000}
+    user: $\{UID:-1000\}
     working_dir: /usr/share/elasticsearch
     volumes: ['.:/usr/share/elasticsearch/config/x-pack/certificates']
 ----

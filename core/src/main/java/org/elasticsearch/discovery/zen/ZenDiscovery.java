@@ -773,12 +773,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
             // its a fresh update from the master as we transition from a start of not having a master to having one
             logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
-            adaptedNewClusterState = newClusterState;
         } else if (newClusterState.nodes().isLocalNodeElectedMaster() == false) {
-            adaptedNewClusterState = newClusterState;
         } else {
-            adaptedNewClusterState = newClusterState;
         }
+        adaptedNewClusterState = newClusterState;
 
         if (currentState == adaptedNewClusterState) {
             return false;

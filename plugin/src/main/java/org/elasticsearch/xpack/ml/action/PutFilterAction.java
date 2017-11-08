@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -178,7 +177,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
             MlFilter filter = request.getFilter();
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                Payload.XContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlFilter.INCLUDE_TYPE_KEY, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlFilter.INCLUDE_TYPE_KEY, "true"));
                 indexRequest.source(filter.toXContent(builder, params));
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);

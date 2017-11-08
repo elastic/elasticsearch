@@ -30,32 +30,24 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MultiSnapshotTests extends ESTestCase {
-    public void testTrackSeqNumRandomRanges() throws Exception {
-        final MultiSnapshot.SeqNumSet bitSet = new MultiSnapshot.SeqNumSet();
-        final LongSet normalSet = new LongHashSet();
-        IntStream.range(0, between(20_000, 50_000)).forEach(i -> {
-            long seq = randomNonNegativeLong();
-            boolean existed = normalSet.add(seq) == false;
-            assertThat("SeqNumSet != Set", bitSet.getAndSet(seq), equalTo(existed));
-        });
-    }
-
     public void testTrackSeqNumDenseRanges() throws Exception {
         final MultiSnapshot.SeqNumSet bitSet = new MultiSnapshot.SeqNumSet();
         final LongSet normalSet = new LongHashSet();
-        IntStream.range(0, between(20_000, 50_000)).forEach(i -> {
+        IntStream.range(0, scaledRandomIntBetween(5_000, 10_000)).forEach(i -> {
             long seq = between(0, 5000);
             boolean existed = normalSet.add(seq) == false;
             assertThat("SeqNumSet != Set" + seq, bitSet.getAndSet(seq), equalTo(existed));
+            assertThat(bitSet.ongoingSetsSize() + bitSet.completeSetsSize(), lessThanOrEqualTo(5L));
         });
     }
 
     public void testTrackSeqNumSparseRanges() throws Exception {
         final MultiSnapshot.SeqNumSet bitSet = new MultiSnapshot.SeqNumSet();
         final LongSet normalSet = new LongHashSet();
-        IntStream.range(0, between(20_000, 50_000)).forEach(i -> {
+        IntStream.range(0, scaledRandomIntBetween(5_000, 10_000)).forEach(i -> {
             long seq = between(i * 10_000, i * 30_000);
             boolean existed = normalSet.add(seq) == false;
             assertThat("SeqNumSet != Set", bitSet.getAndSet(seq), equalTo(existed));
@@ -66,17 +58,26 @@ public class MultiSnapshotTests extends ESTestCase {
         final MultiSnapshot.SeqNumSet bitSet = new MultiSnapshot.SeqNumSet();
         final LongSet normalSet = new LongHashSet();
         long currentSeq = between(10_000_000, 1_000_000_000);
-        final int iterations = between(100, 2000);
+        final int iterations = scaledRandomIntBetween(100, 2000);
+        assertThat(bitSet.completeSetsSize(), equalTo(0L));
+        assertThat(bitSet.ongoingSetsSize(), equalTo(0L));
+        long totalDocs = 0;
         for (long i = 0; i < iterations; i++) {
-            List<Long> batch = LongStream.range(currentSeq, currentSeq + between(1, 1000))
+            int batchSize = between(1, 1500);
+            totalDocs += batchSize;
+            currentSeq -= batchSize;
+            List<Long> batch = LongStream.range(currentSeq, currentSeq + batchSize)
                 .boxed()
                 .collect(Collectors.toList());
             Randomness.shuffle(batch);
             batch.forEach(seq -> {
                 boolean existed = normalSet.add(seq) == false;
                 assertThat("SeqNumSet != Set", bitSet.getAndSet(seq), equalTo(existed));
+                assertThat(bitSet.ongoingSetsSize(), lessThanOrEqualTo(4L));
             });
-            currentSeq -= batch.size();
+            assertThat(bitSet.ongoingSetsSize(), lessThanOrEqualTo(2L));
         }
+        assertThat(bitSet.completeSetsSize(), lessThanOrEqualTo(totalDocs / 1024));
+        assertThat(bitSet.ongoingSetsSize(), lessThanOrEqualTo(2L));
     }
 }

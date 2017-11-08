@@ -181,6 +181,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
         ClusterState serializedClusterState1 = ClusterState.readFrom(inStream, newNode("node4"));
 
+        // Create a new, albeit equal, IndexMetadata object
         ClusterState clusterState2 = ClusterState.builder(clusterState1).incrementVersion()
             .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(1).build(), true)).build();
         assertNotSame("Should have created a new, equivalent, IndexMetaData object in clusterState2",
@@ -192,6 +193,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         assertSame("Unchanged routing table should not create new IndexRoutingTable objects",
             serializedClusterState1.routingTable().index("test"), serializedClusterState2.routingTable().index("test"));
 
+        // Create a new and different IndexMetadata object
         ClusterState clusterState3 = ClusterState.builder(clusterState1).incrementVersion()
             .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(2).build(), true)).build();
         ClusterState serializedClusterState3 = updateUsingSerialisedDiff(serializedClusterState2, clusterState3.diff(clusterState2));

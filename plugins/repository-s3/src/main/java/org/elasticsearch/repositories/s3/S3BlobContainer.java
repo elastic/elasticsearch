@@ -107,9 +107,12 @@ class S3BlobContainer extends AbstractBlobContainer {
             throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
         }
 
-        final UploadMethod method = (blobSize <= blobStore.bufferSizeInBytes()) ? this::executeSingleUpload : this::executeMultipartUpload;
         SocketAccess.doPrivilegedIOException(() -> {
-            method.upload(blobStore, buildKey(blobName), inputStream, blobSize);
+            if (blobSize <= blobStore.bufferSizeInBytes()) {
+                executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize);
+            } else {
+                executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize);
+            }
             return null;
         });
     }
@@ -189,11 +192,6 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     private String buildKey(String blobName) {
         return keyPath + blobName;
-    }
-
-    @FunctionalInterface
-    interface UploadMethod {
-        void upload(S3BlobStore blobStore, String blobName, InputStream input, long blobSize) throws IOException;
     }
 
     /**

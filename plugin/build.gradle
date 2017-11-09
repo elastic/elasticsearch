@@ -36,6 +36,7 @@ dependencyLicenses {
   mapping from: /jdbc-proto.*/, to: 'elasticsearch'
   mapping from: /cli-proto.*/, to: 'elasticsearch'
   mapping from: /shared-proto.*/, to: 'elasticsearch'
+  mapping from: /aggs-matrix-stats.*/, to: 'elasticsearch' //pulled in by sql:server
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
   ignoreSha 'elasticsearch-rest-client'
@@ -46,6 +47,7 @@ dependencyLicenses {
   ignoreSha 'cli-proto'
   ignoreSha 'shared-proto'
   ignoreSha 'elasticsearch-rest-client-sniffer'
+  ignoreSha 'aggs-matrix-stats'
 }
 
 licenseHeaders {

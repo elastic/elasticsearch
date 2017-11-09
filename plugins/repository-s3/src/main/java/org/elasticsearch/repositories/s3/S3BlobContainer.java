@@ -44,8 +44,6 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,11 +55,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-class S3BlobContainer extends AbstractBlobContainer {
+import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
+import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
+import static org.elasticsearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 
-    static final ByteSizeValue MIN_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.MB);
-    static final ByteSizeValue MAX_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.TB);
-    static final ByteSizeValue MAX_UPLOAD_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
+class S3BlobContainer extends AbstractBlobContainer {
 
     private final S3BlobStore blobStore;
     private final String keyPath;
@@ -202,8 +200,9 @@ class S3BlobContainer extends AbstractBlobContainer {
                              final InputStream input,
                              final long blobSize) throws IOException {
 
-        if (blobSize > MAX_UPLOAD_SIZE.getBytes()) {
-            throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than " + MAX_UPLOAD_SIZE);
+        // Extra safety checks
+        if (blobSize > MAX_FILE_SIZE.getBytes()) {
+            throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than " + MAX_FILE_SIZE);
         }
         if (blobSize > blobStore.bufferSizeInBytes()) {
             throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than buffer size");
@@ -234,11 +233,13 @@ class S3BlobContainer extends AbstractBlobContainer {
                                 final InputStream input,
                                 final long blobSize) throws IOException {
 
-        if (blobSize > MAX_FILE_SIZE.getBytes()) {
-            throw new IllegalArgumentException("Multipart upload request size [" + blobSize + "] can't be larger than " + MAX_FILE_SIZE);
+        if (blobSize > MAX_FILE_SIZE_USING_MULTIPART.getBytes()) {
+            throw new IllegalArgumentException("Multipart upload request size [" + blobSize
+                                                + "] can't be larger than " + MAX_FILE_SIZE_USING_MULTIPART);
         }
-        if (blobSize < MIN_FILE_SIZE.getBytes()) {
-            throw new IllegalArgumentException("Multipart upload request size [" + blobSize + "] can't be smaller than " + MIN_FILE_SIZE);
+        if (blobSize < MIN_PART_SIZE_USING_MULTIPART.getBytes()) {
+            throw new IllegalArgumentException("Multipart upload request size [" + blobSize
+                                               + "] can't be smaller than " + MIN_PART_SIZE_USING_MULTIPART);
         }
 
         final long partSize = blobStore.bufferSizeInBytes();

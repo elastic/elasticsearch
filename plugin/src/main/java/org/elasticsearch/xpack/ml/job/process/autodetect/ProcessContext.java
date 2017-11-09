@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.OpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
@@ -54,7 +55,7 @@ final class ProcessContext {
 
     void tryLock() {
         try {
-            if (lock.tryLock(NativeAutodetectProcessFactory.PROCESS_STARTUP_TIMEOUT.getSeconds(), TimeUnit.SECONDS) == false) {
+            if (lock.tryLock(MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT.getSeconds(), TimeUnit.SECONDS) == false) {
                 LOGGER.error("Failed to acquire process lock for job [{}]", jobTask.getJobId());
                 throw ExceptionsHelper.serverError("Failed to acquire process lock for job [" + jobTask.getJobId() + "]");
             }

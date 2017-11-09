@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.test.rest.XPackRestTestCase;
@@ -174,22 +173,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
             assertUserInfo("postupgrade_user");
             assertRoleInfo("postupgrade_role");
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testMonitoring() throws Exception {
-        waitForYellow(".monitoring-es-*");
-
-        if (runningAgainstOldCluster == false) {
-            waitForMonitoringTemplates();
-        }
-
-        // ensure that monitoring [re]starts and creates the core monitoring document, cluster_stats, for the current cluster
-        final Map<String, Object> response = toMap(client().performRequest("GET", "/"));
-        final Map<String, Object> version = (Map<String, Object>) response.get("version");
-        final String expectedVersion = (String) version.get("number");
-
-        waitForClusterStats(expectedVersion);
     }
 
     public void testWatcher() throws Exception {
@@ -396,43 +379,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
             Map<String, Object> hits = (Map<String, Object>) response.get("hits");
             int total = (int) hits.get("total");
             assertThat(total, greaterThanOrEqualTo(expectedHits));
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void waitForMonitoringTemplates() throws Exception {
-        assertBusy(() -> {
-            final Map<String, Object> templates = toMap(client().performRequest("GET", "/_template/.monitoring-*"));
-
-            // in earlier versions, we published legacy templates in addition to the current ones to support transitioning
-            assertThat(templates.size(), greaterThanOrEqualTo(MonitoringTemplateUtils.TEMPLATE_IDS.length));
-
-            // every template should be updated to whatever the current version is
-            for (final String templateId : MonitoringTemplateUtils.TEMPLATE_IDS) {
-                final String templateName = MonitoringTemplateUtils.templateName(templateId);
-                final Map<String, Object> template = (Map<String, Object>) templates.get(templateName);
-
-                assertThat(template.get("version"), is(MonitoringTemplateUtils.LAST_UPDATED_VERSION));
-            }
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void waitForClusterStats(final String expectedVersion) throws Exception {
-        assertBusy(() -> {
-            final Map<String, String> params = new HashMap<>(3);
-            params.put("q", "type:cluster_stats");
-            params.put("size", "1");
-            params.put("sort", "timestamp:desc");
-
-            final Map<String, Object> response = toMap(client().performRequest("GET", "/.monitoring-es-*/_search", params));
-            final Map<String, Object> hits = (Map<String, Object>) response.get("hits");
-
-            assertThat("No cluster_stats documents found.", (int)hits.get("total"), greaterThanOrEqualTo(1));
-
-            final Map<String, Object> hit = (Map<String, Object>) ((List<Object>) hits.get("hits")).get(0);
-            final Map<String, Object> source = (Map<String, Object>) hit.get("_source");
-            assertThat(source.get("version"), is(expectedVersion));
         }, 30, TimeUnit.SECONDS);
     }
 

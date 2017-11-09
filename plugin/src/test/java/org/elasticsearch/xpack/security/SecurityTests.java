@@ -19,8 +19,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -46,7 +48,11 @@ import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.ssl.SSLService;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -203,7 +209,7 @@ public class SecurityTests extends ESTestCase {
         assertThat(filter, hasItem(Security.setting("authc.realms.*.ssl.truststore.algorithm")));
     }
 
-    public void testTLSJoinValidatorOnDisabledSecurity() throws Exception {
+    public void testJoinValidatorOnDisabledSecurity() throws Exception {
         Settings disabledSettings = Settings.builder().put("xpack.security.enabled", false).build();
         createComponents(disabledSettings);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
@@ -216,7 +222,6 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(joinValidator);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         joinValidator.accept(node, ClusterState.builder(ClusterName.DEFAULT).build());
-        assertTrue(joinValidator instanceof Security.ValidateTLSOnJoin);
         int numIters = randomIntBetween(1,10);
         for (int i = 0; i < numIters; i++) {
             boolean tlsOn = randomBoolean();
@@ -235,5 +240,73 @@ public class SecurityTests extends ESTestCase {
             }
             validator.accept(node, ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().build()).build());
         }
+    }
+
+    public void testIndexJoinValidator_Old_And_Rolling() throws Exception {
+        createComponents(Settings.EMPTY);
+        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
+        assertNotNull(joinValidator);
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME)
+            .settings(settings(Version.V_5_6_0).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_INDEX_FORMAT - 1))
+            .numberOfShards(1).numberOfReplicas(0)
+            .build();
+        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.V_5_6_0);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
+        ClusterState clusterState =  ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> joinValidator.accept(node, clusterState));
+        assertThat(e.getMessage(), equalTo("Security index is not on the current version [6] - " +
+            "The Upgrade API must be run for 6.x nodes to join the cluster"));
+    }
+
+    public void testIndexJoinValidator_FullyCurrentCluster() throws Exception {
+        createComponents(Settings.EMPTY);
+        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
+        assertNotNull(joinValidator);
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        int indexFormat = randomBoolean() ? INTERNAL_INDEX_FORMAT : INTERNAL_INDEX_FORMAT - 1;
+        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME)
+            .settings(settings(Version.V_5_6_0).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
+            .numberOfShards(1).numberOfReplicas(0)
+            .build();
+        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
+        ClusterState clusterState =  ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+        joinValidator.accept(node, clusterState);
+    }
+
+    public void testIndexUpgradeValidatorWithUpToDateIndex() throws Exception {
+        createComponents(Settings.EMPTY);
+        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
+        assertNotNull(joinValidator);
+        Version version = randomBoolean() ? Version.CURRENT : Version.V_5_6_0;
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME)
+            .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_INDEX_FORMAT))
+            .numberOfShards(1).numberOfReplicas(0)
+            .build();
+        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
+        ClusterState clusterState =  ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+        joinValidator.accept(node, clusterState);
+    }
+
+    public void testIndexUpgradeValidatorWithMissingIndex() throws Exception {
+        createComponents(Settings.EMPTY);
+        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
+        assertNotNull(joinValidator);
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.V_5_6_0);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
+        ClusterState clusterState =  ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes).build();
+        joinValidator.accept(node, clusterState);
     }
 }

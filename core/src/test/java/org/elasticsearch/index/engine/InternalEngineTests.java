@@ -105,7 +105,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -1228,66 +1227,10 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
     }
 
-    protected List<Engine.Operation> generateSingleDocHistory(boolean forReplica, VersionType versionType,
-                                                              boolean partialOldPrimary, long primaryTerm,
-                                                              int minOpCount, int maxOpCount) {
-        final int numOfOps = randomIntBetween(minOpCount, maxOpCount);
-        final List<Engine.Operation> ops = new ArrayList<>();
-        final Term id = newUid("1");
-        final int startWithSeqNo;
-        if (partialOldPrimary) {
-            startWithSeqNo = randomBoolean() ? numOfOps - 1 : randomIntBetween(0, numOfOps - 1);
-        } else {
-            startWithSeqNo = 0;
-        }
-        final String valuePrefix = forReplica ? "r_" : "p_";
-        final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();
-        for (int i = 0; i < numOfOps; i++) {
-            final Engine.Operation op;
-            final long version;
-            switch (versionType) {
-                case INTERNAL:
-                    version = forReplica ? i : Versions.MATCH_ANY;
-                    break;
-                case EXTERNAL:
-                    version = i;
-                    break;
-                case EXTERNAL_GTE:
-                    version = randomBoolean() ? Math.max(i - 1, 0) : i;
-                    break;
-                case FORCE:
-                    version = randomNonNegativeLong();
-                    break;
-                default:
-                    throw new UnsupportedOperationException("unknown version type: " + versionType);
-            }
-            if (randomBoolean()) {
-                op = new Engine.Index(id, testParsedDocument("1", null, testDocumentWithTextField(valuePrefix + i), B_1, null),
-                    forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
-                    version,
-                    forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
-                    forReplica ? REPLICA : PRIMARY,
-                    System.currentTimeMillis(), -1, false
-                );
-            } else {
-                op = new Engine.Delete("test", "1", id,
-                    forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
-                    version,
-                    forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
-                    forReplica ? REPLICA : PRIMARY,
-                    System.currentTimeMillis());
-            }
-            ops.add(op);
-        }
-        return ops;
-    }
-
     public void testOutOfOrderDocsOnReplica() throws IOException {
         final List<Engine.Operation> ops = generateSingleDocHistory(true,
             randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE, VersionType.FORCE), false, 2, 2, 20);
-        assertOpsOnReplica(ops, replicaEngine, true);
+        assertOpsOnReplica(ops, replicaEngine, true, logger);
     }
 
     public void testOutOfOrderDocsOnReplicaOldPrimary() throws IOException {
@@ -1304,72 +1247,7 @@ public class InternalEngineTests extends EngineTestCase {
              InternalEngine replicaEngine =
                  createEngine(oldSettings, oldReplicaStore, createTempDir("translog-old-replica"), newMergePolicy())) {
             final List<Engine.Operation> ops = generateSingleDocHistory(true, randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), true, 2, 2, 20);
-            assertOpsOnReplica(ops, replicaEngine, true);
-        }
-    }
-
-    private void assertOpsOnReplica(List<Engine.Operation> ops, InternalEngine replicaEngine, boolean shuffleOps) throws IOException {
-        final Engine.Operation lastOp = ops.get(ops.size() - 1);
-        final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
-            lastFieldValue = index.docs().get(0).get("value");
-        } else {
-            // delete
-            lastFieldValue = null;
-        }
-        if (shuffleOps) {
-            int firstOpWithSeqNo = 0;
-            while (firstOpWithSeqNo < ops.size() && ops.get(firstOpWithSeqNo).seqNo() < 0) {
-                firstOpWithSeqNo++;
-            }
-            // shuffle ops but make sure legacy ops are first
-            shuffle(ops.subList(0, firstOpWithSeqNo), random());
-            shuffle(ops.subList(firstOpWithSeqNo, ops.size()), random());
-        }
-        boolean firstOp = true;
-        for (Engine.Operation op : ops) {
-            logger.info("performing [{}], v [{}], seq# [{}], term [{}]",
-                op.operationType().name().charAt(0), op.version(), op.seqNo(), op.primaryTerm());
-            if (op instanceof Engine.Index) {
-                Engine.IndexResult result = replicaEngine.index((Engine.Index) op);
-                // replicas don't really care to about creation status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return false for the created flag in favor of code simplicity
-                // as deleted or not. This check is just signal regression so a decision can be made if it's
-                // intentional
-                assertThat(result.isCreated(), equalTo(firstOp));
-                assertThat(result.getVersion(), equalTo(op.version()));
-                assertThat(result.hasFailure(), equalTo(false));
-
-            } else {
-                Engine.DeleteResult result = replicaEngine.delete((Engine.Delete) op);
-                // Replicas don't really care to about found status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return true for the found flag in favor of code simplicity
-                // his check is just signal regression so a decision can be made if it's
-                // intentional
-                assertThat(result.isFound(), equalTo(firstOp == false));
-                assertThat(result.getVersion(), equalTo(op.version()));
-                assertThat(result.hasFailure(), equalTo(false));
-            }
-            if (randomBoolean()) {
-                engine.refresh("test");
-            }
-            if (randomBoolean()) {
-                engine.flush();
-                engine.refresh("test");
-            }
-            firstOp = false;
-        }
-
-        assertVisibleCount(replicaEngine, lastFieldValue == null ? 0 : 1);
-        if (lastFieldValue != null) {
-            try (Searcher searcher = replicaEngine.acquireSearcher("test")) {
-                final TotalHitCountCollector collector = new TotalHitCountCollector();
-                searcher.searcher().search(new TermQuery(new Term("value", lastFieldValue)), collector);
-                assertThat(collector.getTotalHits(), equalTo(1));
-            }
+            assertOpsOnReplica(ops, replicaEngine, true, logger);
         }
     }
 
@@ -1626,7 +1504,7 @@ public class InternalEngineTests extends EngineTestCase {
         final boolean deletedOnReplica = lastReplicaOp instanceof Engine.Delete;
         final long finalReplicaVersion = lastReplicaOp.version();
         final long finalReplicaSeqNo = lastReplicaOp.seqNo();
-        assertOpsOnReplica(replicaOps, replicaEngine, true);
+        assertOpsOnReplica(replicaOps, replicaEngine, true, logger);
         final int opsOnPrimary = assertOpsOnPrimary(primaryOps, finalReplicaVersion, deletedOnReplica, replicaEngine);
         final long currentSeqNo = getSequenceID(replicaEngine,
             new Engine.Get(false, "type", lastReplicaOp.uid().text(), lastReplicaOp.uid())).v1();
@@ -2287,21 +2165,6 @@ public class InternalEngineTests extends EngineTestCase {
             engine = createEngine(store, primaryTranslogDir);
         }
         assertVisibleCount(engine, numDocs, false);
-    }
-
-    private static void assertVisibleCount(InternalEngine engine, int numDocs) throws IOException {
-        assertVisibleCount(engine, numDocs, true);
-    }
-
-    private static void assertVisibleCount(InternalEngine engine, int numDocs, boolean refresh) throws IOException {
-        if (refresh) {
-            engine.refresh("test");
-        }
-        try (Searcher searcher = engine.acquireSearcher("test")) {
-            final TotalHitCountCollector collector = new TotalHitCountCollector();
-            searcher.searcher().search(new MatchAllDocsQuery(), collector);
-            assertThat(collector.getTotalHits(), equalTo(numDocs));
-        }
     }
 
     public void testTranslogCleanUpPostCommitCrash() throws Exception {

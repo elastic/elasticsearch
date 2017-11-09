@@ -6,6 +6,7 @@
           settings:
             number_of_shards: 1
             number_of_replicas: 0
+            index.max_ngram_diff: 19
             analysis:
               tokenizer:
                 my_ngramt:

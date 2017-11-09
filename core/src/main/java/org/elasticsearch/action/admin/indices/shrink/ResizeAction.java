@@ -27,7 +27,7 @@ public class ResizeAction extends Action<ResizeRequest, ResizeResponse, ResizeRe
 
     public static final ResizeAction INSTANCE = new ResizeAction();
     public static final String NAME = "indices:admin/resize";
-    public static final Version COMPATIBILITY_VERSION = Version.V_7_0_0_alpha1; // TODO remove this once it's backported
+    public static final Version COMPATIBILITY_VERSION = Version.V_6_1_0; // TODO remove this once it's backported
 
     private ResizeAction() {
         super(NAME);

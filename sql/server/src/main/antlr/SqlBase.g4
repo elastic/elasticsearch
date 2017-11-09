@@ -148,14 +148,14 @@ expression
     ;
 
 booleanExpression
-    : predicated                                                                            #booleanDefault
-    | NOT booleanExpression                                                                 #logicalNot
-    | left=booleanExpression operator=AND right=booleanExpression                           #logicalBinary
-    | left=booleanExpression operator=OR right=booleanExpression                            #logicalBinary
+    : NOT booleanExpression                                                                 #logicalNot
     | EXISTS '(' query ')'                                                                  #exists
     | QUERY '(' queryString=STRING (',' options=STRING)* ')'                                #stringQuery
     | MATCH '(' singleField=qualifiedName ',' queryString=STRING (',' options=STRING)* ')'  #matchQuery
     | MATCH '(' multiFields=STRING ',' queryString=STRING (',' options=STRING)* ')'         #multiMatchQuery
+    | predicated                                                                            #booleanDefault
+    | left=booleanExpression operator=AND right=booleanExpression                           #logicalBinary
+    | left=booleanExpression operator=OR right=booleanExpression                            #logicalBinary
     ;
 
 // workaround for:
@@ -184,7 +184,9 @@ valueExpression
     ;
 
 primaryExpression
-    : constant                                                                       #constantDefault
+    : CAST '(' expression AS dataType ')'                                            #cast
+    | EXTRACT '(' field=identifier FROM valueExpression ')'                          #extract
+    | constant                                                                       #constantDefault
     | ASTERISK                                                                       #star
     | (qualifier=columnExpression '.')? ASTERISK                                     #star
     | identifier '(' (setQuantifier? expression (',' expression)*)? ')'              #functionCall
@@ -192,8 +194,6 @@ primaryExpression
     | columnExpression                                                               #columnReference
     | base=columnExpression '.' fieldName=identifier                                 #dereference
     | '(' expression ')'                                                             #parenthesizedExpression
-    | CAST '(' expression AS dataType ')'                                            #cast
-    | EXTRACT '(' field=identifier FROM valueExpression ')'                          #extract
     ;
 
 columnExpression
@@ -255,9 +255,22 @@ number
 
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
-    : ANALYZE | ANALYZED | COLUMNS | DEBUG | EXECUTABLE | EXPLAIN | FORMAT | FUNCTIONS | FROM 
-    | GRAPHVIZ | LOGICAL | MAPPED | OPTIMIZED | PARSED | PHYSICAL | PLAN | QUERY | RESET
-    | RLIKE | SCHEMAS | SESSION | SETS | SHOW | TABLES | TEXT |  TYPE | USE | VERIFY
+    : ANALYZE | ANALYZED 
+    | COLUMNS 
+    | DEBUG 
+    | EXECUTABLE | EXPLAIN 
+    | FORMAT | FUNCTIONS | FROM 
+    | GRAPHVIZ 
+    | LOGICAL 
+    | MAPPED 
+    | OPTIMIZED 
+    | PARSED | PHYSICAL | PLAN 
+    | QUERY 
+    | RESET | RLIKE 
+    | SCHEMAS | SESSION | SETS | SHOW 
+    | TABLES | TEXT |  TYPE 
+    | USE 
+    | VERIFY
     ;
 
 ALL: 'ALL';

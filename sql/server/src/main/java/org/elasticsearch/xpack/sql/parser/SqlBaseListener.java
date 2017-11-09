@@ -493,6 +493,30 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitArithmeticUnary(SqlBaseParser.ArithmeticUnaryContext ctx);
   /**
+   * Enter a parse tree produced by the {@code cast}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterCast(SqlBaseParser.CastContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code cast}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitCast(SqlBaseParser.CastContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code extract}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterExtract(SqlBaseParser.ExtractContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code extract}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitExtract(SqlBaseParser.ExtractContext ctx);
+  /**
    * Enter a parse tree produced by the {@code constantDefault}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -576,30 +600,6 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code cast}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void enterCast(SqlBaseParser.CastContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code cast}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void exitCast(SqlBaseParser.CastContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code extract}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void enterExtract(SqlBaseParser.ExtractContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code extract}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void exitExtract(SqlBaseParser.ExtractContext ctx);
   /**
    * Enter a parse tree produced by {@link SqlBaseParser#columnExpression}.
    * @param ctx the parse tree

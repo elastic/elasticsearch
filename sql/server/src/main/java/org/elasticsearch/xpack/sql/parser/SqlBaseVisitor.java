@@ -299,6 +299,20 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitArithmeticUnary(SqlBaseParser.ArithmeticUnaryContext ctx);
   /**
+   * Visit a parse tree produced by the {@code cast}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCast(SqlBaseParser.CastContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code extract}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitExtract(SqlBaseParser.ExtractContext ctx);
+  /**
    * Visit a parse tree produced by the {@code constantDefault}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -347,20 +361,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code cast}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitCast(SqlBaseParser.CastContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code extract}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitExtract(SqlBaseParser.ExtractContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#columnExpression}.
    * @param ctx the parse tree

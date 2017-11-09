@@ -140,7 +140,9 @@ public class FsBlobContainer extends AbstractBlobContainer {
         Path targetPath = path.resolve(target);
         // If the target file exists then Files.move() behaviour is implementation specific
         // the existing file might be replaced or this method fails by throwing an IOException.
-        assert !Files.exists(targetPath);
+        if (Files.exists(targetPath)) {
+            throw new FileAlreadyExistsException("blob [" + targetPath + "] already exists, cannot overwrite");
+        }
         Files.move(sourcePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
         IOUtils.fsync(path, true);
     }

@@ -66,7 +66,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             this.metadata = metaData;
 
             long partBytes = Long.MAX_VALUE;
-            if (partSize != null) {
+            if (partSize != null && partSize.getBytes() > 0) {
                 partBytes = partSize.getBytes();
             }
 

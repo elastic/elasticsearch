@@ -11,5 +11,5 @@ easy-to-install package. To access this functionality, you must
 --
 
 include::installing-xes.asciidoc[]
-include::settings/configuring-xes.asciidoc[]
+include::{xes-repo-dir}/settings/configuring-xes.asciidoc[]
 include::setup-xclient.asciidoc[]

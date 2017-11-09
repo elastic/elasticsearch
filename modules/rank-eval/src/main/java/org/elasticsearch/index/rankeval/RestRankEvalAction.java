@@ -36,119 +36,57 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
- * Accepted input format:
- *
- * General Format:
- *
- *
-  {
-    "spec_id": "human_readable_id",
-    "requests": [{
-        "id": "human_readable_id",
-        "request": { ... request to check ... },
-        "ratings": { ... mapping from doc id to rating value ... }
-     }],
-    "metric": {
-        "... metric_name... ": {
-            "... metric_parameter_key ...": ...metric_parameter_value...
-        }
-    }
-  }
- *
- * Example:
- *
- *
-   {"spec_id": "huge_weight_on_location",
-    "requests": [{
-        "id": "amsterdam_query",
-        "request": {
-             "query": {
-                    "bool": {
-                        "must": [
-                            {"match": {"beverage": "coffee"}},
-                            {"term": {"browser": {"value": "safari"}}},
-                            {"term": {"time_of_day": {"value": "morning","boost": 2}}},
-                            {"term": {"ip_location": {"value": "ams","boost": 10}}}]}
-                },
-                "size": 10
-        },
-        "ratings": [
-             {\"index\": \"test\", \"type\": \"my_type\", \"doc_id\": \"1\", \"rating\" : 1 },
-             {\"index\": \"test\", \"type\": \"my_type\", \"doc_id\": \"2\", \"rating\" : 0 },
-             {\"index\": \"test\", \"type\": \"my_type\", \"doc_id\": \"3\", \"rating\" : 1 }
-         ]
-    }, {
-        "id": "berlin_query",
-        "request": {
-                "query": {
-                    "bool": {
-                        "must": [
-                            {"match": {"beverage": "club mate"}},
-                            {"term": {"browser": {"value": "chromium"}}},
-                            {"term": {"time_of_day": {"value": "evening","boost": 2}}},
-                            {"term": {"ip_location": {"value": "ber","boost": 10}}}]}
-                },
-                "size": 10
-        },
-        "ratings": [ ... ]
-    }],
-    "metric": {
-        "precisionAtN": {
-            "size": 10
-            }
-    }
-  }
-
- *
- * Output format:
- *
- * General format:
- *
- *
- {
-    "took": 59,
-    "timed_out": false,
-    "_shards": {
-        "total": 5,
-        "successful": 5,
-        "failed": 0
-    },
-    "quality_level": ... quality level ...,
-    "unknown_docs": {"user_request_id": [... list of unknown docs ...]}
-}
-
- *
- * Example:
- *
- *
- *
-  {
-    "took": 59,
-    "timed_out": false,
-    "_shards": {
-        "total": 5,
-        "successful": 5,
-        "failed": 0
-    },
-    "rank_eval": [{
-        "spec_id": "huge_weight_on_location",
-        "quality_level": 0.4,
-        "unknown_docs": {
-            "amsterdam_query": [
-                { "index" : "test", "doc_id" : "21"},
-                { "index" : "test", "doc_id" : "5"},
-                { "index" : "test", "doc_id" : "9"}
-            ]
-        }, {
-            "berlin_query": [
-                { "index" : "test", "doc_id" : "42"}
-            ]
-        }
-    }]
-  }
-
-
- * */
+ *  {
+ *   "requests": [{
+ *           "id": "amsterdam_query",
+ *           "request": {
+ *               "query": {
+ *                   "match": {
+ *                       "text": "amsterdam"
+ *                   }
+ *               }
+ *          },
+ *          "ratings": [{
+ *                   "_index": "foo",
+ *                   "_id": "doc1",
+ *                   "rating": 0
+ *               },
+ *               {
+ *                   "_index": "foo",
+ *                   "_id": "doc2",
+ *                   "rating": 1
+ *               },
+ *               {
+ *                   "_index": "foo",
+ *                   "_id": "doc3",
+ *                   "rating": 1
+ *               }
+ *           ]
+ *       },
+ *       {
+ *           "id": "berlin_query",
+ *           "request": {
+ *               "query": {
+ *                   "match": {
+ *                       "text": "berlin"
+ *                   }
+ *               },
+ *               "size": 10
+ *           },
+ *           "ratings": [{
+ *               "_index": "foo",
+ *               "_id": "doc1",
+ *               "rating": 1
+ *           }]
+ *       }
+ *   ],
+ *   "metric": {
+ *       "precision": {
+ *           "ignore_unlabeled": true
+ *       }
+ *   }
+ * }
+ */
 public class RestRankEvalAction extends BaseRestHandler {
 
     public RestRankEvalAction(Settings settings, RestController controller) {

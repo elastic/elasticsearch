@@ -41,7 +41,7 @@ import java.util.Vector;
 public class ReciprocalRankTests extends ESTestCase {
 
     public void testMaxAcceptableRank() {
-        ReciprocalRank reciprocalRank = new ReciprocalRank();
+        MeanReciprocalRank reciprocalRank = new MeanReciprocalRank();
 
         int searchHits = randomIntBetween(1, 50);
 
@@ -59,17 +59,17 @@ public class ReciprocalRankTests extends ESTestCase {
         int rankAtFirstRelevant = relevantAt + 1;
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
         assertEquals(1.0 / rankAtFirstRelevant, evaluation.getQualityLevel(), Double.MIN_VALUE);
-        assertEquals(rankAtFirstRelevant, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
+        assertEquals(rankAtFirstRelevant, ((MeanReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
 
         // check that if we have fewer search hits than relevant doc position,
         // we don't find any result and get 0.0 quality level
-        reciprocalRank = new ReciprocalRank();
+        reciprocalRank = new MeanReciprocalRank();
         evaluation = reciprocalRank.evaluate("id", Arrays.copyOfRange(hits, 0, relevantAt), ratedDocs);
         assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
     }
 
     public void testEvaluationOneRelevantInResults() {
-        ReciprocalRank reciprocalRank = new ReciprocalRank();
+        MeanReciprocalRank reciprocalRank = new MeanReciprocalRank();
         SearchHit[] hits = createSearchHits(0, 9, "test");
         List<RatedDocument> ratedDocs = new ArrayList<>();
         // mark one of the ten docs relevant
@@ -84,7 +84,7 @@ public class ReciprocalRankTests extends ESTestCase {
 
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
         assertEquals(1.0 / (relevantAt + 1), evaluation.getQualityLevel(), Double.MIN_VALUE);
-        assertEquals(relevantAt + 1, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
+        assertEquals(relevantAt + 1, ((MeanReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
     }
 
     /**
@@ -101,15 +101,15 @@ public class ReciprocalRankTests extends ESTestCase {
         rated.add(new RatedDocument("test",  "4", 4));
         SearchHit[] hits = createSearchHits(0, 5, "test");
 
-        ReciprocalRank reciprocalRank = new ReciprocalRank();
+        MeanReciprocalRank reciprocalRank = new MeanReciprocalRank();
         reciprocalRank.setRelevantRatingThreshhold(2);
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, rated);
         assertEquals((double) 1 / 3, evaluation.getQualityLevel(), 0.00001);
-        assertEquals(3, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
+        assertEquals(3, ((MeanReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
     }
 
     public void testCombine() {
-        ReciprocalRank reciprocalRank = new ReciprocalRank();
+        MeanReciprocalRank reciprocalRank = new MeanReciprocalRank();
         Vector<EvalQueryQuality> partialResults = new Vector<>(3);
         partialResults.add(new EvalQueryQuality("id1", 0.5));
         partialResults.add(new EvalQueryQuality("id2", 1.0));
@@ -118,7 +118,7 @@ public class ReciprocalRankTests extends ESTestCase {
     }
 
     public void testEvaluationNoRelevantInResults() {
-        ReciprocalRank reciprocalRank = new ReciprocalRank();
+        MeanReciprocalRank reciprocalRank = new MeanReciprocalRank();
         SearchHit[] hits = createSearchHits(0, 9, "test");
         List<RatedDocument> ratedDocs = new ArrayList<>();
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
@@ -126,13 +126,13 @@ public class ReciprocalRankTests extends ESTestCase {
     }
 
     public void testXContentRoundtrip() throws IOException {
-        ReciprocalRank testItem = createTestItem();
+        MeanReciprocalRank testItem = createTestItem();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
         try (XContentParser itemParser = createParser(shuffled)) {
             itemParser.nextToken();
             itemParser.nextToken();
-            ReciprocalRank parsedItem = ReciprocalRank.fromXContent(itemParser);
+            MeanReciprocalRank parsedItem = MeanReciprocalRank.fromXContent(itemParser);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -152,36 +152,36 @@ public class ReciprocalRankTests extends ESTestCase {
         return hits;
     }
 
-    private static ReciprocalRank createTestItem() {
-        ReciprocalRank testItem = new ReciprocalRank();
+    private static MeanReciprocalRank createTestItem() {
+        MeanReciprocalRank testItem = new MeanReciprocalRank();
         testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));
         return testItem;
     }
 
     public void testSerialization() throws IOException {
-        ReciprocalRank original = createTestItem();
+        MeanReciprocalRank original = createTestItem();
 
-        ReciprocalRank deserialized = RankEvalTestHelper.copy(original, ReciprocalRank::new);
+        MeanReciprocalRank deserialized = RankEvalTestHelper.copy(original, MeanReciprocalRank::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
     public void testEqualsAndHash() throws IOException {
-        ReciprocalRank testItem = createTestItem();
+        MeanReciprocalRank testItem = createTestItem();
         RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
-                RankEvalTestHelper.copy(testItem, ReciprocalRank::new));
+                RankEvalTestHelper.copy(testItem, MeanReciprocalRank::new));
     }
 
-    private static ReciprocalRank mutateTestItem(ReciprocalRank testItem) {
+    private static MeanReciprocalRank mutateTestItem(MeanReciprocalRank testItem) {
         int relevantThreshold = testItem.getRelevantRatingThreshold();
-        ReciprocalRank rank = new ReciprocalRank();
+        MeanReciprocalRank rank = new MeanReciprocalRank();
         rank.setRelevantRatingThreshhold(randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10)));
         return rank;
     }
 
     public void testInvalidRelevantThreshold() {
-        ReciprocalRank prez = new ReciprocalRank();
+        MeanReciprocalRank prez = new MeanReciprocalRank();
         expectThrows(IllegalArgumentException.class, () -> prez.setRelevantRatingThreshhold(-1));
     }
 }

@@ -114,10 +114,11 @@ public class RankEvalSpecTests extends ESTestCase {
 
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, Precision.NAME, Precision::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, PrecisionAtK.NAME, PrecisionAtK::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, DiscountedCumulativeGain.NAME,
                 DiscountedCumulativeGain::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, ReciprocalRank.NAME, ReciprocalRank::new));
+        namedWriteables
+                .add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, MeanReciprocalRank.NAME, MeanReciprocalRank::new));
 
         RankEvalSpec deserialized = RankEvalTestHelper.copy(original, RankEvalSpec::new, new NamedWriteableRegistry(namedWriteables));
         assertEquals(deserialized, original);
@@ -130,10 +131,11 @@ public class RankEvalSpecTests extends ESTestCase {
 
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, Precision.NAME, Precision::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, PrecisionAtK.NAME, PrecisionAtK::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, DiscountedCumulativeGain.NAME,
                 DiscountedCumulativeGain::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, ReciprocalRank.NAME, ReciprocalRank::new));
+        namedWriteables
+                .add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, MeanReciprocalRank.NAME, MeanReciprocalRank::new));
 
         RankEvalSpec mutant = RankEvalTestHelper.copy(testItem, RankEvalSpec::new, new NamedWriteableRegistry(namedWriteables));
         RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(mutant),
@@ -152,10 +154,10 @@ public class RankEvalSpecTests extends ESTestCase {
             ratedRequests.add(request);
             break;
         case 1:
-            if (metric instanceof Precision) {
+            if (metric instanceof PrecisionAtK) {
                 metric = new DiscountedCumulativeGain();
             } else {
-                metric = new Precision();
+                metric = new PrecisionAtK();
             }
             break;
         case 2:
@@ -175,7 +177,7 @@ public class RankEvalSpecTests extends ESTestCase {
     }
 
     public void testMissingRatedRequestsFailsParsing() {
-        RankedListQualityMetric metric = new Precision();
+        RankedListQualityMetric metric = new PrecisionAtK();
         expectThrows(IllegalStateException.class, () -> new RankEvalSpec(new ArrayList<>(), metric));
         expectThrows(IllegalStateException.class, () -> new RankEvalSpec(null, metric));
     }
@@ -194,6 +196,6 @@ public class RankEvalSpecTests extends ESTestCase {
         RatedRequest request = new RatedRequest("id", ratedDocs, params, "templateId");
         List<RatedRequest> ratedRequests = Arrays.asList(request);
 
-        expectThrows(IllegalStateException.class, () -> new RankEvalSpec(ratedRequests, new Precision()));
+        expectThrows(IllegalStateException.class, () -> new RankEvalSpec(ratedRequests, new PrecisionAtK()));
     }
 }

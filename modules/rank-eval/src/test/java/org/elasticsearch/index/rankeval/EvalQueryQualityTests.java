@@ -46,7 +46,7 @@ public class EvalQueryQualityTests extends ESTestCase {
                 randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
             // TODO randomize this
-            evalQueryQuality.addMetricDetails(new Precision.Breakdown(1, 5));
+            evalQueryQuality.addMetricDetails(new PrecisionAtK.Breakdown(1, 5));
         }
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
@@ -81,7 +81,7 @@ public class EvalQueryQualityTests extends ESTestCase {
             break;
         case 2:
             if (metricDetails == null) {
-                metricDetails = new Precision.Breakdown(1, 5);
+                metricDetails = new PrecisionAtK.Breakdown(1, 5);
             } else {
                 metricDetails = null;
             }

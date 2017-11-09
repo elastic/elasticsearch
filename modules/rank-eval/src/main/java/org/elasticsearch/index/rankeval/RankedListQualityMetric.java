@@ -65,11 +65,11 @@ public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
 
         // TODO maybe switch to using a plugable registry later?
         switch (metricName) {
-        case Precision.NAME:
-            rc = Precision.fromXContent(parser);
+        case PrecisionAtK.NAME:
+            rc = PrecisionAtK.fromXContent(parser);
             break;
-        case ReciprocalRank.NAME:
-            rc = ReciprocalRank.fromXContent(parser);
+        case MeanReciprocalRank.NAME:
+            rc = MeanReciprocalRank.fromXContent(parser);
             break;
         case DiscountedCumulativeGain.NAME:
             rc = DiscountedCumulativeGain.fromXContent(parser);

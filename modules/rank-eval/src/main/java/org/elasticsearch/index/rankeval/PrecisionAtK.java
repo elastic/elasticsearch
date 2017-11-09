@@ -42,15 +42,15 @@ import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsW
  * considered to be "relevant" for the precision calculation. This value can be
  * changes using the "relevant_rating_threshold" parameter.
  */
-public class Precision implements RankedListQualityMetric {
+public class PrecisionAtK implements RankedListQualityMetric {
 
     public static final String NAME = "precision";
 
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField(
             "relevant_rating_threshold");
     private static final ParseField IGNORE_UNLABELED_FIELD = new ParseField("ignore_unlabeled");
-    private static final ObjectParser<Precision, Void> PARSER = new ObjectParser<>(NAME,
-            Precision::new);
+    private static final ObjectParser<PrecisionAtK, Void> PARSER = new ObjectParser<>(NAME,
+            PrecisionAtK::new);
 
     /**
      * This setting controls how unlabeled documents in the search hits are
@@ -63,16 +63,16 @@ public class Precision implements RankedListQualityMetric {
     /** ratings equal or above this value will be considered relevant. */
     private int relevantRatingThreshhold = 1;
 
-    public Precision() {
+    public PrecisionAtK() {
         // needed for supplier in parser
     }
 
     static {
-        PARSER.declareInt(Precision::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
-        PARSER.declareBoolean(Precision::setIgnoreUnlabeled, IGNORE_UNLABELED_FIELD);
+        PARSER.declareInt(PrecisionAtK::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
+        PARSER.declareBoolean(PrecisionAtK::setIgnoreUnlabeled, IGNORE_UNLABELED_FIELD);
     }
 
-    public Precision(StreamInput in) throws IOException {
+    public PrecisionAtK(StreamInput in) throws IOException {
         relevantRatingThreshhold = in.readOptionalVInt();
         ignoreUnlabeled = in.readOptionalBoolean();
     }
@@ -122,7 +122,7 @@ public class Precision implements RankedListQualityMetric {
         return ignoreUnlabeled;
     }
 
-    public static Precision fromXContent(XContentParser parser) {
+    public static PrecisionAtK fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -155,7 +155,7 @@ public class Precision implements RankedListQualityMetric {
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision);
         evalQueryQuality.addMetricDetails(
-                new Precision.Breakdown(truePositives, truePositives + falsePositives));
+                new PrecisionAtK.Breakdown(truePositives, truePositives + falsePositives));
         evalQueryQuality.addHitsAndRatings(ratedSearchHits);
         return evalQueryQuality;
     }
@@ -179,7 +179,7 @@ public class Precision implements RankedListQualityMetric {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        Precision other = (Precision) obj;
+        PrecisionAtK other = (PrecisionAtK) obj;
         return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold)
                 && Objects.equals(ignoreUnlabeled, other.ignoreUnlabeled);
     }
@@ -241,7 +241,7 @@ public class Precision implements RankedListQualityMetric {
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            Precision.Breakdown other = (Precision.Breakdown) obj;
+            PrecisionAtK.Breakdown other = (PrecisionAtK.Breakdown) obj;
             return Objects.equals(relevantRetrieved, other.relevantRetrieved)
                     && Objects.equals(retrieved, other.retrieved);
         }

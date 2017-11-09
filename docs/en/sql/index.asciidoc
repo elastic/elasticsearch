@@ -25,10 +25,11 @@ indices and return tabular results. There are four main components:
     A JDBC driver for Elasticsearch.
 --
 
-include::sql-rest.asciidoc[]
-include::sql-translate.asciidoc[]
-include::sql-cli.asciidoc[]
-include::sql-jdbc.asciidoc[]
-include::sql-query-dsl.asciidoc[]
+include::sql-overview.asciidoc[]
+include::sql-getting-started.asciidoc[]
+include::endpoints/sql-endpoints.asciidoc[]
+include::functions/sql-functions.asciidoc[]
+include::language/sql-language.asciidoc[]
 
 :jdbc-tests!:
+

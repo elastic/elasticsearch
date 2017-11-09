@@ -129,9 +129,7 @@ public class HttpExporter extends Exporter {
     public static final String PIPELINE_CHECK_TIMEOUT_SETTING = "index.pipeline.master_timeout";
 
     /**
-     * Minimum supported version of the remote monitoring cluster.
-     * <p>
-     * We must have support for the latest template syntax (index_patterns), which requires a minimum of 6.0.
+     * Minimum supported version of the remote monitoring cluster (same major).
      */
     public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_6_0_0_alpha1;
 

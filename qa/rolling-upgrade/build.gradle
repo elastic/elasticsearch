@@ -121,6 +121,11 @@ subprojects {
       numNodes = 2
       clusterName = 'rolling-upgrade'
       waitCondition = waitWithAuth
+      setting 'xpack.monitoring.collection.interval', '-1'
+      setting 'xpack.monitoring.exporters._http.type', 'http'
+      setting 'xpack.monitoring.exporters._http.enabled', 'false'
+      setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
+      setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.security.authc.token.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
@@ -160,6 +165,11 @@ subprojects {
       minimumMasterNodes = { 2 }
       dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
       waitCondition = waitWithAuth
+      setting 'xpack.monitoring.collection.interval', '-1'
+      setting 'xpack.monitoring.exporters._http.type', 'http'
+      setting 'xpack.monitoring.exporters._http.enabled', 'false'
+      setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
+      setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
@@ -197,6 +207,11 @@ subprojects {
       minimumMasterNodes = { 2 }
       dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir }
       waitCondition = waitWithAuth
+      setting 'xpack.monitoring.collection.interval', '-1'
+      setting 'xpack.monitoring.exporters._http.type', 'http'
+      setting 'xpack.monitoring.exporters._http.enabled', 'false'
+      setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
+      setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'

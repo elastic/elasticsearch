@@ -18,16 +18,12 @@
  */
 package org.elasticsearch.index.analysis;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -42,7 +38,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -188,9 +183,9 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     public Map<String, AnalyzerProvider<?>> buildNormalizerFactories(IndexSettings indexSettings) throws IOException {
-        final Map<String, Settings> noralizersSettings = indexSettings.getSettings().getGroups("index.analysis.normalizer");
+        final Map<String, Settings> normalizersSettings = indexSettings.getSettings().getGroups("index.analysis.normalizer");
         // TODO: Have pre-built normalizers
-        return buildMapping(Component.NORMALIZER, indexSettings, noralizersSettings, normalizers, Collections.emptyMap());
+        return buildMapping(Component.NORMALIZER, indexSettings, normalizersSettings, normalizers, Collections.emptyMap());
     }
 
     /**
@@ -455,33 +450,20 @@ public final class AnalysisRegistry implements Closeable {
 
         Index index = indexSettings.getIndex();
         analyzerProviders = new HashMap<>(analyzerProviders);
-        Logger logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
-        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-        Map<String, NamedAnalyzer> analyzerAliases = new HashMap<>();
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         for (Map.Entry<String, AnalyzerProvider<?>> entry : analyzerProviders.entrySet()) {
-            processAnalyzerFactory(deprecationLogger, indexSettings, entry.getKey(), entry.getValue(), analyzerAliases, analyzers,
+            processAnalyzerFactory(indexSettings, entry.getKey(), entry.getValue(), analyzers,
                 tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
-            processNormalizerFactory(deprecationLogger, indexSettings, entry.getKey(), entry.getValue(), normalizers,
+            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers,
                     tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
-        }
-        for (Map.Entry<String, NamedAnalyzer> entry : analyzerAliases.entrySet()) {
-            String key = entry.getKey();
-            if (analyzers.containsKey(key) &&
-                ("default".equals(key) || "default_search".equals(key) || "default_search_quoted".equals(key)) == false) {
-                throw new IllegalStateException("already registered analyzer with name: " + key);
-            } else {
-                NamedAnalyzer configured = entry.getValue();
-                analyzers.put(key, configured);
-            }
         }
 
         if (!analyzers.containsKey("default")) {
-            processAnalyzerFactory(deprecationLogger, indexSettings, "default", new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS),
-                analyzerAliases, analyzers, tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
+            processAnalyzerFactory(indexSettings, "default", new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS),
+                analyzers, tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
         }
         if (!analyzers.containsKey("default_search")) {
             analyzers.put("default_search", analyzers.get("default"));
@@ -490,7 +472,6 @@ public final class AnalysisRegistry implements Closeable {
             analyzers.put("default_search_quoted", analyzers.get("default_search"));
         }
 
-
         NamedAnalyzer defaultAnalyzer = analyzers.get("default");
         if (defaultAnalyzer == null) {
             throw new IllegalArgumentException("no default analyzer configured");
@@ -498,8 +479,8 @@ public final class AnalysisRegistry implements Closeable {
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
         }
-        NamedAnalyzer defaultSearchAnalyzer = analyzers.containsKey("default_search") ? analyzers.get("default_search") : defaultAnalyzer;
-        NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.containsKey("default_search_quote") ? analyzers.get("default_search_quote") : defaultSearchAnalyzer;
+        NamedAnalyzer defaultSearchAnalyzer = analyzers.getOrDefault("default_search", defaultAnalyzer);
+        NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.getOrDefault("default_search_quote", defaultSearchAnalyzer);
 
         for (Map.Entry<String, NamedAnalyzer> analyzer : analyzers.entrySet()) {
             if (analyzer.getKey().startsWith("_")) {
@@ -510,11 +491,9 @@ public final class AnalysisRegistry implements Closeable {
             unmodifiableMap(analyzers), unmodifiableMap(normalizers));
     }
 
-    private void processAnalyzerFactory(DeprecationLogger deprecationLogger,
-                                        IndexSettings indexSettings,
+    private void processAnalyzerFactory(IndexSettings indexSettings,
                                         String name,
                                         AnalyzerProvider<?> analyzerFactory,
-                                        Map<String, NamedAnalyzer> analyzerAliases,
                                         Map<String, NamedAnalyzer> analyzers, Map<String, TokenFilterFactory> tokenFilters,
                                         Map<String, CharFilterFactory> charFilters, Map<String, TokenizerFactory> tokenizers) {
         /*
@@ -561,8 +540,7 @@ public final class AnalysisRegistry implements Closeable {
         }
     }
 
-    private void processNormalizerFactory(DeprecationLogger deprecationLogger,
-            IndexSettings indexSettings,
+    private void processNormalizerFactory(
             String name,
             AnalyzerProvider<?> normalizerFactory,
             Map<String, NamedAnalyzer> normalizers,

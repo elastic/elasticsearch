@@ -24,6 +24,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.plugins.Platforms;
 
@@ -33,6 +34,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
@@ -45,6 +47,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Create a simple "daemon controller", put it in the right place and check that it runs.
@@ -70,7 +73,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
         Settings settings = settingsBuilder.build();
 
-        Environment environment = new Environment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
 
         // This plugin will NOT have a controller daemon
         Path plugin = environment.pluginsFile().resolve("a_plugin");
@@ -106,7 +109,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
         Settings settings = settingsBuilder.build();
 
-        Environment environment = new Environment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
 
         // this plugin will have a controller daemon
         Path plugin = environment.pluginsFile().resolve("test_plugin");
@@ -167,7 +170,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
         Settings settings = settingsBuilder.build();
 
-        Environment environment = new Environment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
 
         Path plugin = environment.pluginsFile().resolve("test_plugin");
         Files.createDirectories(plugin);
@@ -196,7 +199,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         final Path esHome = createTempDir().resolve("home");
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString()).build();
 
-        final Environment environment = new Environment(settings);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
 
         Files.createDirectories(environment.pluginsFile());
 
@@ -211,7 +214,11 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             // we do not ignore these files on non-macOS systems
             final FileSystemException e =
                     expectThrows(FileSystemException.class, () -> spawner.spawnNativePluginControllers(environment));
-            assertThat(e, hasToString(containsString("Not a directory")));
+            if (Constants.WINDOWS) {
+                assertThat(e, instanceOf(NoSuchFileException.class));
+            } else {
+                assertThat(e, hasToString(containsString("Not a directory")));
+            }
         }
     }
 

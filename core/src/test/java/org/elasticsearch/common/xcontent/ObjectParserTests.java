@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ObjectParserTests extends ESTestCase {
@@ -231,12 +232,8 @@ public class ObjectParserTests extends ESTestCase {
         TestStruct s = new TestStruct();
 
         objectParser.declareField((i, c, x) -> c.test = i.text(), new ParseField("numeric_value"), ObjectParser.ValueType.FLOAT);
-        try {
-            objectParser.parse(parser, s, null);
-            fail("wrong type - must be number");
-        } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "[foo] numeric_value doesn't support values of type: VALUE_BOOLEAN");
-        }
+        Exception e = expectThrows(ParsingException.class, () -> objectParser.parse(parser, s, null));
+        assertThat(e.getMessage(), containsString("[foo] numeric_value doesn't support values of type: VALUE_BOOLEAN"));
     }
 
     public void testParseNested() throws IOException {

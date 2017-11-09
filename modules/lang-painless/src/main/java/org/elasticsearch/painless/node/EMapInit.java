@@ -64,7 +64,7 @@ public final class EMapInit extends AExpression {
             throw createError(new IllegalArgumentException("Must read from map initializer."));
         }
 
-        actual = Definition.HASH_MAP_TYPE;
+        actual = locals.getDefinition().HashMapType;
 
         constructor = actual.struct.constructors.get(new MethodKey("<init>", 0));
 
@@ -85,7 +85,7 @@ public final class EMapInit extends AExpression {
         for (int index = 0; index < keys.size(); ++index) {
             AExpression expression = keys.get(index);
 
-            expression.expected = Definition.DEF_TYPE;
+            expression.expected = locals.getDefinition().DefType;
             expression.internal = true;
             expression.analyze(locals);
             keys.set(index, expression.cast(locals));
@@ -94,7 +94,7 @@ public final class EMapInit extends AExpression {
         for (int index = 0; index < values.size(); ++index) {
             AExpression expression = values.get(index);
 
-            expression.expected = Definition.DEF_TYPE;
+            expression.expected = locals.getDefinition().DefType;
             expression.internal = true;
             expression.analyze(locals);
             values.set(index, expression.cast(locals));

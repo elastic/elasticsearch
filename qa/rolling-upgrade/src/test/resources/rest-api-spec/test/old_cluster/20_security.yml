@@ -73,11 +73,3 @@
       xpack.security.get_user:
         username: "logstash_system"
   - match: { logstash_system.enabled: true }
-
-  # run the upgrade API once all the old cluster actions are done,
-  # prior to moving to the mixed cluster
-  - do:
-      headers:
-        Authorization: "Basic ZWxhc3RpYzpjaGFuZ2VtZQ=="   # corresponds to elastic:changeme
-      xpack.migration.upgrade:
-        index: ".security"

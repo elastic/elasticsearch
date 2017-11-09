@@ -114,6 +114,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
         IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
         IndexSettings.MAX_SCRIPT_FIELDS_SETTING,
+        IndexSettings.MAX_NGRAM_DIFF_SETTING,
+        IndexSettings.MAX_SHINGLE_DIFF_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
@@ -150,6 +152,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EngineConfig.INDEX_CODEC_SETTING,
         EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
         IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
+
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {
             Map<String, Settings> groups = s.getAsGroups();

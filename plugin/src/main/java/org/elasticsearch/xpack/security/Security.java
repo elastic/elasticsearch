@@ -17,6 +17,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -198,8 +199,12 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_INDEX_FORMAT;
+import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_SECURITY_INDEX;
 
 public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin {
 
@@ -938,7 +943,11 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
 
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
-        return enabled ? new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings)) : null;
+        if (enabled) {
+            return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings))
+                .andThen(new ValidateUpgradedSecurityIndex());
+        }
+        return null;
     }
 
     static final class ValidateTLSOnJoin implements BiConsumer<DiscoveryNode, ClusterState> {
@@ -953,6 +962,19 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             License license = LicenseService.getLicense(state.metaData());
             if (license != null && license.isProductionLicense() && isTLSEnabled == false) {
                 throw new IllegalStateException("TLS setup is required for license type [" + license.operationMode().name() + "]");
+            }
+        }
+    }
+
+    static final class ValidateUpgradedSecurityIndex implements BiConsumer<DiscoveryNode, ClusterState> {
+        @Override
+        public void accept(DiscoveryNode node, ClusterState state) {
+            if (state.getNodes().getMinNodeVersion().before(Version.V_7_0_0_alpha1)) {
+                IndexMetaData indexMetaData = state.getMetaData().getIndices().get(SECURITY_INDEX_NAME);
+                if (indexMetaData != null && INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()) < INTERNAL_INDEX_FORMAT) {
+                    throw new IllegalStateException("Security index is not on the current version [" + INTERNAL_INDEX_FORMAT + "] - " +
+                        "The Upgrade API must be run for 7.x nodes to join the cluster");
+                }
             }
         }
     }

@@ -106,7 +106,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                             "._meta.security-version");
                     final Version mVersion = Version.fromString(masterTemplateVersion);
                     final Version tVersion = Version.fromString(templateVersion);
-                    assertTrue(mVersion.onOrBefore(tVersion));
+                    assertEquals(mVersion, tVersion);
                 }
             } catch (Exception e) {
                 throw new AssertionError("failed to get cluster state", e);
@@ -178,6 +178,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2944")
     public void testWatcherRestart() throws Exception {
         executeUpgradeIfNeeded();
 
@@ -188,6 +189,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         ensureWatcherStarted();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2944")
     public void testWatchCrudApis() throws Exception {
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
 

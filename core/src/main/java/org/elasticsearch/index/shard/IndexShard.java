@@ -177,6 +177,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ShardFieldData shardFieldData;
     private final ShardBitsetFilterCache shardBitsetFilterCache;
     private final Object mutex = new Object();
+    private final Object breakerMutex = new Object();
     private final String checkIndexOnStartup;
     private final CodecService codecService;
     private final Engine.Warmer warmer;
@@ -421,7 +422,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 final Runnable adjustBreaker = () -> {
                     CircuitBreaker cb = circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-                    synchronized (this) {
+                    synchronized (breakerMutex) {
                         final SegmentsStats ss = segmentStats(false);
                         final long newMemory = ss.getMemoryInBytes();
                         final long currentMemory = memoryAccountingBytes.get();

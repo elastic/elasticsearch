@@ -212,13 +212,15 @@ final class Security {
                         propertiesSet.add(aliasProperty);
                         String previous = System.setProperty(aliasProperty, url.toString());
                         if (previous != null) {
-                            throw new IllegalStateException("codebase property already set: " + aliasProperty + " -> " + previous + ", cannot set to " + url.toString());
+                            throw new IllegalStateException("codebase property already set: " + aliasProperty + " -> " + previous +
+                                                            ", cannot set to " + url.toString());
                         }
                     }
                     propertiesSet.add(property);
                     String previous = System.setProperty(property, url.toString());
                     if (previous != null) {
-                        throw new IllegalStateException("codebase property already set: " + property + " -> " + previous + ", cannot set to " + url.toString());
+                        throw new IllegalStateException("codebase property already set: " + property + " -> " + previous +
+                                                        ", cannot set to " + url.toString());
                     }
                 }
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));

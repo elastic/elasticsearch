@@ -125,27 +125,24 @@ The `BulkProcessor` simplifies the usage of the Bulk API by providing
 a utility class that allows index/update/delete operations to be
 transparently executed as they are added to the processor.
 
-In order to execute the requests, the `BulkProcessor` requires 3 components:
+In order to execute the requests, the `BulkProcessor` requires the following
+components:
 
 `RestHighLevelClient`:: This client is used to execute the `BulkRequest`
 and to retrieve the `BulkResponse`
 `BulkProcessor.Listener`:: This listener is called before and after
 every `BulkRequest` execution or when a `BulkRequest` failed
-`ThreadPool`:: The `BulkRequest` executions are done using threads from this
-pool, allowing the `BulkProcessor` to work in a non-blocking manner and to
-accept new index/update/delete requests while bulk requests are executing.
 
-Then the `BulkProcessor.Builder` class can be used to build a new `BulkProcessor`:
+Then the `BulkProcessor.builder` method can be used to build a new `BulkProcessor`:
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-init]
 --------------------------------------------------
-<1> Create the `ThreadPool` using the given `Settings`
-<2> Create the `BulkProcessor.Listener`
-<3> This method is called before each execution of a `BulkRequest`
-<4> This method is called after each execution of a `BulkRequest`
-<5> This method is called when a `BulkRequest` failed
-<6> Create the `BulkProcessor` by calling the `build()` method from
+<1> Create the `BulkProcessor.Listener`
+<2> This method is called before each execution of a `BulkRequest`
+<3> This method is called after each execution of a `BulkRequest`
+<4> This method is called when a `BulkRequest` failed
+<5> Create the `BulkProcessor` by calling the `build()` method from
 the `BulkProcessor.Builder`. The `RestHighLevelClient.bulkAsync()`
 method will be used to execute the `BulkRequest` under the hood.
 
@@ -190,7 +187,7 @@ to know if the `BulkResponse` contains errors
 the failure
 
 Once all requests have been added to the `BulkProcessor`, its instance needs to
-be closed closed using one of the two available closing methods.
+be closed using one of the two available closing methods.
 
 The `awaitClose()` method can be used to wait until all requests have been processed
  or the specified waiting time elapses:
@@ -209,3 +206,4 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-close]
 
 Both methods flush the requests added to the processor before closing the processor
 and also forbid any new request to be added to it.
+

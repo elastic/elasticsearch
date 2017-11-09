@@ -52,15 +52,15 @@ public class MatchQueryIT extends ESIntegTestCase {
             Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.filter.syns.type", "synonym")
-                .putArray("index.analysis.filter.syns.synonyms", "wtf, what the fudge", "foo, bar baz")
+                .putList("index.analysis.filter.syns.synonyms", "wtf, what the fudge", "foo, bar baz")
                 .put("index.analysis.analyzer.lower_syns.type", "custom")
                 .put("index.analysis.analyzer.lower_syns.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.lower_syns.filter", "lowercase", "syns")
+                .putList("index.analysis.analyzer.lower_syns.filter", "lowercase", "syns")
                 .put("index.analysis.filter.graphsyns.type", "synonym_graph")
-                .putArray("index.analysis.filter.graphsyns.synonyms", "wtf, what the fudge", "foo, bar baz")
+                .putList("index.analysis.filter.graphsyns.synonyms", "wtf, what the fudge", "foo, bar baz")
                 .put("index.analysis.analyzer.lower_graphsyns.type", "custom")
                 .put("index.analysis.analyzer.lower_graphsyns.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.lower_graphsyns.filter", "lowercase", "graphsyns")
+                .putList("index.analysis.analyzer.lower_graphsyns.filter", "lowercase", "graphsyns")
         );
 
         assertAcked(builder.addMapping(INDEX, createMapping()));

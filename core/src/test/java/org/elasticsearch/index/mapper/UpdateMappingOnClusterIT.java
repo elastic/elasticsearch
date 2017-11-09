@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
@@ -46,7 +47,8 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
     }
 
     protected void testConflict(String mapping, String mappingUpdate, Version idxVersion, String... errorMessages) throws InterruptedException {
-        assertAcked(prepareCreate(INDEX).setSource(mapping, XContentType.JSON).setSettings("index.version.created", idxVersion.id));
+        assertAcked(prepareCreate(INDEX).setSource(mapping, XContentType.JSON)
+            .setSettings(Settings.builder().put("index.version.created", idxVersion.id)));
         ensureGreen(INDEX);
         GetMappingsResponse mappingsBeforeUpdateResponse = client().admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).get();
         try {
@@ -59,44 +61,6 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         }
         compareMappingOnNodes(mappingsBeforeUpdateResponse);
 
-    }
-
-    public void testUpdatingAllSettingsOnOlderIndex() throws Exception {
-        XContentBuilder mapping = jsonBuilder()
-                .startObject()
-                .startObject("mappings")
-                .startObject(TYPE)
-                .startObject("_all").field("enabled", "true").endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        XContentBuilder mappingUpdate = jsonBuilder()
-                .startObject()
-                .startObject("_all").field("enabled", "false").endObject()
-                .startObject("properties").startObject("text").field("type", "text").endObject()
-                .endObject()
-                .endObject();
-        String errorMessage = "[_all] enabled is true now encountering false";
-        testConflict(mapping.string(), mappingUpdate.string(), Version.V_5_0_0, errorMessage);
-    }
-
-    public void testUpdatingAllSettingsOnOlderIndexDisabledToEnabled() throws Exception {
-        XContentBuilder mapping = jsonBuilder()
-                .startObject()
-                .startObject("mappings")
-                .startObject(TYPE)
-                .startObject("_all").field("enabled", "false").endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        XContentBuilder mappingUpdate = jsonBuilder()
-                .startObject()
-                .startObject("_all").field("enabled", "true").endObject()
-                .startObject("properties").startObject("text").field("type", "text").endObject()
-                .endObject()
-                .endObject();
-        String errorMessage = "[_all] enabled is false now encountering true";
-        testConflict(mapping.string(), mappingUpdate.string(), Version.V_5_0_0, errorMessage);
     }
 
     private void compareMappingOnNodes(GetMappingsResponse previousMapping) {

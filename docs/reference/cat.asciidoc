@@ -35,7 +35,7 @@ GET /_cat/master?v
 
 Might respond with:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 id                     host      ip        node
 u_n93zwxThWHi1PDBJAGAg 127.0.0.1 127.0.0.1 u_n93zw
@@ -57,7 +57,7 @@ GET /_cat/master?help
 
 Might respond respond with:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 id   |   | node id
 host | h | host name
@@ -81,7 +81,7 @@ GET /_cat/nodes?h=ip,port,heapPercent,name
 
 Responds with:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 127.0.0.1 9300 27 sLBaIGK
 --------------------------------------------------
@@ -197,7 +197,7 @@ GET _cat/templates?v&s=order:desc,index_patterns
 
 returns:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
 name                  index_patterns order version
 pizza_pepperoni       [*pepperoni*]  2

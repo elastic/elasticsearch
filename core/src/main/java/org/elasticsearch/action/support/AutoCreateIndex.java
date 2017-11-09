@@ -64,7 +64,7 @@ public final class AutoCreateIndex {
 
     /**
      * Should the index be auto created?
-     * @throws IndexNotFoundException if the the index doesn't exist and shouldn't be auto created
+     * @throws IndexNotFoundException if the index doesn't exist and shouldn't be auto created
      */
     public boolean shouldAutoCreate(String index, ClusterState state) {
         if (resolver.hasIndexOrAlias(index, state)) {

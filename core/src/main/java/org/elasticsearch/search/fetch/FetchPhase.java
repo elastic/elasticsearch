@@ -40,6 +40,7 @@ import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -161,9 +162,15 @@ public class FetchPhase implements SearchPhase {
                     fetchSubPhase.hitExecute(context, hitContext);
                 }
             }
+            if (context.isCancelled()) {
+                throw new TaskCancelledException("cancelled");
+            }
 
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
                 fetchSubPhase.hitsExecute(context, hits);
+                if (context.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
             }
 
             context.fetchResult().hits(new SearchHits(hits, context.queryResult().getTotalHits(), context.queryResult().getMaxScore()));
@@ -246,7 +253,7 @@ public class FetchPhase implements SearchPhase {
         ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context, subReaderContext);
         assert nestedObjectMapper != null;
         SearchHit.NestedIdentity nestedIdentity =
-                getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, documentMapper, nestedObjectMapper);
+                getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, context.mapperService(), nestedObjectMapper);
 
         if (source != null) {
             Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, true);
@@ -262,18 +269,28 @@ public class FetchPhase implements SearchPhase {
                 String nestedPath = nested.getField().string();
                 current.put(nestedPath, new HashMap<>());
                 Object extractedValue = XContentMapValues.extractValue(nestedPath, sourceAsMap);
-                List<Map<String, Object>> nestedParsedSource;
+                List<?> nestedParsedSource;
                 if (extractedValue instanceof List) {
                     // nested field has an array value in the _source
-                    nestedParsedSource = (List<Map<String, Object>>) extractedValue;
+                    nestedParsedSource = (List<?>) extractedValue;
                 } else if (extractedValue instanceof Map) {
                     // nested field has an object value in the _source. This just means the nested field has just one inner object,
                     // which is valid, but uncommon.
-                    nestedParsedSource = Collections.singletonList((Map<String, Object>) extractedValue);
+                    nestedParsedSource = Collections.singletonList(extractedValue);
                 } else {
                     throw new IllegalStateException("extracted source isn't an object or an array");
                 }
-                sourceAsMap = nestedParsedSource.get(nested.getOffset());
+                if ((nestedParsedSource.get(0) instanceof Map) == false &&
+                    nestedObjectMapper.parentObjectMapperAreNested(context.mapperService()) == false) {
+                    // When one of the parent objects are not nested then XContentMapValues.extractValue(...) extracts the values
+                    // from two or more layers resulting in a list of list being returned. This is because nestedPath
+                    // encapsulates two or more object layers in the _source.
+                    //
+                    // This is why only the first element of nestedParsedSource needs to be checked.
+                    throw new IllegalArgumentException("Cannot execute inner hits. One or more parent object fields of nested field [" +
+                        nestedObjectMapper.name() + "] are not nested. All parent fields need to be nested fields too");
+                }
+                sourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
                 if (nested.getChild() == null) {
                     current.put(nestedPath, sourceAsMap);
                 } else {
@@ -284,8 +301,6 @@ public class FetchPhase implements SearchPhase {
             }
             context.lookup().source().setSource(nestedSourceAsMap);
             XContentType contentType = tuple.v1();
-            BytesReference nestedSource = contentBuilder(contentType).map(nestedSourceAsMap).bytes();
-            context.lookup().source().setSource(nestedSource);
             context.lookup().source().setSourceContentType(contentType);
         }
         return new SearchHit(nestedTopDocId, uid.id(), documentMapper.typeText(), nestedIdentity, searchFields);
@@ -312,7 +327,8 @@ public class FetchPhase implements SearchPhase {
     }
 
     private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId,
-                                                               LeafReaderContext subReaderContext, DocumentMapper documentMapper,
+                                                               LeafReaderContext subReaderContext,
+                                                               MapperService mapperService,
                                                                ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
         ObjectMapper nestedParentObjectMapper;
@@ -321,7 +337,7 @@ public class FetchPhase implements SearchPhase {
         SearchHit.NestedIdentity nestedIdentity = null;
         do {
             Query parentFilter;
-            nestedParentObjectMapper = documentMapper.findParentObjectMapper(current);
+            nestedParentObjectMapper = current.getParentObjectMapper(mapperService);
             if (nestedParentObjectMapper != null) {
                 if (nestedParentObjectMapper.nested().isNested() == false) {
                     current = nestedParentObjectMapper;

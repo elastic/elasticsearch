@@ -40,10 +40,6 @@ can be customised when a mapping type is created.
 [float]
 === Indexing meta-fields
 
-<<mapping-all-field,`_all`>>::
-
-    A _catch-all_  field that indexes the values of all other fields. Disabled by default.
-
 <<mapping-field-names-field,`_field_names`>>::
 
     All fields in the document which contain non-null values.
@@ -62,8 +58,6 @@ can be customised when a mapping type is created.
 
     Application specific metadata.
 
-
-include::fields/all-field.asciidoc[]
 
 include::fields/field-names-field.asciidoc[]
 

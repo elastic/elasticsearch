@@ -45,6 +45,19 @@ public class IndicesExistsRequest extends MasterNodeReadRequest<IndicesExistsReq
         this.indices = indices;
     }
 
+    public IndicesExistsRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -84,15 +97,6 @@ public class IndicesExistsRequest extends MasterNodeReadRequest<IndicesExistsReq
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

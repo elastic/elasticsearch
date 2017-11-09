@@ -58,7 +58,7 @@ public final class EListInit extends AExpression {
             throw createError(new IllegalArgumentException("Must read from list initializer."));
         }
 
-        actual = Definition.ARRAY_LIST_TYPE;
+        actual = locals.getDefinition().ArrayListType;
 
         constructor = actual.struct.constructors.get(new MethodKey("<init>", 0));
 
@@ -75,7 +75,7 @@ public final class EListInit extends AExpression {
         for (int index = 0; index < values.size(); ++index) {
             AExpression expression = values.get(index);
 
-            expression.expected = Definition.DEF_TYPE;
+            expression.expected = locals.getDefinition().DefType;
             expression.internal = true;
             expression.analyze(locals);
             values.set(index, expression.cast(locals));

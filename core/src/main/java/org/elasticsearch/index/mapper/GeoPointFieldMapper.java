@@ -23,7 +23,10 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -37,6 +40,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -181,15 +185,22 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
                 + name() + "]");
         }
     }
 
-    protected void parse(ParseContext originalContext, GeoPoint point) throws IOException {
-        // Geopoint fields, by default, will not be included in _all
-        final ParseContext context = originalContext.setIncludeInAllDefault(false);
+    protected void parse(ParseContext context, GeoPoint point) throws IOException {
 
         if (ignoreMalformed.value() == false) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {
@@ -209,6 +220,12 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
         if (fieldType.hasDocValues()) {
             context.doc().add(new LatLonDocValuesField(fieldType().name(), point.lat(), point.lon()));
+        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
+            List<IndexableField> fields = new ArrayList<>(1);
+            createFieldNamesField(context, fields);
+            for (IndexableField field : fields) {
+                context.doc().add(field);
+            }
         }
         // if the mapping contains multifields then use the geohash string
         if (multiFields.iterator().hasNext()) {

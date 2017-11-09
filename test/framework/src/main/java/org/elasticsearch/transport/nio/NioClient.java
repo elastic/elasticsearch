@@ -56,7 +56,9 @@ public class NioClient {
         this.channelFactory = channelFactory;
     }
 
-    public boolean connectToChannels(DiscoveryNode node, NioSocketChannel[] channels, TimeValue connectTimeout,
+    public boolean connectToChannels(DiscoveryNode node,
+                                     NioSocketChannel[] channels,
+                                     TimeValue connectTimeout,
                                      Consumer<NioChannel> closeListener) throws IOException {
         boolean allowedToConnect = semaphore.tryAcquire();
         if (allowedToConnect == false) {
@@ -136,10 +138,6 @@ public class NioClient {
         for (final NioSocketChannel socketChannel : connections) {
             try {
                 socketChannel.closeAsync().awaitClose();
-            } catch (InterruptedException inner) {
-                logger.trace("exception while closing channel", e);
-                e.addSuppressed(inner);
-                Thread.currentThread().interrupt();
             } catch (Exception inner) {
                 logger.trace("exception while closing channel", e);
                 e.addSuppressed(inner);

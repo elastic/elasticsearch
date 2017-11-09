@@ -183,7 +183,7 @@ final class IndexShardOperationPermits implements Closeable {
              *   - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;
              *     interruptions are bad here as permit acquisition will throw an interrupted exception which will be swallowed by
              *     the threaded action listener if the queue of the thread pool on which it submits is full
-             *   - if a permit is acquired and the queue of the thread pool which the the threaded action listener uses is full, the
+             *   - if a permit is acquired and the queue of the thread pool which the threaded action listener uses is full, the
              *     onFailure handler is executed on the calling thread; this should not be the recovery thread as it would delay the
              *     recovery
              */

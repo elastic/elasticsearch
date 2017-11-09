@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -43,6 +42,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 
 public class MultiMatchQuery extends MatchQuery {
 
@@ -59,7 +60,7 @@ public class MultiMatchQuery extends MatchQuery {
     private Query parseAndApply(Type type, String fieldName, Object value, String minimumShouldMatch, Float boostValue) throws IOException {
         Query query = parse(type, fieldName, value);
         query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
-        if (query != null && boostValue != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST) {
+        if (query != null && boostValue != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST && query instanceof MatchNoDocsQuery == false) {
             query = new BoostQuery(query, boostValue);
         }
         return query;
@@ -205,7 +206,7 @@ public class MultiMatchQuery extends MatchQuery {
             for (int i = 0; i < terms.length; i++) {
                 values[i] = terms[i].bytes();
             }
-            return MultiMatchQuery.blendTerms(context, values, commonTermsCutoff, tieBreaker, blendedFields);
+            return MultiMatchQuery.blendTerms(context, values, commonTermsCutoff, tieBreaker, lenient, blendedFields);
         }
 
         @Override
@@ -213,7 +214,7 @@ public class MultiMatchQuery extends MatchQuery {
             if (blendedFields == null) {
                 return super.blendTerm(term, fieldType);
             }
-            return MultiMatchQuery.blendTerm(context, term.bytes(), commonTermsCutoff, tieBreaker, blendedFields);
+            return MultiMatchQuery.blendTerm(context, term.bytes(), commonTermsCutoff, tieBreaker, lenient, blendedFields);
         }
 
         @Override
@@ -228,12 +229,12 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     static Query blendTerm(QueryShardContext context, BytesRef value, Float commonTermsCutoff, float tieBreaker,
-                           FieldAndFieldType... blendedFields) {
-        return blendTerms(context, new BytesRef[] {value}, commonTermsCutoff, tieBreaker, blendedFields);
+                           boolean lenient, FieldAndFieldType... blendedFields) {
+        return blendTerms(context, new BytesRef[] {value}, commonTermsCutoff, tieBreaker, lenient, blendedFields);
     }
 
     static Query blendTerms(QueryShardContext context, BytesRef[] values, Float commonTermsCutoff, float tieBreaker,
-                            FieldAndFieldType... blendedFields) {
+                            boolean lenient, FieldAndFieldType... blendedFields) {
         List<Query> queries = new ArrayList<>();
         Term[] terms = new Term[blendedFields.length * values.length];
         float[] blendedBoost = new float[blendedFields.length * values.length];
@@ -243,19 +244,12 @@ public class MultiMatchQuery extends MatchQuery {
                 Query query;
                 try {
                     query = ft.fieldType.termQuery(term, context);
-                } catch (IllegalArgumentException e) {
-                    // the query expects a certain class of values such as numbers
-                    // of ip addresses and the value can't be parsed, so ignore this
-                    // field
-                    continue;
-                } catch (ElasticsearchParseException parseException) {
-                    // date fields throw an ElasticsearchParseException with the
-                    // underlying IAE as the cause, ignore this field if that is
-                    // the case
-                    if (parseException.getCause() instanceof IllegalArgumentException) {
-                        continue;
+                } catch (RuntimeException e) {
+                    if (lenient) {
+                        query = newLenientFieldQuery(ft.fieldType.name(), e);
+                    } else {
+                        throw e;
                     }
-                    throw parseException;
                 }
                 float boost = ft.boost;
                 while (query instanceof BoostQuery) {
@@ -268,7 +262,7 @@ public class MultiMatchQuery extends MatchQuery {
                     blendedBoost[i] = boost;
                     i++;
                 } else {
-                    if (boost != 1f) {
+                    if (boost != 1f && query instanceof MatchNoDocsQuery == false) {
                         query = new BoostQuery(query, boost);
                     }
                     queries.add(query);

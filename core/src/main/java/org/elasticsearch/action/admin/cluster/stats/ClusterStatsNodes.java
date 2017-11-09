@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -223,7 +222,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
     }
 
-    public static class OsStats implements ToXContent {
+    public static class OsStats implements ToXContentFragment {
         final int availableProcessors;
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
@@ -302,7 +301,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
     }
 
-    public static class ProcessStats implements ToXContent {
+    public static class ProcessStats implements ToXContentFragment {
 
         final int count;
         final int cpuPercent;
@@ -544,7 +543,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
     }
 
-    static class NetworkTypes implements ToXContent {
+    static class NetworkTypes implements ToXContentFragment {
 
         private final Map<String, AtomicInteger> transportTypes;
         private final Map<String, AtomicInteger> httpTypes;

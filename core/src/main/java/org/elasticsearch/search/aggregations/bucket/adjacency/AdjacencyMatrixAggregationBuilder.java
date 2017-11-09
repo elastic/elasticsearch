@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -46,7 +47,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
-public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilder<AdjacencyMatrixAggregationBuilder> {
+public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilder<AdjacencyMatrixAggregationBuilder>
+        implements MultiBucketAggregationBuilder {
     public static final String NAME = "adjacency_matrix";
 
     private static final String DEFAULT_SEPARATOR = "&";
@@ -187,7 +189,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
             throws IOException {
         int maxFilters = context.indexShard().indexSettings().getMaxAdjacencyMatrixFilters();
         if (filters.size() > maxFilters){
-            throw new QueryPhaseExecutionException(context,
+            throw new IllegalArgumentException(
                     "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was ["
                             + filters.size() + "]."
                             + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()

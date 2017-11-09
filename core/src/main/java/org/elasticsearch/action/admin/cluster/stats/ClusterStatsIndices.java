@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -137,7 +136,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return builder;
     }
 
-    public static class ShardStats implements ToXContent {
+    public static class ShardStats implements ToXContentFragment {
 
         int indices;
         int total;

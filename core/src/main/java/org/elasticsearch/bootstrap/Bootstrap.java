@@ -35,7 +35,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -213,28 +212,27 @@ final class Bootstrap {
         node = new Node(environment) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
-                final Settings settings,
+                final BootstrapContext context,
                 final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
-                BootstrapChecks.check(settings, boundTransportAddress, checks);
+                BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
     }
 
-    private static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
+        if (keystore == null) {
+            return null; // no keystore
+        }
 
         try {
-            if (keystore == null) {
-                // create it, we always want one! we use an empty passphrase, but a user can change this later if they want.
-                KeyStoreWrapper.create(new char[0]);
-            } else {
-                keystore.decrypt(new char[0] /* TODO: read password from stdin */);
-            }
+            keystore.decrypt(new char[0] /* TODO: read password from stdin */);
+            KeyStoreWrapper.upgrade(keystore, initialEnv.configFile());
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

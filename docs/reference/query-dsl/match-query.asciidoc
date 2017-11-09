@@ -19,7 +19,7 @@ GET /_search
 // CONSOLE
 
 Note, `message` is the name of a field, you can substitute the name of
-any field (including `_all`) instead.
+any field instead.
 
 [[query-dsl-match-query-boolean]]
 ==== match

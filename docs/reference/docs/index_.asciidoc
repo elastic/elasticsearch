@@ -70,7 +70,8 @@ type specified. Check out the <<mapping,mapping>>
 section for more information on mapping definitions.
 
 Automatic index creation can be disabled by setting
-`action.auto_create_index` to `false` in the config file of all nodes.
+`action.auto_create_index` to `false` in the config file of all nodes, 
+or via the cluster update settings API.
 Automatic mapping creation can be disabled by setting
 `index.mapper.dynamic` to `false` per-index as an index setting.
 
@@ -91,8 +92,7 @@ will control the version of the document the operation is intended to be
 executed against. A good example of a use case for versioning is
 performing a transactional read-then-update. Specifying a `version` from
 the document initially read ensures no changes have happened in the
-meantime (when reading in order to update, it is recommended to set
-`preference` to `_primary`). For example:
+meantime. For example:
 
 [source,js]
 --------------------------------------------------
@@ -242,7 +242,7 @@ The result of the above index operation is:
 [[index-routing]]
 === Routing
 
-By default, shard placement — or `routing` — is controlled by using a
+By default, shard placement ? or `routing` ? is controlled by using a
 hash of the document's id value. For more explicit control, the value
 fed into the hash function used by the router can be directly specified
 on a per-operation basis using the `routing` parameter. For example:

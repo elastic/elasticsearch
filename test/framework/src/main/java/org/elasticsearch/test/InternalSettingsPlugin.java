@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Arrays;
@@ -44,7 +45,12 @@ public final class InternalSettingsPlugin extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(VERSION_CREATED, MERGE_ENABLED,
-            INDEX_CREATION_DATE_SETTING, PROVIDED_NAME_SETTING, TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING);
+        return Arrays.asList(
+                VERSION_CREATED,
+                MERGE_ENABLED,
+                INDEX_CREATION_DATE_SETTING,
+                PROVIDED_NAME_SETTING,
+                TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,
+                IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING);
     }
 }

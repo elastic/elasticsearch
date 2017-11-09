@@ -99,6 +99,7 @@ include::modules/network.asciidoc[]
 
 include::modules/node.asciidoc[]
 
+:edit_url:
 include::modules/plugins.asciidoc[]
 
 include::modules/scripting.asciidoc[]
@@ -112,4 +113,3 @@ include::modules/transport.asciidoc[]
 include::modules/tribe.asciidoc[]
 
 include::modules/cross-cluster-search.asciidoc[]
-

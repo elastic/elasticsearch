@@ -25,12 +25,16 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -85,7 +89,7 @@ public class IpFieldMapper extends FieldMapper {
         public IpFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -119,7 +123,7 @@ public class IpFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class IpFieldType extends MappedFieldType {
+    public static final class IpFieldType extends SimpleMappedFieldType {
 
         public IpFieldType() {
             super();
@@ -153,6 +157,15 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
+
+        @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             failIfNotIndexed();
             if (value instanceof InetAddress) {
@@ -163,14 +176,8 @@ public class IpFieldMapper extends FieldMapper {
                 }
                 String term = value.toString();
                 if (term.contains("/")) {
-                    String[] fields = term.split("/");
-                    if (fields.length == 2) {
-                        InetAddress address = InetAddresses.forString(fields[0]);
-                        int prefixLength = Integer.parseInt(fields[1]);
-                        return InetAddressPoint.newPrefixQuery(name(), address, prefixLength);
-                    } else {
-                        throw new IllegalArgumentException("Expected [ip/prefix] but was [" + term + "]");
-                    }
+                    final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
+                    return InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
                 }
                 InetAddress address = InetAddresses.forString(term);
                 return InetAddressPoint.newExactQuery(name(), address);
@@ -307,8 +314,6 @@ public class IpFieldMapper extends FieldMapper {
         }
     }
 
-    private Boolean includeInAll;
-
     private Explicit<Boolean> ignoreMalformed;
 
     private IpFieldMapper(
@@ -316,13 +321,11 @@ public class IpFieldMapper extends FieldMapper {
             MappedFieldType fieldType,
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
-            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
-        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -373,15 +376,13 @@ public class IpFieldMapper extends FieldMapper {
             }
         }
 
-        if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType().name(), addressAsString, fieldType().boost());
-        }
-
         if (fieldType().indexOptions() != IndexOptions.NONE) {
             fields.add(new InetAddressPoint(fieldType().name(), address));
         }
         if (fieldType().hasDocValues()) {
             fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
+            createFieldNamesField(context, fields);
         }
         if (fieldType().stored()) {
             fields.add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
@@ -392,7 +393,6 @@ public class IpFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
         IpFieldMapper other = (IpFieldMapper) mergeWith;
-        this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;
         }
@@ -412,11 +412,6 @@ public class IpFieldMapper extends FieldMapper {
 
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());
-        }
-        if (includeInAll != null) {
-            builder.field("include_in_all", includeInAll);
-        } else if (includeDefaults) {
-            builder.field("include_in_all", false);
         }
     }
 }

@@ -19,12 +19,13 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,15 +34,19 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,6 +57,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -225,17 +231,15 @@ public class FullClusterRestartIT extends ESRestTestCase {
             Map<String, Object> recoverRsp = toMap(client().performRequest("GET", "/" + index + "/_recovery"));
             logger.debug("--> recovery status:\n{}", recoverRsp);
 
-            Map<String, Object> responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
-                Collections.singletonMap("preference", "_primary")));
-            assertNoFailures(responseBody);
-            int foundHits1 = (int) XContentMapValues.extractValue("hits.total", responseBody);
-
-            responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
-                Collections.singletonMap("preference", "_replica")));
-            assertNoFailures(responseBody);
-            int foundHits2 = (int) XContentMapValues.extractValue("hits.total", responseBody);
-            assertEquals(foundHits1, foundHits2);
-            // TODO: do something more with the replicas! index?
+            Set<Integer> counts = new HashSet<>();
+            for (String node : dataNodes(index, client())) {
+                Map<String, Object> responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
+                    Collections.singletonMap("preference", "_only_nodes:" + node)));
+                assertNoFailures(responseBody);
+                int hits = (int) XContentMapValues.extractValue("hits.total", responseBody);
+                counts.add(hits);
+            }
+            assertEquals("All nodes should have a consistent number of documents", 1, counts.size());
         }
     }
 
@@ -761,6 +765,39 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
+    public void testHistoryUUIDIsAdded() throws Exception {
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 1);
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+        } else {
+            Response response = client().performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
+            List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
+            String globalHistoryUUID = null;
+            for (Object shard : shardStats) {
+                final String nodeId = ObjectPath.evaluate(shard, "routing.node");
+                final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
+                logger.info("evaluating: {} , {}", ObjectPath.evaluate(shard, "routing"), ObjectPath.evaluate(shard, "commit"));
+                String historyUUID = ObjectPath.evaluate(shard, "commit.user_data.history_uuid");
+                assertThat("no history uuid found on " + nodeId + " (primary: " + primary + ")", historyUUID, notNullValue());
+                if (globalHistoryUUID == null) {
+                    globalHistoryUUID = historyUUID;
+                } else {
+                    assertThat("history uuid mismatch on " + nodeId + " (primary: " + primary + ")", historyUUID,
+                        equalTo(globalHistoryUUID));
+                }
+            }
+        }
+    }
+
     private void checkSnapshot(String snapshotName, int count, Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         String response = toStr(client().performRequest("GET", "/_snapshot/repo/" + snapshotName, listSnapshotVerboseParams()));
@@ -904,5 +941,16 @@ public class FullClusterRestartIT extends ESRestTestCase {
     private void refresh() throws IOException {
         logger.debug("Refreshing [{}]", index);
         client().performRequest("POST", "/" + index + "/_refresh");
+    }
+
+    private List<String> dataNodes(String index, RestClient client) throws IOException {
+        Response response = client.performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
+        List<String> nodes = new ArrayList<>();
+        List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
+        for (Object shard : shardStats) {
+            final String nodeId = ObjectPath.evaluate(shard, "routing.node");
+            nodes.add(nodeId);
+        }
+        return nodes;
     }
 }

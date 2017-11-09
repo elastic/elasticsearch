@@ -23,6 +23,7 @@ import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
@@ -43,6 +44,8 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
@@ -53,6 +56,7 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.percolator.QueryAnalyzer.QueryExtraction;
 import org.elasticsearch.percolator.QueryAnalyzer.Result;
 import org.elasticsearch.test.ESTestCase;
@@ -588,6 +592,21 @@ public class QueryAnalyzerTests extends ESTestCase {
         queryTerms2 = terms(new int[]{2, 3, 4}, "1", "456");
         result = selectBestExtraction(Collections.emptyMap(), queryTerms1, queryTerms2);
         assertSame("Ignoring ranges, so then prefer queryTerms1, because it has the longest shortest term", queryTerms1, result);
+
+        queryTerms1 = terms(new int[]{});
+        queryTerms2 = terms(new int[]{});
+        result = selectBestExtraction(Collections.emptyMap(), queryTerms1, queryTerms2);
+        assertSame("In case query extractions are empty", queryTerms2, result);
+
+        queryTerms1 = terms(new int[]{1});
+        queryTerms2 = terms(new int[]{});
+        result = selectBestExtraction(Collections.emptyMap(), queryTerms1, queryTerms2);
+        assertSame("In case query a single extraction is empty", queryTerms1, result);
+
+        queryTerms1 = terms(new int[]{});
+        queryTerms2 = terms(new int[]{1});
+        result = selectBestExtraction(Collections.emptyMap(), queryTerms1, queryTerms2);
+        assertSame("In case query a single extraction is empty", queryTerms2, result);
     }
 
     public void testSelectBestExtraction_boostFields() {
@@ -743,6 +762,22 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertArrayEquals(ranges.get(0).range.upperPoint, InetAddressPoint.encode(InetAddresses.forString("192.168.1.255")));
     }
 
+    public void testTooManyPointDimensions() {
+        // For now no extraction support for geo queries:
+        Query query1 = LatLonPoint.newBoxQuery("_field", 0, 1, 0, 1);
+        expectThrows(UnsupportedQueryException.class, () -> analyze(query1, Collections.emptyMap()));
+
+        Query query2 = LongPoint.newRangeQuery("_field", new long[]{0, 0, 0}, new long[]{1, 1, 1});
+        expectThrows(UnsupportedQueryException.class, () -> analyze(query2, Collections.emptyMap()));
+    }
+
+    public void testPointRangeQuery_lowerUpperReversed() {
+        Query query = IntPoint.newRangeQuery("_field", 20, 10);
+        Result result = analyze(query, Collections.emptyMap());
+        assertTrue(result.verified);
+        assertThat(result.extractions.size(), equalTo(0));
+    }
+
     public void testIndexOrDocValuesQuery() {
         Query query = new IndexOrDocValuesQuery(IntPoint.newRangeQuery("_field", 10, 20),
             SortedNumericDocValuesField.newSlowRangeQuery("_field", 10, 20));
@@ -754,6 +789,17 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertEquals("_field", ranges.get(0).range.fieldName);
         assertDimension(ranges.get(0).range.lowerPoint, bytes -> IntPoint.encodeDimension(10, bytes, 0));
         assertDimension(ranges.get(0).range.upperPoint, bytes -> IntPoint.encodeDimension(20, bytes, 0));
+    }
+
+    public void testToParentBlockJoinQuery() {
+        TermQuery termQuery = new TermQuery(new Term("field", "value"));
+        QueryBitSetProducer queryBitSetProducer = new QueryBitSetProducer(new TermQuery(new Term("_type", "child")));
+        ESToParentBlockJoinQuery query = new ESToParentBlockJoinQuery(termQuery, queryBitSetProducer, ScoreMode.None, "child");
+        Result result = analyze(query, Collections.emptyMap());
+        assertFalse(result.verified);
+        assertEquals(1, result.extractions.size());
+        assertNull(result.extractions.toArray(new QueryExtraction[0])[0].range);
+        assertEquals(new Term("field", "value"), result.extractions.toArray(new QueryExtraction[0])[0].term);
     }
 
     public void testPointRangeQuerySelectShortestRange() {

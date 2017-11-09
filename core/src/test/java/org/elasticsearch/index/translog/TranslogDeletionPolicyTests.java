@@ -21,6 +21,7 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -41,18 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 
 public class TranslogDeletionPolicyTests extends ESTestCase {
-
-    public static TranslogDeletionPolicy createTranslogDeletionPolicy() {
-        return new TranslogDeletionPolicy(
-            IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
-            IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getDefault(Settings.EMPTY).getMillis()
-        );
-    }
-
-    public static TranslogDeletionPolicy createTranslogDeletionPolicy(IndexSettings indexSettings) {
-        return new TranslogDeletionPolicy(indexSettings.getTranslogRetentionSize().getBytes(),
-            indexSettings.getTranslogRetentionAge().getMillis());
-    }
 
     public void testNoRetention() throws IOException {
         long now = System.currentTimeMillis();
@@ -172,13 +161,14 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         TranslogWriter writer = null;
         List<TranslogReader> readers = new ArrayList<>();
         final int numberOfReaders = randomIntBetween(0, 10);
+        final String translogUUID = UUIDs.randomBase64UUID(random());
         for (long gen = 1; gen <= numberOfReaders + 1; gen++) {
             if (writer != null) {
                 final TranslogReader reader = Mockito.spy(writer.closeIntoReader());
                 Mockito.doReturn(writer.getLastModifiedTime()).when(reader).getLastModifiedTime();
                 readers.add(reader);
             }
-            writer = TranslogWriter.create(new ShardId("index", "uuid", 0), "translog_uuid", gen,
+            writer = TranslogWriter.create(new ShardId("index", "uuid", 0), translogUUID, gen,
                 tempDir.resolve(Translog.getFilename(gen)), FileChannel::open, TranslogConfig.DEFAULT_BUFFER_SIZE, () -> 1L, 1L, () -> 1L
             );
             writer = Mockito.spy(writer);

@@ -113,7 +113,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
                 closeRawChannel();
                 closedOnThisCall = closeFuture.channelClosed(this);
             } catch (IOException e) {
-                closedOnThisCall = closeFuture.channelCloseThrewException(this, e);
+                closedOnThisCall = closeFuture.channelCloseThrewException(e);
             } finally {
                 if (closedOnThisCall) {
                     selector.removeRegisteredChannel(this);
@@ -162,5 +162,4 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     void closeRawChannel() throws IOException {
         socketChannel.close();
     }
-
 }

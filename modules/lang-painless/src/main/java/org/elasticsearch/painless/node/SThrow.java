@@ -48,7 +48,7 @@ public final class SThrow extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        expression.expected = Definition.EXCEPTION_TYPE;
+        expression.expected = locals.getDefinition().ExceptionType;
         expression.analyze(locals);
         expression = expression.cast(locals);
 

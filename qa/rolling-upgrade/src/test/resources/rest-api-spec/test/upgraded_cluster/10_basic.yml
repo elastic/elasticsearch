@@ -4,6 +4,9 @@
      cluster.health:
         wait_for_status: green
         wait_for_nodes: 2
+        # wait for long enough that we give delayed unassigned shards to stop being delayed
+        timeout: 70s
+        level: shards
 
  - do:
      search:
@@ -33,7 +36,7 @@
           - '{"f1": "v5_upgraded", "f2": 14}'
 
  - do:
-     indices.flush:
+     indices.refresh:
         index: test_index
 
  - do:

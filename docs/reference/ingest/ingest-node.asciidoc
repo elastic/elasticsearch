@@ -563,6 +563,20 @@ to set the index that the document will be indexed into:
 --------------------------------------------------
 // NOTCONSOLE
 
+Dynamic field names are also supported. This example sets the field named after the 
+value of `service` to the value of the field `code`:
+
+[source,js]
+--------------------------------------------------
+{
+  "set": {
+    "field": "{{service}}"
+    "value": "{{code}}"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 [[handling-failure-in-pipelines]]
 == Handling Failures in Pipelines
 
@@ -752,7 +766,7 @@ Accepts a single value or an array of values.
 --------------------------------------------------
 {
   "append": {
-    "field": "field1"
+    "field": "field1",
     "value": ["item2", "item3", "item4"]
   }
 }
@@ -2012,7 +2026,7 @@ into:
 // NOTCONSOLE
 
 If there is already a `bar` field nested under `foo` then
-this processor merges the the `foo.bar` field into it. If the field is
+this processor merges the `foo.bar` field into it. If the field is
 a scalar value then it will turn that field into an array field.
 
 For example, the following document:
@@ -2054,7 +2068,7 @@ Consider the following document:
 --------------------------------------------------
 // NOTCONSOLE
 
-Then the the `foo` needs to be renamed first before the `dot_expander`
+Then the `foo` needs to be renamed first before the `dot_expander`
 processor is applied. So in order for the `foo.bar` field to properly
 be expanded into the `bar` field under the `foo` field the following
 pipeline should be used:

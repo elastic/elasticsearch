@@ -65,6 +65,8 @@ fi
 # check the Java version
 "$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.JavaVersionChecker
 
+export HOSTNAME=$HOSTNAME
+
 ${source.path.env}
 
 if [ -z "$ES_PATH_CONF" ]; then

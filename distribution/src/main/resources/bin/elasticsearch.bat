@@ -1,6 +1,7 @@
 @echo off
 
 setlocal enabledelayedexpansion
+setlocal enableextensions
 
 SET params='%*'
 
@@ -50,4 +51,5 @@ for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM
 
 %JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
+endlocal
 endlocal

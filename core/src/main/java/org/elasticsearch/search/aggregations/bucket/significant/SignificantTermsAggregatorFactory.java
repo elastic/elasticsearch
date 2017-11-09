@@ -30,6 +30,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -53,12 +55,12 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, SignificantTermsAggregatorFactory>
         implements Releasable {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(SignificantTermsAggregatorFactory.class));
 
     private final IncludeExclude includeExclude;
     private final String executionHint;
@@ -202,17 +204,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint);
+                execution = ExecutionMode.fromString(executionHint, DEPRECATION_LOGGER);
             }
-            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
+            if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
-                if (Aggregator.descendsFromBucketAggregator(parent)) {
-                    execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
-                } else {
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
-                }
+                execution = ExecutionMode.GLOBAL_ORDINALS;
             }
             assert execution != null;
 
@@ -291,44 +289,35 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               Map<String, Object> metaData) throws IOException {
 
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
+                boolean remapGlobalOrd = true;
+                if (Aggregator.descendsFromBucketAggregator(parent) == false &&
+                        factories == AggregatorFactories.EMPTY &&
+                        includeExclude == null) {
+                    /**
+                     * We don't need to remap global ords iff this aggregator:
+                     *    - is not a child of a bucket aggregator AND
+                     *    - has no include/exclude rules AND
+                     *    - has no sub-aggregator
+                     **/
+                    remapGlobalOrd = false;
+                }
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, false, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
-
-            }
-
-        },
-        GLOBAL_ORDINALS_HASH(new ParseField("global_ordinals_hash")) {
-
-            @Override
-            Aggregator create(String name,
-                              AggregatorFactories factories,
-                              ValuesSource valuesSource,
-                              DocValueFormat format,
-                              TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                              IncludeExclude includeExclude,
-                              SearchContext aggregationContext,
-                              Aggregator parent,
-                              SignificanceHeuristic significanceHeuristic,
-                              SignificantTermsAggregatorFactory termsAggregatorFactory,
-                              List<PipelineAggregator> pipelineAggregators,
-                              Map<String, Object> metaData) throws IOException {
-
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
-                return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
-                    (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter, aggregationContext, parent,
-                    true, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+                        aggregationContext, parent, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
 
             }
         };
 
-        public static ExecutionMode fromString(String value) {
-            for (ExecutionMode mode : values()) {
-                if (mode.parseField.match(value)) {
-                    return mode;
-                }
+        public static ExecutionMode fromString(String value, final DeprecationLogger deprecationLogger) {
+            if ("global_ordinals".equals(value)) {
+                return GLOBAL_ORDINALS;
+            } else if ("global_ordinals_hash".equals(value)) {
+                deprecationLogger.deprecated("global_ordinals_hash is deprecated. Please use [global_ordinals] instead.");
+                return GLOBAL_ORDINALS;
+            } else if ("map".equals(value)) {
+                return MAP;
             }
-            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + Arrays.toString(values()));
+            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
         }
 
         private final ParseField parseField;

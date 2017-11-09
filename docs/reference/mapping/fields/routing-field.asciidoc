@@ -96,7 +96,7 @@ PUT my_index2/my_type/1 <2>
 }
 ------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:bad_request]
 <1> Routing is required for `my_type` documents.
 <2> This index request throws a `routing_missing_exception`.
 

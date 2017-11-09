@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -29,7 +30,6 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.ArrayList;
-import java.util.IllformedLocaleException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -63,7 +63,12 @@ public final class DateProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        String value = ingestDocument.getFieldValue(field, String.class);
+        Object obj = ingestDocument.getFieldValue(field, Object.class);
+        String value = null;
+        if (obj != null) {
+            // Not use Objects.toString(...) here, because null gets changed to "null" which may confuse some date parsers
+            value = obj.toString();
+        }
 
         DateTime dateTime = null;
         Exception lastException = null;
@@ -110,7 +115,6 @@ public final class DateProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        @SuppressWarnings("unchecked")
         public DateProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                     Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
@@ -118,13 +122,9 @@ public final class DateProcessor extends AbstractProcessor {
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
             DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);
             String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "locale");
-            Locale locale = Locale.ENGLISH;
+            Locale locale = Locale.ROOT;
             if (localeString != null) {
-                try {
-                    locale = (new Locale.Builder()).setLanguageTag(localeString).build();
-                } catch (IllformedLocaleException e) {
-                    throw new IllegalArgumentException("Invalid language tag specified: " + localeString);
-                }
+                locale = LocaleUtils.parse(localeString);
             }
             List<String> formats = ConfigurationUtils.readList(TYPE, processorTag, config, "formats");
             return new DateProcessor(processorTag, timezone, locale, field, formats, targetField);

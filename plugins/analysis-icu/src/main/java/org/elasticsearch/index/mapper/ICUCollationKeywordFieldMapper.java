@@ -23,13 +23,19 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +56,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
 public class ICUCollationKeywordFieldMapper extends FieldMapper {
@@ -117,6 +124,15 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         public void setCollator(Collator collator) {
             checkIfFrozen();
             this.collator = collator.isFrozen() ? collator : collator.freeze();
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
         }
 
         @Override
@@ -386,7 +402,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                     }
                     collator = Collator.getInstance(locale);
                 } else {
-                    collator = Collator.getInstance();
+                    collator = Collator.getInstance(ULocale.ROOT);
                 }
             }
 
@@ -563,6 +579,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final String variableTop;
     private final boolean hiraganaQuaternaryMode;
     private final Collator collator;
+    private final BiFunction<String, BytesRef, Field> getDVField;
 
     protected ICUCollationKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                              Settings indexSettings, MultiFields multiFields, CopyTo copyTo, String rules, String language,
@@ -584,6 +601,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.variableTop = variableTop;
         this.hiraganaQuaternaryMode = hiraganaQuaternaryMode;
         this.collator = collator;
+        if (indexCreatedVersion.onOrAfter(Version.V_5_6_0)) {
+            getDVField = SortedSetDocValuesField::new;
+        } else {
+            getDVField = SortedDocValuesField::new;
+        }
     }
 
     @Override
@@ -740,7 +762,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedDocValuesField(fieldType().name(), binaryValue));
+            fields.add(getDVField.apply(fieldType().name(), binaryValue));
+        } else if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+            createFieldNamesField(context, fields);
         }
     }
 }

@@ -21,12 +21,14 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -112,11 +114,14 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     private Item[] items;
 
+    private long tookInMillis;
+
     MultiSearchResponse() {
     }
 
-    public MultiSearchResponse(Item[] items) {
+    public MultiSearchResponse(Item[] items, long tookInMillis) {
         this.items = items;
+        this.tookInMillis = tookInMillis;
     }
 
     @Override
@@ -131,12 +136,22 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         return this.items;
     }
 
+    /**
+     * How long the msearch took.
+     */
+    public TimeValue getTook() {
+        return new TimeValue(tookInMillis);
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         items = new Item[in.readVInt()];
         for (int i = 0; i < items.length; i++) {
             items[i] = Item.readItem(in);
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            tookInMillis = in.readVLong();
         }
     }
 
@@ -147,11 +162,15 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             item.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVLong(tookInMillis);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("took", tookInMillis);
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
             builder.startObject();

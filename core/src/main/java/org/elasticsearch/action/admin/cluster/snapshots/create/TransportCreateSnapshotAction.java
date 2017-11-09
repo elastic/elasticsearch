@@ -45,7 +45,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     public TransportCreateSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateSnapshotRequest::new);
+        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,CreateSnapshotRequest::new, indexNameExpressionResolver);
         this.snapshotsService = snapshotsService;
     }
 

@@ -243,6 +243,15 @@ public class RestActions {
     private static QueryBuilder parseTopLevelQueryBuilder(XContentParser parser) {
         try {
             QueryBuilder queryBuilder = null;
+            XContentParser.Token first = parser.nextToken();
+            if (first == null) {
+                return null;
+            } else if (first != XContentParser.Token.START_OBJECT) {
+                throw new ParsingException(
+                    parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT +
+                    "] but found [" + first + "]", parser.getTokenLocation()
+                );
+            }
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();

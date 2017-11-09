@@ -748,18 +748,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert false : "No shard found to remove";
     }
 
-    private ShardRouting reinitShadowPrimary(ShardRouting candidate) {
-        if (candidate.relocating()) {
-            cancelRelocation(candidate);
-        }
-        ShardRouting reinitializedShard = candidate.reinitializePrimaryShard();
-        updateAssigned(candidate, reinitializedShard);
-        inactivePrimaryCount++;
-        inactiveShardCount++;
-        addRecovery(reinitializedShard);
-        return reinitializedShard;
-    }
-
     private ShardRouting reinitReplica(ShardRouting shard) {
         assert shard.primary() == false : "shard must be a replica: " + shard;
         assert shard.initializing() : "can only reinitialize an initializing replica: " + shard;

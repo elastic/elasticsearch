@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.auth.AuthScope;
-import org.elasticsearch.client.http.auth.UsernamePasswordCredentials;
-import org.elasticsearch.client.http.client.CredentialsProvider;
-import org.elasticsearch.client.http.impl.client.BasicCredentialsProvider;
-import org.elasticsearch.client.http.impl.nio.reactor.IOReactorConfig;
-import org.elasticsearch.client.http.message.BasicHeader;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
+import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -201,7 +201,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Header[] clientHeaders = new Header[remoteInfo.getHeaders().size()];
         int i = 0;
         for (Map.Entry<String, String> header : remoteInfo.getHeaders().entrySet()) {
-            clientHeaders[i] = new BasicHeader(header.getKey(), header.getValue());
+            clientHeaders[i++] = new BasicHeader(header.getKey(), header.getValue());
         }
         return RestClient.builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
                 .setDefaultHeaders(clientHeaders)

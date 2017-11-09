@@ -52,7 +52,9 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
             final int status = Elasticsearch.main(args, new Elasticsearch() {
                 @Override
                 protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) throws UserException {
-                    final Settings realSettings = Settings.builder().put("path.home", home).put(settings).build();
+                    Settings.Builder builder = Settings.builder().put("path.home", home);
+                    settings.forEach((k,v) -> builder.put(k, v));
+                    final Settings realSettings = builder.build();
                     return new Environment(realSettings, home.resolve("config"));
                 }
                 @Override

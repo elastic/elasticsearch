@@ -28,10 +28,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.List;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -39,7 +41,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected void setTypeList() {
-        TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double"));
+        TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double", "half_float"));
         WHOLE_TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long"));
     }
 
@@ -234,6 +236,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 .bytes(),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+
         assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -255,7 +258,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     public void testRejectNorms() throws IOException {
         // not supported as of 5.0
-        for (String type : Arrays.asList("byte", "short", "integer", "long", "float", "double")) {
+        for (String type : TYPES) {
             DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -267,6 +270,25 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> parser.parse("type", new CompressedXContent(mapping)));
             assertThat(e.getMessage(), containsString("Mapping definition for [foo] has unsupported parameters:  [norms"));
+        }
+    }
+
+    /**
+     * `index_options` was deprecated and is rejected as of 7.0
+     */
+    public void testRejectIndexOptions() throws IOException {
+        for (String type : TYPES) {
+            DocumentMapperParser parser = createIndex("index-" + type).mapperService().documentMapperParser();
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", type)
+                    .field("index_options", randomFrom(new String[] { "docs", "freqs", "positions", "offsets" }))
+                    .endObject()
+                .endObject().endObject().endObject().string();
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> parser.parse("type", new CompressedXContent(mapping)));
+            assertThat(e.getMessage(), containsString("index_options not allowed in field [foo] of type [" + type +"]"));
         }
     }
 
@@ -293,7 +315,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
         Object missing;
-        if (Arrays.asList("float", "double").contains(type)) {
+        if (Arrays.asList("float", "double", "half_float").contains(type)) {
             missing = 123d;
         } else {
             missing = 123L;
@@ -345,6 +367,26 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     public void testOutOfRangeValues() throws IOException {
         final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
+            OutOfRangeSpec.of(NumberType.BYTE, "128", "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
+            OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
+
+            OutOfRangeSpec.of(NumberType.BYTE, "-129", "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, "-2147483649", "is out of range for an integer"),
+            OutOfRangeSpec.of(NumberType.LONG, "-9223372036854775809", "out of range for a long"),
+
+            OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
+
+            OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
+            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short"),
+            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long"),
+
             OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
             OutOfRangeSpec.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
             OutOfRangeSpec.of(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
@@ -398,6 +440,13 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     private BytesReference createIndexRequest(Object value) throws IOException {
-        return XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes();
+        if (value instanceof BigInteger) {
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                    .rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON)
+                .endObject().bytes();
+        } else {
+            return XContentFactory.jsonBuilder().startObject().field("field", value).endObject().bytes();
+        }
     }
 }

@@ -1,5 +1,13 @@
 setup:
   - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              index.max_docvalue_fields_search: 2
+              index.max_script_fields: 2
+
+  - do:
       index:
           index:  test_1
           type:   test
@@ -32,7 +40,7 @@ setup:
       search:
         index: test_1
         scroll: 5m
-        from: 10000
+        size: 10010
 
 ---
 "Rescore window limits":
@@ -50,3 +58,31 @@ setup:
                     match_all: {}
                   query_weight: 1
                   rescore_query_weight: 2
+
+---
+"Docvalues_fields size limit":
+
+  - do:
+      catch:      /Trying to retrieve too many docvalue_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_docvalue_fields_search\] index level setting\./
+      search:
+        index: test_1
+        body:
+          query:
+            match_all: {}
+          docvalue_fields: ["one", "two", "three"]
+
+---
+"Script_fields size limit":
+
+  - do:
+      catch:      /Trying to retrieve too many script_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_script_fields\] index level setting\./
+      search:
+        index: test_1
+        body:
+          query:
+            match_all: {}
+          script_fields: {
+            "test1" : { "script" : { "lang": "painless", "source": "1" }},
+            "test2" : { "script" : { "lang": "painless", "source": "1" }},
+            "test3" : { "script" : { "lang": "painless", "source": "1" }}
+          }

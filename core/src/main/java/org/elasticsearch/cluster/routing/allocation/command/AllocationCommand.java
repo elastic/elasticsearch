@@ -23,17 +23,18 @@ import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * A command to move shards in some way.
  *
  * Commands are registered in {@link NetworkModule}.
  */
-public interface AllocationCommand extends NamedWriteable, ToXContent {
+public interface AllocationCommand extends NamedWriteable, ToXContentObject {
     interface Parser<T extends AllocationCommand> {
         /**
          * Reads an {@link AllocationCommand} of type <code>T</code> from a {@link XContentParser}.
@@ -60,5 +61,13 @@ public interface AllocationCommand extends NamedWriteable, ToXContent {
     @Override
     default String getWriteableName() {
         return name();
+    }
+
+    /**
+     * Returns any feedback the command wants to provide for logging. This message should be appropriate to expose to the user after the
+     * command has been applied
+     */
+    default Optional<String> getMessage() {
+        return Optional.empty();
     }
 }

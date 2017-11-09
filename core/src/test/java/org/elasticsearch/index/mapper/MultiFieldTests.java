@@ -35,7 +35,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -106,14 +108,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("name.test1").fieldType().tokenized(), equalTo(true));
         assertThat(docMapper.mappers().getMapper("name.test1").fieldType().eagerGlobalOrdinals(), equalTo(true));
 
-        assertThat(docMapper.mappers().getMapper("name.test2"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.test2"), instanceOf(TokenCountFieldMapper.class));
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name.test2").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("name.test2").fieldType().stored(), equalTo(true));
-        assertThat(docMapper.mappers().getMapper("name.test2").fieldType().tokenized(), equalTo(false));
-        assertThat(((TokenCountFieldMapper) docMapper.mappers().getMapper("name.test2")).analyzer(), equalTo("simple"));
-        assertThat(((TokenCountFieldMapper) docMapper.mappers().getMapper("name.test2")).analyzer(), equalTo("simple"));
-
         assertThat(docMapper.mappers().getMapper("object1.multi1"), notNullValue());
         assertThat(docMapper.mappers().getMapper("object1.multi1"), instanceOf(DateFieldMapper.class));
         assertThat(docMapper.mappers().getMapper("object1.multi1.string"), notNullValue());
@@ -163,8 +157,9 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     // can to unnecessary re-syncing of the mappings between the local instance and cluster state
     public void testMultiFieldsInConsistentOrder() throws Exception {
         String[] multiFieldNames = new String[randomIntBetween(2, 10)];
+        Set<String> seenFields = new HashSet<>();
         for (int i = 0; i < multiFieldNames.length; i++) {
-            multiFieldNames[i] = randomAlphaOfLength(4);
+            multiFieldNames[i] = randomValueOtherThanMany(s -> !seenFields.add(s), () -> randomAlphaOfLength(4));
         }
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")

@@ -63,7 +63,7 @@ public final class SDeclaration extends AStatement {
         Class<?> clazz;
 
         try {
-            clazz = Definition.TypeToClass(locals.getDefinition().getType(this.type));
+            clazz = locals.getDefinition().getJavaClassFromPainlessType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }

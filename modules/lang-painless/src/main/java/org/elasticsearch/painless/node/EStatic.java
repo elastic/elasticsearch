@@ -49,7 +49,7 @@ public final class EStatic extends AExpression {
     @Override
     void analyze(Locals locals) {
         try {
-            actual = Definition.TypeToClass(locals.getDefinition().getType(type));
+            actual = locals.getDefinition().getJavaClassFromPainlessType(type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }

@@ -75,7 +75,7 @@ final class EnhancedPainlessLexer extends PainlessLexer {
 
     @Override
     protected boolean isType(String name) {
-        return definition.structsMap.containsKey(name);
+        return definition.isSimplePainlessType(name);
     }
 
     @Override

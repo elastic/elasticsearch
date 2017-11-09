@@ -508,6 +508,51 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
+    public void testPrimaryPromotionRollsGeneration() throws Exception {
+        final IndexShard indexShard = newStartedShard(false);
+
+        final long currentTranslogGeneration = indexShard.getTranslog().getGeneration().translogFileGeneration;
+
+        // promote the replica
+        final ShardRouting replicaRouting = indexShard.routingEntry();
+        final ShardRouting primaryRouting =
+                newShardRouting(
+                        replicaRouting.shardId(),
+                        replicaRouting.currentNodeId(),
+                        null,
+                        true,
+                        ShardRoutingState.STARTED,
+                        replicaRouting.allocationId());
+        indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
+                0L, Collections.singleton(primaryRouting.allocationId().getId()),
+                new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(), Collections.emptySet());
+
+        /*
+         * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
+         * translog generation has rolled.
+         */
+        final CountDownLatch latch = new CountDownLatch(1);
+        indexShard.acquirePrimaryOperationPermit(
+                new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        releasable.close();
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                },
+                ThreadPool.Names.GENERIC);
+
+        latch.await();
+        assertThat(indexShard.getTranslog().getGeneration().translogFileGeneration, equalTo(currentTranslogGeneration + 1));
+
+        closeShards(indexShard);
+    }
+
     public void testOperationPermitsOnPrimaryShards() throws InterruptedException, ExecutionException, IOException {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;

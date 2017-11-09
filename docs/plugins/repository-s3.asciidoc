@@ -111,7 +111,7 @@ are marked as `Secure`.
 
 `use_throttle_retries`::
 
-    Whether retries should be throttled (ie use backoff). Must be `true` or `false`. Defaults to `false`.
+    Whether retries should be throttled (ie use backoff). Must be `true` or `false`. Defaults to `true`.
 
 [[repository-s3-repository]]
 ==== Repository Settings

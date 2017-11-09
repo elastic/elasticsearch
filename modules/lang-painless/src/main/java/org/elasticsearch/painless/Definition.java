@@ -431,11 +431,6 @@ public final class Definition {
         }
     }
 
-    /** Returns whether or not a non-array type exists. */
-    public boolean isSimpleType(final String name) {
-        return structsMap.containsKey(name);
-    }
-
     /** Gets the type given by its name */
     public Type getType(final String name) {
         return getTypeInternal(name);
@@ -632,11 +627,6 @@ public final class Definition {
         return struct == null ? null : struct.clazz;
     }
 
-    /** Collection of all simple types. Used by {@code PainlessDocGenerator} to generate an API reference. */
-    Collection<Type> allSimpleTypes() {
-        return simpleTypesMap.values();
-    }
-
     private static String buildMethodCacheKey(String structName, String methodName, List<Class<?>> arguments) {
         StringBuilder key = new StringBuilder();
         key.append(structName);
@@ -653,14 +643,10 @@ public final class Definition {
         return structName + fieldName + typeName;
     }
 
-    // INTERNAL IMPLEMENTATION:
-
-    private final Map<String, Struct> structsMap;
-    private final Map<String, Type> simpleTypesMap;
+    public final Map<String, Struct> structsMap;
 
     public Definition(List<Whitelist> whitelists) {
         structsMap = new HashMap<>();
-        simpleTypesMap = new HashMap<>();
 
         Map<Class<?>, Struct> javaClassesToPainlessStructs = new HashMap<>();
         String origin = null;
@@ -869,25 +855,34 @@ public final class Definition {
         if (existingStruct == null) {
             Struct struct = new Struct(painlessTypeName, javaClass, org.objectweb.asm.Type.getType(javaClass));
             structsMap.put(painlessTypeName, struct);
-
-            if (whitelistStruct.onlyFQNJavaClassName) {
-                simpleTypesMap.put(painlessTypeName, getType(painlessTypeName));
-            } else if (simpleTypesMap.containsKey(importedPainlessTypeName) == false) {
-                simpleTypesMap.put(importedPainlessTypeName, getType(painlessTypeName));
-                structsMap.put(importedPainlessTypeName, struct);
-            } else {
-                throw new IllegalArgumentException("duplicate short name [" + importedPainlessTypeName + "] " +
-                        "found for struct [" + painlessTypeName + "]");
-            }
         } else if (existingStruct.clazz.equals(javaClass) == false) {
             throw new IllegalArgumentException("struct [" + painlessTypeName + "] is used to " +
                     "illegally represent multiple java classes [" + whitelistStruct.javaClassName + "] and " +
                     "[" + existingStruct.clazz.getName() + "]");
-        } else if (whitelistStruct.onlyFQNJavaClassName && simpleTypesMap.containsKey(importedPainlessTypeName) &&
-                simpleTypesMap.get(importedPainlessTypeName).clazz == javaClass ||
-                whitelistStruct.onlyFQNJavaClassName == false && (simpleTypesMap.containsKey(importedPainlessTypeName) == false ||
-                simpleTypesMap.get(importedPainlessTypeName).clazz != javaClass)) {
-            throw new IllegalArgumentException("inconsistent only_fqn parameters found for type [" + painlessTypeName + "]");
+        }
+
+        if (painlessTypeName.equals(importedPainlessTypeName)) {
+            if (whitelistStruct.onlyFQNJavaClassName == false) {
+                throw new IllegalArgumentException("must use only_fqn parameter on type [" + painlessTypeName + "] with no package");
+            }
+        } else {
+            Struct importedStruct = structsMap.get(importedPainlessTypeName);
+
+            if (importedStruct == null) {
+                if (whitelistStruct.onlyFQNJavaClassName == false) {
+                    if (existingStruct != null) {
+                        throw new IllegalArgumentException("inconsistent only_fqn parameters found for type [" + painlessTypeName + "]");
+                    }
+
+                    structsMap.put(importedPainlessTypeName, structsMap.get(painlessTypeName));
+                }
+            } else if (importedStruct.clazz.equals(javaClass) == false) {
+                throw new IllegalArgumentException("imported name [" + painlessTypeName + "] is used to " +
+                    "illegally represent multiple java classes [" + whitelistStruct.javaClassName + "] " +
+                    "and [" + importedStruct.clazz.getName() + "]");
+            } else if (whitelistStruct.onlyFQNJavaClassName) {
+                throw new IllegalArgumentException("inconsistent only_fqn parameters found for type [" + painlessTypeName + "]");
+            }
         }
     }
 
@@ -1341,13 +1336,6 @@ public final class Definition {
     }
 
     private Type getTypeInternal(String name) {
-        // simple types (e.g. 0 array dimensions) are a simple hash lookup for speed
-        Type simple = simpleTypesMap.get(name);
-
-        if (simple != null) {
-            return simple;
-        }
-
         int dimensions = getDimensions(name);
         String structstr = dimensions == 0 ? name : name.substring(0, name.indexOf('['));
         Struct struct = structsMap.get(structstr);

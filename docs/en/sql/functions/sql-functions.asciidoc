@@ -1,0 +1,12 @@
+[[sql-functions]]
+== Functions and Operators
+
+
+// logical operators
+// comparison
+// conversion
+// math
+// date time
+// aggregate
+
+// geospatial

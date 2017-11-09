@@ -2,7 +2,7 @@
 [[xpack-sql]]
 = SQL Access
 
-:sql-tests: {docdir}/../../qa/sql
+:sql-tests: {docdir}/../../../qa/sql
 :sql-specs: {sql-tests}/src/main/resources
 :jdbc-tests: {sql-tests}/src/main/java/org/elasticsearch/xpack/qa/sql/jdbc
 :security-tests: {sql-tests}/security/src/test/java/org/elasticsearch/xpack/qa/sql/security

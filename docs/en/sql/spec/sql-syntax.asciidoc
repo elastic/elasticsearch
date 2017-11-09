@@ -1,0 +1,11 @@
+[[sql-spec-syntax]]
+=== SQL Statement Syntax
+
+Big list of the entire syntax in SQL
+
+Each entry might get its own file and code snippet
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-spec}/select.sql-spec[wildcardWithOrder]
+--------------------------------------------------

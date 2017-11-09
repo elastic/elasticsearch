@@ -1,0 +1,5 @@
+[[sql-getting-started]]
+== Getting Started with SQL
+
+Basic chapter on using REST, CLI and JDBC to run some basic queries and return some results.
+To keep this chapter should be about adding 3-4 entries of data, then using each technology to get the results out.

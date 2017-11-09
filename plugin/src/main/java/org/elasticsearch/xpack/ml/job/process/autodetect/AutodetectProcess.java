@@ -126,6 +126,20 @@ public interface AutodetectProcess extends Closeable {
     boolean isProcessAlive();
 
     /**
+     * Check whether autodetect terminated given maximum 45ms for termination
+     *
+     * Processing errors are highly likely caused by autodetect being unexpectedly
+     * terminated.
+     *
+     * Workaround: As we can not easily check if autodetect is alive, we rely on
+     * the logPipe being ended. As the loghandler runs in another thread which
+     * might fall behind this one, we give it a grace period of 45ms.
+     *
+     * @return false if process has ended for sure, true if it probably still runs
+     */
+    boolean isProcessAliveAfterWaiting();
+
+    /**
      * Read any content in the error output buffer.
      * @return An error message or empty String if no error.
      */

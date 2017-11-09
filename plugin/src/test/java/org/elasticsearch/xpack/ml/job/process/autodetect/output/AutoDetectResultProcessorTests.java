@@ -325,6 +325,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(iterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
         when(iterator.next()).thenReturn(autodetectResult);
         AutodetectProcess process = mock(AutodetectProcess.class);
+        when(process.isProcessAlive()).thenReturn(true);
+        when(process.isProcessAliveAfterWaiting()).thenReturn(true);
         when(process.readAutodetectResults()).thenReturn(iterator);
 
         doThrow(new ElasticsearchException("this test throws")).when(persister).persistModelSnapshot(any());

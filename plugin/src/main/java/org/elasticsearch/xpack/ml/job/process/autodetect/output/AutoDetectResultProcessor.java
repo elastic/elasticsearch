@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
@@ -113,6 +112,9 @@ public class AutoDetectResultProcessor {
                     if (processKilled) {
                         throw e;
                     }
+                    if (process.isProcessAliveAfterWaiting() == false) {
+                        throw e;
+                    }
                     LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
                 }
             }
@@ -135,6 +137,9 @@ public class AutoDetectResultProcessor {
                 // but we now fully expect jobs to move between nodes without doing
                 // all their graceful close activities.
                 LOGGER.warn("[{}] some results not processed due to the process being killed", jobId);
+            } else if (process.isProcessAliveAfterWaiting() == false) {
+                // Don't log the stack trace to not shadow the root cause.
+                LOGGER.warn("[{}] some results not processed due to the termination of autodetect", jobId);
             } else {
                 // We should only get here if the iterator throws in which
                 // case parsing the autodetect output has failed.
@@ -344,6 +349,5 @@ public class AutoDetectResultProcessor {
     public ModelSizeStats modelSizeStats() {
         return latestModelSizeStats;
     }
-
 }
 

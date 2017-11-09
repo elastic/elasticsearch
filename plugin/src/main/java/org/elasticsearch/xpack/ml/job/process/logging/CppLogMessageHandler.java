@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -90,9 +91,9 @@ public class CppLogMessageHandler implements Closeable {
      * InputStream throws an exception.
      */
     public void tailStream() throws IOException {
+        XContent xContent = XContentFactory.xContent(XContentType.JSON);
+        BytesReference bytesRef = null;
         try {
-            XContent xContent = XContentFactory.xContent(XContentType.JSON);
-            BytesReference bytesRef = null;
             byte[] readBuf = new byte[readBufSize];
             for (int bytesRead = inputStream.read(readBuf); bytesRead != -1; bytesRead = inputStream.read(readBuf)) {
                 if (bytesRef == null) {
@@ -109,6 +110,11 @@ public class CppLogMessageHandler implements Closeable {
             // check if there is some leftover from log summarization
             if (lastMessageSummary.count > 0) {
                 logSummarizedMessage();
+            }
+
+            // if the process crashed, a non-delimited JSON string might still be in the pipe
+            if (bytesRef != null) {
+                parseMessage(xContent, bytesRef);
             }
         }
     }
@@ -263,12 +269,20 @@ public class CppLogMessageHandler implements Closeable {
             } else {
                 LOGGER.log(level, "[{}/{}] [{}@{}] {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
             }
+        } catch (ParsingException e) {
+            String upstreamMessage = "Fatal error: '" + bytesRef.utf8ToString() + "'";
+            if (upstreamMessage.contains("bad_alloc")) {
+                upstreamMessage += ", process ran out of memory.";
+            }
+            storeError(upstreamMessage);
+            seenFatalError = true;
         } catch (IOException e) {
             if (jobId != null) {
-                LOGGER.warn(new ParameterizedMessage("[{}] Failed to parse C++ log message: {}",
+                LOGGER.warn(new ParameterizedMessage("[{}] IO failure receiving C++ log message: {}",
                         new Object[] {jobId, bytesRef.utf8ToString()}), e);
             } else {
-                LOGGER.warn(new ParameterizedMessage("Failed to parse C++ log message: {}", new Object[] {bytesRef.utf8ToString()}), e);
+                LOGGER.warn(new ParameterizedMessage("IO failure receiving C++ log message: {}",
+                        new Object[] {bytesRef.utf8ToString()}), e);
             }
         }
     }

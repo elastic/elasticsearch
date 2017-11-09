@@ -271,6 +271,12 @@ class NativeAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
+    public boolean isProcessAliveAfterWaiting() {
+        cppLogHandler.waitForLogStreamClose(Duration.ofMillis(45));
+        return isProcessAlive();
+    }
+
+    @Override
     public String readError() {
         return cppLogHandler.getErrors();
     }

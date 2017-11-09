@@ -145,6 +145,16 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
+    public boolean isProcessAliveAfterWaiting() {
+        try {
+            Thread.sleep(45);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return open;
+    }
+
+    @Override
     public String readError() {
         return "";
     }

@@ -5,12 +5,15 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+
+import java.io.IOException;
 
 /**
  * An engine implementation for following shards.
@@ -34,16 +37,21 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    protected long doGenerateSeqNoForOperation(final Operation operation) {
-        assert operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                : "primary operations on following indices must have an assigned sequence number";
-        return operation.seqNo();
+    public IndexResult index(final Index index) throws IOException {
+        preFlight(index);
+        return super.index(index);
     }
 
     @Override
-    protected boolean assertOriginPrimarySequenceNumber(final long seqNo) {
-        assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations on following indices must have an assigned sequence number";
-        return true;
+    public DeleteResult delete(final Delete delete) throws IOException {
+        preFlight(delete);
+        return super.delete(delete);
+    }
+
+    private void preFlight(final Operation operation) {
+        if (operation.origin() == Operation.Origin.PRIMARY) {
+            throw new IllegalStateException("a following engine does not accept primary operations");
+        }
     }
 
 }

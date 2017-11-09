@@ -1,149 +1,150 @@
-[[rank-eval]]
-= Ranking Evaluation
+[[search-rank-eval]]
+== Ranking Evaluation API
 
-[partintro]
---
+experimental[]
 
-Imagine having built and deployed a search application: Users are happily
-entering queries into your search frontend. Your application takes these
-queries and creates a dedicated Elasticsearch query from that, and returns its
-results back to the user.  Imagine further that you are tasked with tweaking the
-Elasticsearch query that is being created to return specific results for a
-certain set of queries without breaking others. How should that be done?
+The ranking evaluation API allows to evaluate the quality of ranked search
+results over a set of typical search queries. Given this set of queries and a
+list or manually rated documents, the `_rank_eval` endpoint calculates and
+returns typical information retrieval metrics like _mean reciprocal rank_,
+_precision_ or _discounted cumulative gain_.
 
-One possible solution is to gather a sample of user queries representative of
-how the search application is used, retrieve the search results that are being
-returned. As a next step these search results would be manually annotated for
-their relevancy to the original user query. Based on this set of rated requests
-we can compute a couple of metrics telling us more about how many relevant
-search results are being returned.
+=== Overview
 
-This is a nice approximation for how well our translation from user query to
-Elasticsearch query works for providing the user with relevant search results.
-Elasticsearch provides a ranking evaluation API that lets you compute scores for
-your current ranking function based on annotated search results.
---
+Search quality evaluation starts with looking at the users of your search application, and the things that they are searching for.
+Users have a specific _information need_, e.g. they are looking for gift in a web shop or want to book a flight for their next holiday.
+They usually enters some search terms into a search box or some other web form.
+All of this information, together with meta information about the user (e.g. the browser, location, earlier preferences etc...) then gets translated into a query to the underlying search system.
 
-== Plain ranking evaluation
+The challenge for search engineers is to tweak this translation process from user entries to a concrete query in such a way, that the search results contain the most relevant information with respect to the users information_need.
+This can only be done if the search result quality is evaluated constantly across a representative test suit of typical user queries, so that improvements in the rankings for one particular query doesn't negatively effect the ranking for other types of queries.
 
-In its most simple form, for each query a set of ratings can be supplied:
+In order to get started with search quality evaluation, three basic things a needed:
+
+. a collection of document you want to evaluate your query performance against, usually one or more indices
+. a collection of typical search requests that users enter into your system
+. a set of document ratings that judge the documents relevance with respect to a search request+
+  It is important to note that one set of document ratings is needed per test query, and that
+  the relevance judgements are based on the _information_need_ of the user that entered the query. 
+
+The ranking evaluation API provides a convenient way to use this information in a ranking evaluation request to calculate different search evaluation metrics. This gives a first estimation of your overall search quality and give you a measurement to optimize against when fine-tuning various aspect of the query generation in your application. 
+
+== Ranking evaluation request structure
+
+In its most basic form, a request to the `_rank_eval` endpoint has two sections:
 
 [source,js]
 -----------------------------
-GET /twitter/tweet/_rank_eval
+GET /my_index/_rank_eval
 {
-    "requests": [
-    {
-        "id": "JFK query",                              <1>
-        "request": {
-            "query": {
-                "match": {
-                    "title": {
-                        "query": "JFK"}}}},             <2>
-        "ratings": [                                    <3>
-        {
-          "rating": 1.5,                                <4>
-          "_type": "tweet",                             <5>
-          "_id": "13736278",                            <6>
-          "_index": "twitter"                           <7>
-        },
-        {
-          "rating": 1,
-          "_type": "tweet",
-          "_id": "30900421",
-          "_index": "twitter"
-        }],  
-      "summary_fields": ["title"]                       <8>
-    }],
-    "metric": {                                         <9>
-      "reciprocal_rank": {}
-   },
-   "max_concurrent_searches": 10                         <10>
+    "requests": [ ... ], <1>  
+    "metric": { <2>
+      "reciprocal_rank": { ... } <3>
+   }
 }
 ------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// NOTCONSOLE
 
-<1> A human readable id for the rated query (that will be re-used in the response to provide further details).
-<2> The actual Elasticsearch query to execute.
-<3> A set of ratings for how well a certain document fits as response for the query.
-<4> A rating expressing how well the document fits the query, higher is better, are treated as int values.
-<5> The type where the rated document lives.
-<6> The id of the rated document.
-<7> The index where the rated document lives.
-<8> For a verbose response, specify which properties of a search hit should be returned in addition to index/type/id.
-<9> A metric to use for evaluation. See below for a list.
-<10> Maximum number of search requests to execute in parallel. Set to 10 by
-default.
+<1> a set of typical search requests to your system
+<2> definition of the evaluation metric to calculate
+<3> a specific metric and its parameters
 
+The request section contains several search requests typical to your application, along with the document ratings for each particular search request, e.g.
+
+[source,js]
+-----------------------------
+    "requests": [
+        {
+            "id": "amsterdam_query", <1>
+            "request": { <2>
+                "query": { "match": { "text": "amsterdam" }}
+            },
+            "ratings": [ <3> 
+                 { "_index": "my_index", "_id": "doc1", "rating": 0 },
+                 { "_index": "my_index", "_id": "doc2", "rating": 3},
+                 { "_index": "my_index", _id": "doc3", "rating": 1 }
+            ]
+        },
+        {
+            "id": "berlin_query",
+            "request": {
+                "query": { "match": { "text": "berlin" }}
+            },
+            "ratings": [
+                { "_index": "my_index", "_id": "doc1", "rating": 1 }
+            ]
+        }
+    ]
+------------------------------
+// NOTCONSOLE
+
+<1> the search requests id, used to group result details later 
+<2> the query that is being evaluated
+<3> a list of document ratings, each entry containing the documents `_index` and `_id` together with
+the rating of the documents relevance with regards to this search request
+
+A document `rating` can be any integer value that expresses the relevance of the document on a user defined scale. For some of the metrics, just giving a binary rating (e.g. `0` for irrelevant and `1` for relevant) will be sufficient, other metrics can use a more fine grained scale.  
 
 == Template based ranking evaluation
 
+As an alternative to having to provide a single query per test request, it is possible to specify query templates in the evaluation request and later refer to them. Queries with similar structure that only differ in their parameters don't have to be repeated all the time in the `requests` section this way. In typical search systems where user inputs usually get filled into a small set of query templates, this helps making the evaluation request more succinct.
+
 [source,js]
 --------------------------------
-GET /twitter/tweet/_rank_eval
-{
-  "templates": [{
-        "id": "match_query",
-        "template": {
-            "inline": {
-                "query": {
-                    "match": {
-                        "{{field}}": {
-                            "query": "{{query_string}}"}}}}}}],  <1>
+GET /my_index/_rank_eval
+{ 
+   [...]
+  "templates": [
+     {
+        "id": "match_one_field_query",  <1>
+        "template": { <2>
+            "inline": { 
+                "query": { 
+                  "match": { "{{field}}": { "query": "{{query_string}}" }}
+                }
+            }
+        }
+     }
+  ], 
   "requests": [
-  {
-      "id": "JFK query",
-      "ratings": [
-        {
-          "rating": 1.5,
-          "_type": "tweet",
-          "_id": "13736278",
-          "_index": "twitter"
-        },
-        {
-          "rating": 1,
-          "_type": "tweet",
-          "_id": "30900421",
-          "_index": "twitter"
-        }],
-      "params": {
-        "query_string": "JFK",                          <2>
-        "field": "opening_text"                         <2>
-      },
-      "template_id": "match_query"
-    }],
-    "metric": {
-      "precision": {
-        "relevant_rating_threshold": 2
-      }
-   }
+      {
+         "id": "amsterdam_query"
+         "ratings": [ ... ],
+         "template_id": "match_one_field_query", <3>
+         "params": { <4>
+            "query_string": "amsterdam",
+            "field": "text"
+          }
+     },
+    [...]
 }
 --------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// NOTCONSOLE
 
-<1> The template to use for every rated search request.
-<2> The parameters to use to fill the template above.
+<1> the template id 
+<2> the template definition to use
+<3> a reference to a previously defined temlate
+<4> the parameters to use to fill the template
 
+== Available evaluation metrics
 
-== Valid evaluation metrics
+The `metric` section determines which of the available evaluation metrics is going to be used.
+Currently, the following metrics are supported:
 
-=== Precision
+=== Precision at k (Prec@k)
 
-Citing from https://en.wikipedia.org/wiki/Information_retrieval#Precision[Precision
-page at Wikipedia]:
-"Precision is the fraction of the documents retrieved that are relevant to the
-user's information need."
+This metric measures the number of relevant results in the top k search results. Its a form of the well known https://en.wikipedia.org/wiki/Information_retrieval#Precision[Precision] metric that only looks at the top k documents. It is the fraction of relevant documents in those first k
+search. A precision at 10 (prec@10) value of 0.6 then means six out of the 10 top hits where
+relevant with respect to the users information need.
 
-Works well as an easy to explain evaluation metric. Caveat: All result positions
-are treated equally. So a ranking of ten results that contains one relevant
+This metric works well as a first and an easy to explain evaluation metric. 
+Documents in the collection need to be rated either as relevant or irrelevant with respect to the current query. Prec@k does not take into account where in the top k results the relevant documents occur, so a ranking of ten results that contains one relevant
 result in position 10 is equally good as a ranking of ten results that contains
 one relevant result in position 1.
 
 [source,js]
 --------------------------------
-GET /twitter/tweet/_rank_eval
+GET /twitter/_rank_eval
 {
     "requests": [
     {
@@ -153,8 +154,8 @@ GET /twitter/tweet/_rank_eval
     }],
     "metric": {
       "precision": {
-        "relevant_rating_threshold": 1,              <1>
-        "ignore_unlabeled": false                    <2>
+        "relevant_rating_threshold": 1,
+        "ignore_unlabeled": false
       }
    }
 }
@@ -162,23 +163,27 @@ GET /twitter/tweet/_rank_eval
 // CONSOLE
 // TEST[setup:twitter]
 
-<1> For graded relevance ratings only ratings above this threshold are
-considered as relevant results for the given query. By default this is set to 1.
+The `precision` metric takes the following optional parameters
 
-<2> All documents retrieved by the rated request that have no ratings
-assigned are treated unrelevant by default. Set to true in order to drop them
-from the precision computation entirely.
+[cols="<,<",options="header",]
+|=======================================================================
+|Parameter |Description
+|`relevant_rating_threshold` |Sets the rating threshold from which on documents are considered to be
+"relevant". Defaults to `1`.
+|`ignore_unlabeled` |controls how unlabeled documents in the search results are counted.
+If set to 'true', unlabeled documents are ignored and neither count as relevant or irrelevant. Set to 'false' (the default), they are treated as irrelevant.
+|=======================================================================
 
+=== Mean reciprocal rank
 
-=== Reciprocal rank
-
-For any given query this is the reciprocal of the rank of the
-first relevant document retrieved. For example finding the first relevant result
-in position 3 means Reciprocal Rank is going to be 1/3.
+For every query in the test suite, this metric calculates the reciprocal of the rank of the
+first relevant document. For example finding the first relevant result
+in position 3 means the reciprocal rank is 1/3. The reciprocal rank for each query
+is averaged across all queries in the test suite to give the https://en.wikipedia.org/wiki/Mean_reciprocal_rank[mean reciprocal rank].
 
 [source,js]
 --------------------------------
-GET /twitter/tweet/_rank_eval
+GET /twitter/_rank_eval
 {
     "requests": [
     {
@@ -187,25 +192,31 @@ GET /twitter/tweet/_rank_eval
         "ratings": []  
     }],
     "metric": {
-        "reciprocal_rank": {}
+        "mean_reciprocal_rank": {}
     }
 }
 --------------------------------
 // CONSOLE
 // TEST[setup:twitter]
 
-=== Normalized discounted cumulative gain
+The `mean_reciprocal_rank` metric takes the following optional parameters
 
-In contrast to the two metrics above this takes both, the grade of the result
-found as well as the position of the document returned into account.
+[cols="<,<",options="header",]
+|=======================================================================
+|Parameter |Description
+|`relevant_rating_threshold` |Sets the rating threshold from which on documents are considered to be
+"relevant". Defaults to `1`.
+|=======================================================================
 
-For more details also check the explanation on
-https://en.wikipedia.org/wiki/Discounted_cumulative_gain[Wikipedia].
+=== Discounted cumulative gain (DCG)
 
+In contrast to the two metrics above, https://en.wikipedia.org/wiki/Discounted_cumulative_gain[discounted cumulative gain] takes both, the rank and the rating of the search results, into account.
+
+The assumption is that highly relevant documents are more useful for the user when appearing at the top of the result list. Therefore, the DCG formula reduces the contribution that high ratings for documents on lower search ranks have on the overall DCG metric.
 
 [source,js]
 --------------------------------
-GET /twitter/tweet/_rank_eval
+GET /twitter/_rank_eval
 {
     "requests": [
     {
@@ -215,7 +226,7 @@ GET /twitter/tweet/_rank_eval
     }],
     "metric": {
        "dcg": {
-            "normalize": false                          <1>
+            "normalize": false
        }
     }
 }
@@ -223,9 +234,15 @@ GET /twitter/tweet/_rank_eval
 // CONSOLE
 // TEST[setup:twitter]
 
-<1> Set to true to compute nDCG instead of DCG, default is false.
+The `dcg` metric takes the following optional parameters:
 
-Setting normalize to true makes DCG values better comparable across different
-result set sizes. See also
-https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Normalized_DCG[Wikipedia
-nDCG] for more details.
+[cols="<,<",options="header",]
+|=======================================================================
+|Parameter |Description
+|`normalize` | If set to `true`, this metric will calculate the https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Normalized_DCG[Normalized DCG].
+|=======================================================================
+
+== Other parameters
+
+== Response format
+

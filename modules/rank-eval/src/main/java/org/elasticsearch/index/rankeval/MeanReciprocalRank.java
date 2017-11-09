@@ -37,13 +37,13 @@ import javax.naming.directory.SearchResult;
 import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
 
 /**
- * Evaluate reciprocal rank. By default documents with a rating equal or bigger
+ * Evaluate mean reciprocal rank. By default documents with a rating equal or bigger
  * than 1 are considered to be "relevant" for the reciprocal rank calculation.
  * This value can be changes using the "relevant_rating_threshold" parameter.
  */
-public class ReciprocalRank implements RankedListQualityMetric {
+public class MeanReciprocalRank implements RankedListQualityMetric {
 
-    public static final String NAME = "reciprocal_rank";
+    public static final String NAME = "mean_reciprocal_rank";
 
     /** ratings equal or above this value will be considered relevant. */
     private int relevantRatingThreshhold = 1;
@@ -51,11 +51,11 @@ public class ReciprocalRank implements RankedListQualityMetric {
     /**
      * Initializes maxAcceptableRank with 10
      */
-    public ReciprocalRank() {
+    public MeanReciprocalRank() {
         // use defaults
     }
 
-    public ReciprocalRank(StreamInput in) throws IOException {
+    public MeanReciprocalRank(StreamInput in) throws IOException {
         this.relevantRatingThreshhold = in.readVInt();
     }
 
@@ -121,14 +121,14 @@ public class ReciprocalRank implements RankedListQualityMetric {
 
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField(
             "relevant_rating_threshold");
-    private static final ObjectParser<ReciprocalRank, Void> PARSER = new ObjectParser<>(
-            "reciprocal_rank", () -> new ReciprocalRank());
+    private static final ObjectParser<MeanReciprocalRank, Void> PARSER = new ObjectParser<>(
+            "reciprocal_rank", () -> new MeanReciprocalRank());
 
     static {
-        PARSER.declareInt(ReciprocalRank::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
+        PARSER.declareInt(MeanReciprocalRank::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
     }
 
-    public static ReciprocalRank fromXContent(XContentParser parser) {
+    public static MeanReciprocalRank fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -150,7 +150,7 @@ public class ReciprocalRank implements RankedListQualityMetric {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        ReciprocalRank other = (ReciprocalRank) obj;
+        MeanReciprocalRank other = (MeanReciprocalRank) obj;
         return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold);
     }
 
@@ -200,7 +200,7 @@ public class ReciprocalRank implements RankedListQualityMetric {
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            ReciprocalRank.Breakdown other = (ReciprocalRank.Breakdown) obj;
+            MeanReciprocalRank.Breakdown other = (MeanReciprocalRank.Breakdown) obj;
             return Objects.equals(firstRelevantRank, other.firstRelevantRank);
         }
 

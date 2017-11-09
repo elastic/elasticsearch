@@ -82,7 +82,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         specifications.add(berlinRequest);
 
-        Precision metric = new Precision();
+        PrecisionAtK metric = new PrecisionAtK();
         metric.setIgnoreUnlabeled(true);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
@@ -148,7 +148,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         brokenRequest.setIndices(indices);
         specifications.add(brokenRequest);
 
-        RankEvalSpec task = new RankEvalSpec(specifications, new Precision());
+        RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
                 RankEvalAction.INSTANCE, new RankEvalRequest());

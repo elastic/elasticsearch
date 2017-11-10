@@ -490,11 +490,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } finally {
             cleanContext(context);
             //Release searchContext if we have no more hits
-            if ((context.queryResult().size()) >= context.scrollContext().totalHits) {
-                if (context.scrollContext() != null) {
-                    freeContext(context.id());
-                    releasedContexts.add(context.id());
-                }
+            if (context.queryResult().size() >= context.scrollContext().totalHits && context.scrollContext() != null) {
+                freeContext(context.id());
+                releasedContexts.add(context.id());
             }
         }
     }

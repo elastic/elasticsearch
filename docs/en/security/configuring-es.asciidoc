@@ -1,0 +1,12 @@
+[role="xpack"]
+[[configuring-security]]
+== Configuring Security in {es}
+++++
+<titleabbrev>Configuring Security</titleabbrev>
+++++
+
+{security} enables you to easily secure a cluster. With {security}, you can
+password-protect your data as well as implement more advanced security measures
+such as encrypting communications, role-based access control, IP filtering, and
+auditing. For more information, see
+{xpack-ref}/xpack-security.html[Securing the Elastic Stack].

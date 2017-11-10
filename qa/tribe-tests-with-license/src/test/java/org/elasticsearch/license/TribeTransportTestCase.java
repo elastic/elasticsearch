@@ -73,6 +73,11 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
+    }
+
+    @Override
     protected boolean addTestZenDiscovery() {
         return false;
     }

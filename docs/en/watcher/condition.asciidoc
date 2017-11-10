@@ -25,6 +25,9 @@ including the watch payload (`ctx.payload.*`). The <<condition-script, script>>,
 conditions can use the payload data to determine whether or not the necessary
 conditions are met.
 
+In addition to the watch wide condition, you can also configure conditions
+per <<action-conditions, action>>.
+
 include::condition/always.asciidoc[]
 
 include::condition/never.asciidoc[]
@@ -34,7 +37,3 @@ include::condition/compare.asciidoc[]
 include::condition/array-compare.asciidoc[]
 
 include::condition/script.asciidoc[]
-
-
-
-

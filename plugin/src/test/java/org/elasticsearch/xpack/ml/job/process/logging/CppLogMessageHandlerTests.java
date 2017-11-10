@@ -38,6 +38,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
     private static final String TEST_MESSAGE_NOISE_DEBUG = "{\"logger\":\"controller\",\"timestamp\":1478261151448,\"level\":\"DEBUG\","
             + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 6\",\"class\":\"ml\","
             + "\"method\":\"core::SomeNoiseMake\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+    private static final String TEST_MESSAGE_NON_JSON_FATAL_ERROR = "Segmentation fault core dumped";
 
     public void testParse() throws IOException, TimeoutException {
 
@@ -96,7 +97,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test4", CppLogMessageHandler.class.getName(), Level.INFO,
                 "[test_throttling] * message 5"));
 
-        executeLoggingTest(is, mockAppender, Level.INFO);
+        executeLoggingTest(is, mockAppender, Level.INFO, "test_throttling");
     }
 
     public void testThrottlingSummaryOneRepeat() throws IllegalAccessException, TimeoutException, IOException {
@@ -117,7 +118,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test2", CppLogMessageHandler.class.getName(), Level.INFO,
                 "[test_throttling] * message 5"));
 
-        executeLoggingTest(is, mockAppender, Level.INFO);
+        executeLoggingTest(is, mockAppender, Level.INFO, "test_throttling");
     }
 
     public void testThrottlingSummaryLevelChanges() throws IllegalAccessException, TimeoutException, IOException {
@@ -143,7 +144,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test6", CppLogMessageHandler.class.getName(), Level.INFO,
                 "[test_throttling] * message 5"));
 
-        executeLoggingTest(is, mockAppender, Level.INFO);
+        executeLoggingTest(is, mockAppender, Level.INFO, "test_throttling");
     }
 
     public void testThrottlingLastMessageRepeast() throws IllegalAccessException, TimeoutException, IOException {
@@ -158,7 +159,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test2", CppLogMessageHandler.class.getName(), Level.INFO,
                 "[test_throttling] * message 2 | repeated [5]"));
 
-        executeLoggingTest(is, mockAppender, Level.INFO);
+        executeLoggingTest(is, mockAppender, Level.INFO, "test_throttling");
     }
 
     public void testThrottlingDebug() throws IllegalAccessException, TimeoutException, IOException {
@@ -176,7 +177,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         mockAppender.addExpectation(new MockLogAppender.UnseenEventExpectation("test3", CppLogMessageHandler.class.getName(), Level.INFO,
                 "[test_throttling] * message 1 | repeated [5]"));
 
-        executeLoggingTest(is, mockAppender, Level.DEBUG);
+        executeLoggingTest(is, mockAppender, Level.DEBUG, "test_throttling");
     }
 
     public void testWaitForLogStreamClose() throws IOException {
@@ -190,13 +191,26 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         }
     }
 
-    private static void executeLoggingTest(InputStream is, MockLogAppender mockAppender, Level level) throws IOException {
+    public void testParseFatalError() throws IOException, IllegalAccessException {
+        InputStream is = new ByteArrayInputStream(TEST_MESSAGE_NON_JSON_FATAL_ERROR.getBytes(StandardCharsets.UTF_8));
+
+        try (CppLogMessageHandler handler = new CppLogMessageHandler("test_error", is)) {
+            is.close();
+            handler.tailStream();
+            assertTrue(handler.seenFatalError());
+            assertTrue(handler.getErrors().contains(TEST_MESSAGE_NON_JSON_FATAL_ERROR));
+            assertTrue(handler.getErrors().contains("Fatal error"));
+        }
+    }
+
+    private static void executeLoggingTest(InputStream is, MockLogAppender mockAppender, Level level, String jobId) 
+            throws IOException {
         Logger cppMessageLogger = Loggers.getLogger(CppLogMessageHandler.class);
         Loggers.addAppender(cppMessageLogger, mockAppender);
 
         Level oldLevel = cppMessageLogger.getLevel();
         Loggers.setLevel(cppMessageLogger, level);
-        try (CppLogMessageHandler handler = new CppLogMessageHandler("test_throttling", is)) {
+        try (CppLogMessageHandler handler = new CppLogMessageHandler(jobId, is)) {
             handler.tailStream();
         } finally {
             Loggers.removeAppender(cppMessageLogger, mockAppender);

@@ -32,6 +32,7 @@ import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.tribe.TribePlugin;
+import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
@@ -56,14 +57,16 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests security with tribe nodes
  */
-public class SecurityTribeIT extends NativeRealmIntegTestCase {
+public class SecurityTribeTests extends NativeRealmIntegTestCase {
 
     private static final String SECOND_CLUSTER_NODE_PREFIX = "node_cluster2_";
     private static InternalTestCluster cluster2;
@@ -521,6 +524,12 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         assertThat(e.getMessage(), containsString("roles may not be created or modified using a tribe node"));
         e = expectThrows(UnsupportedOperationException.class, () -> securityClient.prepareDeleteRole("role").get());
         assertThat(e.getMessage(), containsString("roles may not be deleted using a tribe node"));
+    }
+
+    public void testTribeSettingNames() throws Exception {
+        TribeService.TRIBE_SETTING_KEYS
+                .forEach(s -> assertThat("a new setting has been introduced for tribe that security needs to know about in Security.java",
+                        s, anyOf(startsWith("tribe.blocks"), startsWith("tribe.name"), startsWith("tribe.on_conflict"))));
     }
 
     private void assertTribeNodeHasAllIndices() throws Exception {

@@ -48,15 +48,13 @@ For example, the following `webhook` action creates a new issue in GitHub:
 --------------------------------------------------
 "actions" : {
   "create_github_issue" : {
+    "transform": {
+      "script": "return ['title':'Found errors in \\'contact.html\\'', 'body' : 'Found ' + ctx.payload.hits.total + ' errors in the last 5 minutes', 'assignee' : 'web-admin', 'labels' : ['bug','sev2']]"
+    },
     "webhook" : {
       "method" : "POST",
       "url" : "https://api.github.com/repos/<owner>/<repo>/issues",
-      "body" : "{
-        \"title\": \"Found errors in 'contact.html'\",
-        \"body\": \"Found {{ctx.payload.hits.total}} errors in the last 5 minutes\",
-        \"assignee\": \"web-admin\",
-        \"labels\": [ \"bug\", \"sev2\" ]
-      }",
+      "body": "{{#toJson}}ctx.payload{{/toJson}}",
       "auth" : {
         "basic" : {
           "username" : "<username>", <1>

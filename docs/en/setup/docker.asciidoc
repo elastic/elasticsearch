@@ -301,6 +301,11 @@ overriding the default command for the image. For example:
 docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclustername
 --------------------------------------------
 
+[[next-getting-started-tls-docker]]
+==== Configuring SSL/TLS with the {es} Docker image
+
+See <<configuring-tls-docker>>.
+
 ==== Notes for production use and defaults
 
 We have collected a number of best practices for production use.

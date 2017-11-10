@@ -28,6 +28,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.Scroll;
@@ -55,6 +57,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see SearchResponse
  */
 public final class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(SearchRequest.class));
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -119,6 +122,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         if (source != null && source.from() > 0 &&  scroll() != null) {
             validationException =
                 addValidationError("using [from] is not allowed in a scroll context", validationException);
+        }
+        if (requestCache != null && requestCache && scroll() != null) {
+            DEPRECATION_LOGGER.deprecated("Explicitly set [request_cache] for a scroll query is deprecated and will return a 400 " +
+                "error in future versions");
         }
         return validationException;
     }
@@ -385,7 +392,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 sb.append("], ");
                 sb.append("search_type[").append(searchType).append("], ");
                 if (source != null) {
-                    
+
                     sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
                 } else {
                     sb.append("source[]");

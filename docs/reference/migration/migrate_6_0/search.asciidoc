@@ -183,3 +183,11 @@ The parameter was already ignored in these situations, now in addition an error 
 The maximum number of results (`from` + `size`) that is allowed to be retrieved
 via inner hits and top hits has been limited to 100. The limit can be controlled
 via the `index.max_inner_result_window` index setting.
+
+==== Scroll queries that use the request_cache are deprecated
+
+Setting `request_cache:true` on a query that creates a scroll ('scroll=1m`)
+ is deprecated and the request will not use the cache internally.
+In future versions we will return a `400 - Bad request` instead of just ignoring
+the hint.
+Scroll queries are not meant to be cached.

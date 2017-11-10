@@ -394,7 +394,7 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
     public void testNumberOfMultiparts() {
         final ByteSizeUnit unit = randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB);
-        final long size = unit.toBytes(randomIntBetween(1, 10));
+        final long size = unit.toBytes(randomIntBetween(2, 1000));
         final int factor = randomIntBetween(2, 10);
 
         // Fits in 1 empty part

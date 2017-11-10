@@ -275,6 +275,11 @@ overriding the default command for the image. For example:
 docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclustername
 --------------------------------------------
 
+[[next-getting-started-tls-docker]]
+==== Configuring SSL/TLS with the Elasticsearch Docker image
+
+Please refer to the <<getting-started-tls-docker, Getting started with SSL/TLS and Elasticsearch>> guide.
+
 ==== Notes for production use and defaults
 
 We have collected a number of best practices for production use.
@@ -334,3 +339,4 @@ instead.
 
 
 include::next-steps.asciidoc[]
+include::getting-started-tls-docker.asciidoc[]

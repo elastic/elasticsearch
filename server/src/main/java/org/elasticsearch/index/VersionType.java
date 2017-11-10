@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.io.IOException;
+import java.util.Locale;
 
 public enum VersionType implements Writeable {
     INTERNAL((byte) 0) {
@@ -348,6 +349,10 @@ public enum VersionType implements Writeable {
             return defaultVersionType;
         }
         return fromString(versionType);
+    }
+
+    public static String toString(VersionType versionType) {
+        return versionType.name().toLowerCase(Locale.ROOT);
     }
 
     public static VersionType fromValue(byte value) {

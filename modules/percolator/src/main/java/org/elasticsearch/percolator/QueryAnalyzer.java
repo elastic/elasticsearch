@@ -493,10 +493,12 @@ final class QueryAnalyzer {
                                             Version version) {
         // Keep track of the msm for each clause:
         int[] msmPerClause = new int[disjunctions.size()];
-
         String[] rangeFieldNames = new String[disjunctions.size()];
-
         boolean verified = otherClauses == false;
+        if (version.before(Version.V_6_1_0)) {
+            verified &= requiredShouldClauses <= 1;
+        }
+
         Set<QueryExtraction> terms = new HashSet<>();
         for (int i = 0; i < disjunctions.size(); i++) {
             Query disjunct = disjunctions.get(i);
@@ -513,9 +515,7 @@ final class QueryAnalyzer {
 
         int msm = 0;
         if (version.onOrAfter(Version.V_6_1_0)) {
-
             Set<String> seenRangeFields = new HashSet<>();
-
             // Figure out what the combined msm is for this disjunction:
             // (sum the lowest required clauses, otherwise we're too strict and queries may not match)
             Arrays.sort(msmPerClause);

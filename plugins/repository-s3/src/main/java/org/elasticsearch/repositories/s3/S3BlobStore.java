@@ -25,6 +25,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.SSEAwsKeyManagementParams;
 import com.amazonaws.services.s3.model.StorageClass;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -49,16 +50,19 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final boolean serverSideEncryption;
 
+    private final String sseAwsKeyId;
+
     private final CannedAccessControlList cannedACL;
 
     private final StorageClass storageClass;
 
-    S3BlobStore(Settings settings, AmazonS3 client, String bucket, boolean serverSideEncryption,
+    S3BlobStore(Settings settings, AmazonS3 client, String bucket, boolean serverSideEncryption, String sseAwsKeyId,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
+        this.sseAwsKeyId = sseAwsKeyId;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
@@ -96,6 +100,15 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
     public int bufferSizeInBytes() {
         return bufferSize.bytesAsInt();
     }
+
+    public boolean sseAwsKeyIsEmpty() {
+        if (sseAwsKeyId == null || sseAwsKeyId.trim().isEmpty()) {
+            return true;
+        }
+        return false;
+    }
+
+    public SSEAwsKeyManagementParams getSSEAwsKey() { return new SSEAwsKeyManagementParams(sseAwsKeyId); }
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {

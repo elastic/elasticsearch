@@ -65,7 +65,7 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         MockAmazonS3 client = new MockAmazonS3(mockS3ServerSocket.getLocalPort());
         String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
 
-        return new S3BlobStore(Settings.EMPTY, client, bucket, false,
+        return new S3BlobStore(Settings.EMPTY, client, bucket, false, null,
             new ByteSizeValue(10, ByteSizeUnit.MB), "public-read-write", "standard");
     }
 

@@ -29,8 +29,8 @@ Elasticsearch website or from our RPM repository.
 
 `msi`::
 
-The `msi` package is suitable for installation on Windows 64-bit systems with at least 
-.NET 4.5 framework installed, and is the easiest choice for getting started with 
+The `msi` package is suitable for installation on Windows 64-bit systems with at least
+.NET 4.5 framework installed, and is the easiest choice for getting started with
 Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
 +
 <<windows>>
@@ -39,7 +39,7 @@ Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
 
 An image is available for running Elasticsearch as a Docker container. It ships with {xpack-ref}/index.html[X-Pack] pre-installed and may be downloaded from the Elastic Docker Registry.
 +
-<<docker>>
+{ref}/docker.html[Install {es} with Docker]
 
 [float]
 [[config-mgmt-tools]]

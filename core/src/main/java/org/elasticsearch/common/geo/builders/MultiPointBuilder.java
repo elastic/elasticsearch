@@ -21,7 +21,9 @@ package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
 
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.locationtech.spatial4j.shape.Point;
@@ -32,7 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class MultiPointBuilder extends CoordinateCollection<MultiPointBuilder> {
+public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, MultiPointBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;
 
@@ -54,15 +56,15 @@ public class MultiPointBuilder extends CoordinateCollection<MultiPointBuilder> {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapeName());
-        builder.field(FIELD_COORDINATES);
+        builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
+        builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
         super.coordinatesToXcontent(builder, false);
         builder.endObject();
         return builder;
     }
 
     @Override
-    public Shape build() {
+    public XShapeCollection<Point> build() {
         //Could wrap JtsGeometry but probably slower due to conversions to/from JTS in relate()
         //MultiPoint geometry = FACTORY.createMultiPoint(points.toArray(new Coordinate[points.size()]));
         List<Point> shapes = new ArrayList<>(coordinates.size());
@@ -77,22 +79,5 @@ public class MultiPointBuilder extends CoordinateCollection<MultiPointBuilder> {
     @Override
     public GeoShapeType type() {
         return TYPE;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(coordinates);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        MultiPointBuilder other = (MultiPointBuilder) obj;
-        return Objects.equals(coordinates, other.coordinates);
     }
 }

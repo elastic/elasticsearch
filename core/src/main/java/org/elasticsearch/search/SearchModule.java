@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -536,7 +537,7 @@ public class SearchModule {
 
     private void registerShapes() {
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            ShapeBuilders.register(namedWriteables);
+            namedWriteables.addAll(GeoShapeType.getShapeWriteables());
         }
     }
 

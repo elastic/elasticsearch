@@ -23,7 +23,6 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.HttpBackOffIOExceptionHandler;
 import com.google.api.client.http.HttpBackOffUnsuccessfulResponseHandler;
-import com.google.api.client.http.HttpIOExceptionHandler;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
@@ -34,9 +33,7 @@ import com.google.api.services.storage.Storage;
 import com.google.api.services.storage.StorageScopes;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -45,8 +42,6 @@ import org.elasticsearch.env.Environment;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -77,16 +72,11 @@ interface GoogleCloudStorageService {
      */
     class InternalGoogleCloudStorageService extends AbstractComponent implements GoogleCloudStorageService {
 
-        private static final String DEFAULT = "_default_";
-
-        private final Environment environment;
-
         /** Credentials identified by client name. */
         private final Map<String, GoogleCredential> credentials;
 
         InternalGoogleCloudStorageService(Environment environment, Map<String, GoogleCredential> credentials) {
             super(environment.settings());
-            this.environment = environment;
             this.credentials = credentials;
         }
 
@@ -132,15 +122,11 @@ interface GoogleCloudStorageService {
             private final TimeValue connectTimeout;
             private final TimeValue readTimeout;
             private final GoogleCredential credential;
-            private final HttpUnsuccessfulResponseHandler handler;
-            private final HttpIOExceptionHandler ioHandler;
 
             DefaultHttpRequestInitializer(GoogleCredential credential, TimeValue connectTimeout, TimeValue readTimeout) {
                 this.credential = credential;
                 this.connectTimeout = connectTimeout;
                 this.readTimeout = readTimeout;
-                this.handler = new HttpBackOffUnsuccessfulResponseHandler(newBackOff());
-                this.ioHandler = new HttpBackOffIOExceptionHandler(newBackOff());
             }
 
             @Override
@@ -152,13 +138,14 @@ interface GoogleCloudStorageService {
                     request.setReadTimeout((int) readTimeout.millis());
                 }
 
-                request.setIOExceptionHandler(ioHandler);
+                request.setIOExceptionHandler(new HttpBackOffIOExceptionHandler(newBackOff()));
                 request.setInterceptor(credential);
 
+                final HttpUnsuccessfulResponseHandler handler = new HttpBackOffUnsuccessfulResponseHandler(newBackOff());
                 request.setUnsuccessfulResponseHandler((req, resp, supportsRetry) -> {
-                            // Let the credential handle the response. If it failed, we rely on our backoff handler
-                            return credential.handleResponse(req, resp, supportsRetry) || handler.handleResponse(req, resp, supportsRetry);
-                        }
+                        // Let the credential handle the response. If it failed, we rely on our backoff handler
+                        return credential.handleResponse(req, resp, supportsRetry) || handler.handleResponse(req, resp, supportsRetry);
+                    }
                 );
             }
 

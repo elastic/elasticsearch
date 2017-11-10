@@ -224,6 +224,50 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(terms.get(2).bytes(), equalTo(termQuery3.getTerm().bytes()));
     }
 
+    public void testExtractQueryMetadata_booleanQuery_msm() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setMinimumNumberShouldMatch(2);
+        TermQuery termQuery1 = new TermQuery(new Term("_field", "_term1"));
+        builder.add(termQuery1, BooleanClause.Occur.SHOULD);
+        TermQuery termQuery2 = new TermQuery(new Term("_field", "_term2"));
+        builder.add(termQuery2, BooleanClause.Occur.SHOULD);
+        TermQuery termQuery3 = new TermQuery(new Term("_field", "_term3"));
+        builder.add(termQuery3, BooleanClause.Occur.SHOULD);
+
+        BooleanQuery booleanQuery = builder.build();
+        Result result = analyze(booleanQuery, Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        List<QueryExtraction> extractions = new ArrayList<>(result.extractions);
+        extractions.sort(Comparator.comparing(extraction -> extraction.term));
+        assertThat(extractions.size(), equalTo(3));
+        assertThat(extractions.get(0).term, equalTo(new Term("_field", "_term1")));
+        assertThat(extractions.get(1).term, equalTo(new Term("_field", "_term2")));
+        assertThat(extractions.get(2).term, equalTo(new Term("_field", "_term3")));
+    }
+
+    public void testExtractQueryMetadata_booleanQuery_msm_pre6dot1() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setMinimumNumberShouldMatch(2);
+        TermQuery termQuery1 = new TermQuery(new Term("_field", "_term1"));
+        builder.add(termQuery1, BooleanClause.Occur.SHOULD);
+        TermQuery termQuery2 = new TermQuery(new Term("_field", "_term2"));
+        builder.add(termQuery2, BooleanClause.Occur.SHOULD);
+        TermQuery termQuery3 = new TermQuery(new Term("_field", "_term3"));
+        builder.add(termQuery3, BooleanClause.Occur.SHOULD);
+
+        BooleanQuery booleanQuery = builder.build();
+        Result result = analyze(booleanQuery, Version.V_6_0_0);
+        assertThat(result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        List<QueryExtraction> extractions = new ArrayList<>(result.extractions);
+        extractions.sort(Comparator.comparing(extraction -> extraction.term));
+        assertThat(extractions.size(), equalTo(3));
+        assertThat(extractions.get(0).term, equalTo(new Term("_field", "_term1")));
+        assertThat(extractions.get(1).term, equalTo(new Term("_field", "_term2")));
+        assertThat(extractions.get(2).term, equalTo(new Term("_field", "_term3")));
+    }
+
     public void testExtractQueryMetadata_booleanQuery_onlyShould() {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term1"));

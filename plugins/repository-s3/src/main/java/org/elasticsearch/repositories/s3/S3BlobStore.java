@@ -19,9 +19,7 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.CreateBucketRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
@@ -38,6 +36,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -73,18 +73,22 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         // Also, if invalid security credentials are used to execute this method, the
         // client is not able to distinguish between bucket permission errors and
         // invalid credential errors, and this method could return an incorrect result.
-        if (!client.doesBucketExist(bucket)) {
-            deprecationLogger.deprecated("Auto creation of the bucket for an s3 backed " +
-                                         "repository is deprecated and will be removed in 6.0.");
-            final CreateBucketRequest request;
-            if (region != null) {
-                request = new CreateBucketRequest(bucket, region);
-            } else {
-                request = new CreateBucketRequest(bucket);
+        final CannedAccessControlList cAcl = this.cannedACL;
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            if (!client.doesBucketExist(bucket)) {
+                deprecationLogger.deprecated("Auto creation of the bucket for an s3 backed " +
+                    "repository is deprecated and will be removed in 6.0.");
+                final CreateBucketRequest request;
+                if (region != null) {
+                    request = new CreateBucketRequest(bucket, region);
+                } else {
+                    request = new CreateBucketRequest(bucket);
+                }
+                request.setCannedAcl(cAcl);
+                client.createBucket(request);
             }
-            request.setCannedAcl(this.cannedACL);
-            client.createBucket(request);
-        }
+            return null;
+        });
     }
 
     @Override

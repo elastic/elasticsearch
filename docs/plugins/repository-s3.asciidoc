@@ -216,7 +216,7 @@ The following settings are supported:
 
 `use_throttle_retries`::
 
-    Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
+    Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`true`).
 
 `readonly`::
 

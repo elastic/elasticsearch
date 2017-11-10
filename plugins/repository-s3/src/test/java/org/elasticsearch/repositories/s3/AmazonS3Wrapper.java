@@ -24,6 +24,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.HttpMethod;
 import com.amazonaws.regions.Region;
+import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.S3ResponseMetadata;
@@ -121,14 +122,13 @@ import java.util.List;
  *
  */
 @SuppressForbidden(reason = "implements AWS api that uses java.io.File!")
-public class AmazonS3Wrapper implements AmazonS3 {
+public class AmazonS3Wrapper extends AbstractAmazonS3 {
 
     protected AmazonS3 delegate;
 
     public AmazonS3Wrapper(AmazonS3 delegate) {
         this.delegate = delegate;
     }
-
 
     @Override
     public void setEndpoint(String endpoint) {

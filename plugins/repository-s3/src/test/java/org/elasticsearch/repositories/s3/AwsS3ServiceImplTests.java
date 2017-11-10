@@ -216,8 +216,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSDefaultConfiguration() {
         Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
-        launchAWSConfigurationTest(Settings.EMPTY, repositorySettings, Protocol.HTTPS, null, -1, null, null, null, 3, false,
-            ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
+        launchAWSConfigurationTest(Settings.EMPTY, repositorySettings, Protocol.HTTPS, null, -1, null, null, null, 3,
+            ClientConfiguration.DEFAULT_THROTTLE_RETRIES, ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
     }
 
     public void testAWSConfigurationWithAwsSettings() {
@@ -233,7 +233,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put("s3.client.default.read_timeout", "10s")
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
-            "aws_proxy_password", null, 3, false, 10000);
+            "aws_proxy_password", null, 3, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 10000);
     }
 
     public void testAWSConfigurationWithAwsSettingsBackcompat() {
@@ -248,7 +248,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
-            "aws_proxy_password", "AWS3SignerType", 3, false, 10000);
+            "aws_proxy_password", "AWS3SignerType", 3, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 10000);
          assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 AwsS3Service.PROXY_USERNAME_SETTING,
                 AwsS3Service.PROXY_PASSWORD_SETTING,
@@ -278,7 +278,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.CLOUD_S3.READ_TIMEOUT.getKey(), "10s")
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, "s3_proxy_host", 8081, "s3_proxy_username",
-            "s3_proxy_password", "NoOpSignerType", 3, false, 10000);
+            "s3_proxy_password", "NoOpSignerType", 3, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 10000);
          assertSettingDeprecationsAndWarnings(new Setting<?>[] {
                 AwsS3Service.PROXY_USERNAME_SETTING,
                 AwsS3Service.PROXY_PASSWORD_SETTING,
@@ -301,7 +301,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.MAX_RETRIES_SETTING.getKey(), 10)
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null,
-            null, 10, false, 50000);
+            null, 10, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             S3Repository.Repositories.MAX_RETRIES_SETTING
         });
@@ -312,7 +312,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put("s3.client.default.max_retries", 5)
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null,
-            null, 5, false, 50000);
+            null, 5, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
     }
 
     public void testRepositoryMaxRetriesBackcompat() {
@@ -321,7 +321,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.MAX_RETRIES_SETTING.getKey(), 10)
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, null, -1, null,
-            null, null, 20, false, 50000);
+            null, null, 20, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             S3Repository.Repositories.MAX_RETRIES_SETTING,
             S3Repository.Repository.MAX_RETRIES_SETTING

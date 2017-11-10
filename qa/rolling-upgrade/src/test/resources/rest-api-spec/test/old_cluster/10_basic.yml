@@ -107,9 +107,6 @@
       indices.create:
         index: queries
         body:
-          settings:
-            index:
-              number_of_shards: 1
           mappings:
             doc:
               properties:
@@ -172,7 +169,6 @@
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field1: value
   - match: { hits.total: 1 }
@@ -182,11 +178,10 @@
       search:
         index: queries
         body:
-          sort: _doc
+          sort: _id
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field1: value
                 field2: value
@@ -198,11 +193,10 @@
       search:
         index: queries
         body:
-          sort: _doc
+          sort: _id
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field2: value
                 field3: value

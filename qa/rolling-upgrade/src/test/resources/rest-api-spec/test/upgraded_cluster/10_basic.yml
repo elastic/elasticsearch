@@ -113,7 +113,6 @@
 
  - match: { hits.total: 10 } # 5 docs from previous clusters plus 5 new docs
 
-
 ---
 "Index percolator query and use the percolate query in upgraded cluster":
   - do:
@@ -139,7 +138,6 @@
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field1: value
   - match: { hits.total: 1 }
@@ -149,11 +147,10 @@
       search:
         index: queries
         body:
-          sort: _doc
+          sort: _id
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field1: value
                 field2: value
@@ -166,11 +163,9 @@
       search:
         index: queries
         body:
-          sort: _doc
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field2: value
                 field3: value

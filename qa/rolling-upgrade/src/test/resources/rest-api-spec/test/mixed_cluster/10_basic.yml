@@ -145,6 +145,10 @@
 
 ---
 "Use the percolate query in mixed cluster":
+  - skip:
+      version: " - 5.9.9"
+      reason: "Without document_type parameter. This parameter can't be tested in prior versions because it sometimes emit a warning header, depending if an old or upgrade node it hit"
+
   - do:
       search:
         index: queries
@@ -152,7 +156,6 @@
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field1: value
   - match: { hits.total: 1 }
@@ -162,11 +165,10 @@
       search:
         index: queries
         body:
-          sort: _doc
+          sort: _id
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field1: value
                 field2: value
@@ -182,7 +184,6 @@
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field2: value
                 field3: value

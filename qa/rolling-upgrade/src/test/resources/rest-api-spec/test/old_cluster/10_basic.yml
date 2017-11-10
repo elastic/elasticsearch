@@ -133,13 +133,14 @@
 
 ---
 "Index percolator queries and use the percolate query in old cluster":
+  - skip:
+      version: " - 5.9.9"
+      reason: "without document_type parameter"
+
   - do:
       indices.create:
         index: queries
         body:
-          settings:
-            index:
-              number_of_shards: 1
           mappings:
             doc:
               properties:
@@ -202,7 +203,6 @@
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field1: value
   - match: { hits.total: 1 }
@@ -212,11 +212,10 @@
       search:
         index: queries
         body:
-          sort: _doc
+          sort: _id
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field1: value
                 field2: value
@@ -228,11 +227,120 @@
       search:
         index: queries
         body:
-          sort: _doc
           query:
             percolate:
               field: query
-              type: doc
+              document:
+                field2: value
+                field3: value
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: q3 }
+
+---
+"Index percolator queries and use the percolate query in old cluster, pre 6.0":
+  - skip:
+      version: "6.0.0 - "
+      reason: "with document_type parameter"
+
+  - do:
+      indices.create:
+        index: queries
+        body:
+          settings:
+            index:
+              mapping.single_type: true
+          mappings:
+            doc:
+              properties:
+                query:
+                  type: percolator
+                field1:
+                  type: keyword
+                field2:
+                  type: keyword
+                field3:
+                  type: keyword
+
+  - do:
+       index:
+         index: queries
+         type: doc
+         id: q1
+         body:
+          query:
+            term:
+              field1: value
+
+  - do:
+      index:
+        index: queries
+        type: doc
+        id: q2
+        body:
+          query:
+            bool:
+              must:
+                - term:
+                    field1: value
+                - term:
+                    field2: value
+
+  - do:
+      index:
+        index: queries
+        type: doc
+        id: q3
+        body:
+          query:
+            bool:
+              minimum_should_match: 2
+              should:
+                - term:
+                    field2: value
+                - term:
+                    field3: value
+
+  - do:
+      indices.refresh:
+        index: queries
+
+  - do:
+      search:
+        index: queries
+        body:
+          query:
+            percolate:
+              field: query
+              document_type: doc
+              document:
+                field1: value
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: q1 }
+
+  - do:
+      search:
+        index: queries
+        body:
+          sort: _id
+          query:
+            percolate:
+              field: query
+              document_type: doc
+              document:
+                field1: value
+                field2: value
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: q1 }
+  - match: { hits.hits.1._id: q2 }
+
+  - do:
+      search:
+        index: queries
+        body:
+          query:
+            percolate:
+              field: query
+              document_type: doc
               document:
                 field2: value
                 field3: value

@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
 
-import java.io.Closeable;
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -37,7 +36,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
 
-public class JdbcHttpClient implements Closeable {
+public class JdbcHttpClient {
     @FunctionalInterface
     interface DataInputFunction<R> {
         R apply(DataInput in) throws IOException, SQLException;
@@ -105,10 +104,6 @@ public class JdbcHttpClient implements Closeable {
         MetaColumnRequest request = new MetaColumnRequest(tablePattern, columnPattern);
         BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
         return doIO(ba, in -> ((MetaColumnResponse) readResponse(request, in)).columns);
-    }
-
-    public void close() {
-        http.close();
     }
 
     public void setNetworkTimeout(long millis) {

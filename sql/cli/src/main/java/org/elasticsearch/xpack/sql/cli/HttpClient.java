@@ -34,6 +34,4 @@ class HttpClient {
             throw new RuntimeException("Transport failure", ex);
         }
     }
-
-    void close() {}
 }

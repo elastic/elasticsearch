@@ -72,6 +72,4 @@ class HttpClient {
             throw new JdbcSQLException(ex, "Transport failure");
         }
     }
-
-    void close() {}
 }

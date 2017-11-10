@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.TimeZone;
 
-public class CliHttpClient implements AutoCloseable {
+public class CliHttpClient {
     private final HttpClient http;
     private final CliConfiguration cfg;
 
@@ -59,8 +59,6 @@ public class CliHttpClient implements AutoCloseable {
             throw new CliException(ex, "Cannot read response");
         }
     }
-
-    public void close() {}
 }
 
 

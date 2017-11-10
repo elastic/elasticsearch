@@ -119,7 +119,6 @@ public class JdbcConnection implements Connection, JdbcWrapper {
         if (!isClosed()) {
             closed = true;
             Debug.release(cfg);
-            client.close();
         }
     }
 

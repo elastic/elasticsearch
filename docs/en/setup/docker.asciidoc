@@ -6,8 +6,7 @@
 The images use https://hub.docker.com/_/centos/[centos:7] as the base image and
 are available with {xpack-ref}/xpack-introduction.html[X-Pack].
 
-A list of all published Docker images and tags can be found in
-https://www.docker.elastic.co[www.docker.elastic.co]. The source code can be found
+A list of all published Docker images and tags can be found in https://www.docker.elastic.co[www.docker.elastic.co]. The source code can be found
 on https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
 
 ==== Image types
@@ -33,7 +32,7 @@ can obtain one of the https://www.elastic.co/subscriptions[available
 subscriptions] or revert to a Basic licence. The Basic license is free and
 includes a selection of {xpack} features.
 
-Obtaining {Es} for Docker is as simple as issuing a +docker pull+ command
+Obtaining {es} for Docker is as simple as issuing a +docker pull+ command
 against the Elastic Docker registry.
 
 ifeval::["{release-state}"=="unreleased"]
@@ -87,12 +86,14 @@ endif::[]
 =========================
 
 The `vm.max_map_count` kernel setting needs to be set to at least `262144` for
-production use. Depending on your platform:
+production use.
+Depending on your platform:
 
 * Linux
 +
 --
-The `vm.max_map_count` setting should be set permanently in `/etc/sysctl.conf`:
+The `vm.max_map_count` setting should be set permanently in /etc/sysctl.conf:
+
 [source,sh]
 --------------------------------------------
 $ grep vm.max_map_count /etc/sysctl.conf
@@ -101,7 +102,6 @@ vm.max_map_count=262144
 
 To apply the setting on a live system type: `sysctl -w vm.max_map_count=262144`
 --
-
 * macOS with https://docs.docker.com/engine/installation/mac/#/docker-for-mac[Docker for Mac]
 +
 --
@@ -132,6 +132,7 @@ docker-machine ssh
 sudo sysctl -w vm.max_map_count=262144
 --------------------------------------------
 --
+
 =========================
 
 The following example brings up a cluster comprising two {es} nodes.
@@ -225,10 +226,9 @@ networks:
 --------------------------------------------
 endif::[]
 
-To stop the cluster, type `docker-compose down`. Data volumes will persist,
-so it's possible to start the cluster again with the same data using
-`docker-compose up`.
-To destroy the cluster **and the data volumes**, just type
+To stop the cluster, type `docker-compose down`. Data volumes will persist, so
+it's possible to start the cluster again with the same data using
+docker-compose up`. To destroy the cluster **and the data volumes**, just type
 `docker-compose down -v`.
 
 ===== Inspect status of cluster:
@@ -250,8 +250,8 @@ driver. By default you can access logs with `docker logs`.
 These configuration files are documented in <<settings>> and <<jvm-options>>.
 
 The image offers several methods for configuring {es} settings with the
-conventional approach being to provide customized files, that is to say
-`elasticsearch.yml`, but it's also possible to use environment variables to set
+conventional approach being to provide customized files, that is to say,
+`elasticsearch.yml`. It's also possible to use environment variables to set
 options:
 
 ===== A. Present the parameters via Docker environment variables
@@ -267,9 +267,9 @@ accomplished with the parameter:
 --------------------------------------------
 -v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 --------------------------------------------
-IMPORTANT: The container **runs {es} as user `elasticsearch` using
-uid:gid `1000:1000`**. Bind mounted host directories and files, such as
-`custom_elasticsearch.yml` above, **need to be accessible by this user**. For the https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#path-settings[data and log dirs],
+IMPORTANT: The container **runs {es} as user `elasticsearch` using uid:gid `1000:1000`**.
+Bind mounted host directories and files, such as `custom_elasticsearch.yml` above,
+**need to be accessible by this user**. For the https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#path-settings[data and log dirs],
 such as `/usr/share/elasticsearch/data`, write access is required as well.
 Also see note 1 below.
 
@@ -310,7 +310,7 @@ Any Docker parameters mentioned below assume the use of `docker run`.
 uid:gid `1000:1000`.
 +
 --
-CAUTION: One exception is https://docs.openshift.com/container-platform/3.6/creating_images/guidelines.html#openshift-specific-guidelines[Openshift],
+CAUTION: One exception is https://docs.openshift.com/container-platform/3.6/creating_images/guidelines.html#openshift-specific-guidelines[Openshift]
 which runs containers using an arbitrarily assigned user ID. Openshift will
 present persistent volumes with the gid set to `0` which will work without any
 adjustments.
@@ -327,13 +327,14 @@ data through a bind-mount:
 
 As a last resort, you can also force the container to mutate the ownership of
 any bind-mounts used for the <<path-settings,data and log dirs>> through the
-environment variable `TAKE_FILE_OWNERSHIP`. Inn this case, they will be owned by
+environment variable `TAKE_FILE_OWNERSHIP`; in this case they will be owned by
 uid:gid `1000:0` providing read/write access to the {es} process as required.
 --
 
-. It is important to ensure increased ulimits for
-<<setting-system-settings,nofile>> and <<max-number-threads-check,nproc>> are
-available for the {es} containers. Verify the https://github.com/moby/moby/tree/ea4d1243953e6b652082305a9c3cda8656edab26/contrib/init[init system]
+. It is important to ensure increased ulimits for <<setting-system-settings,nofile>>
+and <<max-number-threads-check,nproc>> are available for the {es} containers.
+Verify the
+https://github.com/moby/moby/tree/ea4d1243953e6b652082305a9c3cda8656edab26/contrib/init[init system]
 for the Docker daemon is already setting those to acceptable values and, if
 needed, adjust them in the Daemon, or override them per container, for example
 using `docker run`:
@@ -345,6 +346,7 @@ NOTE: One way of checking the Docker daemon defaults for the aforementioned
 ulimits is by running:
 
   docker run --rm centos:7 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
+
 --
 
 . Swapping needs to be disabled for performance and node stability. This can be
@@ -363,33 +365,29 @@ or specifically set for the container. This is demonstrated above in the
 
 . The image https://docs.docker.com/engine/reference/builder/#/expose[exposes]
 TCP ports 9200 and 9300. For clusters it is recommended to randomize the
-published ports with `--publish-all`, unless you are pinning one container per host.
-
+published ports with `--publish-all`, unless you are pinning one container per
+host.
++
 . Use the `ES_JAVA_OPTS` environment variable to set heap size. For example, to
-use 16GB, use `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`.
-
-. Pin your deployments to a specific version of the {es} Docker image, for
-example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
-
-. Always use a volume bound on `/usr/share/elasticsearch/data`, as shown in the
-<<docker-cli-run-prod-mode,production example>>, for the following reasons:
-
-.. The data of your {es} node won't be lost if the container is killed
-
+use 16GB use `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`.
++
+. Pin your deployments to a specific version of the {es} Docker image. For
+example, +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
++
+. Always use a volume bound on `/usr/share/elasticsearch/data`, as shown in the <<docker-cli-run-prod-mode,production example>>, for the following reasons:
++
+.. The data of your elasticsearch node won't be lost if the container is killed
 .. {es} is I/O sensitive and the Docker storage driver is not ideal for fast I/O
-
 .. It allows the use of advanced
 https://docs.docker.com/engine/extend/plugins/#volume-plugins[Docker volume plugins]
-
++
 . If you are using the devicemapper storage driver, make sure you are not using
 the default `loop-lvm` mode. Configure docker-engine to use
 https://docs.docker.com/engine/userguide/storagedriver/device-mapper-driver/#configure-docker-with-devicemapper[direct-lvm]
 instead.
-
-. Consider centralizing your logs by using a different
-https://docs.docker.com/engine/admin/logging/overview/[logging driver]. Also
-note that the default json-file logging driver is not ideally suited for
-production use.
++
+. Consider centralizing your logs by using a different https://docs.docker.com/engine/admin/logging/overview/[logging driver]. Also note
+that the default json-file logging driver is not ideally suited for production use.
 
 
 include::next-steps.asciidoc[]

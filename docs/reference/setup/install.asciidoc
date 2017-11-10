@@ -31,7 +31,7 @@ Elasticsearch website or from our RPM repository.
 
 An image is available for running Elasticsearch as a Docker container. It ships with {xpack}/index.html[X-Pack] pre-installed and may be downloaded from the Elastic Docker Registry.
 +
-<<docker>>
+{ref}/docker.html[Install Elasticsearch with Docker]
 
 [float]
 [[config-mgmt-tools]]

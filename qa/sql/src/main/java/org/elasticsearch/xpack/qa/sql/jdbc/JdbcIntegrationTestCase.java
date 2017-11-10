@@ -16,13 +16,22 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.qa.sql.embed.EmbeddedJdbcServer;
+import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
+import org.joda.time.DateTimeZone;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import java.util.TimeZone;
 
 import static java.util.Collections.singletonMap;
 
@@ -85,6 +94,21 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
      * The properties used to build the connection.
      */
     protected Properties connectionProperties() {
-        return new Properties();
+        Properties connectionProperties = new Properties();
+        connectionProperties.put(JdbcConfiguration.TIME_ZONE, randomKnownTimeZone());
+        return connectionProperties;
     }
+
+    public static String randomKnownTimeZone() {
+        // We use system default timezone for the connection that is selected randomly by TestRuleSetupAndRestoreClassEnv
+        // from all available JDK timezones. While Joda and JDK are generally in sync, some timezones might not be known
+        // to the current version of Joda and in this case the test might fail. To avoid that, we specify a timezone
+        // known for both Joda and JDK
+        Set<String> timeZones = new HashSet<>(DateTimeZone.getAvailableIDs());
+        timeZones.retainAll(Arrays.asList(TimeZone.getAvailableIDs()));
+        List<String> ids = new ArrayList<>(timeZones);
+        Collections.sort(ids);
+        return randomFrom(ids);
+    }
+
 }

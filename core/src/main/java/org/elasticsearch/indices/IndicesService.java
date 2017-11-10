@@ -1072,6 +1072,12 @@ public class IndicesService extends AbstractLifecycleComponent
      * Can the shard request be cached at all?
      */
     public boolean canCache(ShardSearchRequest request, SearchContext context) {
+        // Queries that create a scroll context cannot use the cache.
+        // They modify the search context during their execution so using the cache
+        // may invalidate the scroll for the next query.
+        if (request.scroll() != null) {
+            return false;
+        }
 
         // We cannot cache with DFS because results depend not only on the content of the index but also
         // on the overridden statistics. So if you ran two queries on the same index with different stats
@@ -1080,6 +1086,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (SearchType.QUERY_THEN_FETCH != context.searchType()) {
             return false;
         }
+
         IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {

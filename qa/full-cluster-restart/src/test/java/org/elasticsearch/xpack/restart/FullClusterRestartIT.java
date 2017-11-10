@@ -421,7 +421,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     private void waitForClusterStats(final String expectedVersion) throws Exception {
         assertBusy(() -> {
             final Map<String, String> params = new HashMap<>(3);
-            params.put("q", "type:cluster_stats");
+            params.put("q", "type:cluster_stats _type:cluster_stats");
             params.put("size", "1");
             params.put("sort", "timestamp:desc");
 

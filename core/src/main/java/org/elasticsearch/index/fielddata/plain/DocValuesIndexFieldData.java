@@ -46,13 +46,11 @@ public abstract class DocValuesIndexFieldData {
 
     protected final Index index;
     protected final String fieldName;
-    protected final Logger logger;
 
     public DocValuesIndexFieldData(Index index, String fieldName) {
         super();
         this.index = index;
         this.fieldName = fieldName;
-        this.logger = Loggers.getLogger(getClass());
     }
 
     public final String getFieldName() {

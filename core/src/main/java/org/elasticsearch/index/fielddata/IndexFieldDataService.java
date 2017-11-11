@@ -79,7 +79,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         this.mapperService = mapperService;
     }
 
-    public void clear() {
+    public synchronized void clear() {
         List<Exception> exceptions = new ArrayList<>(0);
         final Collection<IndexFieldDataCache> fieldDataCacheValues = fieldDataCaches.values();
         for (IndexFieldDataCache cache : fieldDataCacheValues) {

@@ -617,7 +617,7 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
-     * Parsers the generated xconten from {@link Settings#toXContent(XContentBuilder, Params)} into a new Settings object.
+     * Parsers the generated xcontent from {@link Settings#toXContent(XContentBuilder, Params)} into a new Settings object.
      * Note this method requires the parser to either be positioned on a null token or on
      * {@link org.elasticsearch.common.xcontent.XContentParser.Token#START_OBJECT}.
      */

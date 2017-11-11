@@ -25,6 +25,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -35,6 +36,7 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -245,6 +247,26 @@ public class RequestTests extends ESTestCase {
         assertEquals(method, request.getMethod());
     }
 
+    public void testCreateIndex() throws IOException {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+
+        String indexName = "index-" + randomAlphaOfLengthBetween(2, 5);
+
+        createIndexRequest.index(indexName);
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomTimeout(createIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(createIndexRequest, expectedParams);
+        setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
+
+        Request request = Request.createIndex(createIndexRequest);
+        assertEquals("/" + indexName, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals("PUT", request.getMethod());
+        assertToXContentBody(createIndexRequest, request.getEntity());
+    }
+
     public void testDeleteIndex() throws IOException {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
 
@@ -399,11 +421,7 @@ public class RequestTests extends ESTestCase {
                 expectedParams.put("refresh", refreshPolicy.getValue());
             }
         }
-        if (randomBoolean()) {
-            int waitForActiveShards = randomIntBetween(0, 10);
-            updateRequest.waitForActiveShards(waitForActiveShards);
-            expectedParams.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
-        }
+        setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
         if (randomBoolean()) {
             long version = randomLong();
             updateRequest.version(version);
@@ -956,6 +974,14 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("master_timeout", masterTimeout);
         } else {
             expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
+        }
+    }
+
+    private static void setRandomWaitForActiveShards(Consumer<Integer> setter, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            int waitForActiveShards = randomIntBetween(0, 10);
+            setter.accept(waitForActiveShards);
+            expectedParams.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
         }
     }
 

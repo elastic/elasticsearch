@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -65,7 +66,7 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
  * @see org.elasticsearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
-public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
+public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest, ToXContentObject {
 
     private String cause = "";
 
@@ -519,5 +520,40 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         out.writeBoolean(updateAllTypes);
         waitForActiveShards.writeTo(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (!settings.isEmpty()) {
+            builder.startObject("settings");
+            settings.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        if (!mappings.isEmpty()) {
+            builder.startObject("mappings");
+
+            for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                builder.rawField(entry.getKey(), new BytesArray(entry.getValue()), XContentType.JSON);
+            }
+
+            builder.endObject();
+        }
+
+        if (!aliases.isEmpty()) {
+            builder.startObject("aliases");
+            for (Alias alias : aliases) {
+                alias.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+
+        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue(), params);
+        }
+
+        builder.endObject();
+        return builder;
     }
 }

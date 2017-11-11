@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
@@ -115,18 +116,20 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName);
 
         IndexFieldDataCache cache;
-        cache = fieldDataCaches.get(fieldName);
-        if (cache == null) {
-            String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
-            if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
-                cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);
-            } else if ("none".equals(cacheType)){
-                cache = new IndexFieldDataCache.None();
-            } else {
-                throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");
+        cache = fieldDataCaches.computeIfAbsent(fieldName,
+            s -> {
+                IndexFieldDataCache newCache;
+                String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
+                if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
+                    newCache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), s);
+                } else if ("none".equals(cacheType)){
+                    newCache = new IndexFieldDataCache.None();
+                } else {
+                    throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + s + "]");
+                }
+                return newCache;
             }
-            fieldDataCaches.put(fieldName, cache);
-        }
+        );
 
         return (IFD) builder.build(indexSettings, fieldType, cache, circuitBreakerService, mapperService);
     }

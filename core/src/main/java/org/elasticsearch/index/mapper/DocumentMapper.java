@@ -56,7 +56,7 @@ public class DocumentMapper implements ToXContentFragment {
 
         private final RootObjectMapper rootObjectMapper;
 
-        private Map<String, Object> meta = emptyMap();
+        private Map<String, Object> meta;
 
         private final Mapper.BuilderContext builderContext;
 

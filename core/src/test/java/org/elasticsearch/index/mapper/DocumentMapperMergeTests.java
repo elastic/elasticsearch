@@ -289,4 +289,47 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class, () -> initMapper.merge(updatedMapper.mapping(), false));
         assertThat(e.getMessage(), containsString("The _parent field's type option can't be changed: [null]->[parent]"));
     }
+
+    public void testMergeMeta() throws IOException {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        String initMapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("test")
+                    .startObject("_meta")
+                        .field("foo").value("bar")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .string();
+        DocumentMapper initMapper = parser.parse("test", new CompressedXContent(initMapping));
+
+        assertThat(initMapper.meta().get("foo"), equalTo("bar"));
+
+        String updateMapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("test")
+                    .startObject("properties")
+                        .startObject("name").field("type", "text").endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+            .string();
+        DocumentMapper updatedMapper = parser.parse("test", new CompressedXContent(updateMapping));
+
+        assertThat(initMapper.merge(updatedMapper.mapping(), true).meta().get("foo"), equalTo("bar"));
+
+        updateMapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("test")
+                    .startObject("_meta")
+                        .field("foo").value("new_bar")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .string();
+        updatedMapper = parser.parse("test", new CompressedXContent(updateMapping));
+
+        assertThat(initMapper.merge(updatedMapper.mapping(), true).meta().get("foo"), equalTo("new_bar"));
+    }
 }

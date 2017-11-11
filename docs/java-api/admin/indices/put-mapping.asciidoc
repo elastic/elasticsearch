@@ -10,7 +10,7 @@ client.admin().indices().prepareCreate("twitter")   <1>
                 "    \"tweet\": {\n" +
                 "      \"properties\": {\n" +
                 "        \"message\": {\n" +
-                "          \"type\": \"string\"\n" +
+                "          \"type\": \"text\"\n" +
                 "        }\n" +
                 "      }\n" +
                 "    }\n" +
@@ -30,7 +30,7 @@ client.admin().indices().preparePutMapping("twitter")   <1>
         .setSource("{\n" +                              <3>
                 "  \"properties\": {\n" +
                 "    \"name\": {\n" +
-                "      \"type\": \"string\"\n" +
+                "      \"type\": \"text\"\n" +
                 "    }\n" +
                 "  }\n" +
                 "}")
@@ -43,7 +43,7 @@ client.admin().indices().preparePutMapping("twitter")
                 "    \"user\":{\n" +                        <4>
                 "        \"properties\": {\n" +
                 "            \"name\": {\n" +
-                "                \"type\": \"string\"\n" +
+                "                \"type\": \"text\"\n" +
                 "            }\n" +
                 "        }\n" +
                 "    }\n" +
@@ -64,7 +64,7 @@ client.admin().indices().preparePutMapping("twitter")   <1>
         .setSource("{\n" +                              <3>
                 "  \"properties\": {\n" +
                 "    \"user_name\": {\n" +
-                "      \"type\": \"string\"\n" +
+                "      \"type\": \"text\"\n" +
                 "    }\n" +
                 "  }\n" +
                 "}")

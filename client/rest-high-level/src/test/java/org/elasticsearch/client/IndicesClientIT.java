@@ -107,9 +107,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     private static void createIndex(String index) throws IOException {
-        Response response = client().performRequest("PUT", index);
+        CreateIndexResponse response = highLevelClient().indices().createIndex(new CreateIndexRequest(index));
 
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertTrue(response.isAcknowledged());
     }
 
     private static boolean indexExists(String index) throws IOException {

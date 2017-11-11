@@ -65,7 +65,7 @@ The returned `DeleteIndexResponse` allows to retrieve information about the exec
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[delete-index-response]
 --------------------------------------------------
-<1> Indicates whether all of the nodes have acknowledged the request or not
+<1> Indicates whether all of the nodes have acknowledged the request
 
 If the index was not found, an `ElasticsearchException` will be thrown:
 

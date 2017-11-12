@@ -37,11 +37,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public abstract class AcknowledgedResponse extends ActionResponse {
 
-    private static final String ACKNOWLEDGED = "acknowledged";
-    private static final ParseField ACKNOWLEDGED_PARSER = new ParseField(ACKNOWLEDGED);
+    private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
     protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> PARSER) {
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED_PARSER,
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED,
             ObjectParser.ValueType.BOOLEAN);
     }
 
@@ -78,6 +77,6 @@ public abstract class AcknowledgedResponse extends ActionResponse {
     }
 
     protected void addAcknowledgedField(XContentBuilder builder) throws IOException {
-        builder.field(ACKNOWLEDGED, isAcknowledged());
+        builder.field(ACKNOWLEDGED.getPreferredName(), isAcknowledged());
     }
 }

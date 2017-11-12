@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -40,6 +41,11 @@ import java.util.Objects;
  * Represents an alias, to be associated with an index
  */
 public class Alias implements Streamable, ToXContentObject {
+
+    private static final ParseField FILTER = new ParseField("filter");
+    private static final ParseField ROUTING = new ParseField("routing");
+    private static final ParseField INDEX_ROUTING = new ParseField("index_routing", "indexRouting", "index-routing");
+    private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
 
     private String name;
 
@@ -198,16 +204,16 @@ public class Alias implements Streamable, ToXContentObject {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("filter".equals(currentFieldName)) {
+                if (FILTER.match(currentFieldName)) {
                     Map<String, Object> filter = parser.mapOrdered();
                     alias.filter(filter);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("routing".equals(currentFieldName)) {
+                if (ROUTING.match(currentFieldName)) {
                     alias.routing(parser.text());
-                } else if ("index_routing".equals(currentFieldName) || "indexRouting".equals(currentFieldName) || "index-routing".equals(currentFieldName)) {
+                } else if (INDEX_ROUTING.match(currentFieldName)) {
                     alias.indexRouting(parser.text());
-                } else if ("search_routing".equals(currentFieldName) || "searchRouting".equals(currentFieldName) || "search-routing".equals(currentFieldName)) {
+                } else if (SEARCH_ROUTING.match(currentFieldName)) {
                     alias.searchRouting(parser.text());
                 }
             }
@@ -220,20 +226,17 @@ public class Alias implements Streamable, ToXContentObject {
         builder.startObject(name);
 
         if (filter != null) {
-            builder.field("filter", filter);
+            builder.field(FILTER.getPreferredName(), filter);
         }
 
-        if (Objects.equals(indexRouting, searchRouting)) {
-            if (indexRouting != null) {
-                builder.field("routing", indexRouting);
-            }
+        if (indexRouting != null && indexRouting.equals(searchRouting)) {
+            builder.field(ROUTING.getPreferredName(), indexRouting);
         } else {
             if (indexRouting != null) {
-                builder.field("index_routing", indexRouting);
+                builder.field(INDEX_ROUTING.getPreferredName(), indexRouting);
             }
-
             if (searchRouting != null) {
-                builder.field("search_routing", searchRouting);
+                builder.field(SEARCH_ROUTING.getPreferredName(), searchRouting);
             }
         }
 

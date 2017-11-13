@@ -131,6 +131,12 @@ public final class ReservedFieldNames {
             Forecast.FORECAST_PREDICTION.getPreferredName(),
             Forecast.FORECAST_ID.getPreferredName(),
 
+            ForecastRequestStats.START_TIME.getPreferredName(),
+            ForecastRequestStats.END_TIME.getPreferredName(),
+            ForecastRequestStats.MESSAGE.getPreferredName(),
+            ForecastRequestStats.PROGRESS.getPreferredName(),
+            ForecastRequestStats.STATUS.getPreferredName(),
+
             ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName(),

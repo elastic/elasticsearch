@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Forecast;
+import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.ml.job.results.Influence;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
@@ -337,8 +338,25 @@ public class ElasticsearchMappings {
         .startObject(Forecast.FORECAST_ID.getPreferredName())
             .field(TYPE, LONG)
         .endObject();
+
+        // Forecast Stats Output
+        // re-used: PROCESSING_TIME_MS, PROCESSED_RECORD_COUNT, LATEST_RECORD_TIME
+        builder.startObject(ForecastRequestStats.START_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject()
+        .startObject(ForecastRequestStats.END_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject()
+        .startObject(ForecastRequestStats.MESSAGE.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(ForecastRequestStats.PROGRESS.getPreferredName())
+            .field(TYPE, DOUBLE)
+        .endObject()
+        .startObject(ForecastRequestStats.STATUS.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject();
     }
-    
     
     /**
      * AnomalyRecord fields to be added under the 'properties' section of the mapping

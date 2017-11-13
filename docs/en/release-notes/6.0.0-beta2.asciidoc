@@ -80,4 +80,5 @@ Watcher::
 See also:
 
 * <<release-notes-6.0.0-beta2,{es} 6.0.0-beta2 Release Notes>>
-//* {logstash-ref}/xls-6.0.0-beta2.html[Logstash {xpack} 6.0.0-beta2 Release Notes]
+* {kibana-ref}/release-notes-xpackkb.html[{kib} {xpack} Release Notes]
+* {logstash-ref}/release-notes-xls.html[Logstash {xpack} Release Notes]

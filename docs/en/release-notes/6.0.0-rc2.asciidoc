@@ -66,9 +66,9 @@ root document, you also have access to its nested documents.
 to require multiple binds when authenticating in user search mode.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2587[#2587] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2570[#2570])
 
-////
+
 See also:
 
 * <<release-notes-6.0.0-rc2,{es} 6.0.0-rc2 Release Notes>>
-* {logstash-ref}/xls-6.0.0-rc2.html[Logstash {xpack} 6.0.0-rc2 Release Notes]
-////
+* {kibana-ref}/release-notes-xpackkb.html[{kib} {xpack} Release Notes]
+* {logstash-ref}/release-notes-xls.html[Logstash {xpack} Release Notes]

@@ -23,11 +23,11 @@ import org.elasticsearch.action.ActionListener;
 
 import java.io.IOException;
 
-public interface TcpChannel<C extends TcpChannel<C>> {
+public interface TcpChannel {
 
     void closeAsync();
 
-    void addCloseListener(ActionListener<C> listener);
+    void addCloseListener(ActionListener<TcpChannel> listener);
 
     void setSoLinger(int value) throws IOException;
 

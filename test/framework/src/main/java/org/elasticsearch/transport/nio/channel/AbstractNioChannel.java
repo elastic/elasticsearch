@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenerExecutionContext;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.ESSelector;
 
 import java.io.IOException;
@@ -57,7 +58,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     private final InetSocketAddress localAddress;
     private final String profile;
-    private final ListenerExecutionContext<NioChannel> closeContext = new ListenerExecutionContext<>();
+    private final ListenerExecutionContext<TcpChannel> closeContext = new ListenerExecutionContext<>();
     private final ESSelector selector;
     private SelectionKey selectionKey;
 
@@ -158,7 +159,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     @Override
-    public void addCloseListener(ActionListener<NioChannel> listener) {
+    public void addCloseListener(ActionListener<TcpChannel> listener) {
         closeContext.addListener(listener);
     }
 

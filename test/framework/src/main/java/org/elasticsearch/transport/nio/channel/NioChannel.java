@@ -28,7 +28,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectionKey;
 
-public interface NioChannel extends TcpChannel<NioChannel> {
+public interface NioChannel extends TcpChannel {
 
     String CLIENT = "client-socket";
 

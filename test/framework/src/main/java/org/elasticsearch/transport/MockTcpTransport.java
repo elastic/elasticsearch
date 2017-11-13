@@ -243,7 +243,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         return 1;
     }
 
-    public final class MockChannel implements Closeable, TcpChannel<MockChannel> {
+    public final class MockChannel implements Closeable, TcpChannel {
         private final AtomicBoolean isOpen = new AtomicBoolean(true);
         private final InetSocketAddress localAddress;
         private final ServerSocket serverSocket;
@@ -252,7 +252,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
         private final Closeable onClose;
-        private final PlainListenableActionFuture<MockChannel> closeFuture = PlainListenableActionFuture.newListenableFuture();
+        private final PlainListenableActionFuture<TcpChannel> closeFuture = PlainListenableActionFuture.newListenableFuture();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -385,7 +385,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
 
         @Override
-        public void addCloseListener(ActionListener<MockChannel> listener) {
+        public void addCloseListener(ActionListener<TcpChannel> listener) {
             closeFuture.addListener(listener);
         }
 

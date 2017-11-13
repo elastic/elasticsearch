@@ -25,10 +25,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.transport.TcpChannel;
 
-public class NettyTcpChannel implements TcpChannel<NettyTcpChannel> {
+public class NettyTcpChannel implements TcpChannel {
 
     private final Channel channel;
-    private final PlainListenableActionFuture<NettyTcpChannel> future = PlainListenableActionFuture.newListenableFuture();
+    private final PlainListenableActionFuture<TcpChannel> future = PlainListenableActionFuture.newListenableFuture();
 
     NettyTcpChannel(Channel channel) {
         this.channel = channel;
@@ -57,7 +57,7 @@ public class NettyTcpChannel implements TcpChannel<NettyTcpChannel> {
     }
 
     @Override
-    public void addCloseListener(ActionListener<NettyTcpChannel> listener) {
+    public void addCloseListener(ActionListener<TcpChannel> listener) {
         future.addListener(listener);
     }
 

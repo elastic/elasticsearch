@@ -40,10 +40,10 @@ import java.util.concurrent.TimeoutException;
 
 public class TcpChannelUtils {
 
-    public static <C extends TcpChannel<C>> void closeChannel(C channel, boolean blocking) {
+    public static <C extends TcpChannel> void closeChannel(C channel, boolean blocking) {
         if (channel.isOpen()) {
             if (blocking) {
-                PlainActionFuture<C> closeFuture = PlainActionFuture.newFuture();
+                PlainActionFuture<TcpChannel> closeFuture = PlainActionFuture.newFuture();
                 channel.addCloseListener(closeFuture);
                 channel.closeAsync();
                 blockOnFutures(Collections.singletonList(closeFuture));
@@ -53,12 +53,12 @@ public class TcpChannelUtils {
         }
     }
 
-    public static <C extends TcpChannel<C>> void closeChannels(List<C> channels, boolean blocking) {
+    public static <C extends TcpChannel> void closeChannels(List<C> channels, boolean blocking) {
         if (blocking) {
-            ArrayList<ActionFuture<C>> futures = new ArrayList<>(channels.size());
+            ArrayList<ActionFuture<TcpChannel>> futures = new ArrayList<>(channels.size());
             for (final C channel : channels) {
                 if (channel.isOpen()) {
-                    PlainActionFuture<C> closeFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<TcpChannel> closeFuture = PlainActionFuture.newFuture();
                     channel.addCloseListener(closeFuture);
                     channel.closeAsync();
                     futures.add(closeFuture);
@@ -74,11 +74,11 @@ public class TcpChannelUtils {
         }
     }
 
-    public static <C extends TcpChannel<C>> void closeServerChannels(String profile, List<C> channels, Logger logger) {
-        ArrayList<ActionFuture<C>> futures = new ArrayList<>(channels.size());
+    public static <C extends TcpChannel> void closeServerChannels(String profile, List<C> channels, Logger logger) {
+        ArrayList<ActionFuture<TcpChannel>> futures = new ArrayList<>(channels.size());
         for (final C channel : channels) {
             if (channel.isOpen()) {
-                PlainActionFuture<C> closeFuture = PlainActionFuture.newFuture();
+                PlainActionFuture<TcpChannel> closeFuture = PlainActionFuture.newFuture();
                 channel.addCloseListener(ActionListener.wrap(c -> {
                     },
                     e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)));
@@ -91,7 +91,7 @@ public class TcpChannelUtils {
         blockOnFutures(futures);
     }
 
-    public static <C extends TcpChannel<C>> void finishConnection(DiscoveryNode discoveryNode, List<ActionFuture<C>> connectionFutures,
+    public static <C extends TcpChannel> void finishConnection(DiscoveryNode discoveryNode, List<ActionFuture<C>> connectionFutures,
                                                                   TimeValue connectTimeout) throws ConnectTransportException {
         Exception connectionException = null;
         boolean allConnected = true;
@@ -122,8 +122,8 @@ public class TcpChannelUtils {
     }
 
 
-    private static <C extends TcpChannel<C>> void blockOnFutures(List<ActionFuture<C>> futures) {
-        for (ActionFuture<C> future : futures) {
+    private static void blockOnFutures(List<ActionFuture<TcpChannel>> futures) {
+        for (ActionFuture<TcpChannel> future : futures) {
             try {
                 future.get();
             } catch (ExecutionException e) {

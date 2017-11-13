@@ -22,6 +22,7 @@ package org.elasticsearch.transport.nio.channel;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpChannelUtils;
 import org.elasticsearch.transport.nio.OpenChannels;
 import org.elasticsearch.transport.nio.SocketEventHandler;
@@ -68,13 +69,13 @@ public class NioSocketChannelTests extends ESTestCase {
     }
 
     public void testClose() throws Exception {
-        AtomicReference<NioChannel> ref = new AtomicReference<>();
+        AtomicReference<TcpChannel> ref = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, mock(SocketChannel.class), selector);
         openChannels.clientChannelOpened(socketChannel);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
-        Consumer<NioChannel> listener = (c) -> {
+        Consumer<TcpChannel> listener = (c) -> {
             ref.set(c);
             latch.countDown();
         };

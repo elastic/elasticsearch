@@ -575,7 +575,8 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
             @Override
             public void handleException(TransportException exp) {
-                if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
+                if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException ||
+                    exp.getCause() instanceof AlreadyClosedException) {
                     // ok, not connected...
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", node), exp);
                 } else if (closed == false) {
@@ -608,6 +609,9 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
         @Override
         public void messageReceived(UnicastPingRequest request, TransportChannel channel) throws Exception {
+            if (closed) {
+                throw new AlreadyClosedException("node is shutting down");
+            }
             if (request.pingResponse.clusterName().equals(clusterName)) {
                 channel.sendResponse(handlePingRequest(request));
             } else {

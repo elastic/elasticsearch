@@ -108,6 +108,26 @@ public final class IndexSettings {
         Setting.intSetting("index.max_script_fields", 32, 0, Property.Dynamic, Property.IndexScope);
 
     /**
+     * Index setting describing for NGramTokenizer and NGramTokenFilter
+     * the maximum difference between
+     * max_gram (maximum length of characters in a gram) and
+     * min_gram (minimum length of characters in a gram).
+     * The default value is 1 as this is default difference in NGramTokenizer,
+     * and is defensive as it prevents generating too many index terms.
+     */
+    public static final Setting<Integer> MAX_NGRAM_DIFF_SETTING =
+        Setting.intSetting("index.max_ngram_diff", 1, 0, Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Index setting describing for ShingleTokenFilter
+     * the maximum difference between
+     * max_shingle_size and min_shingle_size.
+     * The default value is 3 is defensive as it prevents generating too many tokens.
+     */
+    public static final Setting<Integer> MAX_SHINGLE_DIFF_SETTING =
+        Setting.intSetting("index.max_shingle_diff", 3, 0, Property.Dynamic, Property.IndexScope);
+
+    /**
      * Index setting describing the maximum value of allowed `docvalue_fields`that can be retrieved
      * per search request. The default maximum of 100 is defensive for the reason that retrieving
      * doc values might incur a per-field per-document seek.
@@ -239,6 +259,8 @@ public final class IndexSettings {
     private volatile int maxRescoreWindow;
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
+    private volatile int maxNgramDiff;
+    private volatile int maxShingleDiff;
     private volatile boolean TTLPurgeDisabled;
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -342,6 +364,8 @@ public final class IndexSettings {
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
+        maxNgramDiff = scopedSettings.get(MAX_NGRAM_DIFF_SETTING);
+        maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
@@ -373,6 +397,8 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
+        scopedSettings.addSettingsUpdateConsumer(MAX_NGRAM_DIFF_SETTING, this::setMaxNgramDiff);
+        scopedSettings.addSettingsUpdateConsumer(MAX_SHINGLE_DIFF_SETTING, this::setMaxShingleDiff);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
@@ -640,6 +666,20 @@ public final class IndexSettings {
     private void setMaxDocvalueFields(int maxDocvalueFields) {
         this.maxDocvalueFields = maxDocvalueFields;
     }
+
+    /**
+     * Returns the maximum allowed difference between max and min length of ngram
+     */
+    public int getMaxNgramDiff() { return this.maxNgramDiff; }
+
+    private void setMaxNgramDiff(int maxNgramDiff) { this.maxNgramDiff = maxNgramDiff; }
+
+    /**
+     * Returns the maximum allowed difference between max and min shingle_size
+     */
+    public int getMaxShingleDiff() { return this.maxShingleDiff; }
+
+    private void setMaxShingleDiff(int maxShingleDiff) { this.maxShingleDiff = maxShingleDiff; }
 
     /**
      * Returns the maximum number of allowed script_fields to retrieve in a search request

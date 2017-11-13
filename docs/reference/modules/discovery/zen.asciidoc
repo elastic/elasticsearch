@@ -56,9 +56,15 @@ The unicast discovery uses the <<modules-transport,transport>> module to perform
 
 As part of the ping process a master of the cluster is either
 elected or joined to. This is done automatically. The
-`discovery.zen.ping_timeout` (which defaults to `3s`) allows for the
-tweaking of election time to handle cases of slow or congested networks
-(higher values assure less chance of failure). Once a node joins, it
+`discovery.zen.ping_timeout` (which defaults to `3s`) determines how long the node
+will wait before deciding on starting an election or joining an existing cluster.
+Three pings will be sent over this timeout interval. In case where no decision can be
+reached after the timeout, the pinging process restarts.
+In slow or congested networks, three seconds might not be enough for a node to become
+aware of the other nodes in its environment before making an election decision.
+Increasing the timeout should be done with care in that case, as it will slow down the
+election process.
+Once a node decides to join an existing formed cluster, it
 will send a join request to the master (`discovery.zen.join_timeout`)
 with a timeout defaulting at 20 times the ping timeout.
 

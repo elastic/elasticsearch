@@ -49,7 +49,7 @@ public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStr
     }
 
     static LineStringBuilder mutate(LineStringBuilder original) throws IOException {
-        LineStringBuilder mutation = (LineStringBuilder) copyShape(original);
+        LineStringBuilder mutation = copyShape(original);
         Coordinate[] coordinates = original.coordinates(false);
         Coordinate coordinate = randomFrom(coordinates);
         if (randomBoolean()) {
@@ -65,7 +65,7 @@ public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStr
                 coordinate.y = randomDoubleBetween(-90.0, 90.0, true);
             }
         }
-        return mutation.coordinates(coordinates);
+        return LineStringBuilder.class.cast(mutation.coordinates(coordinates));
     }
 
     static LineStringBuilder createRandomShape() {

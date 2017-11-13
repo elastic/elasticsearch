@@ -2,7 +2,7 @@
 "Rendering using {{url}} function":
 
   - do:
-      render_search_template:
+      indices.render_search_template:
         body:  >
           {
             "source": {
@@ -24,7 +24,7 @@
 "Rendering using {{url}} and {{join}} functions":
 
   - do:
-      render_search_template:
+      indices.render_search_template:
         body:  >
           {
             "source": {

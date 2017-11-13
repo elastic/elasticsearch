@@ -368,7 +368,7 @@ And the response:
 health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   customer 95SQ4TSUT7mWBT7VNHH67A   5   1          0            0       260b           260b
 --------------------------------------------------
-// TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+b/ _cat]
+// TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+\\.?\\d?k?b/ _cat]
 
 The results of the second command tells us that we now have 1 index named customer and it has 5 primary shards and 1 replica (the defaults) and it contains 0 documents in it.
 

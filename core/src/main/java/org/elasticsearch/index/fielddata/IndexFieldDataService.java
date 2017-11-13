@@ -93,7 +93,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }
 
-    public void clearField(final String fieldName) {
+    public synchronized void clearField(final String fieldName) {
         List<Exception> exceptions = new ArrayList<>(0);
         final IndexFieldDataCache cache = fieldDataCaches.remove(fieldName);
         if (cache != null) {

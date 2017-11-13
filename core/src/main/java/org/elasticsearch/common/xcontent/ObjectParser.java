@@ -147,7 +147,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         } else {
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new IllegalStateException("[" + name  + "] Expected START_OBJECT but was: " + token);
+                throw new ParsingException(parser.getTokenLocation(), "[" + name  + "] Expected START_OBJECT but was: " + token);
             }
         }
 
@@ -159,13 +159,13 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 fieldParser = getParser(currentFieldName);
             } else {
                 if (currentFieldName == null) {
-                    throw new IllegalStateException("[" + name  + "] no field found");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + name  + "] no field found");
                 }
                 if (fieldParser == null) {
                     assert ignoreUnknownFields : "this should only be possible if configured to ignore known fields";
                     parser.skipChildren(); // noop if parser points to a value, skips children if parser is start object or start array
                 } else {
-                    fieldParser.assertSupports(name, token, currentFieldName);
+                    fieldParser.assertSupports(name, token, currentFieldName, parser.getTokenLocation());
                     parseSub(parser, fieldParser, currentFieldName, value, context);
                 }
                 fieldParser = null;
@@ -330,7 +330,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             case END_OBJECT:
             case END_ARRAY:
             case FIELD_NAME:
-                throw new IllegalStateException("[" + name  + "]" + token + " is unexpected");
+                throw new ParsingException(parser.getTokenLocation(), "[" + name + "]" + token + " is unexpected");
             case VALUE_STRING:
             case VALUE_NUMBER:
             case VALUE_BOOLEAN:
@@ -361,12 +361,12 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             this.type = type;
         }
 
-        void assertSupports(String parserName, XContentParser.Token token, String currentFieldName) {
+        void assertSupports(String parserName, XContentParser.Token token, String currentFieldName, XContentLocation location) {
             if (parseField.match(currentFieldName) == false) {
-                throw new IllegalStateException("[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
+                throw new ParsingException(location, "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }
             if (supportedTokens.contains(token) == false) {
-                throw new IllegalArgumentException(
+                throw new ParsingException(location, 
                         "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + token);
             }
         }

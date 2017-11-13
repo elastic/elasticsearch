@@ -23,10 +23,10 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.14',
+  'tika': '1.15',
   'pdfbox': '2.0.3',
   'bouncycastle': '1.55',
-  'poi': '3.15',
+  'poi': '3.16',
   'mime4j': '0.7.2'
 ]
 
@@ -34,7 +34,9 @@ dependencies {
   // mandatory for tika
   compile "org.apache.tika:tika-core:${versions.tika}"
   compile "org.apache.tika:tika-parsers:${versions.tika}"
+  compile 'org.tukaani:xz:1.6'
   compile 'commons-io:commons-io:2.4'
+  compile "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
   compile 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
@@ -56,10 +58,11 @@ dependencies {
   compile "org.apache.poi:poi-ooxml-schemas:${versions.poi}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile 'org.apache.xmlbeans:xmlbeans:2.6.0'
+  compile 'org.apache.commons:commons-collections4:4.1'
   // MS Office
   compile "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  compile 'org.apache.commons:commons-compress:1.10'
+  compile 'org.apache.commons:commons-compress:1.14'
   // Outlook documents
   compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
@@ -317,8 +320,6 @@ thirdPartyAudit.excludes = [
   'com.microsoft.schemas.office.powerpoint.CTRel',
   'com.microsoft.schemas.office.visio.x2012.main.AttachedToolbarsType',
   'com.microsoft.schemas.office.visio.x2012.main.ColorsType',
-  'com.microsoft.schemas.office.visio.x2012.main.ConnectType',
-  'com.microsoft.schemas.office.visio.x2012.main.ConnectsType',
   'com.microsoft.schemas.office.visio.x2012.main.CpType',
   'com.microsoft.schemas.office.visio.x2012.main.CustomMenusFileType',
   'com.microsoft.schemas.office.visio.x2012.main.CustomToolbarsFileType',
@@ -346,6 +347,7 @@ thirdPartyAudit.excludes = [
   'com.microsoft.schemas.office.visio.x2012.main.TpType',
   'com.microsoft.schemas.office.visio.x2012.main.TriggerType',
   'com.microsoft.schemas.office.visio.x2012.main.impl.CellTypeImpl$1RefByList',
+  'com.microsoft.schemas.office.visio.x2012.main.impl.ConnectsTypeImpl$1ConnectList',
   'com.microsoft.schemas.office.visio.x2012.main.impl.MastersTypeImpl$1MasterList',
   'com.microsoft.schemas.office.visio.x2012.main.impl.MastersTypeImpl$1MasterShortcutList',
   'com.microsoft.schemas.office.visio.x2012.main.impl.PagesTypeImpl$1PageList',
@@ -481,6 +483,7 @@ thirdPartyAudit.excludes = [
   'com.pff.PSTFile',
   'com.pff.PSTFolder',
   'com.pff.PSTMessage',
+  'com.pff.PSTRecipient',
   'com.rometools.rome.feed.synd.SyndContent',
   'com.rometools.rome.feed.synd.SyndEntry',
   'com.rometools.rome.feed.synd.SyndFeed',
@@ -511,13 +514,14 @@ thirdPartyAudit.excludes = [
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
   'javax.ws.rs.core.Response',
+  'javax.ws.rs.core.UriBuilder',
   'junit.framework.TestCase',
   'opennlp.tools.namefind.NameFinderME',
   'opennlp.tools.namefind.TokenNameFinderModel',
+  'opennlp.tools.sentiment.SentimentME',
+  'opennlp.tools.sentiment.SentimentModel',
   'opennlp.tools.util.Span',
   'org.apache.avalon.framework.logger.Logger',
-  'org.apache.commons.collections4.ListValuedMap',
-  'org.apache.commons.collections4.multimap.ArrayListValuedHashMap',
   'org.apache.commons.csv.CSVFormat',
   'org.apache.commons.csv.CSVParser',
   'org.apache.commons.csv.CSVRecord',
@@ -526,6 +530,7 @@ thirdPartyAudit.excludes = [
   'org.apache.commons.exec.ExecuteWatchdog',
   'org.apache.commons.exec.PumpStreamHandler',
   'org.apache.commons.exec.environment.EnvironmentUtils',
+  'org.apache.commons.lang.StringUtils',
   'org.apache.ctakes.typesystem.type.refsem.UmlsConcept',
   'org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation',
   'org.apache.cxf.jaxrs.client.WebClient',
@@ -584,6 +589,7 @@ thirdPartyAudit.excludes = [
   'org.apache.xml.security.Init',
   'org.apache.xml.security.c14n.Canonicalizer',
   'org.apache.xml.security.utils.Base64',
+  'org.brotli.dec.BrotliInputStream',
   'org.etsi.uri.x01903.v13.AnyType',
   'org.etsi.uri.x01903.v13.ClaimedRolesListType',
   'org.etsi.uri.x01903.v13.CounterSignatureType',
@@ -625,12 +631,15 @@ thirdPartyAudit.excludes = [
   'org.etsi.uri.x01903.v13.impl.UnsignedSignaturePropertiesTypeImpl$1RevocationValuesList',
   'org.etsi.uri.x01903.v13.impl.UnsignedSignaturePropertiesTypeImpl$1SigAndRefsTimeStampList',
   'org.etsi.uri.x01903.v13.impl.UnsignedSignaturePropertiesTypeImpl$1SignatureTimeStampList',
+  'org.etsi.uri.x01903.v14.ValidationDataType$Factory',
+  'org.etsi.uri.x01903.v14.ValidationDataType',
   'org.json.JSONArray',
   'org.json.JSONObject',
   'org.json.XML',
   'org.json.simple.JSONArray',
   'org.json.simple.JSONObject',
   'org.json.simple.parser.JSONParser',
+  'org.junit.Assert',
   'org.junit.Test',
   'org.junit.internal.TextListener',
   'org.junit.runner.JUnitCore',
@@ -801,6 +810,7 @@ thirdPartyAudit.excludes = [
   'org.openxmlformats.schemas.drawingml.x2006.main.CTSupplementalFont',
   'org.openxmlformats.schemas.drawingml.x2006.main.CTTableBackgroundStyle',
   'org.openxmlformats.schemas.drawingml.x2006.main.CTTableCellBorderStyle',
+  'org.openxmlformats.schemas.drawingml.x2006.main.CTTableStyleTextStyle',
   'org.openxmlformats.schemas.drawingml.x2006.main.CTTextBlipBullet',
   'org.openxmlformats.schemas.drawingml.x2006.main.CTTextBulletColorFollowText',
   'org.openxmlformats.schemas.drawingml.x2006.main.CTTextBulletSizeFollowText',
@@ -815,6 +825,7 @@ thirdPartyAudit.excludes = [
   'org.openxmlformats.schemas.drawingml.x2006.main.STBlackWhiteMode',
   'org.openxmlformats.schemas.drawingml.x2006.main.STBlipCompression',
   'org.openxmlformats.schemas.drawingml.x2006.main.STFixedAngle',
+  'org.openxmlformats.schemas.drawingml.x2006.main.STOnOffStyleType$Enum',
   'org.openxmlformats.schemas.drawingml.x2006.main.STPanose',
   'org.openxmlformats.schemas.drawingml.x2006.main.STPathFillMode',
   'org.openxmlformats.schemas.drawingml.x2006.main.STPresetPatternVal',
@@ -1202,11 +1213,8 @@ thirdPartyAudit.excludes = [
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTMissing',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTNumber',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTOleLink',
-  'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTOleObjects',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTOleSize',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTPCDKPIs',
-  'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTPageField',
-  'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTPageFields',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTPhoneticRun',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTPivotFilters',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTPivotHierarchies',
@@ -1231,9 +1239,11 @@ thirdPartyAudit.excludes = [
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.CTX',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.STCellSpans',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.STDataValidationImeMode',
+  'org.openxmlformats.schemas.spreadsheetml.x2006.main.STDvAspect',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.STFieldSortType',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.STGuid',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.STObjects',
+  'org.openxmlformats.schemas.spreadsheetml.x2006.main.STOleUpdate',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.STPhoneticAlignment',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.STPhoneticType',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.STPrintError',
@@ -1291,7 +1301,9 @@ thirdPartyAudit.excludes = [
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTMapInfoImpl$1SchemaList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTMergeCellsImpl$1MergeCellList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTNumFmtsImpl$1NumFmtList',
+  'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTOleObjectsImpl$1OleObjectList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTPageBreakImpl$1BrkList',
+  'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTPageFieldsImpl$1PageFieldList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTPivotCacheRecordsImpl$1RList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTPivotCachesImpl$1PivotCacheList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTPivotFieldsImpl$1PivotFieldList',
@@ -1321,6 +1333,7 @@ thirdPartyAudit.excludes = [
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTSharedItemsImpl$1NList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTSharedItemsImpl$1SList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTSheetDataImpl$1RowList',
+  'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTSheetsImpl$1SheetList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTSheetViewImpl$1PivotSelectionList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTSheetViewImpl$1SelectionList',
   'org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTSheetViewsImpl$1SheetViewList',
@@ -2035,26 +2048,10 @@ thirdPartyAudit.excludes = [
   'org.osgi.framework.ServiceRegistration',
   'org.osgi.util.tracker.ServiceTracker',
   'org.osgi.util.tracker.ServiceTrackerCustomizer',
-  'org.slf4j.Logger',
-  'org.slf4j.LoggerFactory',
+  'org.slf4j.impl.StaticLoggerBinder',
+  'org.slf4j.impl.StaticMDCBinder',
+  'org.slf4j.impl.StaticMarkerBinder',
   'org.sqlite.SQLiteConfig',
-  'org.tukaani.xz.ARMOptions',
-  'org.tukaani.xz.ARMThumbOptions',
-  'org.tukaani.xz.DeltaOptions',
-  'org.tukaani.xz.FilterOptions',
-  'org.tukaani.xz.FinishableWrapperOutputStream',
-  'org.tukaani.xz.IA64Options',
-  'org.tukaani.xz.LZMA2InputStream',
-  'org.tukaani.xz.LZMA2Options',
-  'org.tukaani.xz.LZMAInputStream',
-  'org.tukaani.xz.PowerPCOptions',
-  'org.tukaani.xz.SPARCOptions',
-  'org.tukaani.xz.SingleXZInputStream',
-  'org.tukaani.xz.UnsupportedOptionsException',
-  'org.tukaani.xz.X86Options',
-  'org.tukaani.xz.XZ',
-  'org.tukaani.xz.XZInputStream',
-  'org.tukaani.xz.XZOutputStream',
   'org.w3.x2000.x09.xmldsig.KeyInfoType',
   'org.w3.x2000.x09.xmldsig.SignatureMethodType',
   'org.w3.x2000.x09.xmldsig.SignatureValueType',

@@ -26,6 +26,8 @@ import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -36,6 +38,7 @@ import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -55,12 +58,19 @@ public class ChannelFactoryTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setupFactory() throws IOException {
         rawChannelFactory = mock(ChannelFactory.RawChannelFactory.class);
-        channelFactory = new ChannelFactory(rawChannelFactory, mock(TcpReadHandler.class));
+        Consumer contextSetter = mock(Consumer.class);
+        channelFactory = new ChannelFactory(rawChannelFactory, contextSetter);
         listener = mock(Consumer.class);
         socketSelector = mock(SocketSelector.class);
         acceptingSelector = mock(AcceptingSelector.class);
         rawChannel = SocketChannel.open();
         rawServerChannel = ServerSocketChannel.open();
+
+        doAnswer(invocationOnMock -> {
+            NioSocketChannel channel = (NioSocketChannel) invocationOnMock.getArguments()[0];
+            channel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
+            return null;
+        }).when(contextSetter).accept(any());
     }
 
     @After

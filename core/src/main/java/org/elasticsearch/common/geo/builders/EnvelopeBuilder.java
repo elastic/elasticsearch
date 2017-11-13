@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
 
@@ -29,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class EnvelopeBuilder extends ShapeBuilder {
+public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;
 
@@ -71,8 +73,8 @@ public class EnvelopeBuilder extends ShapeBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapeName());
-        builder.startArray(FIELD_COORDINATES);
+        builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
+        builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
         toXContent(builder, topLeft);
         toXContent(builder, bottomRight);
         builder.endArray();

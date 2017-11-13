@@ -45,6 +45,9 @@ for (Version version : wireCompatVersions) {
     numNodes = 4
     numBwcNodes = 2
     bwcVersion = version
+
+    setting 'logger.level', 'DEBUG'
+    setting 'logger.org.elasticsearch.discovery', 'TRACE'
   }
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.fielddata;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
@@ -55,8 +57,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     private final CircuitBreakerService circuitBreakerService;
 
     private final IndicesFieldDataCache indicesFieldDataCache;
-    // the below map needs to be modified under a lock
-    private final Map<String, IndexFieldDataCache> fieldDataCaches = new HashMap<>();
+    private final Map<String, IndexFieldDataCache> fieldDataCaches = new ConcurrentHashMap<>();
     private final MapperService mapperService;
     private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
         @Override
@@ -115,20 +116,20 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName);
 
         IndexFieldDataCache cache;
-        synchronized (this) {
-            cache = fieldDataCaches.get(fieldName);
-            if (cache == null) {
+        cache = fieldDataCaches.computeIfAbsent(fieldName,
+            s -> {
+                IndexFieldDataCache newCache;
                 String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
                 if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
-                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);
+                    newCache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), s);
                 } else if ("none".equals(cacheType)){
-                    cache = new IndexFieldDataCache.None();
+                    newCache = new IndexFieldDataCache.None();
                 } else {
-                    throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");
+                    throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + s + "]");
                 }
-                fieldDataCaches.put(fieldName, cache);
+                return newCache;
             }
-        }
+        );
 
         return (IFD) builder.build(indexSettings, fieldType, cache, circuitBreakerService, mapperService);
     }

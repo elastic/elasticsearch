@@ -29,7 +29,7 @@ In order to get started with search quality evaluation, three basic things a nee
 
 The ranking evaluation API provides a convenient way to use this information in a ranking evaluation request to calculate different search evaluation metrics. This gives a first estimation of your overall search quality and give you a measurement to optimize against when fine-tuning various aspect of the query generation in your application. 
 
-== Ranking evaluation request structure
+=== Ranking evaluation request structure
 
 In its most basic form, a request to the `_rank_eval` endpoint has two sections:
 
@@ -85,7 +85,7 @@ the rating of the documents relevance with regards to this search request
 
 A document `rating` can be any integer value that expresses the relevance of the document on a user defined scale. For some of the metrics, just giving a binary rating (e.g. `0` for irrelevant and `1` for relevant) will be sufficient, other metrics can use a more fine grained scale.  
 
-== Template based ranking evaluation
+=== Template based ranking evaluation
 
 As an alternative to having to provide a single query per test request, it is possible to specify query templates in the evaluation request and later refer to them. Queries with similar structure that only differ in their parameters don't have to be repeated all the time in the `requests` section this way. In typical search systems where user inputs usually get filled into a small set of query templates, this helps making the evaluation request more succinct.
 
@@ -126,12 +126,12 @@ GET /my_index/_rank_eval
 <3> a reference to a previously defined temlate
 <4> the parameters to use to fill the template
 
-== Available evaluation metrics
+=== Available evaluation metrics
 
 The `metric` section determines which of the available evaluation metrics is going to be used.
 Currently, the following metrics are supported:
 
-=== Precision at k (Prec@k)
+==== Precision at k (Prec@k)
 
 This metric measures the number of relevant results in the top k search results. Its a form of the well known https://en.wikipedia.org/wiki/Information_retrieval#Precision[Precision] metric that only looks at the top k documents. It is the fraction of relevant documents in those first k
 search. A precision at 10 (prec@10) value of 0.6 then means six out of the 10 top hits where
@@ -174,7 +174,7 @@ The `precision` metric takes the following optional parameters
 If set to 'true', unlabeled documents are ignored and neither count as relevant or irrelevant. Set to 'false' (the default), they are treated as irrelevant.
 |=======================================================================
 
-=== Mean reciprocal rank
+==== Mean reciprocal rank
 
 For every query in the test suite, this metric calculates the reciprocal of the rank of the
 first relevant document. For example finding the first relevant result
@@ -208,7 +208,7 @@ The `mean_reciprocal_rank` metric takes the following optional parameters
 "relevant". Defaults to `1`.
 |=======================================================================
 
-=== Discounted cumulative gain (DCG)
+==== Discounted cumulative gain (DCG)
 
 In contrast to the two metrics above, https://en.wikipedia.org/wiki/Discounted_cumulative_gain[discounted cumulative gain] takes both, the rank and the rating of the search results, into account.
 
@@ -242,7 +242,55 @@ The `dcg` metric takes the following optional parameters:
 |`normalize` | If set to `true`, this metric will calculate the https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Normalized_DCG[Normalized DCG].
 |=======================================================================
 
-== Other parameters
+=== Response format
 
-== Response format
+The response of the `_rank_eval` endpoint contains the overall calculated result for the defined quality metric, 
+a `details` section with a breakdown of results for each query in the test suite and an optional `failures` section
+that shows potential errors of individual queries. The response has the following format:
 
+[source,js]
+--------------------------------
+{
+    "rank_eval": {
+        "quality_level": 0.4, <1>
+        "details": {  
+            "my_query_id1": { <2>
+                "quality_level": 0.6, <3>
+                "unknown_docs": [ <4>
+                    {
+                        "_index": "my_index",
+                        "_id": "1960795"
+                    }, [...]
+                ],
+                "hits": [
+                    {
+                        "hit": { <5>
+                            "_index": "my_index",
+                            "_type": "page",
+                            "_id": "1528558",
+                            "_score": 7.0556192
+                        },
+                        "rating": 1
+                    }, [...]
+                ],
+                "metric_details": { <6>
+                    "relevant_docs_retrieved": 6,
+                    "docs_retrieved": 10
+                }
+            },
+            "my_query_id2 : { [...]} 
+        },
+        "failures": { [...] }
+    }
+}
+--------------------------------
+// NOTCONSOLE
+
+<1> the overall evaluation quality calculated by the defined metric
+<2> the `details` section contains one entry for every query in the original `requests` section, keyed by the search request id
+<3> the `quality_level` in the `details` section shows the contribution of this query to the global quality score
+<4> the `unknown_docs` section contains an `_index` and `_id` entry for each document in the search result for this
+query that didn't have a ratings value. This can be used to ask the user to supply ratings for these documents
+<5> the `hits` section shows a grouping of the search results with their supplied rating
+<6> the `metric_details` give additional information about the calculated quality metric (e.g. how many of the retrieved
+documents where relevant). The content varies for each metric but allows for better interpretation of the results

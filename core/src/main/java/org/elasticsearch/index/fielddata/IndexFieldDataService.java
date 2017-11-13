@@ -116,8 +116,11 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
 
         IndexFieldDataCache cache = fieldDataCaches.get(fieldName);
         if (cache == null) {
+            //for perf reason, only synchronize when cache is null
             synchronized (this) {
                 cache = fieldDataCaches.get(fieldName);
+                //double checked locking to make sure it is thread safe
+                //especially when other threads calling clear() or clearField()
                 if (cache == null) {
                     String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
                     if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {

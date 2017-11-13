@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
+
     public void testGet() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);
         assertFalse(booleanSetting.get(Settings.EMPTY));
@@ -575,6 +577,22 @@ public class SettingTests extends ESTestCase {
         assertFalse(listAffixSetting.match("foo.bar"));
         assertFalse(listAffixSetting.match("foo.baz"));
         assertFalse(listAffixSetting.match("foo"));
+    }
+
+    public void testAffixSettingNamespaces() {
+        Setting.AffixSetting<Boolean> setting =
+            Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
+        Settings build = Settings.builder()
+            .put("foo.bar.enable", "true")
+            .put("foo.baz.enable", "true")
+            .put("foo.boom.enable", "true")
+            .put("something.else", "true")
+            .build();
+        Set<String> namespaces = setting.getNamespaces(build);
+        assertEquals(3, namespaces.size());
+        assertTrue(namespaces.contains("bar"));
+        assertTrue(namespaces.contains("baz"));
+        assertTrue(namespaces.contains("boom"));
     }
 
     public void testAffixAsMap() {

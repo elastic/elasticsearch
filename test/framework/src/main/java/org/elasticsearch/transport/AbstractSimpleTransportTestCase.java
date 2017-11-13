@@ -2568,7 +2568,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Settings randomSettings = randomFrom(random(), globalSettings, transportSettings, profileSettings);
         ClusterSettings clusterSettings = new ClusterSettings(randomSettings, ClusterSettings
             .BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.validate(randomSettings);
+        clusterSettings.validate(randomSettings, false);
         TcpTransport.ProfileSettings settings = new TcpTransport.ProfileSettings(
             Settings.builder().put(randomSettings).put("transport.profiles.some_profile.port", "9700-9800").build(), // port is required
             "some_profile");

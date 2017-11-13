@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class ListenerExecutionContext<V> implements ActionListener<V> {
 
-    private static Object NULL_VALUE = new Object();
+    private static final Object NULL_VALUE = new Object();
 
     private final ConcurrentLinkedQueue<ActionListener<V>> listeners = new ConcurrentLinkedQueue<>();
     private final AtomicReference<Object> result = new AtomicReference<>(null);
@@ -58,16 +58,18 @@ public class ListenerExecutionContext<V> implements ActionListener<V> {
         return result.get() != null;
     }
 
-    public void addListener(ActionListener<V> listener) {
-        internalAddListener(listener);
-    }
-
     @SuppressWarnings("unchecked")
-    private void internalAddListener(ActionListener<V> listener) {
+    public void addListener(ActionListener<V> listener) {
         listeners.offer(listener);
 
         Object result = this.result.get();
         if (result != null) {
+            // if the result is not null this context has already been completed. To ensure that the listener
+            // is executed, we attempt to remove the listener we just added from the queue. If we are
+            // successful in removing the listener, the thread that completed this context will no longer
+            // have access to the listener. In that case, we complete the listener ourselves. The
+            // ConcurrentLinkedQueue will only allow one thread to successfully remove the listener. This
+            // logic ensures that the listener is only completed once.
             if (listeners.remove(listener)) {
                 if (result instanceof Exception) {
                     listener.onFailure((Exception) result);

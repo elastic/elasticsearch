@@ -22,26 +22,26 @@ package org.elasticsearch.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.ListenerExecutionContext;
 import org.elasticsearch.transport.TcpChannel;
 
 public class NettyTcpChannel implements TcpChannel {
 
     private final Channel channel;
-    private final PlainListenableActionFuture<TcpChannel> future = PlainListenableActionFuture.newListenableFuture();
+    private final ListenerExecutionContext<TcpChannel> closeContext = new ListenerExecutionContext<>();
 
     NettyTcpChannel(Channel channel) {
         this.channel = channel;
         this.channel.closeFuture().addListener(f -> {
             if (f.isSuccess()) {
-                future.onResponse(this);
+                closeContext.onResponse(this);
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
                     Netty4Utils.maybeDie(cause);
-                    future.onFailure(new Exception(cause));
+                    closeContext.onFailure(new Exception(cause));
                 } else {
-                    future.onFailure((Exception) cause);
+                    closeContext.onFailure((Exception) cause);
                 }
             }
         });
@@ -58,7 +58,7 @@ public class NettyTcpChannel implements TcpChannel {
 
     @Override
     public void addCloseListener(ActionListener<TcpChannel> listener) {
-        future.addListener(listener);
+        closeContext.addListener(listener);
     }
 
     @Override

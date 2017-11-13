@@ -432,6 +432,10 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             return connectionTypeHandle.getChannel(channels);
         }
 
+        public boolean allChannelsOpen() {
+            return channels.stream().allMatch(TcpChannel::isOpen);
+        }
+
         @Override
         public void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
@@ -642,7 +646,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
 
                 nodeChannels.channels.forEach(ch -> ch.addCloseListener(ActionListener.wrap(() -> onClose.accept(ch))));
 
-                if (nodeChannels.channels.stream().allMatch(TcpChannel::isOpen) == false) {
+                if (nodeChannels.allChannelsOpen() == false) {
                     throw new ConnectTransportException(node, "a channel closed while connecting");
                 }
                 success = true;

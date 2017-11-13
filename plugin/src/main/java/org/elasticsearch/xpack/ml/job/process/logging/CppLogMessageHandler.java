@@ -205,6 +205,12 @@ public class CppLogMessageHandler implements Closeable {
                 parseMessage(xContent, bytesRef.slice(from, nextMarker - from));
             }
             from = nextMarker + 1;
+            if (from < bytesRef.length() && bytesRef.get(from) == (byte) 0) {
+                // This is to work around the problem of log4cxx on Windows
+                // outputting UTF-16 instead of UTF-8.  For full details see
+                // https://github.com/elastic/machine-learning-cpp/issues/385
+                ++from;
+            }
         }
         if (from >= bytesRef.length()) {
             return null;

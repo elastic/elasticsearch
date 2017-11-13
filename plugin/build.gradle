@@ -333,7 +333,7 @@ configurations {
     testArtifacts.extendsFrom testRuntime
 }
 task testJar(type: Jar) {
-    classifier "test"
+    appendix 'test'
     from sourceSets.test.output
 }
 artifacts {

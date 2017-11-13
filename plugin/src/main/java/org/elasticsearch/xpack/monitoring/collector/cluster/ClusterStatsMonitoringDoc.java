@@ -51,6 +51,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
     private final String clusterName;
     private final String version;
     private final License license;
+    private final boolean apmIndicesExist;
     private final List<XPackFeatureSet.Usage> usages;
     private final ClusterStatsResponse clusterStats;
     private final ClusterState clusterState;
@@ -65,6 +66,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                               final String version,
                               final ClusterHealthStatus status,
                               @Nullable final License license,
+                              final boolean apmIndicesExist,
                               @Nullable final List<XPackFeatureSet.Usage> usages,
                               @Nullable final ClusterStatsResponse clusterStats,
                               @Nullable final ClusterState clusterState,
@@ -75,6 +77,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         this.version = Objects.requireNonNull(version);
         this.status = Objects.requireNonNull(status);
         this.license = license;
+        this.apmIndicesExist = apmIndicesExist;
         this.usages = usages;
         this.clusterStats = clusterStats;
         this.clusterState = clusterState;
@@ -91,6 +94,10 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
 
     License getLicense() {
         return license;
+    }
+
+    boolean getAPMIndicesExist() {
+        return apmIndicesExist;
     }
 
     List<XPackFeatureSet.Usage> getUsages() {
@@ -120,45 +127,57 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
 
         if (license != null) {
             builder.startObject("license");
-            Map<String, String> extraParams = new MapBuilder<String, String>()
-                    .put(License.REST_VIEW_MODE, "true")
-                    .map();
-            params = new ToXContent.DelegatingMapParams(extraParams, params);
-            license.toInnerXContent(builder, params);
-            builder.field("hkey", hash(license, getCluster()));
-            if (clusterNeedsTLSEnabled) {
-                builder.field("cluster_needs_tls", true);
+            {
+                Map<String, String> extraParams = new MapBuilder<String, String>()
+                        .put(License.REST_VIEW_MODE, "true")
+                        .map();
+                params = new ToXContent.DelegatingMapParams(extraParams, params);
+                license.toInnerXContent(builder, params);
+                builder.field("hkey", hash(license, getCluster()));
+                if (clusterNeedsTLSEnabled) {
+                    builder.field("cluster_needs_tls", true);
+                }
             }
             builder.endObject();
         }
 
         if (clusterStats != null) {
             builder.startObject("cluster_stats");
-            clusterStats.toXContent(builder, params);
+            {
+                clusterStats.toXContent(builder, params);
+            }
             builder.endObject();
         }
 
         if (clusterState != null) {
             builder.startObject("cluster_state");
-            builder.field("nodes_hash", nodesHash(clusterState.nodes()));
-            builder.field("status", status.name().toLowerCase(Locale.ROOT));
-            clusterState.toXContent(builder, CLUSTER_STATS_PARAMS);
+            {
+                builder.field("nodes_hash", nodesHash(clusterState.nodes()));
+                builder.field("status", status.name().toLowerCase(Locale.ROOT));
+                clusterState.toXContent(builder, CLUSTER_STATS_PARAMS);
+            }
             builder.endObject();
         }
 
-        if (usages != null) {
-            // in the future we may choose to add other usages under the stack_stats section, but it is only xpack for now
-            // it may also be combined on the UI side of phone-home to add things like "kibana" and "logstash" under "stack_stats"
-            builder.startObject("stack_stats");
+        builder.startObject("stack_stats");
+        {
+            // in the future, it may be useful to pass in an object that represents APM (and others), but for now this
+            // is good enough
+            builder.startObject("apm");
             {
+                builder.field("found", apmIndicesExist);
+            }
+            builder.endObject();
+
+            if (usages != null) {
                 builder.startObject("xpack");
                 for (final XPackFeatureSet.Usage usage : usages) {
                     builder.field(usage.name(), usage);
                 }
                 builder.endObject();
             }
-            builder.endObject();
         }
+        builder.endObject();
     }
 
     /**

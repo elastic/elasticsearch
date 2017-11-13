@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
-import java.util.Map;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -54,6 +53,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -77,6 +77,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     private ClusterState clusterState;
     private License license;
     private final boolean needToEnableTLS = randomBoolean();
+    private final boolean apmIndicesExist = randomBoolean();
 
     @Override
     @Before
@@ -112,7 +113,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     protected ClusterStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
                                                             MonitoredSystem system, String type, String id) {
         return new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                                             clusterName, version, clusterStatus, license, usages, clusterStats, clusterState,
+                                             clusterName, version, clusterStatus, license,
+                                             apmIndicesExist, usages, clusterStats, clusterState,
                                              needToEnableTLS);
     }
 
@@ -126,6 +128,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         assertThat(document.getVersion(), equalTo(version));
         assertThat(document.getStatus(), equalTo(clusterStatus));
         assertThat(document.getLicense(), equalTo(license));
+        assertThat(document.getAPMIndicesExist(), is(apmIndicesExist));
         assertThat(document.getUsages(), is(usages));
         assertThat(document.getClusterStats(), is(clusterStats));
         assertThat(document.getClusterState(), is(clusterState));
@@ -134,21 +137,21 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     public void testConstructorClusterNameMustNotBeNull() {
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                        null, version, clusterStatus, license, usages, clusterStats, clusterState,
+                        null, version, clusterStatus, license, apmIndicesExist, usages, clusterStats, clusterState,
                         needToEnableTLS));
     }
 
     public void testConstructorVersionMustNotBeNull() {
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                        clusterName, null, clusterStatus, license, usages, clusterStats, clusterState,
+                        clusterName, null, clusterStatus, license, apmIndicesExist, usages, clusterStats, clusterState,
                         needToEnableTLS));
     }
 
     public void testConstructorClusterHealthStatusMustNotBeNull() {
         expectThrows(NullPointerException.class,
                 () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                        clusterName, version, null, license, usages, clusterStats, clusterState,
+                        clusterName, version, null, license, apmIndicesExist, usages, clusterStats, clusterState,
                         needToEnableTLS));
     }
 
@@ -175,13 +178,13 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         }
 
         final DiscoveryNodes nodes = builder.build();
-        String ephemeralIds = "";
+        StringBuilder ephemeralIds = new StringBuilder();
 
         for (final DiscoveryNode node : nodes) {
-            ephemeralIds += node.getEphemeralId();
+            ephemeralIds.append(node.getEphemeralId());
         }
 
-        assertThat(ClusterStatsMonitoringDoc.nodesHash(nodes), equalTo(ephemeralIds.hashCode()));
+        assertThat(ClusterStatsMonitoringDoc.nodesHash(nodes), equalTo(ephemeralIds.toString().hashCode()));
     }
 
     public void testHash() {
@@ -250,7 +253,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                         .maxNodes(2)
                                         .build();
 
-        List<XPackFeatureSet.Usage> usages = singletonList(new LogstashFeatureSet.Usage(false, true));
+        final List<XPackFeatureSet.Usage> usages = singletonList(new LogstashFeatureSet.Usage(false, true));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
         when(mockNodeInfo.getVersion()).thenReturn(Version.V_6_0_0_alpha2);
@@ -342,6 +345,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                             "_version",
                                                                             ClusterHealthStatus.GREEN,
                                                                             license,
+                                                                            apmIndicesExist,
                                                                             usages,
                                                                             clusterStats,
                                                                             clusterState,
@@ -542,6 +546,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "}"
                   + "},"
                   + "\"stack_stats\":{"
+                    + "\"apm\":{"
+                      + "\"found\":" + apmIndicesExist
+                    + "},"
                     + "\"xpack\":{"
                       + "\"logstash\":{"
                         + "\"available\":false,"

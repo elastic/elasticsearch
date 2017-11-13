@@ -34,7 +34,8 @@ import static org.elasticsearch.xpack.security.Security.setting;
  * Instead, realm configuration relies on the <code>validator</code> parameter to
  * {@link Setting#groupSetting(String, Consumer, Setting.Property...)} in order to validate each realm in a way that respects the
  * declared <code>type</code>.
- * Internally, this validation delegates to {@link AbstractScopedSettings#validate(Settings)} so that validation is reasonably aligned
+ * Internally, this validation delegates to {@link AbstractScopedSettings#validate(Settings, boolean)} so that validation is reasonably
+ * aligned
  * with the way we validate settings globally.
  * </p>
  * <p>
@@ -172,7 +173,7 @@ public class RealmSettings {
         settingSet.add(ORDER_SETTING);
         final AbstractScopedSettings validator = new AbstractScopedSettings(settings, settingSet, Setting.Property.NodeScope) { };
         try {
-            validator.validate(settings);
+            validator.validate(settings, false);
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("incorrect configuration for realm [" + getFullSettingKey(name, "")
                     + "] of type " + type, e);

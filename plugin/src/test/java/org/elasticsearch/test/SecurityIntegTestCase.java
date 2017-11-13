@@ -468,7 +468,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                         assertTrue(indexRoutingTable.allPrimaryShardsActive());
                     }
                 }
-            });
+            }, 30L, TimeUnit.SECONDS);
         }
     }
 
@@ -485,7 +485,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                         assertTrue(indexRoutingTable.allPrimaryShardsActive());
                     }
                 }
-            }, 20, TimeUnit.SECONDS);
+            }, 30L, TimeUnit.SECONDS);
         }
     }
 

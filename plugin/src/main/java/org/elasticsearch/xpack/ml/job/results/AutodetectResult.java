@@ -31,8 +31,8 @@ public class AutodetectResult implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<AutodetectResult, Void> PARSER = new ConstructingObjectParser<>(
             TYPE.getPreferredName(), a -> new AutodetectResult((Bucket) a[0], (List<AnomalyRecord>) a[1], (List<Influencer>) a[2],
                     (Quantiles) a[3], a[4] == null ? null : ((ModelSnapshot.Builder) a[4]).build(),
-                    a[5] == null ? null : ((ModelSizeStats.Builder) a[5]).build(),
-                    (ModelPlot) a[6], (Forecast) a[7], (ForecastStats) a[8], (CategoryDefinition) a[9], (FlushAcknowledgement) a[10]));
+                    a[5] == null ? null : ((ModelSizeStats.Builder) a[5]).build(), (ModelPlot) a[6],
+                    (Forecast) a[7], (ForecastRequestStats) a[8], (CategoryDefinition) a[9], (FlushAcknowledgement) a[10]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Bucket.PARSER, Bucket.RESULT_TYPE_FIELD);
@@ -44,7 +44,8 @@ public class AutodetectResult implements ToXContentObject, Writeable {
                 ModelSizeStats.RESULT_TYPE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelPlot.PARSER, ModelPlot.RESULTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Forecast.PARSER, Forecast.RESULTS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ForecastStats.PARSER, ForecastStats.RESULTS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ForecastRequestStats.PARSER,
+                ForecastRequestStats.RESULTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), CategoryDefinition.PARSER, CategoryDefinition.TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), FlushAcknowledgement.PARSER, FlushAcknowledgement.TYPE);
     }
@@ -57,13 +58,13 @@ public class AutodetectResult implements ToXContentObject, Writeable {
     private final ModelSizeStats modelSizeStats;
     private final ModelPlot modelPlot;
     private final Forecast forecast;
-    private final ForecastStats forecastStats;
+    private final ForecastRequestStats forecastRequestStats;
     private final CategoryDefinition categoryDefinition;
     private final FlushAcknowledgement flushAcknowledgement;
 
     public AutodetectResult(Bucket bucket, List<AnomalyRecord> records, List<Influencer> influencers, Quantiles quantiles,
             ModelSnapshot modelSnapshot, ModelSizeStats modelSizeStats, ModelPlot modelPlot, Forecast forecast,
-            ForecastStats forecastStats, CategoryDefinition categoryDefinition, FlushAcknowledgement flushAcknowledgement) {
+            ForecastRequestStats forecastRequestStats, CategoryDefinition categoryDefinition, FlushAcknowledgement flushAcknowledgement) {
         this.bucket = bucket;
         this.records = records;
         this.influencers = influencers;
@@ -72,7 +73,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         this.modelSizeStats = modelSizeStats;
         this.modelPlot = modelPlot;
         this.forecast = forecast;
-        this.forecastStats = forecastStats;
+        this.forecastRequestStats = forecastRequestStats;
         this.categoryDefinition = categoryDefinition;
         this.flushAcknowledgement = flushAcknowledgement;
     }
@@ -131,13 +132,13 @@ public class AutodetectResult implements ToXContentObject, Writeable {
                 this.forecast = null;
             }
             if (in.readBoolean()) {
-                this.forecastStats = new ForecastStats(in);
+                this.forecastRequestStats = new ForecastRequestStats(in);
             } else {
-                this.forecastStats = null;
+                this.forecastRequestStats = null;
             }
         } else {
             this.forecast = null;
-            this.forecastStats = null;
+            this.forecastRequestStats = null;
         }
     }
 
@@ -155,7 +156,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
 
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             writeNullable(forecast, out);
-            writeNullable(forecastStats, out);
+            writeNullable(forecastRequestStats, out);
         }
     }
 
@@ -186,7 +187,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         addNullableField(ModelSizeStats.RESULT_TYPE_FIELD, modelSizeStats, builder);
         addNullableField(ModelPlot.RESULTS_FIELD, modelPlot, builder);
         addNullableField(Forecast.RESULTS_FIELD, forecast, builder);
-        addNullableField(ForecastStats.RESULTS_FIELD, forecastStats, builder);
+        addNullableField(ForecastRequestStats.RESULTS_FIELD, forecastRequestStats, builder);
         addNullableField(CategoryDefinition.TYPE, categoryDefinition, builder);
         addNullableField(FlushAcknowledgement.TYPE, flushAcknowledgement, builder);
         builder.endObject();
@@ -237,8 +238,8 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         return forecast;
     }
 
-    public ForecastStats getForecastStats() {
-        return forecastStats;
+    public ForecastRequestStats getForecastRequestStats() {
+        return forecastRequestStats;
     }
 
     public CategoryDefinition getCategoryDefinition() {
@@ -251,8 +252,8 @@ public class AutodetectResult implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(bucket, records, influencers, categoryDefinition, flushAcknowledgement, modelPlot, forecast, forecastStats,
-                modelSizeStats, modelSnapshot, quantiles);
+        return Objects.hash(bucket, records, influencers, categoryDefinition, flushAcknowledgement, modelPlot, forecast, 
+                forecastRequestStats, modelSizeStats, modelSnapshot, quantiles);
     }
 
     @Override
@@ -271,7 +272,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
                 Objects.equals(flushAcknowledgement, other.flushAcknowledgement) &&
                 Objects.equals(modelPlot, other.modelPlot) &&
                 Objects.equals(forecast, other.forecast) &&
-                Objects.equals(forecastStats, other.forecastStats) &&
+                Objects.equals(forecastRequestStats, other.forecastRequestStats) &&
                 Objects.equals(modelSizeStats, other.modelSizeStats) &&
                 Objects.equals(modelSnapshot, other.modelSnapshot) &&
                 Objects.equals(quantiles, other.quantiles);

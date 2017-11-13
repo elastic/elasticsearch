@@ -11,12 +11,16 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodes;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.xpack.action.XPackUsageAction;
@@ -80,6 +84,40 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         assertThat(collector.shouldCollect(), is(true));
         verify(nodes).isLocalNodeElectedMaster();
+    }
+
+    public void testDoAPMIndicesExistReturnsBasedOnIndices() {
+        final boolean apmIndicesExist = randomBoolean();
+        final Index[] indices = new Index[apmIndicesExist ? randomIntBetween(1, 3) : 0];
+        final IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenReturn(indices);
+
+        final ClusterStatsCollector collector =
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService, resolver);
+
+        assertThat(collector.doAPMIndicesExist(clusterState), is(apmIndicesExist));
+    }
+
+    public void testDoAPMIndicesExistReturnsFalseForExpectedExceptions() {
+        final Exception exception = randomFrom(new IndexNotFoundException("TEST - expected"), new IllegalArgumentException());
+        final IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenThrow(exception);
+
+        final ClusterStatsCollector collector =
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService, resolver);
+
+        assertThat(collector.doAPMIndicesExist(clusterState), is(false));
+    }
+
+    public void testDoAPMIndicesExistRethrowsUnexpectedExceptions() {
+        final RuntimeException exception = new RuntimeException();
+        final IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenThrow(exception);
+
+        final ClusterStatsCollector collector =
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService, resolver);
+
+        expectThrows(RuntimeException.class, () -> collector.doAPMIndicesExist(clusterState));
     }
 
     public void testDoCollect() throws Exception {
@@ -161,6 +199,11 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final Client client = mock(Client.class);
         when(client.admin()).thenReturn(adminClient);
 
+        final IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        final boolean apmIndicesExist = randomBoolean();
+        final Index[] indices = new Index[apmIndicesExist ? randomIntBetween(1, 5) : 0];
+        when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenReturn(indices);
+
         final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(singletonList(new LogstashFeatureSet.Usage(true, true)));
 
         @SuppressWarnings("unchecked")
@@ -169,7 +212,9 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(xPackUsageFuture.actionGet()).thenReturn(xPackUsageResponse);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(settings.build(), clusterService, licenseState, client, licenseService);
+                new ClusterStatsCollector(settings.build(), clusterService, licenseState, client, licenseService,
+                                          indexNameExpressionResolver);
+
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final long interval = randomNonNegativeLong();
@@ -201,6 +246,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getClusterStats().getStatus(), equalTo(clusterStatus));
         assertThat(document.getClusterStats().getIndicesStats().getIndexCount(), equalTo(nbIndices));
 
+        assertThat(document.getAPMIndicesExist(), is(apmIndicesExist));
         assertThat(document.getUsages(), hasSize(1));
         assertThat(document.getUsages().iterator().next().name(), equalTo(Logstash.NAME));
 

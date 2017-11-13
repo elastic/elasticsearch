@@ -36,7 +36,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
         ModelSizeStats.Builder modelSizeStats;
         ModelPlot modelPlot;
         Forecast forecast;
-        ForecastStats forecastStats;
+        ForecastRequestStats forecastRequestStats;
         CategoryDefinition categoryDefinition;
         FlushAcknowledgement flushAcknowledgement;
         String jobId = "foo";
@@ -92,9 +92,9 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             forecast = null;
         }
         if (randomBoolean()) {
-            forecastStats = new ForecastStats(jobId, randomNonNegativeLong());
+            forecastRequestStats = new ForecastRequestStats(jobId, randomNonNegativeLong());
         } else {
-            forecastStats = null;
+            forecastRequestStats = null;
         }
         if (randomBoolean()) {
             categoryDefinition = new CategoryDefinition(jobId);
@@ -108,7 +108,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             flushAcknowledgement = null;
         }
         return new AutodetectResult(bucket, records, influencers, quantiles, modelSnapshot,
-                modelSizeStats == null ? null : modelSizeStats.build(), modelPlot, forecast, forecastStats, categoryDefinition,
+                modelSizeStats == null ? null : modelSizeStats.build(), modelPlot, forecast, forecastRequestStats, categoryDefinition,
                 flushAcknowledgement);
     }
 

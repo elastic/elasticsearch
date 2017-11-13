@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenerExecutionContext;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 
@@ -30,11 +29,12 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
 
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
-    private final ListenerExecutionContext<NioChannel> connectContext = new ListenerExecutionContext<>();
+    private final CompletableFuture<NioChannel> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
     private WriteContext writeContext;
     private ReadContext readContext;
@@ -135,8 +135,8 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     public boolean finishConnect() throws IOException {
         if (isConnectComplete0()) {
             return true;
-        } else if (isConnectFailed()) {
-            Exception exception = getConnectException();
+        } else if (connectContext.isCompletedExceptionally()) {
+            Exception exception = connectException;
             if (exception == null) {
                 throw new AssertionError("Should have received connection exception");
             } else if (exception instanceof IOException) {
@@ -151,13 +151,13 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
             isConnected = internalFinish();
         }
         if (isConnected) {
-            connectContext.onResponse(this);
+            connectContext.complete(this);
         }
         return isConnected;
     }
 
     public void addConnectListener(ActionListener<NioChannel> listener) {
-        connectContext.addListener(listener);
+        connectContext.whenComplete(ActionListener.toBiConsumer(listener));
     }
 
     @Override
@@ -174,28 +174,12 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
             return socketChannel.finishConnect();
         } catch (IOException | RuntimeException e) {
             connectException = e;
-            connectContext.onFailure(e);
+            connectContext.completeExceptionally(e);
             throw e;
         }
     }
 
     private boolean isConnectComplete0() {
-        if (connectContext.isDone()) {
-            return connectException == null;
-        } else {
-            return false;
-        }
-    }
-
-    private boolean isConnectFailed() {
-        return getConnectException() != null;
-    }
-
-    private Exception getConnectException() {
-        if (connectContext.isDone()) {
-            return connectException;
-        } else {
-            return null;
-        }
+        return connectContext.isDone() && connectContext.isCompletedExceptionally() == false;
     }
 }

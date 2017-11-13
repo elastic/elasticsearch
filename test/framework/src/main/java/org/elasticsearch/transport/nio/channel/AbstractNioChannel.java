@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenerExecutionContext;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.ESSelector;
 
@@ -31,6 +30,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -58,7 +58,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     private final InetSocketAddress localAddress;
     private final String profile;
-    private final ListenerExecutionContext<TcpChannel> closeContext = new ListenerExecutionContext<>();
+    private final CompletableFuture<TcpChannel> closeContext = new CompletableFuture<>();
     private final ESSelector selector;
     private SelectionKey selectionKey;
 
@@ -111,9 +111,9 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         if (closeContext.isDone() == false) {
             try {
                 closeRawChannel();
-                closeContext.onResponse(this);
+                closeContext.complete(this);
             } catch (IOException e) {
-                closeContext.onFailure(e);
+                closeContext.completeExceptionally(e);
                 throw e;
             } finally {
                 // There is no problem with calling this multiple times
@@ -160,7 +160,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     @Override
     public void addCloseListener(ActionListener<TcpChannel> listener) {
-        closeContext.addListener(listener);
+        closeContext.whenComplete(ActionListener.toBiConsumer(listener));
     }
 
     @Override

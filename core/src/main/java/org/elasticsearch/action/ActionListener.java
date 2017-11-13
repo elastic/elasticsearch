@@ -24,6 +24,7 @@ import org.elasticsearch.common.CheckedConsumer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -87,6 +88,28 @@ public interface ActionListener<Response> {
             @Override
             public void onFailure(Exception e) {
                 runnable.run();
+            }
+        };
+    }
+
+    /**
+     * Converts a listener to a {@link BiConsumer} for compatibility with the {@link java.util.concurrent.CompletableFuture}
+     * api.
+     *
+     * @param listener that will be wrapped
+     * @param <Response> the type of the response
+     * @return a bi consumer that will complete the wrapped listener
+     */
+    static <Response> BiConsumer<Response, Throwable> toBiConsumer(ActionListener<Response> listener) {
+        return (tcpChannel, throwable) -> {
+            if (throwable == null) {
+                listener.onResponse(tcpChannel);
+            } else {
+                if (throwable instanceof Exception) {
+                    listener.onFailure((Exception) throwable);
+                } else {
+                    listener.onFailure(new Exception(throwable));
+                }
             }
         };
     }

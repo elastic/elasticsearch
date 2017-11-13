@@ -21,7 +21,6 @@ package org.elasticsearch.transport;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -54,6 +53,7 @@ import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -252,7 +252,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
         private final Closeable onClose;
-        private final PlainListenableActionFuture<TcpChannel> closeFuture = PlainListenableActionFuture.newListenableFuture();
+        private final CompletableFuture<TcpChannel> closeFuture = new CompletableFuture<>();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -377,15 +377,15 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         public void close() {
             try {
                 close0();
-                closeFuture.onResponse(this);
+                closeFuture.complete(this);
             } catch (IOException e) {
-                closeFuture.onFailure(e);
+                closeFuture.completeExceptionally(e);
             }
         }
 
         @Override
         public void addCloseListener(ActionListener<TcpChannel> listener) {
-            closeFuture.addListener(listener);
+            closeFuture.whenComplete(ActionListener.toBiConsumer(listener));
         }
 
         @Override

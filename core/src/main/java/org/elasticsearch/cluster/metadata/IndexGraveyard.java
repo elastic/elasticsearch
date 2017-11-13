@@ -34,6 +34,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -432,7 +434,7 @@ public final class IndexGraveyard implements MetaData.Custom {
             builder.startObject();
             builder.field(INDEX_KEY);
             index.toXContent(builder, params);
-            builder.timeValueField(DELETE_DATE_IN_MILLIS_KEY, DELETE_DATE_KEY, deleteDateInMillis, TimeUnit.MILLISECONDS);
+            builder.dateField(DELETE_DATE_IN_MILLIS_KEY, DELETE_DATE_KEY, deleteDateInMillis);
             return builder.endObject();
         }
 

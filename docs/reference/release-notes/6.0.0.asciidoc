@@ -1,0 +1,55 @@
+:issue: https://github.com/elastic/elasticsearch/issues/
+:pull:  https://github.com/elastic/elasticsearch/pull/
+
+[[release-notes-6.0.0]]
+== 6.0.0 Release Notes
+
+Also see:
+
+* <<breaking-changes-6.0>>
+* <<release-notes-6.0.0-rc2>>
+* <<release-notes-6.0.0-rc1>>
+* <<release-notes-6.0.0-beta2>>
+* <<release-notes-6.0.0-beta1>>
+* <<release-notes-6.0.0-alpha2>>
+* <<release-notes-6.0.0-alpha1>>
+* <<release-notes-6.0.0-alpha1-5x>>
+
+[[enhancement-6.0.0]]
+[float]
+=== Enhancements
+
+Internal::
+* TemplateUpgradeService should only run on the master {pull}27294[#27294]
+
+Sequence IDs::
+* Roll translog generation on primary promotion {pull}27313[#27313]
+
+Snapshot/Restore::
+* Fixed references to Multi Index Syntax {pull}27283[#27283]
+
+
+
+[[bug-6.0.0]]
+[float]
+=== Bug fixes
+
+Core::
+* Correctly encode warning headers {pull}27269[#27269] (issue: {issue}27244[#27244])
+
+Engine::
+* Die with dignity while merging {pull}27265[#27265] (issue: {issue}19272[#19272])
+
+Network::
+* Fixed ByteBuf leaking in org.elasticsearch.http.netty4.Netty4HttpRequestHandler {pull}27222[#27222]
+
+Snapshot/Restore::
+* Snapshot/Restore: better handle incorrect chunk_size settings in FS repo {pull}26844[#26844] (issue: {issue}26843[#26843])
+
+Stats::
+* Fix RestGetAction name typo {pull}27266[#27266]
+
+Templates::
+* Tests: Fix FullClusterRestartIT.testSnapshotRestore test failing in 6.x {pull}27218[#27218] (issue: {issue}27213[#27213])
+
+

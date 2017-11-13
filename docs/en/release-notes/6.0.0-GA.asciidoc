@@ -1,10 +1,22 @@
 [role="xpack"]
 [[xes-6.0.0-GA]]
-== {es} {xpack} 6.0.0-GA Release Notes
+== {es} {xpack} 6.0.0 Release Notes
+++++
+<titleabbrev>6.0.0 Release Notes</titleabbrev>
+++++
 
 The lists below cover changes between 6.0.0-rc2 and 6.0.0 GA only.
 
-Also see <<breaking-changes-xes>>.
+Also see:
+
+* <<breaking-changes-xes>>.
+* <<xes-6.0.0-rc2>>
+* <<xes-6.0.0-rc1>>
+* <<xes-6.0.0-beta2>>
+* <<xes-6.0.0-beta1>>
+* <<xes-6.0.0-alpha2>>
+* <<xes-6.0.0-alpha1>>
+
 ////
 [[xes-enhancement-6.0.0-GA]]
 [float]

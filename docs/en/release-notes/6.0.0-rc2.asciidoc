@@ -1,7 +1,9 @@
 [role="xpack"]
 [[xes-6.0.0-rc2]]
 == {es} {xpack} 6.0.0-rc2 Release Notes
-
+++++
+<titleabbrev>6.0.0-rc2 Release Notes</titleabbrev>
+++++
 
 [[xes-enhancement-6.0.0-rc2]]
 [float]

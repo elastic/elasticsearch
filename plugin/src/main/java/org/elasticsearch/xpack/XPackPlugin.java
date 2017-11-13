@@ -244,7 +244,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.deprecation = new Deprecation();
         this.upgrade = new Upgrade(settings);
         // sql projects don't depend on x-pack and as a result we cannot pass XPackLicenseState object to SqlPlugin directly here
-        this.sql = new SqlPlugin(new SqlLicenseChecker(
+        this.sql = new SqlPlugin(XPackSettings.SQL_ENABLED.get(settings), new SqlLicenseChecker(
                 () -> {
                     if (!licenseState.isSqlAllowed()) {
                         throw LicenseUtils.newComplianceException(XPackPlugin.SQL);

@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+
 public class SqlPlugin implements ActionPlugin {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Cursor.getNamedWriteables();
@@ -44,8 +46,11 @@ public class SqlPlugin implements ActionPlugin {
 
     private final SqlLicenseChecker sqlLicenseChecker;
 
-    public SqlPlugin(SqlLicenseChecker sqlLicenseChecker) {
+    private final boolean enabled;
+
+    public SqlPlugin(boolean enabled, SqlLicenseChecker sqlLicenseChecker) {
         this.sqlLicenseChecker = sqlLicenseChecker;
+        this.enabled = enabled;
     }
 
     /**
@@ -54,6 +59,9 @@ public class SqlPlugin implements ActionPlugin {
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService,
             @Nullable FilteredCatalog.Filter catalogFilter) {
+        if (false == enabled) {
+            return emptyList();
+        }
         Function<ClusterState, Catalog> catalog = EsCatalog::new;
         if (catalogFilter != null) {
             catalog = catalog.andThen(c -> new FilteredCatalog(c, catalogFilter));
@@ -68,7 +76,9 @@ public class SqlPlugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController,
             ClusterSettings clusterSettings, IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
-
+        if (false == enabled) {
+            return emptyList();
+        }
         return Arrays.asList(new RestSqlAction(settings, restController),
                              new SqlTranslateAction.RestAction(settings, restController),
                              new RestSqlCliAction(settings, restController),
@@ -77,6 +87,9 @@ public class SqlPlugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (false == enabled) {
+            return emptyList();
+        }
         return Arrays.asList(new ActionHandler<>(SqlAction.INSTANCE, TransportSqlAction.class),
                              new ActionHandler<>(SqlGetIndicesAction.INSTANCE, SqlGetIndicesAction.TransportAction.class),
                              new ActionHandler<>(SqlTranslateAction.INSTANCE, SqlTranslateAction.TransportAction.class));

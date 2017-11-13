@@ -118,7 +118,8 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         cache = fieldDataCaches.get(fieldName);
         if (cache == null) {
             synchronized (this) {
-                if (fieldDataCaches.get(fieldName) == null) {
+                cache = fieldDataCaches.get(fieldName);
+                if (cache == null) {
                     String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
                     if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
                         cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);

@@ -190,8 +190,10 @@ public class MonitoringIT extends ESRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testMonitoringService() throws Exception {
+        final boolean createAPMIndex = randomBoolean();
+        final String indexName = createAPMIndex ? "apm-2017.11.06" : "books";
         final HttpEntity document = new StringEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
-        assertThat(client().performRequest("POST", "/books/book/0", singletonMap("refresh", "true"), document)
+        assertThat(client().performRequest("POST", "/" + indexName + "/doc/0", singletonMap("refresh", "true"), document)
                            .getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_CREATED));
 
         whenExportersAreReady(() -> {
@@ -209,7 +211,7 @@ public class MonitoringIT extends ESRestTestCase {
                 final String type = (String) extractValue("_source.type", searchHit);
 
                 if (ClusterStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertClusterStatsMonitoringDoc(searchHit, collectionInterval);
+                    assertClusterStatsMonitoringDoc(searchHit, collectionInterval, createAPMIndex);
                 } else if (IndexRecoveryMonitoringDoc.TYPE.equals(type)) {
                     assertIndexRecoveryMonitoringDoc(searchHit, collectionInterval);
                 } else if (IndicesStatsMonitoringDoc.TYPE.equals(type)) {
@@ -294,7 +296,9 @@ public class MonitoringIT extends ESRestTestCase {
      * Assert that a {@link ClusterStatsMonitoringDoc} contains the expected information
      */
     @SuppressWarnings("unchecked")
-    private static void assertClusterStatsMonitoringDoc(final Map<String, Object> document, final TimeValue interval) throws Exception {
+    private static void assertClusterStatsMonitoringDoc(final Map<String, Object> document,
+                                                        final TimeValue interval,
+                                                        final boolean apmIndicesExist) throws Exception {
         assertMonitoringDoc(document, MonitoredSystem.ES, ClusterStatsMonitoringDoc.TYPE, interval);
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
@@ -335,7 +339,13 @@ public class MonitoringIT extends ESRestTestCase {
 
         final Map<String, Object> stackStats = (Map<String, Object>) source.get("stack_stats");
         assertThat(stackStats, notNullValue());
-        assertThat(stackStats.size(), equalTo(1));
+        assertThat(stackStats.size(), equalTo(2));
+
+        final Map<String, Object> apm = (Map<String, Object>) stackStats.get("apm");
+        assertThat(apm, notNullValue());
+        assertThat(apm.size(), equalTo(1));
+        assertThat(apm.remove("found"), is(apmIndicesExist));
+        assertThat(apm.isEmpty(), is(true));
 
         final Map<String, Object> xpackStats = (Map<String, Object>) stackStats.get("xpack");
         assertThat(xpackStats, notNullValue());

@@ -16,7 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.parser.SqlBaseBaseVisitor;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.util.Assert;
+import org.elasticsearch.xpack.sql.util.Check;
 
 import static java.util.stream.Collectors.toList;
 
@@ -25,7 +25,7 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
     @Override
     public Object visit(ParseTree tree) {
         Object result = super.visit(tree);
-        Assert.notNull(result, "Don't know how to handle context [%s] with value [%s]", tree.getClass(), tree.getText());
+        Check.notNull(result, "Don't know how to handle context [%s] with value [%s]", tree.getClass(), tree.getText());
         return result;
     }
 
@@ -71,17 +71,17 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
     }
 
     static Location source(TerminalNode terminalNode) {
-        Assert.notNull(terminalNode, "terminalNode is null");
+        Check.notNull(terminalNode, "terminalNode is null");
         return source(terminalNode.getSymbol());
     }
 
     static Location source(ParserRuleContext parserRuleContext) {
-        Assert.notNull(parserRuleContext, "parserRuleContext is null");
+        Check.notNull(parserRuleContext, "parserRuleContext is null");
         return source(parserRuleContext.getStart());
     }
 
     static Location source(Token token) {
-        Assert.notNull(token, "token is null");
+        Check.notNull(token, "token is null");
         return new Location(token.getLine(), token.getCharPositionInLine());
     }
 

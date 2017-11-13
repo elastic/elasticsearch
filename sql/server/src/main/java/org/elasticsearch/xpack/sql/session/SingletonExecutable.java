@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.util.Assert;
+import org.elasticsearch.xpack.sql.util.Check;
 
 import java.util.List;
 
@@ -17,7 +17,7 @@ public class SingletonExecutable implements Executable {
     private final Object[] values;
 
     public SingletonExecutable(List<Attribute> output, Object... values) {
-        Assert.isTrue(output.size() == values.length, "Output %s and values %s are out of sync", output, values);
+        Check.isTrue(output.size() == values.length, "Output %s and values %s are out of sync", output, values);
         this.output = output;
         this.values = values;
     }

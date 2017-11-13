@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.tree.NodeUtils.NodeInfo;
-import org.elasticsearch.xpack.sql.util.Assert;
+import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.lang.reflect.InvocationTargetException;
@@ -37,7 +37,7 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
             FunctionDefinition def = def(f, aliases());
             defs.put(def.name(), def);
             for (String alias : def.aliases()) {
-                Assert.isTrue(defs.containsKey(alias) == false, "Alias %s already exists", alias);
+                Check.isTrue(defs.containsKey(alias) == false, "Alias %s already exists", alias);
                 // alias should be already normalized but to be double sure
                 defs.put(normalize(alias), def);
             }

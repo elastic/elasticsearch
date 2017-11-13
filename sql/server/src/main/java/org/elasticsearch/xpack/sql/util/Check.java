@@ -7,8 +7,11 @@ package org.elasticsearch.xpack.sql.util;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
-public abstract class Assert {
-    // NOCOMMIT we should investigate using java assertions like the rest of the code base
+/**
+ * Utility class used for checking various conditions at runtime, inside SQL (hence the specific exception) with
+ * minimum amount of code 
+ */
+public abstract class Check {
 
     public static void isTrue(boolean expression, String message, Object... values) {
         if (!expression) {

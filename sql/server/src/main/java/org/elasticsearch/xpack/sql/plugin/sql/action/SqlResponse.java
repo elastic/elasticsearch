@@ -36,8 +36,9 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
 
     public SqlResponse(Cursor cursor, long size, int columnCount, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
         this.cursor = cursor;
-        this.size = size; // NOCOMMIT Probably should be removed.
-        // Size isn't the total number of results like ES uses, it is the size of the rows list.
+        this.size = size;
+        // Size isn't the total number of results like ES uses, it is the size of the current rows list.
+        // While not necessary internally, it is useful for REST responses
         this.columnCount = columnCount;
         this.columns = columns;
         this.rows = rows;

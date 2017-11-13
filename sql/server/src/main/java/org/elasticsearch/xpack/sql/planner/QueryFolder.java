@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
-import org.elasticsearch.xpack.sql.util.Assert;
+import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Arrays;
@@ -342,12 +342,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             }
                             // attributes can only refer to declared groups
                             if (child instanceof Attribute) {
-                                Assert.notNull(matchingGroup, "Cannot find group '%s'", Expressions.name(child));
+                                Check.notNull(matchingGroup, "Cannot find group '%s'", Expressions.name(child));
                                 queryC = queryC.addAggColumn(matchingGroup.propertyPath());
                             }
                             else {
                                 // the only thing left is agg function
-                                Assert.isTrue(Functions.isAggregateFunction(child), "Expected aggregate function inside alias; got %s", child.nodeString());
+                                Check.isTrue(Functions.isAggregateFunction(child), "Expected aggregate function inside alias; got %s", child.nodeString());
                                 Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup, (AggregateFunction) child, compoundAggMap, queryC);
                                 //FIXME: what about inner key
                                 queryC = withAgg.v1().addAggColumn(withAgg.v2().context());
@@ -362,7 +362,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         GroupingAgg matchingGroup = null;
                         if (groupingContext != null) {
                             matchingGroup = groupingContext.groupFor(ne);
-                            Assert.notNull(matchingGroup, "Cannot find group '%s'", Expressions.name(ne));
+                            Check.notNull(matchingGroup, "Cannot find group '%s'", Expressions.name(ne));
                             queryC = queryC.addAggColumn(matchingGroup.propertyPath());
                         }
                     }

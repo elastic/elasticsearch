@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.xpack.sql.util.Assert;
+import org.elasticsearch.xpack.sql.util.Check;
 
 public abstract class AbstractRowSet implements RowSet {
     private boolean terminated = false;
 
     @Override
     public Object column(int index) {
-        Assert.isTrue(index >= 0, "Invalid index %d; needs to be positive", index);
-        Assert.isTrue(index < columnCount(), "Invalid index %d for row of size %d", index, columnCount());
-        Assert.isTrue(hasCurrentRow(), "RowSet contains no (more) entries; use hasCurrent() to check its status");
+        Check.isTrue(index >= 0, "Invalid index %d; needs to be positive", index);
+        Check.isTrue(index < columnCount(), "Invalid index %d for row of size %d", index, columnCount());
+        Check.isTrue(hasCurrentRow(), "RowSet contains no (more) entries; use hasCurrent() to check its status");
         return getColumn(index);
     }
 

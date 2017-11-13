@@ -18,20 +18,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 public class ScrollCursor implements Cursor {
     public static final String NAME = "s";
@@ -109,14 +105,8 @@ public class ScrollCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(Client client, ActionListener<RowSet> listener) {
-        // NOCOMMIT add keep alive to the settings and pass it here
-        /* Or something. The trouble is that settings is for *starting*
-         * queries, but maybe we should actually have two sets of settings,
-         * one for things that are only valid when going to the next page
-         * and one that is valid for starting queries.
-         */
-        SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(timeValueSeconds(90));
+    public void nextPage(Configuration cfg, Client client, ActionListener<RowSet> listener) {
+        SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(cfg.pageTimeout());
         client.searchScroll(request, ActionListener.wrap((SearchResponse response) -> {
             int limitHits = limit;
             listener.onResponse(new ScrolledSearchHitRowSet(extractors, response.getHits().getHits(),

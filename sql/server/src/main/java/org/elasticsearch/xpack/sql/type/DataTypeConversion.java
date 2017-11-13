@@ -17,6 +17,8 @@ import java.util.function.LongFunction;
 
 /**
  * Conversions from one data type to another.
+ * This class throws {@link SqlIllegalArgumentException} to differentiate between validation
+ * errors inside SQL as oppose to the rest of ES.
  */
 public abstract class DataTypeConversion {
 
@@ -280,7 +282,6 @@ public abstract class DataTypeConversion {
 
     public static int safeToInt(long x) {
         if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
-            // NOCOMMIT should these instead be regular IllegalArgumentExceptions so we throw a 400 error? Or something else?
             throw new SqlIllegalArgumentException("numeric %d out of int range", Long.toString(x));
         }
         return (int) x;

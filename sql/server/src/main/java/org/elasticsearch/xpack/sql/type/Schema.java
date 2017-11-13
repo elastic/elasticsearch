@@ -14,7 +14,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import org.elasticsearch.xpack.sql.type.Schema.Entry;
-import org.elasticsearch.xpack.sql.util.Assert;
+import org.elasticsearch.xpack.sql.util.Check;
 
 import static java.util.Collections.emptyList;
 
@@ -51,7 +51,7 @@ public class Schema implements Iterable<Entry> {
     private final List<DataType> types;
 
     public Schema(List<String> names, List<DataType> types) {
-        Assert.isTrue(names.size() == types.size(), "Different # of names %s vs types %s", names, types);
+        Check.isTrue(names.size() == types.size(), "Different # of names %s vs types %s", names, types);
         this.types = types;
         this.names = names;
     }

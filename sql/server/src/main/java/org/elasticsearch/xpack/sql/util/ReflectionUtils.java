@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.util;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
 import java.util.Arrays;
-
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 public class ReflectionUtils {
 
@@ -22,8 +22,9 @@ public class ReflectionUtils {
         }
         if (t instanceof ParameterizedType) {
             Type[] typeArguments = ((ParameterizedType) t).getActualTypeArguments();
-            Assert.isTrue(typeArguments.length == 1,
-                    "Unexpected number of type arguments %s for %s", Arrays.toString(typeArguments), t);
+            if (typeArguments.length == 1) {
+                throw new SqlIllegalArgumentException("Unexpected number of type arguments %s for %s", Arrays.toString(typeArguments), t);
+            }
 
             return detectType(typeArguments[0]);
         }
@@ -33,8 +34,10 @@ public class ReflectionUtils {
                 return detectType(wt.getLowerBounds()[0]);
             }
             Type[] upperBounds = wt.getUpperBounds();
-            Assert.isTrue(upperBounds.length == 1,
-                    "Unexpected number of upper bounds %s for %s", Arrays.toString(upperBounds), t);
+
+            if (upperBounds.length == 1) {
+                throw new SqlIllegalArgumentException("Unexpected number of upper bounds %s for %s", Arrays.toString(upperBounds), t);
+            }
 
             return detectType(upperBounds[0]);
         }
@@ -51,8 +54,10 @@ public class ReflectionUtils {
         for (Type type = clazz.getGenericSuperclass(); clazz != Object.class; type = clazz.getGenericSuperclass()) {
             if (type instanceof ParameterizedType) {
                 Type[] typeArguments = ((ParameterizedType) type).getActualTypeArguments();
-                Assert.isTrue(typeArguments.length == 2 || typeArguments.length == 1,
-                        "Unexpected number of type arguments %s for %s", Arrays.toString(typeArguments), c);
+                if (typeArguments.length == 2 || typeArguments.length == 1) {
+                    throw new SqlIllegalArgumentException("Unexpected number of type arguments %s for %s", Arrays.toString(typeArguments),
+                            c);
+                }
 
                 return (Class<E>) typeArguments[0];
             }

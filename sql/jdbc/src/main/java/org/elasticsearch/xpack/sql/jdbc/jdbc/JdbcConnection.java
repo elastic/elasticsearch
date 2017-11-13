@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
-import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
 import org.elasticsearch.xpack.sql.jdbc.net.client.JdbcHttpClient;
 
@@ -141,6 +140,7 @@ public class JdbcConnection implements Connection, JdbcWrapper {
 
     @Override
     public boolean isReadOnly() throws SQLException {
+        checkOpen();
         return true;
     }
 
@@ -321,7 +321,7 @@ public class JdbcConnection implements Connection, JdbcWrapper {
         if (timeout < 0) {
             throw new SQLException("Negative timeout");
         }
-        return client.ping(TimeUnit.SECONDS.toMillis(timeout));
+        return !isClosed() && client.ping(TimeUnit.SECONDS.toMillis(timeout));
     }
 
     private void checkOpenClientInfo() throws SQLClientInfoException {
@@ -429,17 +429,19 @@ public class JdbcConnection implements Connection, JdbcWrapper {
         return userName;
     }
 
-    // NOCOMMIT should this be one of those wrapped things?
-    public int esInfoMajorVersion() throws SQLException {
+    // There's no checkOpen on these methods since they are used by
+    // DatabaseMetadata that can work on a closed connection as well
+    // in fact, this information is cached by the underlying client
+    // once retrieved
+    int esInfoMajorVersion() throws SQLException {
         return client.serverInfo().majorVersion;
     }
 
-    public int esInfoMinorVersion() throws SQLException {
+    int esInfoMinorVersion() throws SQLException {
         return client.serverInfo().minorVersion;
     }
 
     public void setTimeZone(TimeZone tz) {
         cfg.timeZone(tz);
     }
-
 }

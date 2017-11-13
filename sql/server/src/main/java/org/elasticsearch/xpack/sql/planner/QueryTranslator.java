@@ -87,7 +87,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.elasticsearch.xpack.sql.util.Assert;
+import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
 import java.util.Arrays;
@@ -293,7 +293,7 @@ abstract class QueryTranslator {
     }
 
     static QueryTranslation and(Location loc, QueryTranslation left, QueryTranslation right) {
-        Assert.isTrue(left != null || right != null, "Both expressions are null");
+        Check.isTrue(left != null || right != null, "Both expressions are null");
         if (left == null) {
             return right;
         }
@@ -322,7 +322,7 @@ abstract class QueryTranslator {
     }
 
     static Query and(Location loc, Query left, Query right) {
-        Assert.isTrue(left != null || right != null, "Both expressions are null");
+        Check.isTrue(left != null || right != null, "Both expressions are null");
         if (left == null) {
             return right;
         }
@@ -333,7 +333,7 @@ abstract class QueryTranslator {
     }
 
     static QueryTranslation or(Location loc, QueryTranslation left, QueryTranslation right) {
-        Assert.isTrue(left != null || right != null, "Both expressions are null");
+        Check.isTrue(left != null || right != null, "Both expressions are null");
         if (left == null) {
             return right;
         }
@@ -362,7 +362,7 @@ abstract class QueryTranslator {
     }
 
     static Query or(Location loc, Query left, Query right) {
-        Assert.isTrue(left != null || right != null, "Both expressions are null");
+        Check.isTrue(left != null || right != null, "Both expressions are null");
 
         if (left == null) {
             return right;
@@ -374,7 +374,7 @@ abstract class QueryTranslator {
     }
 
     static Query not(Query query) {
-        Assert.isTrue(query != null, "Expressions is null");
+        Check.isTrue(query != null, "Expressions is null");
         return new NotQuery(query.location(), query);
     }
 
@@ -524,7 +524,7 @@ abstract class QueryTranslator {
     
         @Override
         protected QueryTranslation asQuery(BinaryComparison bc, boolean onAggs) {
-            Assert.isTrue(bc.right().foldable(), "don't know how to translate right %s in %s", bc.right().nodeString(), bc);
+            Check.isTrue(bc.right().foldable(), "don't know how to translate right %s in %s", bc.right().nodeString(), bc);
     
             if (bc.left() instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) bc.left();
@@ -619,7 +619,7 @@ abstract class QueryTranslator {
                 return new TermQuery(loc, name, value);
             }
     
-            Assert.isTrue(false, "don't know how to translate binary comparison %s in %s", bc.right().nodeString(), bc);
+            Check.isTrue(false, "don't know how to translate binary comparison %s in %s", bc.right().nodeString(), bc);
             return null;
         }
     }

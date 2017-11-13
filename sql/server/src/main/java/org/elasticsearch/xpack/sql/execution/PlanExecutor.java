@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.session.Configuration;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -82,7 +82,7 @@ public class PlanExecutor {
         }
     }
 
-    public void nextPage(Cursor cursor, ActionListener<RowSet> listener) {
-        cursor.nextPage(client, listener);
+    public void nextPage(Configuration cfg, Cursor cursor, ActionListener<RowSet> listener) {
+        cursor.nextPage(cfg, client, listener);
     }
 }

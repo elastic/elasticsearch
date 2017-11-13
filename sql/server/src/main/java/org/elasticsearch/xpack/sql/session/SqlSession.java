@@ -33,7 +33,6 @@ public class SqlSession {
     private final Planner planner;
     private final Analyzer analyzer;
 
-    private final Configuration defaults; // NOCOMMIT this doesn't look used - it is for RESET SESSION
     private Configuration settings;
 
     // thread-local used for sharing settings across the plan compilation
@@ -46,7 +45,7 @@ public class SqlSession {
     };
 
     public SqlSession(SqlSession other) {
-        this(other.defaults(), other.client(), other.catalog(), other.functionRegistry(),
+        this(other.settings(), other.client(), other.catalog(), other.functionRegistry(),
                 other.parser, other.optimizer(), other.planner());
     }
 
@@ -65,7 +64,6 @@ public class SqlSession {
         this.optimizer = optimizer;
         this.planner = planner;
 
-        this.defaults = defaults;
         this.settings = defaults;
     }
 
@@ -135,10 +133,6 @@ public class SqlSession {
 
     public void sql(String sql, ActionListener<SchemaRowSet> listener) {
         executable(sql).execute(this, listener);
-    }
-
-    public Configuration defaults() {
-        return defaults;
     }
 
     public Configuration settings() {

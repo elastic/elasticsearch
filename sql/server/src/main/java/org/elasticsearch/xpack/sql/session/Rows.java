@@ -11,7 +11,7 @@ import java.util.List;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.Schema;
-import org.elasticsearch.xpack.sql.util.Assert;
+import org.elasticsearch.xpack.sql.util.Check;
 
 import static java.util.Collections.singletonList;
 
@@ -64,7 +64,7 @@ public abstract class Rows {
     }
 
     public static SchemaRowSet singleton(List<Attribute> attrs, Object... values) {
-        Assert.isTrue(attrs.size() == values.length, "Schema %s and values %s are out of sync", attrs, values);
+        Check.isTrue(attrs.size() == values.length, "Schema %s and values %s are out of sync", attrs, values);
         return new SingletonRowSet(schema(attrs), values);
     }
 

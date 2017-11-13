@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.tree;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.util.Assert;
+import org.elasticsearch.xpack.sql.util.Check;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -69,11 +69,11 @@ public abstract class NodeUtils {
     //     public Literal right() { return right; }
     // }
     public static <T extends Node<T>> T copyTree(Node<T> tree, List<T> newChildren) {
-        Assert.notNull(tree, "Non-null tree expected");
+        Check.notNull(tree, "Non-null tree expected");
 
         // basic sanity check
         List<T> currentChildren = tree.children();
-        Assert.isTrue(currentChildren.size() == newChildren.size(), "Cannot make copy; expected %s children but received %s", currentChildren.size(), newChildren.size()); 
+        Check.isTrue(currentChildren.size() == newChildren.size(), "Cannot make copy; expected %s children but received %s", currentChildren.size(), newChildren.size()); 
 
         NodeInfo info = info(tree.getClass());
         Object[] props = properties(tree, info);
@@ -126,7 +126,7 @@ public abstract class NodeUtils {
         // perform discovery (and cache it)
         if (treeNodeInfo == null) {
             Constructor<?>[] constructors = clazz.getConstructors();
-            Assert.isTrue(!CollectionUtils.isEmpty(constructors), "No public constructors found for class %s", clazz);
+            Check.isTrue(!CollectionUtils.isEmpty(constructors), "No public constructors found for class %s", clazz);
             
             // find the longest constructor
             Constructor<?> ctr = null;
@@ -146,7 +146,7 @@ public abstract class NodeUtils {
             Parameter[] parameters = ctr.getParameters();
             for (int paramIndex = 0; paramIndex < parameters.length; paramIndex++) {
                 Parameter param = parameters[paramIndex];
-                Assert.isTrue(param.isNamePresent(), "Can't find constructor parameter names for [%s]. Is class debug information available?", clazz.toGenericString());
+                Check.isTrue(param.isNamePresent(), "Can't find constructor parameter names for [%s]. Is class debug information available?", clazz.toGenericString());
                 String paramName = param.getName();
 
                 if (paramName.equals("children")) {
@@ -165,7 +165,7 @@ public abstract class NodeUtils {
                 Class<?> expected = param.getType();
                 Class<?> found = getter.getReturnType();
                 // found == Object if we're dealing with generics
-                Assert.isTrue(found == Object.class || expected.isAssignableFrom(found), "Constructor param [%s] in class [%s] has type [%s] but found getter [%s]", paramName, clazz, expected, getter.toGenericString());
+                Check.isTrue(found == Object.class || expected.isAssignableFrom(found), "Constructor param [%s] in class [%s] has type [%s] but found getter [%s]", paramName, clazz, expected, getter.toGenericString());
                 
                 params.put(paramName, getter);
             }

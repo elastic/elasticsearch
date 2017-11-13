@@ -36,12 +36,21 @@ public abstract class AbstractProto {
         request.writeTo(new SqlDataOutput(out, CURRENT_VERSION));
     }
 
-    public Request readRequest(DataInput in) throws IOException {
+    public SqlDataInput clientStream(DataInput in) throws IOException {
         int clientVersion = readHeader(in);
         if (clientVersion > CURRENT_VERSION) {
             throw new IOException("Unknown client version [" + clientVersion + "]. Always upgrade client last.");
         }
-        return readRequestType(in).reader().read(new SqlDataInput(in, clientVersion));
+        return new SqlDataInput(in, clientVersion);
+    }
+
+    public Request readRequest(SqlDataInput in) throws IOException {
+        return readRequestType(in).reader().read(in);
+    }
+
+    public Request readRequest(DataInput in) throws IOException {
+        SqlDataInput client = clientStream(in);
+        return readRequest(client);
     }
 
     public void writeResponse(Response response, int clientVersion, DataOutput out) throws IOException {

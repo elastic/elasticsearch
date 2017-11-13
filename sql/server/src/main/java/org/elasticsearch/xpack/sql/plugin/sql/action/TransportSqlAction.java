@@ -53,13 +53,15 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
      * Actual implementation of the action. Statically available to support embedded mode.
      */
     public static void operation(PlanExecutor planExecutor, SqlRequest request, ActionListener<SqlResponse> listener) {
+        // The configuration is always created however when dealing with the next page, only the timeouts are relevant
+        // the rest having default values (since the query is already created)
+        Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout());
+
         if (request.cursor() == Cursor.EMPTY) {
-            Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),
-                                                          request.requestTimeout(), request.pageTimeout());
             planExecutor.sql(cfg, request.query(),
                     ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet)), listener::onFailure));
         } else {
-            planExecutor.nextPage(request.cursor(),
+            planExecutor.nextPage(cfg, request.cursor(),
                     ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)), listener::onFailure));
         }
     }

@@ -152,7 +152,7 @@ documents once deleted are never shown. This request:
 
 [source,js]
 --------------------------------------------------
-POST music/_search?pretty
+GET music/_search?pretty
 {
     "suggest": {
         "song-suggest" : {

@@ -21,7 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.transport.TcpChannelUtils;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -98,7 +98,7 @@ public class OpenChannels implements Releasable {
     }
 
     public void closeServerChannels() {
-        TcpChannelUtils.closeChannels(new ArrayList<>(openServerChannels.keySet()), true);
+        TcpChannel.closeChannels(new ArrayList<>(openServerChannels.keySet()), true);
 
         openServerChannels.clear();
     }
@@ -106,7 +106,7 @@ public class OpenChannels implements Releasable {
     @Override
     public void close() {
         Stream<NioChannel> channels = Stream.concat(openClientChannels.keySet().stream(), openAcceptedChannels.keySet().stream());
-        TcpChannelUtils.closeChannels(channels.collect(Collectors.toList()), true);
+        TcpChannel.closeChannels(channels.collect(Collectors.toList()), true);
 
         openClientChannels.clear();
         openAcceptedChannels.clear();

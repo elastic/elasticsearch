@@ -93,7 +93,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      * If the channel is already set to closed, it is assumed that it is already scheduled to be closed.
      */
     @Override
-    public void closeAsync() {
+    public void close() {
         if (isClosing.compareAndSet(false, true)) {
             selector.queueChannelClose(this);
         }

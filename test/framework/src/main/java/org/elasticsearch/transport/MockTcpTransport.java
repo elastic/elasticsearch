@@ -345,8 +345,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             });
         }
 
-        @Override
-        public synchronized void close() throws IOException {
+        public synchronized void close0() throws IOException {
             // establish a happens-before edge between closing and accepting a new connection
             // we have to sync this entire block to ensure that our openChannels checks work correctly.
             // The close block below will close all worker channels but if one of the worker channels runs into an exception
@@ -375,9 +374,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
 
         @Override
-        public void closeAsync() {
+        public void close() {
             try {
-                close();
+                close0();
                 closeFuture.onResponse(this);
             } catch (IOException e) {
                 closeFuture.onFailure(e);

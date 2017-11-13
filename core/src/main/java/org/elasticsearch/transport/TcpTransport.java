@@ -106,7 +106,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableMap;
@@ -456,7 +455,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
                     }
 
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
-                    TcpChannelUtils.closeChannels(channels, block);
+                    TcpChannel.closeChannels(channels, block);
                 } finally {
                     transportService.onConnectionClosed(this);
                 }
@@ -589,8 +588,8 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
         try {
             ensureOpen();
             try {
-                Exception connectionException = null;
                 int numConnections = connectionProfile.getNumConnections();
+                assert numConnections > 0 : "A connection profile must be configured with at least one connection";
                 List<Channel> channels = new ArrayList<>(numConnections);
                 List<ActionFuture<Channel>> connectionFutures = new ArrayList<>(numConnections);
                 for (int i = 0; i < numConnections; ++i) {
@@ -600,47 +599,36 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
                         Channel channel = initiateChannel(node, connectionProfile.getConnectTimeout(), connectFuture);
                         channels.add(channel);
                     } catch (Exception e) {
-                        connectionException = e;
-                        break;
+                        // If there was an exception when attempting to instantiate the raw channels, we close all of the channels
+                        TcpChannel.closeChannels(channels, false);
+                        throw e;
                     }
                 }
 
-                // If there was an exception when attempting to instantiate the raw channels, we close all of the channels
-                if (connectionException != null) {
-                    TcpChannelUtils.closeChannels(channels, false);
-                    throw connectionException;
-                }
-
                 // If we make it past the block above, we successfully instantiated all of the channels
-
                 try {
-                    TcpChannelUtils.finishConnection(node, connectionFutures, connectionProfile.getConnectTimeout());
+                    TcpChannel.awaitConnected(node, connectionFutures, connectionProfile.getConnectTimeout());
                 } catch (Exception ex) {
-                    TcpChannelUtils.closeChannels(channels, false);
+                    TcpChannel.closeChannels(channels, false);
                     throw ex;
                 }
 
                 // If we make it past the block above, we have successfully established connections for all of the channels
-
                 final Channel handshakeChannel = channels.get(0); // one channel is guaranteed by the connection profile
-
                 handshakeChannel.addCloseListener(ActionListener.wrap(() -> cancelHandshakeForChannel(handshakeChannel)));
-
                 Version version;
                 try {
                     version = executeHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout());
                 } catch (Exception ex) {
-                    TcpChannelUtils.closeChannels(channels, false);
+                    TcpChannel.closeChannels(channels, false);
                     throw ex;
                 }
 
                 // If we make it past the block above, we have successfully completed the handshake and the connection is now open.
                 // At this point we should construct the connection, notify the transport service, and attach close listeners to the
                 // underlying channels.
-
                 nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
                 transportService.onConnectionOpened(nodeChannels);
-
                 final NodeChannels finalNodeChannels = nodeChannels;
                 final AtomicBoolean runOnce = new AtomicBoolean(false);
                 Consumer<Channel> onClose = c -> {
@@ -690,13 +678,6 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
                 }
             }
         }
-    }
-
-    /**
-     * Disconnects from a node if a channel is found as part of that nodes channels.
-     */
-    protected final void closeChannelWhileHandlingExceptions(final Channel channel) {
-        TcpChannelUtils.closeChannel(channel, false);
     }
 
     @Override
@@ -953,12 +934,17 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             try {
                 // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
-                    TcpChannelUtils.closeServerChannels(entry.getKey(), entry.getValue(), logger);
+                    String profile = entry.getKey();
+                    List<Channel> channels = entry.getValue();
+                    ActionListener<TcpChannel> closeFailLogger = ActionListener.wrap(c -> {},
+                        e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e));
+                    channels.forEach(c -> c.addCloseListener(closeFailLogger));
+                    TcpChannel.closeChannels(channels, true);
                 }
                 serverChannels.clear();
 
-                // close all of the incoming channels
-                TcpChannelUtils.closeChannels(new ArrayList<>(acceptedChannels), true);
+                // close all of the incoming channels. The closeChannels method takes a list so we must convert the set.
+                TcpChannel.closeChannels(new ArrayList<>(acceptedChannels), true);
                 acceptedChannels.clear();
 
 
@@ -992,7 +978,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
     protected void onException(Channel channel, Exception e) {
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
-            TcpChannelUtils.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel, false);
             return;
         }
 
@@ -1003,15 +989,15 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
                     channel),
                 e);
             // close the channel, which will cause a node to be disconnected if relevant
-            TcpChannelUtils.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel, false);
         } else if (isConnectException(e)) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            TcpChannelUtils.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel, false);
         } else if (e instanceof BindException) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            TcpChannelUtils.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel, false);
         } else if (e instanceof CancelledKeyException) {
             logger.trace(
                 (Supplier<?>) () -> new ParameterizedMessage(
@@ -1019,7 +1005,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
                     channel),
                 e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
-            TcpChannelUtils.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel, false);
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
@@ -1027,13 +1013,13 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
                 final SendMetricListener<Channel> closeChannel = new SendMetricListener<Channel>(message.length()) {
                     @Override
                     protected void innerInnerOnResponse(Channel channel) {
-                        TcpChannelUtils.closeChannel(channel, false);
+                        TcpChannel.closeChannel(channel, false);
                     }
 
                     @Override
                     protected void innerOnFailure(Exception e) {
                         logger.debug("failed to send message to httpOnTransport channel", e);
-                        TcpChannelUtils.closeChannel(channel, false);
+                        TcpChannel.closeChannel(channel, false);
                     }
                 };
                 internalSendMessage(channel, message, closeChannel);
@@ -1042,14 +1028,14 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             logger.warn(
                 (Supplier<?>) () -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
-            TcpChannelUtils.closeChannel(channel, false);
+            TcpChannel.closeChannel(channel, false);
         }
     }
 
     protected void serverAcceptedChannel(Channel channel) {
-        if (acceptedChannels.add(channel)) {
-            channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
-        }
+        boolean addedOnThisCall = acceptedChannels.add(channel);
+        assert addedOnThisCall : "Channel should only be added to accept channel set once";
+        channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
     }
 
     /**

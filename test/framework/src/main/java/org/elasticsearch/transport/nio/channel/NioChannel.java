@@ -36,7 +36,7 @@ public interface NioChannel extends TcpChannel {
 
     String getProfile();
 
-    void closeAsync();
+    void close();
 
     void closeFromSelector() throws IOException;
 

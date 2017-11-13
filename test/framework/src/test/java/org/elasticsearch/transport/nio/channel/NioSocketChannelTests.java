@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpChannelUtils;
 import org.elasticsearch.transport.nio.OpenChannels;
 import org.elasticsearch.transport.nio.SocketEventHandler;
 import org.elasticsearch.transport.nio.SocketSelector;
@@ -85,7 +84,7 @@ public class NioSocketChannelTests extends ESTestCase {
         assertFalse(closedRawChannel.get());
         assertTrue(openChannels.getClientChannels().containsKey(socketChannel));
 
-        TcpChannelUtils.closeChannel(socketChannel, true);
+        TcpChannel.closeChannel(socketChannel, true);
 
         assertTrue(closedRawChannel.get());
         assertFalse(socketChannel.isOpen());

@@ -52,7 +52,7 @@ public class NettyTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void closeAsync() {
+    public void close() {
         channel.close();
     }
 

@@ -18,7 +18,7 @@
  */
 
 esplugin {
-  description ''
+  description 'A multi-bucket aggregation that can paginate buckets from different sources efficiently.'
   classname 'org.elasticsearch.search.aggregations.composite.CompositeAggregationPlugin'
   hasClientJar = true
 }

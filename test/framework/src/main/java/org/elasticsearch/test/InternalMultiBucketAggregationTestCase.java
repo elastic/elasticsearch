@@ -141,9 +141,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                         break;
                     }
                 }
-                if (!found) {
-                    assertTrue("Failed to find bucket with key [" + expectedBucket.getKey() + "]", found);
-                }
+                assertTrue("Failed to find bucket with key [" + expectedBucket.getKey() + "]", found);
             }
         }
     }

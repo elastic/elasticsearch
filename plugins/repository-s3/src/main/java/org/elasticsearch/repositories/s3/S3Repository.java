@@ -22,24 +22,21 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
-import org.elasticsearch.repositories.s3.AwsS3Service.CLOUD_S3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.AffixSetting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.s3.AwsS3Service.CLOUD_S3;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -60,6 +57,28 @@ import java.util.Locale;
 class S3Repository extends BlobStoreRepository {
 
     public static final String TYPE = "s3";
+
+    /**
+     * Maximum size of files that can be uploaded using a single upload request.
+     */
+    static final ByteSizeValue MAX_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
+
+    /**
+     * Minimum size of parts that can be uploaded using the Multipart Upload API.
+     * (see http://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html)
+     */
+    static final ByteSizeValue MIN_PART_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.MB);
+
+    /**
+     * Maximum size of parts that can be uploaded using the Multipart Upload API.
+     * (see http://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html)
+     */
+    static final ByteSizeValue MAX_PART_SIZE_USING_MULTIPART = MAX_FILE_SIZE;
+
+    /**
+     * Maximum size of files that can be uploaded using the Multipart Upload API.
+     */
+    static final ByteSizeValue MAX_FILE_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.TB);
 
     /**
      * Global S3 repositories settings. Starting with: repositories.s3
@@ -130,7 +149,7 @@ class S3Repository extends BlobStoreRepository {
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
             Setting.byteSizeSetting("repositories.s3.buffer_size", DEFAULT_BUFFER_SIZE,
-                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope, Property.Deprecated);
+                MIN_PART_SIZE_USING_MULTIPART, MAX_PART_SIZE_USING_MULTIPART, Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.max_retries: Number of retries in case of S3 errors. Defaults to 3.
          */
@@ -218,7 +237,7 @@ class S3Repository extends BlobStoreRepository {
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
             Setting.byteSizeSetting("buffer_size", Repositories.DEFAULT_BUFFER_SIZE,
-                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
+                MIN_PART_SIZE_USING_MULTIPART, MAX_PART_SIZE_USING_MULTIPART);
         /**
          * max_retries
          * @see  Repositories#MAX_RETRIES_SETTING

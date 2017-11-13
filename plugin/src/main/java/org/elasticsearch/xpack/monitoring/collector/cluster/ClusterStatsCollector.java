@@ -10,13 +10,17 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
@@ -29,6 +33,7 @@ import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.XPackSettings.SECURITY_ENABLED;
 import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
@@ -50,6 +55,7 @@ public class ClusterStatsCollector extends Collector {
      */
     public static final Setting<TimeValue> CLUSTER_STATS_TIMEOUT = collectionTimeoutSetting("cluster.stats.timeout");
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final LicenseService licenseService;
     private final Client client;
 
@@ -58,9 +64,20 @@ public class ClusterStatsCollector extends Collector {
                                  final XPackLicenseState licenseState,
                                  final Client client,
                                  final LicenseService licenseService) {
+        this(settings, clusterService, licenseState, client, licenseService, new IndexNameExpressionResolver(Settings.EMPTY));
+    }
+
+    ClusterStatsCollector(final Settings settings,
+                          final ClusterService clusterService,
+                          final XPackLicenseState licenseState,
+                          final Client client,
+                          final LicenseService licenseService,
+                          final IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);
+
         this.client = client;
         this.licenseService = licenseService;
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
     }
 
     @Override
@@ -82,7 +99,8 @@ public class ClusterStatsCollector extends Collector {
         final String version = Version.CURRENT.toString();
         final ClusterState clusterState = clusterService.state();
         final License license = licenseService.getLicense();
-        final List<XPackFeatureSet.Usage> usage = collect(usageSupplier);
+        final List<XPackFeatureSet.Usage> xpackUsage = collect(usageSupplier);
+        final boolean apmIndicesExist = doAPMIndicesExist(clusterState);
         // if they have any other type of license, then they are either okay or already know
         final boolean clusterNeedsTLSEnabled = license.operationMode() == License.OperationMode.TRIAL &&
                                                SECURITY_ENABLED.get(settings) &&
@@ -91,7 +109,18 @@ public class ClusterStatsCollector extends Collector {
         // Adds a cluster stats document
         return Collections.singleton(
                 new ClusterStatsMonitoringDoc(clusterUUID(), timestamp(), interval, node, clusterName, version,  clusterStats.getStatus(),
-                        license, usage, clusterStats, clusterState, clusterNeedsTLSEnabled));
+                                              license, apmIndicesExist, xpackUsage, clusterStats, clusterState, clusterNeedsTLSEnabled));
+    }
+
+    boolean doAPMIndicesExist(final ClusterState clusterState) {
+        try {
+            final Index[] indices =
+                indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*");
+
+            return indices.length > 0;
+        } catch (IndexNotFoundException | IllegalArgumentException e) {
+            return false;
+        }
     }
 
     @Nullable

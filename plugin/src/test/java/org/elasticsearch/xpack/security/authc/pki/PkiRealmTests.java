@@ -275,7 +275,7 @@ public class PkiRealmTests extends ESTestCase {
         List<Setting<?>> settingList = new ArrayList<>();
         RealmSettings.addSettings(settingList, Collections.emptyList());
         ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(settingList));
-        clusterSettings.validate(settings);
+        clusterSettings.validate(settings, false);
 
         assertSettingDeprecationsAndWarnings(new Setting[] { SSLConfigurationSettings.withoutPrefix().legacyTruststorePassword });
     }

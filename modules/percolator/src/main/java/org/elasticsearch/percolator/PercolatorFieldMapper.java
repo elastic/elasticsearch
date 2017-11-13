@@ -260,10 +260,11 @@ public class PercolatorFieldMapper extends FieldMapper {
             candidateQuery.add(new TermQuery(new Term(extractionResultField.name(), EXTRACTION_FAILED)), BooleanClause.Occur.SHOULD);
 
             Query verifiedMatchesQuery;
-            // We can only skip the MemoryIndex verification when percolating a single document.
-            // When the document being percolated contains a nested object field then the MemoryIndex contains multiple
-            // documents. In this case the term query that indicates whether memory index verification can be skipped
-            // can incorrectly indicate that non nested queries would match, while their nested variants would not.
+            // We can only skip the MemoryIndex verification when percolating a single non nested document. We cannot
+            // skip MemoryIndex verification when percolating multiple documents, because when terms and
+            // ranges are extracted from IndexReader backed by a RamDirectory holding multiple documents we do
+            // not know to which document the terms belong too and for certain queries we incorrectly emit candidate
+            // matches as actual match.
             if (t.v2() && indexReader.maxDoc() == 1) {
                 verifiedMatchesQuery = new TermQuery(new Term(extractionResultField.name(), EXTRACTION_COMPLETE));
             } else {

@@ -41,7 +41,7 @@ Images are available for running Elasticsearch as Docker containers. They may be
 downloaded from the Elastic Docker Registry. The default image ships with
 {xpack-ref}/index.html[X-Pack] pre-installed.
 +
-<<docker>>
+{ref}/docker.html[Install {es} with Docker]
 
 [float]
 [[config-mgmt-tools]]
@@ -66,4 +66,9 @@ include::install/rpm.asciidoc[]
 
 include::install/windows.asciidoc[]
 
-include::install/docker.asciidoc[]
+ifdef::include-xpack[]
+:edit_url!:
+include::{xes-repo-dir}/setup/docker.asciidoc[]
+
+:edit_url:
+endif::include-xpack[]

@@ -193,6 +193,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
                 .get();
+        logger.info("response={}", response);
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
         assertThat(response.getHits().getAt(1).getId(), equalTo("1"));
@@ -847,36 +848,6 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         assertThat(item.getResponse(), nullValue());
         assertThat(item.getFailureMessage(), notNullValue());
         assertThat(item.getFailureMessage(), containsString("[test/type/6] couldn't be found"));
-    }
-
-    public void testBoostFields() throws Exception {
-        XContentBuilder mappingSource = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties")
-            .startObject("status").field("type", "keyword").endObject()
-            .startObject("price").field("type", "long").endObject()
-            .startObject("query").field("type", "percolator")
-                .startObject("boost_fields").field("status", 0.0F).endObject()
-            .endObject()
-            .endObject().endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", mappingSource));
-
-        client().prepareIndex("test", "type", "q1")
-            .setSource(jsonBuilder().startObject().field("query", boolQuery()
-                .must(matchQuery("status", "sold"))
-                .must(matchQuery("price", 100))
-            ).endObject())
-            .get();
-        refresh();
-
-        SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query",
-                XContentFactory.jsonBuilder().startObject()
-                    .field("status", "sold")
-                    .field("price", 100)
-                    .endObject().bytes(), XContentType.JSON))
-            .get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("q1"));
     }
 
 }

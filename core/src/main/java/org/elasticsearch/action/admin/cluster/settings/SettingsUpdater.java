@@ -54,15 +54,23 @@ final class SettingsUpdater {
         transientSettings.put(currentState.metaData().transientSettings());
         changed |= clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
 
+
         Settings.Builder persistentSettings = Settings.builder();
         persistentSettings.put(currentState.metaData().persistentSettings());
         changed |= clusterSettings.updateDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
 
         final ClusterState clusterState;
         if (changed) {
+            Settings transientFinalSettings = transientSettings.build();
+            Settings persistentFinalSettings = persistentSettings.build();
+            // both transient and persistent settings must be consistent by itself we can't allow dependencies to be
+            // in either of them otherwise a full cluster restart will break the settings validation
+            clusterSettings.validate(transientFinalSettings, true);
+            clusterSettings.validate(persistentFinalSettings, true);
+
             MetaData.Builder metaData = MetaData.builder(currentState.metaData())
-                    .persistentSettings(persistentSettings.build())
-                    .transientSettings(transientSettings.build());
+                    .persistentSettings(persistentFinalSettings)
+                    .transientSettings(transientFinalSettings);
 
             ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             boolean updatedReadOnly = MetaData.SETTING_READ_ONLY_SETTING.get(metaData.persistentSettings())

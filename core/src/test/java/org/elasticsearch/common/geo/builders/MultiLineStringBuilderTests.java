@@ -68,6 +68,6 @@ public class MultiLineStringBuilderTests extends AbstractShapeBuilderTestCase<Mu
     }
 
     static MultiLineStringBuilder createRandomShape() {
-        return new MultiLineStringBuilder();
+        return MultiLineStringBuilder.class.cast(RandomShapeGenerator.createShape(random(), ShapeType.MULTILINESTRING));
     }
 }

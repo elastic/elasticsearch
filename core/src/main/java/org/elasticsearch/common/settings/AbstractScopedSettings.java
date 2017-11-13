@@ -264,20 +264,16 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Validates that all settings in the builder are registered and valid
+     * Validates that all given settings are registered and valid
+     * @param settings the settings to validate
+     * @param validateDependencies if <code>true</code> settings dependencies are validated as well.
+     * @see Setting#getSettingsDependencies(String)
      */
-    public final void validate(Settings.Builder settingsBuilder) {
-        validate(settingsBuilder.build());
-    }
-
-    /**
-     * * Validates that all given settings are registered and valid
-     */
-    public final void validate(Settings settings) {
+    public final void validate(Settings settings, boolean validateDependencies) {
         List<RuntimeException> exceptions = new ArrayList<>();
         for (String key : settings.keySet()) { // settings iterate in deterministic fashion
             try {
-                validate(key, settings);
+                validate(key, settings, validateDependencies);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -285,12 +281,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-
     /**
      * Validates that the setting is valid
      */
-    public final void validate(String key, Settings settings) {
-        Setting setting = get(key);
+    void validate(String key, Settings settings, boolean validateDependencies) {
+        Setting setting = getRaw(key);
         if (setting == null) {
             LevensteinDistance ld = new LevensteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
@@ -315,6 +310,20 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                     "settings";
             }
             throw new IllegalArgumentException(msg);
+        } else  {
+            Set<String> settingsDependencies = setting.getSettingsDependencies(key);
+            if (setting.hasComplexMatcher()) {
+                setting = setting.getConcreteSetting(key);
+            }
+            if (validateDependencies && settingsDependencies.isEmpty() == false) {
+                Set<String> settingKeys = settings.keySet();
+                for (String requiredSetting : settingsDependencies) {
+                    if (settingKeys.contains(requiredSetting) == false) {
+                        throw new IllegalArgumentException("Missing required setting ["
+                            + requiredSetting + "] for setting [" + setting.getKey() + "]");
+                    }
+                }
+            }
         }
         setting.get(settings);
     }
@@ -375,7 +384,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Returns the {@link Setting} for the given key or <code>null</code> if the setting can not be found.
      */
-    public Setting<?> get(String key) {
+    public final Setting<?> get(String key) {
+        Setting<?> raw = getRaw(key);
+        if (raw == null) {
+            return null;
+        } if (raw.hasComplexMatcher()) {
+            return raw.getConcreteSetting(key);
+        } else {
+            return raw;
+        }
+    }
+
+    private Setting<?> getRaw(String key) {
         Setting<?> setting = keySettings.get(key);
         if (setting != null) {
             return setting;
@@ -383,7 +403,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
             if (entry.getValue().match(key)) {
                 assert assertMatcher(key, 1);
-                return entry.getValue().getConcreteSetting(key);
+                assert entry.getValue().hasComplexMatcher();
+                return entry.getValue();
             }
         }
         return null;
@@ -513,7 +534,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else if (get(key) == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
             } else if (isNull == false && canUpdate.test(key)) {
-                validate(key, toApply);
+                validate(key, toApply, false); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
                 changed = true;
@@ -654,7 +675,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * representation. Otherwise <code>false</code>
      */
     // TODO this should be replaced by Setting.Property.HIDDEN or something like this.
-    protected boolean isPrivateSetting(String key) {
+    public boolean isPrivateSetting(String key) {
         return false;
     }
 }

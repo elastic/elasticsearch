@@ -170,8 +170,7 @@ docker-compose up -d
 --
 ["source","sh"]
 ----
-curl --cacert certs/ca/ca.crt -u elastic:PleaseChangeMe
-https://localhost:9200
+curl --cacert certs/ca/ca.crt -u elastic:PleaseChangeMe https://localhost:9200
 ----
 // NOTCONSOLE
 --
@@ -181,10 +180,6 @@ all users:
 --
 ["source","sh"]
 ----
-docker exec es01 /bin/bash -c "bin/x-pack/setup-passwords auto --batch
--Expack.ssl.certificate=x-pack/certificates/es01/es01.crt
--Expack.ssl.certificate_authorities=x-pack/certificates/ca/ca.crt
--Expack.ssl.key=x-pack/certificates/es01/es01.key
---url https://localhost:9200"
+docker exec es01 /bin/bash -c "bin/x-pack/setup-passwords auto --batch -Expack.ssl.certificate=x-pack/certificates/es01/es01.crt -Expack.ssl.certificate_authorities=x-pack/certificates/ca/ca.crt -Expack.ssl.key=x-pack/certificates/es01/es01.key --url https://localhost:9200"
 ----
 --

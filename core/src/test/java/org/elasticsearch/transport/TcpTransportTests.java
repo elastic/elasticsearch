@@ -250,14 +250,14 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    private static final class FakeChannel implements TcpChannel<FakeChannel> {
+    private static final class FakeChannel implements TcpChannel {
 
         @Override
         public void closeAsync() {
         }
 
         @Override
-        public void addCloseListener(ActionListener<FakeChannel> listener) {
+        public void addCloseListener(ActionListener<TcpChannel> listener) {
         }
 
         @Override

@@ -85,6 +85,17 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     public static class DummySettingPlugin extends Plugin {
         public static final Setting<String> DUMMY_SETTING = Setting.simpleString("index.dummy",
             Setting.Property.IndexScope, Setting.Property.Dynamic);
+
+        public static final Setting.AffixSetting<String> DUMMY_ACCOUNT_USER = Setting.affixKeySetting("index.acc.", "user",
+            k -> Setting.simpleString(k, Setting.Property.IndexScope, Setting.Property.Dynamic));
+        public static final Setting<String> DUMMY_ACCOUNT_PW = Setting.affixKeySetting("index.acc.", "pw",
+            k -> Setting.simpleString(k, Setting.Property.IndexScope, Setting.Property.Dynamic), DUMMY_ACCOUNT_USER);
+
+        public static final Setting.AffixSetting<String> DUMMY_ACCOUNT_USER_CLUSTER = Setting.affixKeySetting("cluster.acc.", "user",
+            k -> Setting.simpleString(k, Setting.Property.NodeScope, Setting.Property.Dynamic));
+        public static final Setting<String> DUMMY_ACCOUNT_PW_CLUSTER = Setting.affixKeySetting("cluster.acc.", "pw",
+            k -> Setting.simpleString(k, Setting.Property.NodeScope, Setting.Property.Dynamic), DUMMY_ACCOUNT_USER_CLUSTER);
+
         @Override
         public void onIndexModule(IndexModule indexModule) {
             indexModule.addSettingsUpdateConsumer(DUMMY_SETTING, (s) -> {}, (s) -> {
@@ -95,7 +106,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Collections.singletonList(DUMMY_SETTING);
+            return Arrays.asList(DUMMY_SETTING, DUMMY_ACCOUNT_PW, DUMMY_ACCOUNT_USER,
+                DUMMY_ACCOUNT_PW_CLUSTER, DUMMY_ACCOUNT_USER_CLUSTER);
         }
     }
 
@@ -109,6 +121,124 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         @Override
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(FINAL_SETTING);
+        }
+    }
+
+    public void testUpdateDependentClusterSettings() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+                .put("cluster.acc.test.pw", "asdf")).get());
+        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+
+        iae = expectThrows(IllegalArgumentException.class, () ->
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put("cluster.acc.test.pw", "asdf")).get());
+        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+
+        iae = expectThrows(IllegalArgumentException.class, () ->
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put("cluster.acc.test.pw", "asdf")).setPersistentSettings(Settings.builder()
+            .put("cluster.acc.test.user", "asdf")).get());
+        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+
+        if (randomBoolean()) {
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put("cluster.acc.test.pw", "asdf")
+                .put("cluster.acc.test.user", "asdf")).get();
+            iae = expectThrows(IllegalArgumentException.class, () ->
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                    .putNull("cluster.acc.test.user")).get());
+            assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .putNull("cluster.acc.test.pw")
+                .putNull("cluster.acc.test.user")).get();
+        } else {
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+                .put("cluster.acc.test.pw", "asdf")
+                .put("cluster.acc.test.user", "asdf")).get();
+
+            iae = expectThrows(IllegalArgumentException.class, () ->
+                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+                    .putNull("cluster.acc.test.user")).get());
+            assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+                .putNull("cluster.acc.test.pw")
+                .putNull("cluster.acc.test.user")).get();
+        }
+
+    }
+
+    public void testUpdateDependentIndexSettings() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+            prepareCreate("test",  Settings.builder().put("index.acc.test.pw", "asdf")).get());
+        assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+
+        createIndex("test");
+        for (int i = 0; i < 2; i++) {
+            if (i == 1) {
+                // now do it on a closed index
+                client().admin().indices().prepareClose("test").get();
+            }
+
+            iae = expectThrows(IllegalArgumentException.class, () ->
+                client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(
+                        Settings.builder()
+                            .put("index.acc.test.pw", "asdf"))
+                    .execute()
+                    .actionGet());
+            assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+
+            // user has no dependency
+            client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.acc.test.user", "asdf"))
+                .execute()
+                .actionGet();
+
+            // now we are consistent
+            client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.acc.test.pw", "test"))
+                .execute()
+                .actionGet();
+
+            // now try to remove it and make sure it fails
+            iae = expectThrows(IllegalArgumentException.class, () ->
+                client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(
+                        Settings.builder()
+                            .putNull("index.acc.test.user"))
+                    .execute()
+                    .actionGet());
+            assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+
+            // now we are consistent
+            client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(
+                    Settings.builder()
+                        .putNull("index.acc.test.pw")
+                        .putNull("index.acc.test.user"))
+                .execute()
+                .actionGet();
         }
     }
 

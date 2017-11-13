@@ -87,11 +87,12 @@ public class SplitIndexIT extends ESIntegTestCase {
         final boolean useRouting =  randomBoolean();
         final boolean useMixedRouting = useRouting ? randomBoolean() : false;
         CreateIndexRequestBuilder createInitialIndex = prepareCreate("source");
+        final int routingShards = shardSplits[2] * randomIntBetween(1, 10);
         Settings.Builder settings = Settings.builder().put(indexSettings())
             .put("number_of_shards", shardSplits[0])
-            .put("index.number_of_routing_shards",  shardSplits[2] * randomIntBetween(1, 10));
+            .put("index.number_of_routing_shards", routingShards);
         if (useRouting && useMixedRouting == false && randomBoolean()) {
-            settings.put("index.routing_partition_size", randomIntBetween(1, 10));
+            settings.put("index.routing_partition_size", randomIntBetween(1, routingShards - 1));
             createInitialIndex.addMapping("t1", "_routing", "required=true");
         }
         logger.info("use routing {} use mixed routing {}", useRouting, useMixedRouting);

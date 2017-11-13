@@ -199,28 +199,28 @@ final class Security {
             try {
                 // set codebase properties
                 for (URL url : codebases) {
-                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    if (shortName.endsWith(".jar") == false) {
+                    String fileName = PathUtils.get(url.toURI()).getFileName().toString();
+                    if (fileName.endsWith(".jar") == false) {
                         continue; // tests :(
                     }
-                    String property = "codebase." + shortName;
-                    if (shortName.startsWith("elasticsearch-rest-client")) {
-                        // The rest client is currently the only example where we have an elasticsearch built artifact
-                        // which needs special permissions in policy files when used. This temporary solution is to
-                        // pass in an extra system property that omits the -version.jar suffix the other properties have.
-                        // That allows the snapshots to reference snapshot builds of the client, and release builds to
-                        // referenced release builds of the client, all with the same grant statements.
-                        final String esVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
-                        final int index = property.indexOf("-" + esVersion + ".jar");
-                        assert index >= 0;
-                        String restClientAlias = property.substring(0, index);
-                        propertiesSet.add(restClientAlias);
-                        System.setProperty(restClientAlias, url.toString());
+                    // We attempt to use a versionless identifier for each codebase. This assumes a specific version
+                    // format in the jar filename. While we cannot ensure all jars in all plugins use this format, nonconformity
+                    // only means policy grants would need to include the entire jar filename as they always have before.
+                    String property = "codebase." + fileName;
+                    String aliasProperty = "codebase." + fileName.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+                    if (aliasProperty.equals(property) == false) {
+                        propertiesSet.add(aliasProperty);
+                        String previous = System.setProperty(aliasProperty, url.toString());
+                        if (previous != null) {
+                            throw new IllegalStateException("codebase property already set: " + aliasProperty + " -> " + previous +
+                                                            ", cannot set to " + url.toString());
+                        }
                     }
                     propertiesSet.add(property);
                     String previous = System.setProperty(property, url.toString());
                     if (previous != null) {
-                        throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
+                        throw new IllegalStateException("codebase property already set: " + property + " -> " + previous +
+                                                        ", cannot set to " + url.toString());
                     }
                 }
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));

@@ -169,6 +169,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             validationException =
                 addValidationError("using [from] is not allowed in a scroll context", validationException);
         }
+        if (requestCache != null && requestCache && scroll() != null) {
+            validationException =
+                addValidationError("[request_cache] cannot be used in a a scroll context", validationException);
+        }
         return validationException;
     }
 

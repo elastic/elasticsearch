@@ -101,11 +101,6 @@ public final class IndexModule {
     public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING =
         Setting.boolSetting("index.queries.cache.everything", false, Property.IndexScope);
 
-    // This setting is an escape hatch in case not caching term queries would slow some users down
-    // Do not document.
-    public static final Setting<Boolean> INDEX_QUERY_CACHE_TERM_QUERIES_SETTING =
-        Setting.boolSetting("index.queries.cache.term_queries", false, Property.IndexScope);
-
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     // pkg private so tests can mock

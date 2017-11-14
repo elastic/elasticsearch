@@ -70,7 +70,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put(DateProcessor.TYPE, new DateProcessor.Factory());
+        processors.put(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService));
         processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService));
         processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService));
         processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory());

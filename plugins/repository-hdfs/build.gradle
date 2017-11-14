@@ -106,7 +106,7 @@ List<String> principals = [ "elasticsearch", "hdfs/hdfs.build.elastic.co" ]
 String realm = "BUILD.ELASTIC.CO"
 
 for (String principal : principals) {
-  Task create = project.tasks.create("addPrincipal#${principal}", org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
+  Task create = project.tasks.create("addPrincipal#${principal}".replace('/', '_'), org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
     command 'ssh'
     args '--command', "sudo bash /vagrant/src/main/resources/provision/addprinc.sh $principal"
     boxName box

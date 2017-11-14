@@ -62,14 +62,6 @@ import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackUsageAction;
-import org.elasticsearch.xpack.watcher.common.http.HttpClient;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.HttpSettings;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthFactory;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.deprecation.Deprecation;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
@@ -81,19 +73,14 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningFeatureSet;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringFeatureSet;
-import org.elasticsearch.xpack.watcher.notification.email.Account;
-import org.elasticsearch.xpack.watcher.notification.email.EmailService;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachmentParser;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser;
-import org.elasticsearch.xpack.watcher.notification.email.support.BodyPartSource;
-import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
-import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
-import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
-import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
+import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
+import org.elasticsearch.xpack.persistent.PersistentTasksClusterService;
+import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
+import org.elasticsearch.xpack.persistent.PersistentTasksExecutorRegistry;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
+import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
+import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -107,6 +94,27 @@ import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.upgrade.Upgrade;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
+import org.elasticsearch.xpack.watcher.common.http.HttpClient;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.http.HttpSettings;
+import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthFactory;
+import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.email.Account;
+import org.elasticsearch.xpack.watcher.notification.email.EmailService;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.support.BodyPartSource;
+import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
+import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 
 import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
@@ -316,13 +324,23 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.addAll(watcher.createComponents(getClock(), scriptService, internalClient, licenseState,
                 httpClient, httpTemplateParser, threadPool, clusterService, cryptoService, xContentRegistry, components));
 
+        PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, internalClient);
 
-        components.addAll(machineLearning.createComponents(internalClient, clusterService, threadPool, xContentRegistry));
+        components.addAll(machineLearning.createComponents(internalClient, clusterService, threadPool, xContentRegistry,
+                persistentTasksService));
+        List<PersistentTasksExecutor<?>> tasksExecutors = new ArrayList<>();
+        tasksExecutors.addAll(machineLearning.createPersistentTasksExecutors(clusterService));
 
         components.addAll(logstash.createComponents(internalClient, clusterService));
 
         components.addAll(upgrade.createComponents(client, clusterService, threadPool, resourceWatcherService,
                 scriptService, xContentRegistry));
+
+        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(settings, tasksExecutors);
+        PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(settings, registry, clusterService);
+        components.add(persistentTasksClusterService);
+        components.add(persistentTasksService);
+        components.add(registry);
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);
@@ -443,6 +461,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, TransportXPackUsageAction.class));
+        actions.add(new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class));
+        actions.add(new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class));
+        actions.add(new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class));
+        actions.add(new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class));
         actions.addAll(licensing.getActions());
         actions.addAll(monitoring.getActions());
         actions.addAll(security.getActions());

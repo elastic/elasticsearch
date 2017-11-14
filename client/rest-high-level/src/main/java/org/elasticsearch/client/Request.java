@@ -69,6 +69,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
 
+import static java.util.Collections.emptyMap;
+
 public final class Request {
 
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
@@ -138,7 +140,7 @@ public final class Request {
     }
 
     static Request info() {
-        return new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
+        return new Request(HttpGet.METHOD_NAME, "/", emptyMap(), null);
     }
 
     static Request bulk(BulkRequest bulkRequest) throws IOException {
@@ -308,7 +310,7 @@ public final class Request {
     }
 
     static Request ping() {
-        return new Request(HttpHead.METHOD_NAME, "/", Collections.emptyMap(), null);
+        return new Request(HttpHead.METHOD_NAME, "/", emptyMap(), null);
     }
 
     static Request update(UpdateRequest updateRequest) throws IOException {
@@ -375,12 +377,12 @@ public final class Request {
 
     static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
         HttpEntity entity = createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("GET", "/_search/scroll", Collections.emptyMap(), entity);
+        return new Request("GET", "/_search/scroll", emptyMap(), entity);
     }
 
     static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
         HttpEntity entity = createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
+        return new Request("DELETE", "/_search/scroll", emptyMap(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -416,8 +418,10 @@ public final class Request {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
-    static Request indicesExist(IndicesExistsRequest req) {
-        return null;
+    static Request indicesExist(IndicesExistsRequest request) {
+        String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
+
+        return new Request(HttpHead.METHOD_NAME, endpoint, emptyMap(), null);
     }
 
     /**

@@ -26,6 +26,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -171,6 +172,24 @@ public class RequestTests extends ESTestCase {
 
     public void testExists() {
         getAndExistsTest(Request::exists, "HEAD");
+    }
+
+    public void testIndicesExist_OneIndex() {
+        final String indexName = randomAlphaOfLength(10);
+        IndicesExistsRequest indicesExistRequest = new IndicesExistsRequest(indexName);
+        final Request request = Request.indicesExist(indicesExistRequest);
+        assertEquals("/" + indexName, request.getEndpoint());
+        assertEquals("HEAD", request.getMethod());
+    }
+
+    public void testIndicesExist_OneIndexExists_OneDoesnt() {
+        final String index1 = randomAlphaOfLength(10);
+        final String index2 = randomAlphaOfLength(10);
+
+        IndicesExistsRequest indicesExistRequest = new IndicesExistsRequest(index1, index2);
+        final Request request = Request.indicesExist(indicesExistRequest);
+        assertEquals("/" + index1 + "," + index2, request.getEndpoint());
+        assertEquals("HEAD", request.getMethod());
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {

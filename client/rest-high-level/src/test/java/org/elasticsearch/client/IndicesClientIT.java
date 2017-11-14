@@ -32,7 +32,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
     public void testIndexExists_IndexPresent() throws IOException {
         // Delete index if exists
-        String indexName = "testIndexExists_IndexPresent";
+        String indexName = "test_index_exists_index_present";
         createIndex(indexName);
 
         IndicesExistsRequest request = new IndicesExistsRequest(indexName);
@@ -45,11 +45,24 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testIndexExists_IndexNotPresent() throws IOException {
-        // Delete index if exists
         String indexName = "non_existent_index";
-        createIndex(indexName);
 
         IndicesExistsRequest request = new IndicesExistsRequest(indexName);
+        IndicesExistsResponse response = execute(
+            request,
+            highLevelClient().indices()::exists,
+            highLevelClient().indices()::existsAsync
+        );
+        assertFalse(response.isExists());
+    }
+
+    public void testIndexExists_OneIndexPresent_OneIsnt() throws IOException {
+        String existingIndex = "test_index_exists_index_present";
+        createIndex(existingIndex);
+
+        String nonExistentIndex = "non_existent_index";
+
+        IndicesExistsRequest request = new IndicesExistsRequest(existingIndex, nonExistentIndex);
         IndicesExistsResponse response = execute(
             request,
             highLevelClient().indices()::exists,

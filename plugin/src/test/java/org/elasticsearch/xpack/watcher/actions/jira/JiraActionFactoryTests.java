@@ -10,14 +10,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.notification.jira.JiraAccount;
-import org.elasticsearch.xpack.notification.jira.JiraService;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
+import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
 import org.junit.Before;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.notification.jira.JiraAccountTests.randomIssueDefaults;
+import static org.elasticsearch.xpack.watcher.notification.jira.JiraAccountTests.randomIssueDefaults;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.jiraAction;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

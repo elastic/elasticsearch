@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.common.xcontent.XContentUtils;
+import org.elasticsearch.xpack.security.common.xcontent.XContentUtils;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.support.Validation;
 

@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.support.clock.ClockMock;
+import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;

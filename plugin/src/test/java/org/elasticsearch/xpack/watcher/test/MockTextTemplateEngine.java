@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.watcher.test;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
 import java.util.Map;
 

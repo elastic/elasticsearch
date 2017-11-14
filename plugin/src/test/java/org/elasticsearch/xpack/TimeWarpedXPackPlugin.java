@@ -7,7 +7,7 @@ package org.elasticsearch.xpack;
 
 import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.support.clock.ClockMock;
+import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.test.TimeWarpedWatcher;
 
 import javax.security.auth.DestroyFailedException;

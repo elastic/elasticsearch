@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.support.clock.ClockMock;
+import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;

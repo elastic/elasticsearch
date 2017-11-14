@@ -12,14 +12,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.common.http.Scheme;
-import org.elasticsearch.xpack.notification.email.DataAttachment;
-import org.elasticsearch.xpack.notification.email.EmailTemplate;
-import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentParser;
-import org.elasticsearch.xpack.notification.email.attachment.EmailAttachments;
-import org.elasticsearch.xpack.notification.email.attachment.HttpRequestAttachment;
-import org.elasticsearch.xpack.notification.email.support.EmailServer;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.http.Scheme;
+import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachment;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachments;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpRequestAttachment;
+import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
@@ -43,8 +43,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.xpack.notification.email.DataAttachment.JSON;
-import static org.elasticsearch.xpack.notification.email.DataAttachment.YAML;
+import static org.elasticsearch.xpack.watcher.notification.email.DataAttachment.JSON;
+import static org.elasticsearch.xpack.watcher.notification.email.DataAttachment.YAML;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
@@ -132,7 +132,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testThatEmailAttachmentsAreSent() throws Exception {
-        DataAttachment dataFormat = randomFrom(JSON, YAML);
+        org.elasticsearch.xpack.watcher.notification.email.DataAttachment dataFormat = randomFrom(JSON, YAML);
         final CountDownLatch latch = new CountDownLatch(1);
         server.addListener(message -> {
             assertThat(message.getSubject(), equalTo("Subject"));
@@ -155,8 +155,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
 
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
 
-        org.elasticsearch.xpack.notification.email.attachment.DataAttachment dataAttachment =
-                org.elasticsearch.xpack.notification.email.attachment.DataAttachment.builder("my-id").dataAttachment(dataFormat).build();
+        DataAttachment dataAttachment = DataAttachment.builder("my-id").dataAttachment(dataFormat).build();
         attachments.add(dataAttachment);
 
         HttpRequestTemplate requestTemplate = HttpRequestTemplate.builder("localhost", webServer.getPort())

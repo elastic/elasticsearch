@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.watcher.actions.email;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
-import org.elasticsearch.xpack.notification.email.EmailService;
-import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
-import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
+import org.elasticsearch.xpack.watcher.notification.email.EmailService;
+import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
 
 import java.io.IOException;
 

@@ -10,9 +10,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.common.http.HttpContentType;
-import org.elasticsearch.xpack.common.http.HttpRequest;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.http.HttpContentType;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 

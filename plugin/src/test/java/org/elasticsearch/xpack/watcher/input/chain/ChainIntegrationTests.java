@@ -13,8 +13,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 

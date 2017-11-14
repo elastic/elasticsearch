@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.common.xcontent.XContentUtils;
+import org.elasticsearch.xpack.watcher.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.List;

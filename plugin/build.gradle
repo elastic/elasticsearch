@@ -30,7 +30,6 @@ dependencyLicenses {
   mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
   mapping from: /transport-netty.*/, to: 'elasticsearch'
-  mapping from: /tribe.*/, to: 'elasticsearch'
   mapping from: /elasticsearch-rest-client.*/, to: 'elasticsearch'
   mapping from: /server.*/, to: 'elasticsearch'
   mapping from: /jdbc-proto.*/, to: 'elasticsearch'

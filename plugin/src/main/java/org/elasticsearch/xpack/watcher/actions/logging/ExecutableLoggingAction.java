@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.logging;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;

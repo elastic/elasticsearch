@@ -30,7 +30,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.support.clock.ClockMock;
+import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.Configuration;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.ShardAllocationConfiguration;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;

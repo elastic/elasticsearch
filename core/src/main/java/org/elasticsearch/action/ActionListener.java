@@ -79,17 +79,7 @@ public interface ActionListener<Response> {
      * @return a listener that listens for responses and invokes the runnable when received
      */
     static <Response> ActionListener<Response> wrap(Runnable runnable) {
-        return new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                runnable.run();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                runnable.run();
-            }
-        };
+        return wrap(r -> runnable.run(), e -> runnable.run());
     }
 
     /**
@@ -101,14 +91,16 @@ public interface ActionListener<Response> {
      * @return a bi consumer that will complete the wrapped listener
      */
     static <Response> BiConsumer<Response, Throwable> toBiConsumer(ActionListener<Response> listener) {
-        return (tcpChannel, throwable) -> {
+        return (response, throwable) -> {
             if (throwable == null) {
-                listener.onResponse(tcpChannel);
+                listener.onResponse(response);
             } else {
                 if (throwable instanceof Exception) {
                     listener.onFailure((Exception) throwable);
+                } else if (throwable instanceof Error) {
+                    throw (Error) throwable;
                 } else {
-                    listener.onFailure(new Exception(throwable));
+                    throw new AssertionError("Should have been either Error or Exception", throwable);
                 }
             }
         };

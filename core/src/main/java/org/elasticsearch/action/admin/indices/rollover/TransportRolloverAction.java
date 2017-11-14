@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -195,7 +196,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     static Set<Condition.Result> evaluateConditions(final Set<Condition> conditions,
                                                     final DocsStats docsStats, final IndexMetaData metaData) {
         final long numDocs = docsStats == null ? 0 : docsStats.getCount();
-        final Condition.Stats stats = new Condition.Stats(numDocs, metaData.getCreationDate());
+        final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
+        final Condition.Stats stats = new Condition.Stats(numDocs, metaData.getCreationDate(), new ByteSizeValue(indexSize));
         return conditions.stream()
             .map(condition -> condition.evaluate(stats))
             .collect(Collectors.toSet());

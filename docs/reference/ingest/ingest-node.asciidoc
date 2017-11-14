@@ -563,6 +563,20 @@ to set the index that the document will be indexed into:
 --------------------------------------------------
 // NOTCONSOLE
 
+Dynamic field names are also supported. This example sets the field named after the 
+value of `service` to the value of the field `code`:
+
+[source,js]
+--------------------------------------------------
+{
+  "set": {
+    "field": "{{service}}"
+    "value": "{{code}}"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 [[handling-failure-in-pipelines]]
 == Handling Failures in Pipelines
 
@@ -831,6 +845,30 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
         "target_field" : "timestamp",
         "formats" : ["dd/MM/yyyy hh:mm:ss"],
         "timezone" : "Europe/Amsterdam"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The `timezone` and `locale` processor parameters are templated. This means that their values can be
+extracted from fields within documents. The example below shows how to extract the locale/timezone
+details from existing fields, `my_timezone` and `my_locale`, in the ingested document that contain
+the timezone and locale values.
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "date" : {
+        "field" : "initial_date",
+        "target_field" : "timestamp",
+        "formats" : ["ISO8601"],
+        "timezone" : "{{ my_timezone }}",
+        "locale" : "{{ my_locale }}"
       }
     }
   ]
@@ -1541,6 +1579,8 @@ Converts a JSON string into a structured JSON object.
 | `target_field` | no        | `field`  | The field to insert the converted structured object into
 | `add_to_root`  | no        | false    | Flag that forces the serialized json to be injected into the top level of the document. `target_field` must not be set when this option is chosen.
 |======
+
+All JSON-supported types will be parsed (null, boolean, number, array, object, string).
 
 Suppose you provide this configuration of the `json` processor:
 

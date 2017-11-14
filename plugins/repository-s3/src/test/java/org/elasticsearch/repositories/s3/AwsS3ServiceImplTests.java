@@ -95,8 +95,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(Settings.EMPTY, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3, false,
-            ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
+        launchAWSConfigurationTest(Settings.EMPTY, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3,
+            ClientConfiguration.DEFAULT_THROTTLE_RETRIES, ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
     }
 
     public void testAWSConfigurationWithAwsSettings() {
@@ -111,7 +111,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put("s3.client.default.read_timeout", "10s")
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
-            "aws_proxy_password", 3, false, 10000);
+            "aws_proxy_password", 3, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 10000);
     }
 
     public void testRepositoryMaxRetries() {
@@ -119,15 +119,14 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put("s3.client.default.max_retries", 5)
             .build();
         launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
-            null, 5, false, 50000);
+            null, 5, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 50000);
     }
 
     public void testRepositoryThrottleRetries() {
-        Settings settings = Settings.builder()
-            .put("s3.client.default.use_throttle_retries", true)
-            .build();
-        launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null,
-            null, 3, true, 50000);
+        final boolean throttling = randomBoolean();
+
+        Settings settings = Settings.builder().put("s3.client.default.use_throttle_retries", throttling).build();
+        launchAWSConfigurationTest(settings, Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3, throttling, 50000);
     }
 
     private void launchAWSConfigurationTest(Settings settings,

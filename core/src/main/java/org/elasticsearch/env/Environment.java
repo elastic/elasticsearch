@@ -85,10 +85,6 @@ public class Environment {
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
 
-    public Environment(Settings settings) {
-        this(settings, null);
-    }
-
     public Environment(final Settings settings, final Path configPath) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {

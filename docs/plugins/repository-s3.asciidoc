@@ -111,7 +111,7 @@ are marked as `Secure`.
 
 `use_throttle_retries`::
 
-    Whether retries should be throttled (ie use backoff). Must be `true` or `false`. Defaults to `false`.
+    Whether retries should be throttled (ie use backoff). Must be `true` or `false`. Defaults to `true`.
 
 [[repository-s3-repository]]
 ==== Repository Settings
@@ -175,9 +175,10 @@ The following settings are supported:
     http://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS Multipart Upload API]
     to split the chunk into several parts, each of `buffer_size` length, and
     to upload each part in its own request. Note that setting a buffer
-    size lower than `5mb` is not allowed since it will prevents the use of the
-    Multipart API and may result in upload errors. Defaults to the minimum
-    between `100mb` and `5%` of the heap size.
+    size lower than `5mb` is not allowed since it will prevent the use of the
+    Multipart API and may result in upload errors. It is also not possible to
+    set a buffer size greater than `5gb` as it is the maximum upload size
+    allowed by S3. Defaults to the minimum between `100mb` and `5%` of the heap size.
 
 `canned_acl`::
 

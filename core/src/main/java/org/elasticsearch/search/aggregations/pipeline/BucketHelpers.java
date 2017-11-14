@@ -49,7 +49,7 @@ public class BucketHelpers {
      * function.
      *
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
-     * "ignore": empty buckets will simply be ignored
+     * "skip": empty buckets will simply be ignored
      */
     public enum GapPolicy {
         INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");

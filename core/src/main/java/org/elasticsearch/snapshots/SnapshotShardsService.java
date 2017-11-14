@@ -135,22 +135,23 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             clusterService.addListener(this);
         }
 
+        // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
+        this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(settings, UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
+
         if (DiscoveryNode.isMasterNode(settings)) {
             // This needs to run only on nodes that can become masters
             transportService.registerRequestHandler(UPDATE_SNAPSHOT_STATUS_ACTION_NAME_V6, UpdateSnapshotStatusRequestV6::new, ThreadPool.Names.SAME, new UpdateSnapshotStateRequestHandlerV6());
-            // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
-            this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(settings, UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
-                transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
         }
 
     }
 
     @Override
     protected void doStart() {
+        assert this.updateSnapshotStatusHandler != null;
+        assert transportService.getRequestHandler(UPDATE_SNAPSHOT_STATUS_ACTION_NAME) != null;
         if (DiscoveryNode.isMasterNode(settings)) {
-            assert this.updateSnapshotStatusHandler != null;
             assert transportService.getRequestHandler(UPDATE_SNAPSHOT_STATUS_ACTION_NAME_V6) != null;
-            assert transportService.getRequestHandler(UPDATE_SNAPSHOT_STATUS_ACTION_NAME) != null;
         }
     }
 
@@ -530,7 +531,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         try {
             if (master.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 UpdateIndexShardSnapshotStatusRequest request = new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status);
-                transportService.sendRequest(master, UPDATE_SNAPSHOT_STATUS_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+                transportService.sendRequest(transportService.getLocalNode(), UPDATE_SNAPSHOT_STATUS_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
             } else {
                 UpdateSnapshotStatusRequestV6 requestV6 = new UpdateSnapshotStatusRequestV6(snapshot, shardId, status);
                 transportService.sendRequest(master, UPDATE_SNAPSHOT_STATUS_ACTION_NAME_V6, requestV6, EmptyTransportResponseHandler.INSTANCE_SAME);

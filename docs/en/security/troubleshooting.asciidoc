@@ -29,7 +29,7 @@ realm will not be operational until the upgrade API is run on the security index
 
 *Resolution:*
 
-You must manually upgrade the `.security` index to the 6.x format. For
+You must upgrade the `.security` index to the 6.x format. For
 instructions, see 
 {stack-ref}/upgrading-elastic-stack.html#upgrade-internal-indices[Upgrading
 internal indices].

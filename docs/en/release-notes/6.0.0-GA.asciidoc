@@ -114,9 +114,6 @@ Machine Learning::
 ////
 
 Security::
-//* Remove the xpack plugin's dependency on the tribe module
-//OMIT: Too low-level?
-// https://github.com/elastic/x-pack-elasticsearch/pull/2901[#2901] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2656[#2656])
 * Prevented 6.0 nodes from joining clusters with un-upgraded version 5
 `.security` indices. For upgrade instructions, see
 {stack-ref}/upgrading-elastic-stack.html[Upgrading the Elastic Stack].
@@ -128,16 +125,7 @@ For more information, see
 * Updated the concrete security index such that it is now always named
 `.security-6`. In 6.0 beta and RC releases, it was sometimes named `.security-v6`.
 // https://github.com/elastic/x-pack-elasticsearch/pull/2905[#2905]
-//* Certificate verification through comparing pseudo hostnames to reloadable trust source [ISSUE]
-//OMIT: Too low-level?
-// https://github.com/elastic/x-pack-elasticsearch/pull/1167[#1167]
-//* Fix ASN.1 encoding of "cn" OtherName in CertGen
-//OMIT: Too low-level?
-// https://github.com/elastic/x-pack-elasticsearch/pull/2858[#2858] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2845[#2845])
 * Fixed handling of exceptions when retrieving roles from a native roles store.
 For more information about configuring a native realm, see
 {xpack-ref}/native-realm.html[Native User Authentication].
-// https://github.com/elastic/x-pack-elasticsearch/pull/2857[#2857] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2686[
-//* Improved auditing such that it automatically restarts its failed services. Also increased the default queue size to accommodate high traffic clusters.Retry startup for IndexAuditTrail and version templates
-//OMIT: Already in 5.6.4
-// https://github.com/elastic/x-pack-elasticsearch/pull/2755[#2755] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2658[#2658])
+// https://github.com/elastic/x-pack-elasticsearch/pull/2857[#2857] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2686)

@@ -48,7 +48,7 @@ public class NettyTcpChannel implements TcpChannel {
         });
     }
 
-    Channel getLowLevelChannel() {
+    public Channel getLowLevelChannel() {
         return channel;
     }
 

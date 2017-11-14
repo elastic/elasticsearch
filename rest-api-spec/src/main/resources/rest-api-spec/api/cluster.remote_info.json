@@ -1,5 +1,5 @@
 {
-  "remote.info": {
+  "cluster.remote_info": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-remote-info.html",
     "methods": ["GET"],
     "url": {

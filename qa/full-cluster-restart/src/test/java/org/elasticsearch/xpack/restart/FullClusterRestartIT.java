@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -432,7 +433,21 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
             final Map<String, Object> hit = (Map<String, Object>) ((List<Object>) hits.get("hits")).get(0);
             final Map<String, Object> source = (Map<String, Object>) hit.get("_source");
-            assertThat(source.get("version"), is(expectedVersion));
+
+            // 5.5+ shares the same index semantics as 6.0+, and we can verify the version in the cluster_stats
+            if (Version.fromString(expectedVersion).onOrAfter(Version.V_5_5_0)) {
+                assertThat(source.get("version"), is(expectedVersion));
+            }
+
+            // 5.0 - 5.4 do not have the "version" field in the same index (it's in the .monitoring-data-2 index)
+            // 5.0+ have cluster_stats: { versions: [ "1.2.3" ] }
+            // This allows us to verify that it properly recorded the document in 5.0 and we can detect it moving forward
+            final Map<String, Object> clusterStats = (Map<String, Object>) source.get("cluster_stats");
+            final Map<String, Object> nodes = (Map<String, Object>) clusterStats.get("nodes");
+            final List<String> versions = (List<String>) nodes.get("versions");
+
+            assertThat(versions, hasSize(1));
+            assertThat(versions.get(0), is(expectedVersion));
         }, 30, TimeUnit.SECONDS);
     }
 

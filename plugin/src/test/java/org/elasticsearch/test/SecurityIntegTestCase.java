@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -452,13 +451,13 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     public void assertSecurityIndexActive() throws Exception {
-        assertSecurityIndexActive(internalCluster());
+        assertSecurityIndexActive(cluster());
     }
 
-    public void assertSecurityIndexActive(InternalTestCluster internalTestCluster) throws Exception {
-        for (ClusterService clusterService : internalTestCluster.getInstances(ClusterService.class)) {
+    public void assertSecurityIndexActive(TestCluster testCluster) throws Exception {
+        for (Client client : testCluster.getClients()) {
             assertBusy(() -> {
-                ClusterState clusterState = clusterService.state();
+                ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 assertTrue(securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
@@ -473,9 +472,13 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     public void assertSecurityIndexWriteable() throws Exception {
-        for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
+        assertSecurityIndexWriteable(cluster());
+    }
+
+    public void assertSecurityIndexWriteable(TestCluster testCluster) throws Exception {
+        for (Client client : testCluster.getClients()) {
             assertBusy(() -> {
-                ClusterState clusterState = clusterService.state();
+                ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 assertTrue(securityIndexMappingAndTemplateUpToDate(clusterState, logger));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());

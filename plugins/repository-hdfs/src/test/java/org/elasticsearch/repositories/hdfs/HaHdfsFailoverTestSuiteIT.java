@@ -128,7 +128,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
                 "}",
                 Charset.defaultCharset()), contentHeader);
 
-            Assert.assertEquals(200,response.getStatusLine().getStatusCode());
+            Assert.assertEquals(200, response.getStatusLine().getStatusCode());
         }
 
         // Get repository

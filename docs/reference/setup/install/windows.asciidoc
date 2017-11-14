@@ -67,17 +67,28 @@ name, node name and roles to be set, in addition to memory and network settings:
 [[msi-installer-configuration]]
 image::images/msi_installer/msi_installer_configuration.png[]
 
-Finally, the installer provides a list of common plugins that can be downloaded and installed as
-part of the installation:
+A list of common plugins that can be downloaded and installed as
+part of the installation, with the option to configure a HTTPS proxy through which to download:
 
 [[msi-installer-selected-plugins]]
 image::images/msi_installer/msi_installer_selected_plugins.png[]
 
-NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the 
+Upon choosing to install X-Pack plugin, an additional step allows a choice of the type of X-Pack 
+license to install, in addition to X-Pack Security configuration and built-in user configuration:
+
+[[msi-installer-xpack]]
+image::images/msi_installer/msi_installer_xpack.png[]
+
+NOTE: X-Pack includes a choice of a Trial or Basic license for 30 days. After that, you can obtain one of the 
 https://www.elastic.co/subscriptions[available subscriptions] or {ref}/security-settings.html[disable Security]. 
 The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
 
-After clicking the install button, Elasticsearch will be installed: 
+After clicking the install button, the installer will begin installation:
+
+[[msi-installer-installing]]
+image::images/msi_installer/msi_installer_installing.png[]
+
+and will indicate when it has been successfully installed:
 
 [[msi-installer-success]]
 image::images/msi_installer/msi_installer_success.png[]
@@ -213,8 +224,8 @@ as _properties_ within Windows Installer documentation) that can be passed to ms
 `SELECTEDMEMORY`:: 
 
   The amount of memory to allocate to the JVM heap for Elasticsearch. 
-  Defaults to `2048`. If the target machine has less than 4GB in total, defaults
-  to 50% of total memory.
+  Defaults to `2048` unless the target machine has less than 4GB in total, in which case 
+  it defaults to 50% of total memory.
 
 `LOCKMEMORY`:: 
 
@@ -267,7 +278,7 @@ as _properties_ within Windows Installer documentation) that can be passed to ms
 
 `XPACKLICENSE`::
 
-  When installing X-Pack plugin, the type of _temporary_ license to install,
+  When installing X-Pack plugin, the type of license to install,
   either `Basic` or `Trial`. Defaults to `Basic`
 
 `XPACKSECURITYENABLED`::
@@ -390,7 +401,7 @@ Get-Service Elasticsearch | Stop-Service | Start-Service
 
 Changes can be made to jvm.options and elasticsearch.yml configuration files to configure the 
 service after installation. Most changes (like JVM settings) will require a restart of the 
-service in order to take affect.
+service in order to take effect.
 
 [[upgrade-msi-gui]]
 ==== Upgrade using the graphical user interface (GUI)
@@ -430,7 +441,7 @@ For example, if you originally installed with the command line options `PLUGINS=
 `LOCKMEMORY="true"`, then you must pass these same values when performing an
 upgrade from the command line.
 
-The **exception** is `INSTALLDIR` (if originally specified), which must be a different directory to the 
+The **exception** to this is `INSTALLDIR` (if originally specified), which must be a different directory to the 
 current installation. 
 If setting `INSTALLDIR`, we recommend that the final directory in the path be the version of Elasticsearch e.g.
 ++C:\Program Files\Elastic\Elasticsearch\{version}++
@@ -457,8 +468,8 @@ start /wait msiexec.exe /i elasticsearch-{version}.msi /qn /l upgrade.log
 
 The `.msi` package handles uninstallation of all directories and files added as part of installation.
 
-WARNING: Uninstallation will remove all directories and their contents created as part of 
-installation, including data within the data directory. If you wish to retain your data upon
+WARNING: Uninstallation will remove **all** directories and their contents created as part of 
+installation, **including data within the data directory**. If you wish to retain your data upon
 uninstallation, it is recommended that you make a copy of the data directory before uninstallation.
 
 MSI installer packages do not provide a GUI for uninstallation. An installed program can be uninstalled

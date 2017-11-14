@@ -337,14 +337,14 @@ setup:
   - length: { hits.hits: 4 }
   - match:
       aggregations.percentiles_int.values:
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
+        "5.0": 8.500000000000002
+        "25.0": 38.5
+        "50.0": 76.0
   - match:
       aggregations.percentiles_double.values:
-        5.0: 8.500000000000002
-        25.0: 38.5
-        50.0: 76.0
+        "5.0": 8.500000000000002
+        "25.0": 38.5
+        "50.0": 76.0
 
 ---
 "Non-keyed test":
@@ -370,6 +370,3 @@ setup:
           value: 38.5
         - key: 50.0
           value: 76.0
-
-
-

@@ -47,16 +47,21 @@ public final class KeepUntilGlobalCheckpointDeletionPolicy extends IndexDeletion
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+        final int keptIndex = indexOfKeptCommits(commits);
+        for (int i = 0; i < keptIndex; i++) {
+            commits.get(i).delete();
+        }
+    }
+
+    // commits are sorted by age (the 0th one is the oldest commit).
+    private int indexOfKeptCommits(List<? extends IndexCommit> commits) throws IOException {
         final long globalCheckpoint = globalCheckpointSupplier.getAsLong();
         for (int i = commits.size() - 1; i >= 0; i--) {
             if (localCheckpoint(commits.get(i)) <= globalCheckpoint) {
-                i--; // This is the youngest commit whose local checkpoint <= global checkpoint - reserve it, then delete all previous ones.
-                for (; i >= 0; i--) {
-                    commits.get(i).delete();
-                }
-                break;
+                return i;
             }
         }
+        return -1;
     }
 
     private static long localCheckpoint(IndexCommit commit) throws IOException {

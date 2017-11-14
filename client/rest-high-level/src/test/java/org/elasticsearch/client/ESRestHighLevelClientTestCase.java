@@ -72,7 +72,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     @FunctionalInterface
     protected interface AsyncMethod<Request, Response> {
-        void execute(Request request, ActionListener<Response> listener, Header... headers) throws IOException;
+        void execute(Request request, ActionListener<Response> listener, Header... headers);
     }
 
     private static class HighLevelClient extends RestHighLevelClient {

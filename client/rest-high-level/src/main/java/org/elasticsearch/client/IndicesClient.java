@@ -78,7 +78,7 @@ public final class IndicesClient {
         return new IndicesExistsResponse(response.getStatusLine().getStatusCode() == 200);
     }
 
-    public void existsAsync(IndicesExistsRequest indicesExistsRequest, ActionListener<IndicesExistsResponse> listener, Header... headers) throws IOException {
+    public void existsAsync(IndicesExistsRequest indicesExistsRequest, ActionListener<IndicesExistsResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsync(
             indicesExistsRequest,
             Request::indicesExist,

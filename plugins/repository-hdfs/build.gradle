@@ -195,7 +195,8 @@ if (fixtureSupported) {
   // just tests that the plugin loads
   integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
 }
-integTestRunner.exclude('**/Ha*TestSuiteIT.class') // Ignore HA integration tests.
+// Ignore HA integration tests, they are included below as part of integTestHa task.
+integTestRunner.exclude('**/Ha*TestSuiteIT.class')
 
 // Create a Integration Test suite just for HA based tests
 // The following closure must execute before the afterEvaluate block from integTestHa:
@@ -258,7 +259,8 @@ if (secureFixtureSupported) {
   // Fixture dependencies
   integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
   integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
-  integTestSecureRunner.exclude('**/Ha*TestSuiteIT.class') // Ignore HA integration Tests
+  // Ignore HA integration Tests. They are included below as part of integTestSecureHa task
+  integTestSecureRunner.exclude('**/Ha*TestSuiteIT.class')
 } else {
   integTestSecure.enabled = false
 }

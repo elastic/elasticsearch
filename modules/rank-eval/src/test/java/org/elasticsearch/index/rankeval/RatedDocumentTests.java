@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -27,15 +28,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
+
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class RatedDocumentTests extends ESTestCase {
 
     public static RatedDocument createRatedDocument() {
-        String index = randomAlphaOfLength(10);
-        String docId = randomAlphaOfLength(10);
-        int rating = randomInt();
-
-        return new RatedDocument(index, docId, rating);
+        return new RatedDocument(randomAlphaOfLength(10), randomAlphaOfLength(10), randomInt());
     }
 
     public void testXContentParsing() throws IOException {
@@ -52,22 +52,17 @@ public class RatedDocumentTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RatedDocument original = createRatedDocument();
-        RatedDocument deserialized = RankEvalTestHelper.copy(original, RatedDocument::new);
+        RatedDocument deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
+                RatedDocument::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
     public void testEqualsAndHash() throws IOException {
-        RatedDocument testItem = createRatedDocument();
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem), RankEvalTestHelper.copy(testItem, RatedDocument::new));
-    }
-
-    public void testInvalidParsing() {
-        expectThrows(IllegalArgumentException.class, () -> new RatedDocument(null, "abc", 10));
-        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("", "abc", 10));
-        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "", 10));
-        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", null, 10));
+        checkEqualsAndHashCode(createRatedDocument(), original -> {
+            return new RatedDocument(original.getIndex(), original.getDocID(), original.getRating());
+        }, RatedDocumentTests::mutateTestItem);
     }
 
     private static RatedDocument mutateTestItem(RatedDocument original) {

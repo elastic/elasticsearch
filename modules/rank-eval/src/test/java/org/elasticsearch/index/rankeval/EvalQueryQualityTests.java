@@ -20,22 +20,24 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+
 public class EvalQueryQualityTests extends ESTestCase {
 
-    private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(
-            new RankEvalPlugin().getNamedWriteables());
+    private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(new RankEvalPlugin().getNamedWriteables());
 
     public static EvalQueryQuality randomEvalQueryQuality() {
         List<DocumentKey> unknownDocs = new ArrayList<>();
         int numberOfUnknownDocs = randomInt(5);
         for (int i = 0; i < numberOfUnknownDocs; i++) {
-            unknownDocs.add(DocumentKeyTests.createRandomRatedDocumentKey());
+            unknownDocs.add(new DocumentKey(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
         int numberOfSearchHits = randomInt(5);
         List<RatedSearchHit> ratedHits = new ArrayList<>();
@@ -54,17 +56,18 @@ public class EvalQueryQualityTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         EvalQueryQuality original = randomEvalQueryQuality();
-        EvalQueryQuality deserialized = RankEvalTestHelper.copy(original, EvalQueryQuality::new,
-                namedWritableRegistry);
+        EvalQueryQuality deserialized = copy(original);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
+    private static EvalQueryQuality copy(EvalQueryQuality original) throws IOException {
+        return ESTestCase.copyWriteable(original, namedWritableRegistry, EvalQueryQuality::new);
+    }
+
     public void testEqualsAndHash() throws IOException {
-        EvalQueryQuality testItem = randomEvalQueryQuality();
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
-                RankEvalTestHelper.copy(testItem, EvalQueryQuality::new, namedWritableRegistry));
+        checkEqualsAndHashCode(randomEvalQueryQuality(), EvalQueryQualityTests::copy, EvalQueryQualityTests::mutateTestItem);
     }
 
     private static EvalQueryQuality mutateTestItem(EvalQueryQuality original) {

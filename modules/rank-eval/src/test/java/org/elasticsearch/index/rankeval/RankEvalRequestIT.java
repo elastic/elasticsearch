@@ -22,7 +22,6 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.rankeval.PrecisionTests.Rating;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,7 +34,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
+import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
 
 public class RankEvalRequestIT extends ESIntegTestCase {
     @Override
@@ -82,8 +81,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         specifications.add(berlinRequest);
 
-        PrecisionAtK metric = new PrecisionAtK();
-        metric.setIgnoreUnlabeled(true);
+        PrecisionAtK metric = new PrecisionAtK(1, true);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
@@ -106,7 +104,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                     if (id.equals("1") || id.equals("6")) {
                         assertFalse(hit.getRating().isPresent());
                     } else {
-                        assertEquals(Rating.RELEVANT.ordinal(), hit.getRating().get().intValue());
+                        assertEquals(TestRatingEnum.RELEVANT.ordinal(), hit.getRating().get().intValue());
                     }
                 }
             }
@@ -117,7 +115,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                 for (RatedSearchHit hit : hitsAndRatings) {
                     String id = hit.getSearchHit().getId();
                     if (id.equals("1")) {
-                        assertEquals(Rating.RELEVANT.ordinal(), hit.getRating().get().intValue());
+                        assertEquals(TestRatingEnum.RELEVANT.ordinal(), hit.getRating().get().intValue());
                     } else {
                         assertFalse(hit.getRating().isPresent());
                     }
@@ -167,7 +165,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
     private static List<RatedDocument> createRelevant(String... docs) {
         List<RatedDocument> relevant = new ArrayList<>();
         for (String doc : docs) {
-            relevant.add(new RatedDocument("test", doc, Rating.RELEVANT.ordinal()));
+            relevant.add(new RatedDocument("test", doc, TestRatingEnum.RELEVANT.ordinal()));
         }
         return relevant;
     }

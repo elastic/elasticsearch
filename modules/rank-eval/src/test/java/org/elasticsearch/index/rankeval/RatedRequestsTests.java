@@ -47,6 +47,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class RatedRequestsTests extends ESTestCase {
 
@@ -140,16 +141,17 @@ public class RatedRequestsTests extends ESTestCase {
         for (int i = 0; i < size; i++) {
             indices.add(randomAlphaOfLengthBetween(0, 50));
         }
-
         RatedRequest original = createTestItem(indices, randomBoolean());
-
-        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
-
-        RatedRequest deserialized = RankEvalTestHelper.copy(original, RatedRequest::new, new NamedWriteableRegistry(namedWriteables));
+        RatedRequest deserialized = copy(original);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
+    }
+
+    private static RatedRequest copy(RatedRequest original) throws IOException {
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
+        return ESTestCase.copyWriteable(original, new NamedWriteableRegistry(namedWriteables), RatedRequest::new);
     }
 
     public void testEqualsAndHash() throws IOException {
@@ -158,14 +160,7 @@ public class RatedRequestsTests extends ESTestCase {
         for (int i = 0; i < size; i++) {
             indices.add(randomAlphaOfLengthBetween(0, 50));
         }
-
-        RatedRequest testItem = createTestItem(indices, randomBoolean());
-
-        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
-
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
-                RankEvalTestHelper.copy(testItem, RatedRequest::new, new NamedWriteableRegistry(namedWriteables)));
+        checkEqualsAndHashCode(createTestItem(indices, randomBoolean()), RatedRequestsTests::copy, RatedRequestsTests::mutateTestItem);
     }
 
     private static RatedRequest mutateTestItem(RatedRequest original) {
@@ -220,8 +215,7 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testDuplicateRatedDocThrowsException() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "id1"), 1),
-                new RatedDocument(new DocumentKey("index1", "id1"), 5));
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1), new RatedDocument("index1", "id1", 5));
 
         // search request set, no summary fields
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
@@ -237,45 +231,45 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testNullSummaryFieldsTreatment() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "id1"), 1));
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         RatedRequest request = new RatedRequest("id", ratedDocs, new SearchSourceBuilder());
         expectThrows(IllegalArgumentException.class, () -> request.setSummaryFields(null));
     }
 
     public void testNullParamsTreatment() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "id1"), 1));
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         RatedRequest request = new RatedRequest("id", ratedDocs, new SearchSourceBuilder(), null, null);
         assertNotNull(request.getParams());
     }
 
     public void testSettingParamsAndRequestThrows() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "id1"), 1));
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
         expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder(), params, null));
     }
 
     public void testSettingNeitherParamsNorRequestThrows() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "id1"), 1));
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, null));
         expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, new HashMap<>(), "templateId"));
     }
 
     public void testSettingParamsWithoutTemplateIdThrows() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "id1"), 1));
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
         expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, params, null));
     }
 
     public void testSettingTemplateIdAndRequestThrows() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "id1"), 1));
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         expectThrows(IllegalArgumentException.class,
                 () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder(), null, "templateId"));
     }
 
     public void testSettingTemplateIdNoParamsThrows() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "id1"), 1));
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, null, "templateId"));
     }
 

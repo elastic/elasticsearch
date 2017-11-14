@@ -56,24 +56,19 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
     }
 
     /**
-     * Returns parsers for {@link NamedWriteable} this plugin will use over the
-     * transport protocol.
-     *
+     * Returns parsers for {@link NamedWriteable} objects that this plugin sends over the transport protocol.
      * @see NamedWriteableRegistry
      */
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class,
-                PrecisionAtK.NAME, PrecisionAtK::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class,
-                MeanReciprocalRank.NAME, MeanReciprocalRank::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class,
-                DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(MetricDetails.class, PrecisionAtK.NAME,
-                PrecisionAtK.Breakdown::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(MetricDetails.class,
-                MeanReciprocalRank.NAME, MeanReciprocalRank.Breakdown::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, PrecisionAtK.NAME, PrecisionAtK::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, MeanReciprocalRank.NAME, MeanReciprocalRank::new));
+        namedWriteables.add(
+                new NamedWriteableRegistry.Entry(EvaluationMetric.class, DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(MetricDetails.class, PrecisionAtK.NAME, PrecisionAtK.Breakdown::new));
+        namedWriteables
+                .add(new NamedWriteableRegistry.Entry(MetricDetails.class, MeanReciprocalRank.NAME, MeanReciprocalRank.Breakdown::new));
         return namedWriteables;
     }
 }

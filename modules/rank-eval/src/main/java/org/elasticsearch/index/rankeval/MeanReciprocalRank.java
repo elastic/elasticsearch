@@ -22,7 +22,7 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
@@ -34,47 +34,43 @@ import java.util.Optional;
 
 import javax.naming.directory.SearchResult;
 
-import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
 /**
- * Evaluate mean reciprocal rank. By default documents with a rating equal or bigger
- * than 1 are considered to be "relevant" for the reciprocal rank calculation.
- * This value can be changes using the "relevant_rating_threshold" parameter.
+ * Evaluates using mean reciprocal rank. By default documents with a rating
+ * equal or bigger than 1 are considered to be "relevant" for the reciprocal
+ * rank calculation. This value can be changes using the
+ * "relevant_rating_threshold" parameter.
  */
-public class MeanReciprocalRank implements RankedListQualityMetric {
+public class MeanReciprocalRank implements EvaluationMetric {
+
+    private static final int DEFAULT_RATING_THRESHOLD = 1;
 
     public static final String NAME = "mean_reciprocal_rank";
 
     /** ratings equal or above this value will be considered relevant. */
-    private int relevantRatingThreshhold = 1;
+    private final int relevantRatingThreshhold;
 
-    /**
-     * Initializes maxAcceptableRank with 10
-     */
     public MeanReciprocalRank() {
-        // use defaults
+        this(DEFAULT_RATING_THRESHOLD);
     }
 
     public MeanReciprocalRank(StreamInput in) throws IOException {
         this.relevantRatingThreshhold = in.readVInt();
     }
 
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
-    /**
-     * Sets the rating threshold above which ratings are considered to be
-     * "relevant" for this metric.
-     */
-    public void setRelevantRatingThreshhold(int threshold) {
+    public MeanReciprocalRank(int threshold) {
         if (threshold < 0) {
             throw new IllegalArgumentException(
                     "Relevant rating threshold for precision must be positive integer.");
         }
-
         this.relevantRatingThreshhold = threshold;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     /**
@@ -119,13 +115,19 @@ public class MeanReciprocalRank implements RankedListQualityMetric {
         out.writeVInt(relevantRatingThreshhold);
     }
 
-    private static final ParseField RELEVANT_RATING_FIELD = new ParseField(
-            "relevant_rating_threshold");
-    private static final ObjectParser<MeanReciprocalRank, Void> PARSER = new ObjectParser<>(
-            "reciprocal_rank", () -> new MeanReciprocalRank());
+    private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
+    private static final ConstructingObjectParser<MeanReciprocalRank, Void> PARSER = new ConstructingObjectParser<>("reciprocal_rank",
+            args -> {
+                Integer optionalThreshold = (Integer) args[0];
+                if (optionalThreshold == null) {
+                    return new MeanReciprocalRank();
+                } else {
+                    return new MeanReciprocalRank(optionalThreshold);
+                }
+            });
 
     static {
-        PARSER.declareInt(MeanReciprocalRank::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RELEVANT_RATING_FIELD);
     }
 
     public static MeanReciprocalRank fromXContent(XContentParser parser) {

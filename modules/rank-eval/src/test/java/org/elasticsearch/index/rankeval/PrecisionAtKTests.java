@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,11 +39,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Vector;
 
-public class PrecisionTests extends ESTestCase {
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+
+public class PrecisionAtKTests extends ESTestCase {
 
     public void testPrecisionAtFiveCalculation() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument("test", "0", Rating.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals(1, evaluated.getQualityLevel(), 0.00001);
         assertEquals(1, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -51,11 +54,11 @@ public class PrecisionTests extends ESTestCase {
 
     public void testPrecisionAtFiveIgnoreOneResult() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument("test", "0", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "1", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "2", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "3", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "4", Rating.IRRELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "1", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "2", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "3", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "4", TestRatingEnum.IRRELEVANT.ordinal()));
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals((double) 4 / 5, evaluated.getQualityLevel(), 0.00001);
         assertEquals(4, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -69,13 +72,12 @@ public class PrecisionTests extends ESTestCase {
      */
     public void testPrecisionAtFiveRelevanceThreshold() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument("test", "0", 0));
-        rated.add(new RatedDocument("test", "1", 1));
-        rated.add(new RatedDocument("test", "2", 2));
-        rated.add(new RatedDocument("test", "3", 3));
-        rated.add(new RatedDocument("test", "4", 4));
-        PrecisionAtK precisionAtN = new PrecisionAtK();
-        precisionAtN.setRelevantRatingThreshhold(2);
+        rated.add(createRatedDoc("test", "0", 0));
+        rated.add(createRatedDoc("test", "1", 1));
+        rated.add(createRatedDoc("test", "2", 2));
+        rated.add(createRatedDoc("test", "3", 3));
+        rated.add(createRatedDoc("test", "4", 4));
+        PrecisionAtK precisionAtN = new PrecisionAtK(2, false);
         EvalQueryQuality evaluated = precisionAtN.evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals((double) 3 / 5, evaluated.getQualityLevel(), 0.00001);
         assertEquals(3, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -84,11 +86,11 @@ public class PrecisionTests extends ESTestCase {
 
     public void testPrecisionAtFiveCorrectIndex() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument("test_other", "0", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test_other", "1", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "0", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "1", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "2", Rating.IRRELEVANT.ordinal()));
+        rated.add(createRatedDoc("test_other", "0", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test_other", "1", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "1", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "2", TestRatingEnum.IRRELEVANT.ordinal()));
         // the following search hits contain only the last three documents
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated.subList(2, 5), "test"), rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
@@ -98,8 +100,8 @@ public class PrecisionTests extends ESTestCase {
 
     public void testIgnoreUnlabeled() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument("test", "0", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "1", Rating.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "1", TestRatingEnum.RELEVANT.ordinal()));
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test"), 3);
         searchHits[2] = new SearchHit(2, "2", new Text("testtype"), Collections.emptyMap());
@@ -111,8 +113,7 @@ public class PrecisionTests extends ESTestCase {
         assertEquals(3, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
 
         // also try with setting `ignore_unlabeled`
-        PrecisionAtK prec = new PrecisionAtK();
-        prec.setIgnoreUnlabeled(true);
+        PrecisionAtK prec = new PrecisionAtK(1, true);
         evaluated = prec.evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 2, evaluated.getQualityLevel(), 0.00001);
         assertEquals(2, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -131,8 +132,7 @@ public class PrecisionTests extends ESTestCase {
         assertEquals(5, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
 
         // also try with setting `ignore_unlabeled`
-        PrecisionAtK prec = new PrecisionAtK();
-        prec.setIgnoreUnlabeled(true);
+        PrecisionAtK prec = new PrecisionAtK(1, true);
         evaluated = prec.evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
         assertEquals(0, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -158,16 +158,11 @@ public class PrecisionTests extends ESTestCase {
 
     public void testInvalidRelevantThreshold() {
         PrecisionAtK prez = new PrecisionAtK();
-        expectThrows(IllegalArgumentException.class, () -> prez.setRelevantRatingThreshhold(-1));
+        expectThrows(IllegalArgumentException.class, () -> new PrecisionAtK(-1, false));
     }
 
     public static PrecisionAtK createTestItem() {
-        PrecisionAtK precision = new PrecisionAtK();
-        if (randomBoolean()) {
-            precision.setRelevantRatingThreshhold(randomIntBetween(0, 10));
-        }
-        precision.setIgnoreUnlabeled(randomBoolean());
-        return precision;
+        return new PrecisionAtK(randomIntBetween(0, 10), randomBoolean());
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -186,29 +181,28 @@ public class PrecisionTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         PrecisionAtK original = createTestItem();
-        PrecisionAtK deserialized = RankEvalTestHelper.copy(original, PrecisionAtK::new);
+        PrecisionAtK deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
+                PrecisionAtK::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
     public void testEqualsAndHash() throws IOException {
-        PrecisionAtK testItem = createTestItem();
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem), RankEvalTestHelper.copy(testItem, PrecisionAtK::new));
+        checkEqualsAndHashCode(createTestItem(), PrecisionAtKTests::copy, PrecisionAtKTests::mutate);
     }
 
-    private static PrecisionAtK mutateTestItem(PrecisionAtK original) {
-        boolean ignoreUnlabeled = original.getIgnoreUnlabeled();
-        int relevantThreshold = original.getRelevantRatingThreshold();
-        PrecisionAtK precision = new PrecisionAtK();
-        precision.setIgnoreUnlabeled(ignoreUnlabeled);
-        precision.setRelevantRatingThreshhold(relevantThreshold);
+    private static PrecisionAtK copy(PrecisionAtK original) {
+        return new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled());
+    }
 
-        List<Runnable> mutators = new ArrayList<>();
-        mutators.add(() -> precision.setIgnoreUnlabeled(!ignoreUnlabeled));
-        mutators.add(() -> precision.setRelevantRatingThreshhold(randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10))));
-        randomFrom(mutators).run();
-        return precision;
+    private static PrecisionAtK mutate(PrecisionAtK original) {
+        if (randomBoolean()) {
+            return new PrecisionAtK(original.getRelevantRatingThreshold(), !original.getIgnoreUnlabeled());
+        } else {
+            return new PrecisionAtK(randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
+                    original.getIgnoreUnlabeled());
+        }
     }
 
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
@@ -220,7 +214,7 @@ public class PrecisionTests extends ESTestCase {
         return hits;
     }
 
-    public enum Rating {
-        IRRELEVANT, RELEVANT;
+    private static RatedDocument createRatedDoc(String index, String id, int rating) {
+        return new RatedDocument(index, id, rating);
     }
 }

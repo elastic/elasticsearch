@@ -34,7 +34,9 @@ import org.elasticsearch.script.Script;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -53,9 +55,9 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
      * Collection of query specifications, that is e.g. search request templates
      * to use for query translation.
      */
-    private Collection<RatedRequest> ratedRequests = new ArrayList<>();
+    private final List<RatedRequest> ratedRequests;
     /** Definition of the quality metric, e.g. precision at N */
-    private RankedListQualityMetric metric;
+    private final EvaluationMetric metric;
     /** Maximum number of requests to execute in parallel. */
     private int maxConcurrentSearches = MAX_CONCURRENT_SEARCHES;
     /** Default max number of requests. */
@@ -63,7 +65,7 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     /** optional: Templates to base test requests on */
     private Map<String, Script> templates = new HashMap<>();
 
-    public RankEvalSpec(Collection<RatedRequest> ratedRequests, RankedListQualityMetric metric,
+    public RankEvalSpec(List<RatedRequest> ratedRequests, EvaluationMetric metric,
             Collection<ScriptWithId> templates) {
         if (ratedRequests == null || ratedRequests.size() < 1) {
             throw new IllegalStateException(
@@ -92,7 +94,7 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         }
     }
 
-    public RankEvalSpec(Collection<RatedRequest> ratedRequests, RankedListQualityMetric metric) {
+    public RankEvalSpec(List<RatedRequest> ratedRequests, EvaluationMetric metric) {
         this(ratedRequests, metric, null);
     }
 
@@ -102,7 +104,7 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         for (int i = 0; i < specSize; i++) {
             ratedRequests.add(new RatedRequest(in));
         }
-        metric = in.readNamedWriteable(RankedListQualityMetric.class);
+        metric = in.readNamedWriteable(EvaluationMetric.class);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             String key = in.readString();
@@ -128,13 +130,13 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     }
 
     /** Returns the metric to use for quality evaluation.*/
-    public RankedListQualityMetric getMetric() {
+    public EvaluationMetric getMetric() {
         return metric;
     }
 
     /** Returns a list of intent to query translation specifications to evaluate. */
-    public Collection<RatedRequest> getRatedRequests() {
-        return ratedRequests;
+    public List<RatedRequest> getRatedRequests() {
+        return Collections.unmodifiableList(ratedRequests);
     }
 
     /** Returns the template to base test requests on. */
@@ -160,8 +162,8 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RankEvalSpec, Void> PARSER =
             new ConstructingObjectParser<>("rank_eval",
-                    a -> new RankEvalSpec((Collection<RatedRequest>) a[0],
-                            (RankedListQualityMetric) a[1], (Collection<ScriptWithId>) a[2]));
+                    a -> new RankEvalSpec((List<RatedRequest>) a[0],
+                            (EvaluationMetric) a[1], (Collection<ScriptWithId>) a[2]));
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
@@ -169,7 +171,7 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         } , REQUESTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
             try {
-                return RankedListQualityMetric.fromXContent(p);
+                return EvaluationMetric.fromXContent(p);
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
             }

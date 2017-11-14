@@ -33,13 +33,24 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A document ID and its rating for the query QA use case.
+ * Represents a document (specified by its _index/_id) and its corresponding rating
+ * with respect to a specific search query.
+ * <p>
+ * Json structure in a request:
+ * <pre>
+ * {
+ *   "_index": "my_index",
+ *   "_id": "doc1",
+ *   "rating": 0
+ * }
+ * </pre>
+ *
  */
 public class RatedDocument implements Writeable, ToXContentObject {
 
-    public static final ParseField RATING_FIELD = new ParseField("rating");
-    public static final ParseField DOC_ID_FIELD = new ParseField("_id");
-    public static final ParseField INDEX_FIELD = new ParseField("_index");
+    static final ParseField RATING_FIELD = new ParseField("rating");
+    static final ParseField DOC_ID_FIELD = new ParseField("_id");
+    static final ParseField INDEX_FIELD = new ParseField("_index");
 
     private static final ConstructingObjectParser<RatedDocument, Void> PARSER = new ConstructingObjectParser<>("rated_document",
             a -> new RatedDocument((String) a[0], (String) a[1], (Integer) a[2]));
@@ -50,21 +61,17 @@ public class RatedDocument implements Writeable, ToXContentObject {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), RATING_FIELD);
     }
 
-    private int rating;
-    private DocumentKey key;
+    private final int rating;
+    private final DocumentKey key;
 
-    public RatedDocument(String index, String docId, int rating) {
-        this(new DocumentKey(index, docId), rating);
-    }
-
-    public RatedDocument(StreamInput in) throws IOException {
-        this.key = new DocumentKey(in);
-        this.rating = in.readVInt();
-    }
-
-    public RatedDocument(DocumentKey ratedDocumentKey, int rating) {
-        this.key = ratedDocumentKey;
+    public RatedDocument(String index, String id, int rating) {
+        this.key = new DocumentKey(index, id);
         this.rating = rating;
+    }
+
+    RatedDocument(StreamInput in) throws IOException {
+        this.key = new DocumentKey(in.readString(), in.readString());
+        this.rating = in.readVInt();
     }
 
     public DocumentKey getKey() {
@@ -76,7 +83,7 @@ public class RatedDocument implements Writeable, ToXContentObject {
     }
 
     public String getDocID() {
-        return key.getDocID();
+        return key.getDocId();
     }
 
     public int getRating() {
@@ -85,11 +92,12 @@ public class RatedDocument implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        this.key.writeTo(out);
+        out.writeString(key.getIndex());
+        out.writeString(key.getDocId());
         out.writeVInt(rating);
     }
 
-    public static RatedDocument fromXContent(XContentParser parser) {
+    static RatedDocument fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -97,7 +105,7 @@ public class RatedDocument implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), key.getIndex());
-        builder.field(DOC_ID_FIELD.getPreferredName(), key.getDocID());
+        builder.field(DOC_ID_FIELD.getPreferredName(), key.getDocId());
         builder.field(RATING_FIELD.getPreferredName(), rating);
         builder.endObject();
         return builder;
@@ -123,5 +131,56 @@ public class RatedDocument implements Writeable, ToXContentObject {
     @Override
     public final int hashCode() {
         return Objects.hash(key, rating);
+    }
+
+    /**
+     * a joint document key consisting of the documents index and id
+     */
+    static class DocumentKey {
+
+        private final String docId;
+        private final String index;
+
+        DocumentKey(String index, String docId) {
+            if (Strings.isNullOrEmpty(index)) {
+                throw new IllegalArgumentException("Index must be set for each rated document");
+            }
+            if (Strings.isNullOrEmpty(docId)) {
+                throw new IllegalArgumentException("DocId must be set for each rated document");
+            }
+
+            this.index = index;
+            this.docId = docId;
+        }
+
+        String getIndex() {
+            return index;
+        }
+
+        String getDocId() {
+            return docId;
+        }
+
+        @Override
+        public final boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            DocumentKey other = (DocumentKey) obj;
+            return Objects.equals(index, other.index) && Objects.equals(docId, other.docId);
+        }
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(index, docId);
+        }
+
+        @Override
+        public String toString() {
+            return "{\"_index\":\"" + index + "\",\"_id\":\"" + docId + "\"}";
+        }
     }
 }

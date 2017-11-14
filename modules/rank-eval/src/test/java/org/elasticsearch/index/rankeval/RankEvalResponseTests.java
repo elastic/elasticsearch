@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ public class RankEvalResponseTests extends ESTestCase {
             int numberOfUnknownDocs = randomIntBetween(0, 5);
             List<DocumentKey> unknownDocs = new ArrayList<>(numberOfUnknownDocs);
             for (int d = 0; d < numberOfUnknownDocs; d++) {
-                unknownDocs.add(DocumentKeyTests.createRandomRatedDocumentKey());
+                unknownDocs.add(new DocumentKey(randomAlphaOfLength(10), randomAlphaOfLength(10)));
             }
             EvalQueryQuality evalQuality = new EvalQueryQuality(id,
                     randomDoubleBetween(0.0, 1.0, true));
@@ -65,12 +66,9 @@ public class RankEvalResponseTests extends ESTestCase {
             try (StreamInput in = output.bytes().streamInput()) {
                 RankEvalResponse deserializedResponse = new RankEvalResponse();
                 deserializedResponse.readFrom(in);
-                assertEquals(randomResponse.getQualityLevel(),
-                        deserializedResponse.getQualityLevel(), Double.MIN_VALUE);
-                assertEquals(randomResponse.getPartialResults(),
-                        deserializedResponse.getPartialResults());
-                assertEquals(randomResponse.getFailures().keySet(),
-                        deserializedResponse.getFailures().keySet());
+                assertEquals(randomResponse.getQualityLevel(), deserializedResponse.getQualityLevel(), Double.MIN_VALUE);
+                assertEquals(randomResponse.getPartialResults(), deserializedResponse.getPartialResults());
+                assertEquals(randomResponse.getFailures().keySet(), deserializedResponse.getFailures().keySet());
                 assertNotSame(randomResponse, deserializedResponse);
                 assertEquals(-1, in.read());
             }

@@ -157,11 +157,11 @@ public class TransportRankEvalAction
         private RatedRequest specification;
         private Map<String, EvalQueryQuality> requestDetails;
         private Map<String, Exception> errors;
-        private RankedListQualityMetric metric;
+        private EvaluationMetric metric;
         private AtomicInteger responseCounter;
 
         public RankEvalActionListener(ActionListener<RankEvalResponse> listener,
-                RankedListQualityMetric metric, RatedRequest specification,
+                EvaluationMetric metric, RatedRequest specification,
                 Map<String, EvalQueryQuality> details, Map<String, Exception> errors,
                 AtomicInteger responseCounter) {
             this.listener = listener;

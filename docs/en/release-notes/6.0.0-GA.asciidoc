@@ -17,8 +17,127 @@ Also see:
 * <<xes-6.0.0-alpha2>>
 * <<xes-6.0.0-alpha1>>
 
+
+[[xes-breaking-6.0.0]]
+[float]
+=== Breaking changes
+
 ////
-[[xes-enhancement-6.0.0-GA]]
+Machine Learning::
+* [ML] Require units on model_memory_limit [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1604[#1604]
+* [ML] Allow datafeed to start when job is opening
+// https://github.com/elastic/x-pack-elasticsearch/pull/1597[#1597] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/1535[#1535])
+* [ML] Remove ability to get model snapshot by description [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1284[#1284]
+////
+////
+Monitoring::
+* [Monitoring] Drop _type from indices [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1068[#1068]
+////
+Security::
+* Added new security limitations:
+** When a user's role enables document level security for an index and
+suggesters are specified, the specified suggesters are ignored. For more
+information about suggesters, see {ref}/search-suggesters.html[Suggesters].
+** When document level security is enabled, search requests cannot be profiled.
+For more information about profiling, see the
+{ref}/search-profile.html[Profile API].
+// https://github.com/elastic/x-pack-elasticsearch/pull/2807[#2807]
+// https://github.com/elastic/x-pack-elasticsearch/pull/2788[#2788]
+////
+[[xes-enhancement-6.0.0]]
 [float]
 === Enhancements
 ////
+////
+Machine Learning::
+* [ML] Add job_version field to job cluster state [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1396[#1396]
+* [ML] Provide better error message when doc_values are not available [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1305[#1305]
+* [ML] Put job should validate that no documents exist with the new job_id [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1289[#1289]
+* [ML] Renormalizer should ignore interim results [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1193[#1193]
+////
+
+[[xes-bug-6.0.0]]
+[float]
+=== Bug fixes
+
+////
+Machine Learning::
+* Fix unsafe background persistence
+// https://github.com/elastic/machine-learning-cpp/pull/373[#373] (issue: https://github.com/elastic/machine-learning-cpp/issues/371[#371])
+* [ML] combine logging into 1 message for summarization (x-pack-side).
+// https://github.com/elastic/machine-learning-cpp/pull/369[#369] (issue: https://github.com/elastic/machine-learning-cpp/issues/366[#366])
+* [ML] Provide user-friendly error message when selecting a non-time-based index for creating a job [OPEN] [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/2138[#2138]
+* [ML] No evidence in notifications of what happens to job after node leaves and re-joins cluster [OPEN] [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1173[#1173]
+* [ML] Use the correct timeout for the process context lock
+// https://github.com/elastic/x-pack-elasticsearch/pull/2935[#2935] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2913[#2913])
+* [ML] Fix streaming the process update request
+// https://github.com/elastic/x-pack-elasticsearch/pull/2928[#2928]
+* [ML] Fix a race condition simultaneous close requests are made for a job
+// https://github.com/elastic/x-pack-elasticsearch/pull/2913[#2913] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2912[#2912])
+* [ML] Job runs more than query_delay behind real-time [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/2426[#2426]
+* [ML] model_memory_limit is not honoured when many entities are created in the same bucket [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/2098[#2098]
+* [ML] Improve functionality for ignoring maintenance windows [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1913[#1913]
+* [ML] Rejecting mapping update to [.ml-anomalies-shared] as the final mapping would have more than 1 type: [model_snapshot, doc] [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1911[#1911]
+* [ML] Corrupt job causes _all/_stats to fail  [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1656[#1656]
+* [ML] Datafeed should be able to read from docvalues and/or source  [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1649[#1649]
+* [ML] Illegal argument exception: Rejecting mapping update to [.ml-state] as the final mapping would have more than 1 type [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1634[#1634]
+* [ML] Handle stopping an unassigned datafeed task [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1610[#1610]
+* [ML] ML doesn't work with tribe nodes  [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1361[#1361]
+* [ML] Revert snapshot action does not revert quantiles and model_size_stats [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1342[#1342]
+* [ML] Deleting a non-closed job results in incorrect error message [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1307[#1307]
+* [ML] A request to close a closing job should not return until the job is closed [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1234[#1234]
+* [ML] Validate job data_description is explicitly set [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1187[#1187]
+* [ML] Weak validation of new job config [ISSUE]
+// https://github.com/elastic/x-pack-elasticsearch/pull/1152[#1152]
+////
+
+Security::
+//* Remove the xpack plugin's dependency on the tribe module
+//OMIT: Too low-level?
+// https://github.com/elastic/x-pack-elasticsearch/pull/2901[#2901] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2656[#2656])
+* Prevented 6.0 nodes from joining clusters with un-upgraded version 5
+`.security` indices. For upgrade instructions, see
+{stack-ref}/upgrading-elastic-stack.html[Upgrading the Elastic Stack].
+// https://github.com/elastic/x-pack-elasticsearch/pull/2921[#2921]
+* Enabled read-only access to the index audit log by the `_xpack` internal user.
+For more information, see
+{xpack-ref}/setting-up-authentication.html#internal-users[Internal Users].
+// https://github.com/elastic/x-pack-elasticsearch/pull/2906[#2906]
+* Updated the concrete security index such that it is now always named
+`.security-6`. In 6.0 beta and RC releases, it was sometimes named `.security-v6`.
+// https://github.com/elastic/x-pack-elasticsearch/pull/2905[#2905]
+//* Certificate verification through comparing pseudo hostnames to reloadable trust source [ISSUE]
+//OMIT: Too low-level?
+// https://github.com/elastic/x-pack-elasticsearch/pull/1167[#1167]
+//* Fix ASN.1 encoding of "cn" OtherName in CertGen
+//OMIT: Too low-level?
+// https://github.com/elastic/x-pack-elasticsearch/pull/2858[#2858] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2845[#2845])
+* Fixed handling of exceptions when retrieving roles from a native roles store.
+For more information about configuring a native realm, see
+{xpack-ref}/native-realm.html[Native User Authentication].
+// https://github.com/elastic/x-pack-elasticsearch/pull/2857[#2857] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2686[
+//* Improved auditing such that it automatically restarts its failed services. Also increased the default queue size to accommodate high traffic clusters.Retry startup for IndexAuditTrail and version templates
+//OMIT: Already in 5.6.4
+// https://github.com/elastic/x-pack-elasticsearch/pull/2755[#2755] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/2658[#2658])

@@ -22,7 +22,7 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
@@ -34,7 +34,8 @@ import java.util.Optional;
 
 import javax.naming.directory.SearchResult;
 
-import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
 /**
  * Evaluate Precision of the search results. Documents without a rating are
@@ -42,15 +43,12 @@ import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsW
  * considered to be "relevant" for the precision calculation. This value can be
  * changes using the "relevant_rating_threshold" parameter.
  */
-public class PrecisionAtK implements RankedListQualityMetric {
+public class PrecisionAtK implements EvaluationMetric {
 
     public static final String NAME = "precision";
 
-    private static final ParseField RELEVANT_RATING_FIELD = new ParseField(
-            "relevant_rating_threshold");
+    private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
     private static final ParseField IGNORE_UNLABELED_FIELD = new ParseField("ignore_unlabeled");
-    private static final ObjectParser<PrecisionAtK, Void> PARSER = new ObjectParser<>(NAME,
-            PrecisionAtK::new);
 
     /**
      * This setting controls how unlabeled documents in the search hits are
@@ -58,29 +56,47 @@ public class PrecisionAtK implements RankedListQualityMetric {
      * as true or false positives. Set to 'false', they are treated as false
      * positives.
      */
-    private boolean ignoreUnlabeled = false;
+    private final boolean ignoreUnlabeled;
 
     /** ratings equal or above this value will be considered relevant. */
-    private int relevantRatingThreshhold = 1;
+    private final int relevantRatingThreshhold;
+
+    public PrecisionAtK(int threshold, boolean ignoreUnlabeled) {
+            if (threshold < 0) {
+                throw new IllegalArgumentException(
+                        "Relevant rating threshold for precision must be positive integer.");
+            }
+            this.relevantRatingThreshhold = threshold;
+            this.ignoreUnlabeled = ignoreUnlabeled;
+    }
 
     public PrecisionAtK() {
-        // needed for supplier in parser
+        this(1, false);
     }
+
+
+    private static final ConstructingObjectParser<PrecisionAtK, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            args -> {
+                Integer threshHold = (Integer) args[0];
+                Boolean ignoreUnlabeled = (Boolean) args[1];
+                return new PrecisionAtK(threshHold == null ? 1 : threshHold,
+                        ignoreUnlabeled == null ? false : ignoreUnlabeled);
+            });
 
     static {
-        PARSER.declareInt(PrecisionAtK::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
-        PARSER.declareBoolean(PrecisionAtK::setIgnoreUnlabeled, IGNORE_UNLABELED_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RELEVANT_RATING_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), IGNORE_UNLABELED_FIELD);
     }
 
-    public PrecisionAtK(StreamInput in) throws IOException {
-        relevantRatingThreshhold = in.readOptionalVInt();
-        ignoreUnlabeled = in.readOptionalBoolean();
+    PrecisionAtK(StreamInput in) throws IOException {
+        relevantRatingThreshhold = in.readVInt();
+        ignoreUnlabeled = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalVInt(relevantRatingThreshhold);
-        out.writeOptionalBoolean(ignoreUnlabeled);
+        out.writeVInt(relevantRatingThreshhold);
+        out.writeBoolean(ignoreUnlabeled);
     }
 
     @Override
@@ -89,30 +105,11 @@ public class PrecisionAtK implements RankedListQualityMetric {
     }
 
     /**
-     * Sets the rating threshold above which ratings are considered to be
-     * "relevant" for this metric.
-     */
-    public void setRelevantRatingThreshhold(int threshold) {
-        if (threshold < 0) {
-            throw new IllegalArgumentException(
-                    "Relevant rating threshold for precision must be positive integer.");
-        }
-        this.relevantRatingThreshhold = threshold;
-    }
-
-    /**
      * Return the rating threshold above which ratings are considered to be
      * "relevant" for this metric. Defaults to 1.
      */
     public int getRelevantRatingThreshold() {
         return relevantRatingThreshhold;
-    }
-
-    /**
-     * Sets the 'ìgnore_unlabeled' parameter
-     */
-    public void setIgnoreUnlabeled(boolean ignoreUnlabeled) {
-        this.ignoreUnlabeled = ignoreUnlabeled;
     }
 
     /**

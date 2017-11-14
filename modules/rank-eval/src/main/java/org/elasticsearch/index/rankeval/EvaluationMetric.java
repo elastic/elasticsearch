@@ -24,7 +24,9 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,13 +37,14 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Classes implementing this interface provide a means to compute the quality of a result list returned by some search.
+ * Implementations of {@link EvaluationMetric} need to provide a way to compute the quality metric for
+ * a result list returned by some search (@link {@link SearchHits}) and a list of rated documents.
  */
-public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
+public interface EvaluationMetric extends ToXContent, NamedWriteable {
 
     /**
      * Returns a single metric representing the ranking quality of a set of returned
-     * documents wrt. to a set of document Ids labeled as relevant for this search.
+     * documents wrt. to a set of document ids labeled as relevant for this search.
      *
      * @param taskId
      *            the id of the query for which the ranking is currently evaluated
@@ -55,15 +58,15 @@ public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
      */
     EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs);
 
-    static RankedListQualityMetric fromXContent(XContentParser parser) throws IOException {
-        RankedListQualityMetric rc;
+    static EvaluationMetric fromXContent(XContentParser parser) throws IOException {
+        EvaluationMetric rc;
         Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] missing required metric name");
         }
         String metricName = parser.currentName();
 
-        // TODO maybe switch to using a plugable registry later?
+        // TODO switch to using a plugable registry
         switch (metricName) {
         case PrecisionAtK.NAME:
             rc = PrecisionAtK.fromXContent(parser);
@@ -101,13 +104,19 @@ public interface RankedListQualityMetric extends ToXContent, NamedWriteable {
         return ratedSearchHits;
     }
 
+    /**
+     * filter @link {@link RatedSearchHit} that don't have a rating
+     */
     static List<DocumentKey> filterUnknownDocuments(List<RatedSearchHit> ratedHits) {
-        // join hits with rated documents
         List<DocumentKey> unknownDocs = ratedHits.stream().filter(hit -> hit.getRating().isPresent() == false)
                 .map(hit -> new DocumentKey(hit.getSearchHit().getIndex(), hit.getSearchHit().getId())).collect(Collectors.toList());
         return unknownDocs;
     }
 
+    /**
+     * how evaluation metrics for particular search queries get combined for the overall evaluation score.
+     * Defaults to averaging over the partial results.
+     */
     default double combine(Collection<EvalQueryQuality> partialResults) {
         return partialResults.stream().mapToDouble(EvalQueryQuality::getQualityLevel).sum() / partialResults.size();
     }

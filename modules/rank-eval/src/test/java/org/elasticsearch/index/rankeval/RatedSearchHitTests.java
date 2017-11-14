@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +27,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Optional;
+
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class RatedSearchHitTests extends ESTestCase {
 
@@ -57,15 +60,18 @@ public class RatedSearchHitTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RatedSearchHit original = randomRatedSearchHit();
-        RatedSearchHit deserialized = RankEvalTestHelper.copy(original, RatedSearchHit::new);
+        RatedSearchHit deserialized = copy(original);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
     public void testEqualsAndHash() throws IOException {
-        RatedSearchHit testItem = randomRatedSearchHit();
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
-                RankEvalTestHelper.copy(testItem, RatedSearchHit::new));
+        checkEqualsAndHashCode(randomRatedSearchHit(), RatedSearchHitTests::copy, RatedSearchHitTests::mutateTestItem);
     }
+
+    private static RatedSearchHit copy(RatedSearchHit original) throws IOException {
+        return ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), RatedSearchHit::new);
+    }
+
 }

@@ -45,6 +45,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+
 public class RankEvalSpecTests extends ESTestCase {
 
     private static <T> List<T> randomList(Supplier<T> randomSupplier) {
@@ -57,9 +59,9 @@ public class RankEvalSpecTests extends ESTestCase {
     }
 
     private static RankEvalSpec createTestItem() throws IOException {
-        RankedListQualityMetric metric;
+        EvaluationMetric metric;
         if (randomBoolean()) {
-            metric = PrecisionTests.createTestItem();
+            metric = PrecisionAtKTests.createTestItem();
         } else {
             metric = DiscountedCumulativeGainTests.createTestItem();
         }
@@ -111,41 +113,30 @@ public class RankEvalSpecTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RankEvalSpec original = createTestItem();
-
-        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, PrecisionAtK.NAME, PrecisionAtK::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, DiscountedCumulativeGain.NAME,
-                DiscountedCumulativeGain::new));
-        namedWriteables
-                .add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, MeanReciprocalRank.NAME, MeanReciprocalRank::new));
-
-        RankEvalSpec deserialized = RankEvalTestHelper.copy(original, RankEvalSpec::new, new NamedWriteableRegistry(namedWriteables));
+        RankEvalSpec deserialized = copy(original);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
-    public void testEqualsAndHash() throws IOException {
-        RankEvalSpec testItem = createTestItem();
-
+    private static RankEvalSpec copy(RankEvalSpec original) throws IOException {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, PrecisionAtK.NAME, PrecisionAtK::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, DiscountedCumulativeGain.NAME,
-                DiscountedCumulativeGain::new));
-        namedWriteables
-                .add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, MeanReciprocalRank.NAME, MeanReciprocalRank::new));
-
-        RankEvalSpec mutant = RankEvalTestHelper.copy(testItem, RankEvalSpec::new, new NamedWriteableRegistry(namedWriteables));
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(mutant),
-                RankEvalTestHelper.copy(testItem, RankEvalSpec::new, new NamedWriteableRegistry(namedWriteables)));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, PrecisionAtK.NAME, PrecisionAtK::new));
+        namedWriteables.add(
+                new NamedWriteableRegistry.Entry(EvaluationMetric.class, DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, MeanReciprocalRank.NAME, MeanReciprocalRank::new));
+        return ESTestCase.copyWriteable(original, new NamedWriteableRegistry(namedWriteables), RankEvalSpec::new);
     }
 
-    private static RankEvalSpec mutateTestItem(RankEvalSpec mutant) {
-        Collection<RatedRequest> ratedRequests = mutant.getRatedRequests();
-        RankedListQualityMetric metric = mutant.getMetric();
-        Map<String, Script> templates = mutant.getTemplates();
+    public void testEqualsAndHash() throws IOException {
+        checkEqualsAndHashCode(createTestItem(), RankEvalSpecTests::copy, RankEvalSpecTests::mutateTestItem);
+    }
+
+    private static RankEvalSpec mutateTestItem(RankEvalSpec original) {
+        List<RatedRequest> ratedRequests = new ArrayList<>(original.getRatedRequests());
+        EvaluationMetric metric = original.getMetric();
+        Map<String, Script> templates = original.getTemplates();
 
         int mutate = randomIntBetween(0, 2);
         switch (mutate) {
@@ -177,7 +168,7 @@ public class RankEvalSpecTests extends ESTestCase {
     }
 
     public void testMissingRatedRequestsFailsParsing() {
-        RankedListQualityMetric metric = new PrecisionAtK();
+        EvaluationMetric metric = new PrecisionAtK();
         expectThrows(IllegalStateException.class, () -> new RankEvalSpec(new ArrayList<>(), metric));
         expectThrows(IllegalStateException.class, () -> new RankEvalSpec(null, metric));
     }
@@ -189,7 +180,7 @@ public class RankEvalSpecTests extends ESTestCase {
     }
 
     public void testMissingTemplateAndSearchRequestFailsParsing() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "id1"), 1));
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
 

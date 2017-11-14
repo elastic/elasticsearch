@@ -19,14 +19,15 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.rankeval.PrecisionTests.Rating;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -38,21 +39,35 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Vector;
 
-public class ReciprocalRankTests extends ESTestCase {
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+
+public class MeanReciprocalRankTests extends ESTestCase {
+
+    public void testParseFromXContent() throws IOException {
+        String xContent = "{ }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+            MeanReciprocalRank mrr = MeanReciprocalRank.fromXContent(parser);
+            assertEquals(1, mrr.getRelevantRatingThreshold());
+        }
+
+        xContent = "{ \"relevant_rating_threshold\": 2 }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+            MeanReciprocalRank mrr = MeanReciprocalRank.fromXContent(parser);
+            assertEquals(2, mrr.getRelevantRatingThreshold());
+        }
+    }
 
     public void testMaxAcceptableRank() {
         MeanReciprocalRank reciprocalRank = new MeanReciprocalRank();
-
         int searchHits = randomIntBetween(1, 50);
-
         SearchHit[] hits = createSearchHits(0, searchHits, "test");
         List<RatedDocument> ratedDocs = new ArrayList<>();
         int relevantAt = randomIntBetween(0, searchHits);
         for (int i = 0; i <= searchHits; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), Rating.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.RELEVANT.ordinal()));
             } else {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), Rating.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.IRRELEVANT.ordinal()));
             }
         }
 
@@ -76,9 +91,9 @@ public class ReciprocalRankTests extends ESTestCase {
         int relevantAt = randomIntBetween(0, 9);
         for (int i = 0; i <= 20; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), Rating.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.RELEVANT.ordinal()));
             } else {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), Rating.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.IRRELEVANT.ordinal()));
             }
         }
 
@@ -101,8 +116,7 @@ public class ReciprocalRankTests extends ESTestCase {
         rated.add(new RatedDocument("test",  "4", 4));
         SearchHit[] hits = createSearchHits(0, 5, "test");
 
-        MeanReciprocalRank reciprocalRank = new MeanReciprocalRank();
-        reciprocalRank.setRelevantRatingThreshhold(2);
+        MeanReciprocalRank reciprocalRank = new MeanReciprocalRank(2);
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, rated);
         assertEquals((double) 1 / 3, evaluation.getQualityLevel(), 0.00001);
         assertEquals(3, ((MeanReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
@@ -153,35 +167,31 @@ public class ReciprocalRankTests extends ESTestCase {
     }
 
     private static MeanReciprocalRank createTestItem() {
-        MeanReciprocalRank testItem = new MeanReciprocalRank();
-        testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));
-        return testItem;
+        return new MeanReciprocalRank(randomIntBetween(0, 20));
     }
 
     public void testSerialization() throws IOException {
         MeanReciprocalRank original = createTestItem();
-
-        MeanReciprocalRank deserialized = RankEvalTestHelper.copy(original, MeanReciprocalRank::new);
+        MeanReciprocalRank deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
+                MeanReciprocalRank::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
     public void testEqualsAndHash() throws IOException {
-        MeanReciprocalRank testItem = createTestItem();
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
-                RankEvalTestHelper.copy(testItem, MeanReciprocalRank::new));
+        checkEqualsAndHashCode(createTestItem(), MeanReciprocalRankTests::copy, MeanReciprocalRankTests::mutate);
     }
 
-    private static MeanReciprocalRank mutateTestItem(MeanReciprocalRank testItem) {
-        int relevantThreshold = testItem.getRelevantRatingThreshold();
-        MeanReciprocalRank rank = new MeanReciprocalRank();
-        rank.setRelevantRatingThreshhold(randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10)));
-        return rank;
+    private static MeanReciprocalRank copy(MeanReciprocalRank testItem) {
+        return new MeanReciprocalRank(testItem.getRelevantRatingThreshold());
+    }
+
+    private static MeanReciprocalRank mutate(MeanReciprocalRank testItem) {
+        return new MeanReciprocalRank(randomValueOtherThan(testItem.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)));
     }
 
     public void testInvalidRelevantThreshold() {
-        MeanReciprocalRank prez = new MeanReciprocalRank();
-        expectThrows(IllegalArgumentException.class, () -> prez.setRelevantRatingThreshhold(-1));
+        expectThrows(IllegalArgumentException.class, () -> new MeanReciprocalRank(-1));
     }
 }

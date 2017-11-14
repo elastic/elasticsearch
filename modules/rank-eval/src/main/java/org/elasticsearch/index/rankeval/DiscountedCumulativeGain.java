@@ -22,7 +22,7 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
@@ -35,22 +35,25 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
-public class DiscountedCumulativeGain implements RankedListQualityMetric {
+public class DiscountedCumulativeGain implements EvaluationMetric {
 
     /** If set to true, the dcg will be normalized (ndcg) */
-    private boolean normalize;
+    private final boolean normalize;
+
     /**
      * If set to, this will be the rating for docs the user hasn't supplied an
      * explicit rating for
      */
-    private Integer unknownDocRating;
+    private final Integer unknownDocRating;
 
     public static final String NAME = "dcg";
     private static final double LOG2 = Math.log(2.0);
 
     public DiscountedCumulativeGain() {
+        this(false, null);
     }
 
     /**
@@ -83,24 +86,10 @@ public class DiscountedCumulativeGain implements RankedListQualityMetric {
     }
 
     /**
-     * If set to true, the dcg will be normalized (ndcg)
-     */
-    public void setNormalize(boolean normalize) {
-        this.normalize = normalize;
-    }
-
-    /**
      * check whether this metric computes only dcg or "normalized" ndcg
      */
     public boolean getNormalize() {
         return this.normalize;
-    }
-
-    /**
-     * the rating for docs the user hasn't supplied an explicit rating for
-     */
-    public void setUnknownDocRating(int unknownDocRating) {
-        this.unknownDocRating = unknownDocRating;
     }
 
     /**
@@ -118,10 +107,10 @@ public class DiscountedCumulativeGain implements RankedListQualityMetric {
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
         List<Integer> ratingsInSearchHits = new ArrayList<>(ratedHits.size());
         for (RatedSearchHit hit : ratedHits) {
-            // unknownDocRating might be null, which means it will be unrated
-            // docs are ignored in the dcg calculation
-            // we still need to add them as a placeholder so the rank of the
-            // subsequent ratings is correct
+            // unknownDocRating might be null, which means it will be unrated docs are
+            // ignored in the dcg calculation
+            // we still need to add them as a placeholder so the rank of the subsequent
+            // ratings is correct
             ratingsInSearchHits.add(hit.getRating().orElse(unknownDocRating));
         }
         double dcg = computeDCG(ratingsInSearchHits);
@@ -151,12 +140,15 @@ public class DiscountedCumulativeGain implements RankedListQualityMetric {
 
     private static final ParseField NORMALIZE_FIELD = new ParseField("normalize");
     private static final ParseField UNKNOWN_DOC_RATING_FIELD = new ParseField("unknown_doc_rating");
-    private static final ObjectParser<DiscountedCumulativeGain, Void> PARSER = new ObjectParser<>(
-            "dcg_at", () -> new DiscountedCumulativeGain());
+    private static final ConstructingObjectParser<DiscountedCumulativeGain, Void> PARSER = new ConstructingObjectParser<>("dcg_at",
+            args -> {
+                Boolean normalized = (Boolean) args[0];
+                return new DiscountedCumulativeGain(normalized == null ? false : normalized, (Integer) args[1]);
+            });
 
     static {
-        PARSER.declareBoolean(DiscountedCumulativeGain::setNormalize, NORMALIZE_FIELD);
-        PARSER.declareInt(DiscountedCumulativeGain::setUnknownDocRating, UNKNOWN_DOC_RATING_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), NORMALIZE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), UNKNOWN_DOC_RATING_FIELD);
     }
 
     public static DiscountedCumulativeGain fromXContent(XContentParser parser) {
@@ -193,6 +185,4 @@ public class DiscountedCumulativeGain implements RankedListQualityMetric {
     public final int hashCode() {
         return Objects.hash(normalize, unknownDocRating);
     }
-
-    // TODO maybe also add debugging breakdown here
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,20 +37,23 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
+import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+
 
 public class DiscountedCumulativeGainTests extends ESTestCase {
 
     /**
      * Assuming the docs are ranked in the following order:
      *
-     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) /
-     * log_2(rank + 1)
+     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
-     * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
-     * 3 | 3 | 7.0 | 2.0 | 3.5 4 | 0 | 0.0 | 2.321928094887362 | 0.0 5 | 1 | 1.0
-     * | 2.584962500721156 | 0.38685280723454163 6 | 2 | 3.0 | 2.807354922057604
-     * | 1.0686215613240666
+     * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 
+     * 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
+     * 3 | 3 | 7.0 | 2.0 | 3.5
+     * 4 | 0 | 0.0 | 2.321928094887362 | 0.0
+     * 5 | 1 | 1.0 | 2.584962500721156 | 0.38685280723454163
+     * 6 | 2 | 3.0 | 2.807354922057604 | 1.0686215613240666
      *
      * dcg = 13.84826362927298 (sum of last column)
      */
@@ -69,17 +73,18 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * Check with normalization: to get the maximal possible dcg, sort documents by
          * relevance in descending order
          *
-         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) /
-         * log_2(rank + 1)
+         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
          * ---------------------------------------------------------------------------------------
-         * 1 | 3 | 7.0 | 1.0  | 7.0 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
-         * 3 | 2 | 3.0 | 2.0  | 1.5 4 | 2 | 3.0 | 2.321928094887362 
-         * | 1.2920296742201793 5 | 1 | 1.0 | 2.584962500721156  | 0.38685280723454163 6
-         * | 0 | 0.0 | 2.807354922057604  | 0.0
+         * 1 | 3 | 7.0 | 1.0  | 7.0
+         * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
+         * 3 | 2 | 3.0 | 2.0  | 1.5
+         * 4 | 2 | 3.0 | 2.321928094887362 | 1.2920296742201793
+         * 5 | 1 | 1.0 | 2.584962500721156  | 0.38685280723454163
+         * 6 | 0 | 0.0 | 2.807354922057604  | 0.0
          *
          * idcg = 14.595390756454922 (sum of last column)
          */
-        dcg.setNormalize(true);
+        dcg = new DiscountedCumulativeGain(true, null);
         assertEquals(13.84826362927298 / 14.595390756454922, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
     }
 
@@ -87,12 +92,14 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
      * This tests metric when some documents in the search result don't have a
      * rating provided by the user.
      *
-     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) /
-     * log_2(rank + 1)
+     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
-     * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
-     * 3 | 3 | 7.0 | 2.0 | 3.5 4 | n/a | n/a | n/a | n/a 5 | 1 | 1.0
-     * | 2.584962500721156 | 0.38685280723454163 6 | n/a | n/a | n/a | n/a
+     * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 
+     * 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
+     * 3 | 3 | 7.0 | 2.0 | 3.5
+     * 4 | n/a | n/a | n/a | n/a
+     * 5 | 1 | 1.0 | 2.584962500721156 | 0.38685280723454163
+     * 6 | n/a | n/a | n/a | n/a
      *
      * dcg = 12.779642067948913 (sum of last column)
      */
@@ -118,16 +125,18 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * Check with normalization: to get the maximal possible dcg, sort documents by
          * relevance in descending order
          *
-         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) /
-         * log_2(rank + 1)
+         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
          * ----------------------------------------------------------------------------------------
-         * 1 | 3 | 7.0 | 1.0  | 7.0 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
-         * 3 | 2 | 3.0 | 2.0  | 1.5 4 | 1 | 1.0 | 2.321928094887362   | 0.43067655807339
-         * 5 | n.a | n.a | n.a.  | n.a. 6 | n.a | n.a | n.a  | n.a
+         * 1 | 3 | 7.0 | 1.0  | 7.0
+         * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
+         * 3 | 2 | 3.0 | 2.0  | 1.5
+         * 4 | 1 | 1.0 | 2.321928094887362   | 0.43067655807339
+         * 5 | n.a | n.a | n.a.  | n.a.
+         * 6 | n.a | n.a | n.a  | n.a
          *
          * idcg = 13.347184833073591 (sum of last column)
          */
-        dcg.setNormalize(true);
+        dcg = new DiscountedCumulativeGain(true, null);
         assertEquals(12.779642067948913 / 13.347184833073591, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
     }
 
@@ -136,13 +145,15 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
      * documents than search hits because we restrict DCG to be calculated at the
      * fourth position
      *
-     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) /
-     * log_2(rank + 1)
+     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
-     * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
-     * 3 | 3 | 7.0 | 2.0 | 3.5 4 | n/a | n/a | n/a | n/a
-     * ----------------------------------------------------------------- 5 | 1 | 1.0
-     * | 2.584962500721156 | 0.38685280723454163 6 | n/a | n/a | n/a | n/a
+     * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 
+     * 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
+     * 3 | 3 | 7.0 | 2.0 | 3.5
+     * 4 | n/a | n/a | n/a | n/a
+     * -----------------------------------------------------------------
+     * 5 | 1 | 1.0 | 2.584962500721156 | 0.38685280723454163
+     * 6 | n/a | n/a | n/a | n/a
      *
      * dcg = 12.392789260714371 (sum of last column until position 4)
      */
@@ -171,22 +182,24 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * Check with normalization: to get the maximal possible dcg, sort documents by
          * relevance in descending order
          *
-         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) /
-         * log_2(rank + 1)
+         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
          * ---------------------------------------------------------------------------------------
-         * 1 | 3 | 7.0 | 1.0  | 7.0 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
-         * 3 | 2 | 3.0 | 2.0  | 1.5 4 | 1 | 1.0 | 2.321928094887362   | 0.43067655807339
+         * 1 | 3 | 7.0 | 1.0  | 7.0
+         * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
+         * 3 | 2 | 3.0 | 2.0  | 1.5
+         * 4 | 1 | 1.0 | 2.321928094887362   | 0.43067655807339
          * ---------------------------------------------------------------------------------------
-         * 5 | n.a | n.a | n.a.  | n.a. 6 | n.a | n.a | n.a  | n.a
+         * 5 | n.a | n.a | n.a.  | n.a.
+         * 6 | n.a | n.a | n.a  | n.a
          *
          * idcg = 13.347184833073591 (sum of last column)
          */
-        dcg.setNormalize(true);
+        dcg = new DiscountedCumulativeGain(true, null);
         assertEquals(12.392789260714371 / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).getQualityLevel(), 0.00001);
     }
 
     public void testParseFromXContent() throws IOException {
-        String xContent = " {\n" + "   \"unknown_doc_rating\": 2,\n" + "   \"normalize\": true\n" + "}";
+        String xContent = " { \"unknown_doc_rating\": 2, \"normalize\": true }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             DiscountedCumulativeGain dcgAt = DiscountedCumulativeGain.fromXContent(parser);
             assertEquals(2, dcgAt.getUnknownDocRating().intValue());
@@ -217,29 +230,25 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         DiscountedCumulativeGain original = createTestItem();
-        DiscountedCumulativeGain deserialized = RankEvalTestHelper.copy(original, DiscountedCumulativeGain::new);
+        DiscountedCumulativeGain deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
+                DiscountedCumulativeGain::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
     public void testEqualsAndHash() throws IOException {
-        DiscountedCumulativeGain testItem = createTestItem();
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
-                RankEvalTestHelper.copy(testItem, DiscountedCumulativeGain::new));
+        checkEqualsAndHashCode(createTestItem(), original -> {
+            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating());
+        }, DiscountedCumulativeGainTests::mutateTestItem);
     }
 
     private static DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain original) {
-        boolean normalise = original.getNormalize();
-        int unknownDocRating = original.getUnknownDocRating();
-        DiscountedCumulativeGain gain = new DiscountedCumulativeGain();
-        gain.setNormalize(normalise);
-        gain.setUnknownDocRating(unknownDocRating);
-
-        List<Runnable> mutators = new ArrayList<>();
-        mutators.add(() -> gain.setNormalize(!original.getNormalize()));
-        mutators.add(() -> gain.setUnknownDocRating(randomValueOtherThan(unknownDocRating, () -> randomIntBetween(0, 10))));
-        randomFrom(mutators).run();
-        return gain;
+        if (randomBoolean()) {
+            return new DiscountedCumulativeGain(!original.getNormalize(), original.getUnknownDocRating());
+        } else {
+            return new DiscountedCumulativeGain(original.getNormalize(),
+                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)));
+        }
     }
 }

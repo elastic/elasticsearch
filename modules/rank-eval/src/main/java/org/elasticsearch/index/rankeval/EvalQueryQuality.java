@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,8 +92,11 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         builder.startObject(id);
         builder.field("quality_level", this.qualityLevel);
         builder.startArray("unknown_docs");
-        for (DocumentKey key : RankedListQualityMetric.filterUnknownDocuments(hits)) {
-            key.toXContent(builder, params);
+        for (DocumentKey key : EvaluationMetric.filterUnknownDocuments(hits)) {
+            builder.startObject();
+            builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), key.getIndex());
+            builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), key.getDocId());
+            builder.endObject();
         }
         builder.endArray();
         builder.startArray("hits");

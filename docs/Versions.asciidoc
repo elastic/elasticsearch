@@ -1,4 +1,4 @@
-:version:               6.0.0-rc2
+:version:               6.0.0
 :major-version:         6.x
 :lucene_version:        7.0.1
 :lucene_version_path:   7_0_1

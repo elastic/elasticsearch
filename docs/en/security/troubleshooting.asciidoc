@@ -4,6 +4,7 @@
 Use the information in this section to troubleshoot common problems and find
 answers for frequently asked questions.
 
+* <<security-auth-failure-upgrade>>
 * <<security-trb-settings>>
 * <<security-trb-roles>>
 * <<security-trb-extraargs>>
@@ -36,7 +37,7 @@ internal indices].
 There are two situations where it's necessary to manually upgrade the
 `.security` index:
 
-* After upgrading directly to $version from 5.5 or earlier.
+* After upgrading directly to {version} from 5.5 or earlier.
 * After restoring a snapshot from 5.5 or earlier that contains a `.security`
 index in the old format to a 6.0 cluster.
 

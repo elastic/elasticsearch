@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.type.Schema;
-import org.elasticsearch.xpack.sql.execution.PlanExecutor;
-
 import java.util.function.Consumer;
 
 /**
@@ -27,7 +23,7 @@ public interface RowSet extends RowView {
     void reset();
 
     /**
-     * The key used by {@link PlanExecutor#nextPage(Cursor, ActionListener)} to fetch the next page.
+     * The key used by PlanExecutor#nextPage to fetch the next page.
      */
     Cursor nextPageCursor();
 

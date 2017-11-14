@@ -36,7 +36,7 @@ public final class Proto extends AbstractProto {
         META_COLUMN(MetaColumnRequest::new),
         QUERY_INIT(QueryInitRequest::new),
         QUERY_PAGE(QueryPageRequest::new),
-//        QUERY_CLOSE(QueryClosenRequest::new), NOCOMMIT implement me
+        //        QUERY_CLOSE(QueryClosenRequest::new), TODO implement me
         ;
 
         private final RequestReader reader;

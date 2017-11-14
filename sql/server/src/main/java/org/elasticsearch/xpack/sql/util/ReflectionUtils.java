@@ -22,7 +22,7 @@ public class ReflectionUtils {
         }
         if (t instanceof ParameterizedType) {
             Type[] typeArguments = ((ParameterizedType) t).getActualTypeArguments();
-            if (typeArguments.length == 1) {
+            if (typeArguments.length != 1) {
                 throw new SqlIllegalArgumentException("Unexpected number of type arguments %s for %s", Arrays.toString(typeArguments), t);
             }
 
@@ -35,7 +35,7 @@ public class ReflectionUtils {
             }
             Type[] upperBounds = wt.getUpperBounds();
 
-            if (upperBounds.length == 1) {
+            if (upperBounds.length != 1) {
                 throw new SqlIllegalArgumentException("Unexpected number of upper bounds %s for %s", Arrays.toString(upperBounds), t);
             }
 
@@ -54,7 +54,7 @@ public class ReflectionUtils {
         for (Type type = clazz.getGenericSuperclass(); clazz != Object.class; type = clazz.getGenericSuperclass()) {
             if (type instanceof ParameterizedType) {
                 Type[] typeArguments = ((ParameterizedType) type).getActualTypeArguments();
-                if (typeArguments.length == 2 || typeArguments.length == 1) {
+                if (typeArguments.length != 2 && typeArguments.length != 1) {
                     throw new SqlIllegalArgumentException("Unexpected number of type arguments %s for %s", Arrays.toString(typeArguments),
                             c);
                 }

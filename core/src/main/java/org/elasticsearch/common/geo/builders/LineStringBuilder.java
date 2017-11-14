@@ -24,17 +24,18 @@ import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LineString;
 
+import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
-public class LineStringBuilder extends CoordinateCollection<LineStringBuilder> {
+public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
     /**
@@ -65,8 +66,8 @@ public class LineStringBuilder extends CoordinateCollection<LineStringBuilder> {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapeName());
-        builder.field(FIELD_COORDINATES);
+        builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
+        builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
         coordinatesToXcontent(builder, false);
         builder.endObject();
         return builder;
@@ -91,7 +92,7 @@ public class LineStringBuilder extends CoordinateCollection<LineStringBuilder> {
     }
 
     @Override
-    public Shape build() {
+    public JtsGeometry build() {
         Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
         Geometry geometry;
         if(wrapdateline) {
@@ -167,22 +168,5 @@ public class LineStringBuilder extends CoordinateCollection<LineStringBuilder> {
             }
         }
         return coordinates;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(coordinates);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        LineStringBuilder other = (LineStringBuilder) obj;
-        return Objects.equals(coordinates, other.coordinates);
     }
 }

@@ -42,6 +42,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -126,7 +127,7 @@ public class Setting<T> implements ToXContentObject {
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
 
     private Setting(Key key, @Nullable Setting<T> fallbackSetting, Function<Settings, String> defaultValue, Function<String, T> parser,
-            Validator<T> validator, Property... properties) {
+                    Validator<T> validator, Property... properties) {
         assert this instanceof SecureSetting || this.isGroupSetting() || parser.apply(defaultValue.apply(Settings.EMPTY)) != null
                : "parser returned null";
         this.key = key;
@@ -458,6 +459,14 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Returns a set of settings that are required at validation time. Unless all of the dependencies are present in the settings
+     * object validation of setting must fail.
+     */
+    public Set<String> getSettingsDependencies(String key) {
+        return Collections.emptySet();
+    }
+
+    /**
      * Build a new updater with a noop validator.
      */
     final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger) {
@@ -519,11 +528,13 @@ public class Setting<T> implements ToXContentObject {
     public static class AffixSetting<T> extends Setting<T> {
         private final AffixKey key;
         private final Function<String, Setting<T>> delegateFactory;
+        private final Set<AffixSetting> dependencies;
 
-        public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory) {
+        public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory, AffixSetting... dependencies) {
             super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
             this.key = key;
             this.delegateFactory = delegateFactory;
+            this.dependencies = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(dependencies)));
         }
 
         boolean isGroupSetting() {
@@ -532,6 +543,15 @@ public class Setting<T> implements ToXContentObject {
 
         private Stream<String> matchStream(Settings settings) {
             return settings.keySet().stream().filter((key) -> match(key)).map(settingKey -> key.getConcreteString(settingKey));
+        }
+
+        public Set<String> getSettingsDependencies(String settingsKey) {
+            if (dependencies.isEmpty()) {
+                return Collections.emptySet();
+            } else {
+                String namespace = key.getNamespace(settingsKey);
+                return dependencies.stream().map(s -> s.key.toConcreteKey(namespace).key).collect(Collectors.toSet());
+            }
         }
 
         AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>> newAffixUpdater(
@@ -657,6 +677,13 @@ public class Setting<T> implements ToXContentObject {
          */
         public Stream<Setting<T>> getAllConcreteSettings(Settings settings) {
             return matchStream(settings).distinct().map(this::getConcreteSetting);
+        }
+
+        /**
+         * Returns distinct namespaces for the given settings
+         */
+        public Set<String> getNamespaces(Settings settings) {
+            return settings.keySet().stream().filter(this::match).map(key::getNamespace).collect(Collectors.toSet());
         }
 
         /**
@@ -1184,13 +1211,15 @@ public class Setting<T> implements ToXContentObject {
      * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, affix key settings don't support updaters
      * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> AffixSetting<T> affixKeySetting(String prefix, String suffix, Function<String, Setting<T>> delegateFactory) {
-        return affixKeySetting(new AffixKey(prefix, suffix), delegateFactory);
+    public static <T> AffixSetting<T> affixKeySetting(String prefix, String suffix, Function<String, Setting<T>> delegateFactory,
+                                                      AffixSetting... dependencies) {
+        return affixKeySetting(new AffixKey(prefix, suffix), delegateFactory, dependencies);
     }
 
-    private static <T> AffixSetting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory) {
+    private static <T> AffixSetting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory,
+                                                       AffixSetting... dependencies) {
         Setting<T> delegate = delegateFactory.apply("_na_");
-        return new AffixSetting<>(key, delegate, delegateFactory);
+        return new AffixSetting<>(key, delegate, delegateFactory, dependencies);
     };
 
 

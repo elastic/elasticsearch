@@ -19,7 +19,12 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
+import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
+import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.LineStringBuilder;
+import org.elasticsearch.common.geo.builders.PolygonBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.locationtech.spatial4j.shape.Rectangle;
@@ -28,12 +33,6 @@ import com.vividsolutions.jts.geom.Coordinate;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
-import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
-import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -102,7 +101,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        ShapeBuilder shape = ShapeBuilders.newEnvelope(new Coordinate(-45, 45), new Coordinate(45, -45));
+        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1")
                 .setQuery(geoIntersectionQuery("location", shape))
@@ -146,7 +145,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        ShapeBuilder query = ShapeBuilders.newEnvelope(new Coordinate(-122.88, 48.62), new Coordinate(-122.82, 48.54));
+        EnvelopeBuilder query = new EnvelopeBuilder(new Coordinate(-122.88, 48.62), new Coordinate(-122.82, 48.54));
 
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
@@ -171,7 +170,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         createIndex("shapes");
         ensureGreen();
 
-        ShapeBuilder shape = ShapeBuilders.newEnvelope(new Coordinate(-45, 45), new Coordinate(45, -45));
+        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
 
         client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
                 .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
@@ -215,7 +214,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
         ensureGreen();
 
-        ShapeBuilder shape = ShapeBuilders.newEnvelope(new Coordinate(-45, 45), new Coordinate(45, -45));
+        EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
 
         client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
             .field("shape", shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
@@ -226,12 +225,12 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testReusableBuilder() throws IOException {
-        ShapeBuilder polygon = ShapeBuilders.newPolygon(new CoordinatesBuilder()
+        PolygonBuilder polygon = new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
                 .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5).coordinate(175, 5).close()));
         assertUnmodified(polygon);
 
-        ShapeBuilder linestring = ShapeBuilders.newLineString(new CoordinatesBuilder()
+        LineStringBuilder linestring = new LineStringBuilder(new CoordinatesBuilder()
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
         assertUnmodified(linestring);
     }
@@ -403,9 +402,9 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery(
                 "location",
-                ShapeBuilders.newGeometryCollection()
+                new GeometryCollectionBuilder()
                         .polygon(
-                                ShapeBuilders.newPolygon(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0).coordinate(103.0, 3.0).coordinate(103.0, -1.0)
+                                new PolygonBuilder(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0).coordinate(103.0, 3.0).coordinate(103.0, -1.0)
                                         .coordinate(99.0, -1.0)))).relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
@@ -413,24 +412,24 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertHitCount(result, 1);
         filter = QueryBuilders.geoShapeQuery(
                 "location",
-                ShapeBuilders.newGeometryCollection().polygon(
-                        ShapeBuilders.newPolygon(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0).coordinate(193.0, 13.0).coordinate(193.0, -11.0)
+                new GeometryCollectionBuilder().polygon(
+                        new PolygonBuilder(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0).coordinate(193.0, 13.0).coordinate(193.0, -11.0)
                                 .coordinate(199.0, -11.0)))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 0);
-        filter = QueryBuilders.geoShapeQuery("location", ShapeBuilders.newGeometryCollection()
-                .polygon(ShapeBuilders.newPolygon(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0).coordinate(103.0, 3.0).coordinate(103.0, -1.0).coordinate(99.0, -1.0)))
+        filter = QueryBuilders.geoShapeQuery("location", new GeometryCollectionBuilder()
+                .polygon(new PolygonBuilder(new CoordinatesBuilder().coordinate(99.0, -1.0).coordinate(99.0, 3.0).coordinate(103.0, 3.0).coordinate(103.0, -1.0).coordinate(99.0, -1.0)))
                         .polygon(
-                                ShapeBuilders.newPolygon(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0).coordinate(193.0, 13.0).coordinate(193.0, -11.0)
+                                new PolygonBuilder(new CoordinatesBuilder().coordinate(199.0, -11.0).coordinate(199.0, 13.0).coordinate(193.0, 13.0).coordinate(193.0, -11.0)
                                         .coordinate(199.0, -11.0)))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
         // no shape
-        filter = QueryBuilders.geoShapeQuery("location", ShapeBuilders.newGeometryCollection());
+        filter = QueryBuilders.geoShapeQuery("location", new GeometryCollectionBuilder());
         result = client().prepareSearch("test").setTypes("type").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);

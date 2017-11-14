@@ -113,7 +113,7 @@ Query DSL::
 * Remove QueryParseContext from parsing QueryBuilders {pull}25448[#25448]
 
 REST::
-* Return index name and empty map for /{index}/_alias with no aliases {pull}25114[#25114] (issues: {issue}24723[#24723], {issue}25090[#25090])
+* Return index name and empty map for /`{index}`/_alias with no aliases {pull}25114[#25114] (issues: {issue}24723[#24723], {issue}25090[#25090])
 
 
 

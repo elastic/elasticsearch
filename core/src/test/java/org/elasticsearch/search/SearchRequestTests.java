@@ -92,8 +92,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNull(validationErrors);
         }
         {
-        // disabeling `track_total_hits` isn't valid in scroll context
+            // disabling `track_total_hits` isn't valid in scroll context
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            // make sure we don't set the request cache for a scroll query
+            searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
             searchRequest.source().trackTotalHits(false);
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -104,6 +106,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // scroll and `from` isn't valid
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            // make sure we don't set the request cache for a scroll query
+            searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
             searchRequest.source().from(10);
             ActionRequestValidationException validationErrors = searchRequest.validate();

@@ -55,6 +55,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
@@ -64,6 +65,8 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -88,6 +91,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.network.InetAddresses.forString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class CandidateQueryTests extends ESSingleNodeTestCase {
 
@@ -307,9 +311,10 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
+        Version v = Version.V_6_1_0;
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new IntPoint("int_field", 3)), new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
-        Query query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        Query query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, v);
         TopDocs topDocs = shardSearcher.search(query, 1);
         assertEquals(1L, topDocs.totalHits);
         assertEquals(1, topDocs.scoreDocs.length);
@@ -317,7 +322,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
         memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new LongPoint("long_field", 7L)), new WhitespaceAnalyzer());
         percolateSearcher = memoryIndex.createSearcher();
-        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, v);
         topDocs = shardSearcher.search(query, 1);
         assertEquals(1L, topDocs.totalHits);
         assertEquals(1, topDocs.scoreDocs.length);
@@ -326,7 +331,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new HalfFloatPoint("half_float_field", 12)),
             new WhitespaceAnalyzer());
         percolateSearcher = memoryIndex.createSearcher();
-        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, v);
         topDocs = shardSearcher.search(query, 1);
         assertEquals(1L, topDocs.totalHits);
         assertEquals(1, topDocs.scoreDocs.length);
@@ -334,7 +339,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
         memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new FloatPoint("float_field", 17)), new WhitespaceAnalyzer());
         percolateSearcher = memoryIndex.createSearcher();
-        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, v);
         topDocs = shardSearcher.search(query, 1);
         assertEquals(1, topDocs.totalHits);
         assertEquals(1, topDocs.scoreDocs.length);
@@ -342,7 +347,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
         memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new DoublePoint("double_field", 21)), new WhitespaceAnalyzer());
         percolateSearcher = memoryIndex.createSearcher();
-        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, v);
         topDocs = shardSearcher.search(query, 1);
         assertEquals(1, topDocs.totalHits);
         assertEquals(1, topDocs.scoreDocs.length);
@@ -351,7 +356,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new InetAddressPoint("ip_field",
             forString("192.168.0.4"))), new WhitespaceAnalyzer());
         percolateSearcher = memoryIndex.createSearcher();
-        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+        query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, v);
         topDocs = shardSearcher.search(query, 1);
         assertEquals(1, topDocs.totalHits);
         assertEquals(1, topDocs.scoreDocs.length);
@@ -461,11 +466,99 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         duelRun(queryStore, memoryIndex, shardSearcher);
     }
 
+    public void testPercolateSmallAndLargeDocument() throws Exception {
+        List<ParseContext.Document> docs = new ArrayList<>();
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(new TermQuery(new Term("field", "value1")), BooleanClause.Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST);
+        addQuery(builder.build(), docs);
+        builder = new BooleanQuery.Builder();
+        builder.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST);
+        addQuery(builder.build(), docs);
+        builder = new BooleanQuery.Builder();
+        builder.add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value4")), BooleanClause.Occur.MUST);
+        addQuery(builder.build(), docs);
+        indexWriter.addDocuments(docs);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        shardSearcher.setQueryCache(null);
+
+        Version v = Version.CURRENT;
+
+        try (RAMDirectory directory = new RAMDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
+                Document document = new Document();
+                document.add(new StringField("field", "value1", Field.Store.NO));
+                document.add(new StringField("field", "value2", Field.Store.NO));
+                iw.addDocument(document);
+                document = new Document();
+                document.add(new StringField("field", "value5", Field.Store.NO));
+                document.add(new StringField("field", "value6", Field.Store.NO));
+                iw.addDocument(document);
+                document = new Document();
+                document.add(new StringField("field", "value3", Field.Store.NO));
+                document.add(new StringField("field", "value4", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            try (IndexReader ir = DirectoryReader.open(directory)){
+                IndexSearcher percolateSearcher = new IndexSearcher(ir);
+                Query query =
+                    fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, v);
+                TopDocs topDocs = shardSearcher.search(query, 10);
+                assertEquals(2L, topDocs.totalHits);
+                assertEquals(2, topDocs.scoreDocs.length);
+                assertEquals(0, topDocs.scoreDocs[0].doc);
+                assertEquals(2, topDocs.scoreDocs[1].doc);
+
+                query = new ConstantScoreQuery(query);
+                topDocs = shardSearcher.search(query, 10);
+                assertEquals(2L, topDocs.totalHits);
+                assertEquals(2, topDocs.scoreDocs.length);
+                assertEquals(0, topDocs.scoreDocs[0].doc);
+                assertEquals(2, topDocs.scoreDocs[1].doc);
+            }
+        }
+
+        // This will trigger using the TermsQuery instead of individual term query clauses in the CoveringQuery:
+        try (RAMDirectory directory = new RAMDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
+                Document document = new Document();
+                for (int i = 0; i < 1025; i++) {
+                    int fieldNumber = 2 + i;
+                    document.add(new StringField("field", "value" + fieldNumber, Field.Store.NO));
+                }
+                iw.addDocument(document);
+            }
+            try (IndexReader ir = DirectoryReader.open(directory)){
+                IndexSearcher percolateSearcher = new IndexSearcher(ir);
+                PercolateQuery query = (PercolateQuery)
+                    fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, v);
+                BooleanQuery candidateQuery = (BooleanQuery) query.getCandidateMatchesQuery();
+                assertThat(candidateQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
+
+                TopDocs topDocs = shardSearcher.search(query, 10);
+                assertEquals(2L, topDocs.totalHits);
+                assertEquals(2, topDocs.scoreDocs.length);
+                assertEquals(1, topDocs.scoreDocs[0].doc);
+                assertEquals(2, topDocs.scoreDocs[1].doc);
+
+                topDocs = shardSearcher.search(new ConstantScoreQuery(query), 10);
+                assertEquals(2L, topDocs.totalHits);
+                assertEquals(2, topDocs.scoreDocs.length);
+                assertEquals(1, topDocs.scoreDocs[0].doc);
+                assertEquals(2, topDocs.scoreDocs[1].doc);
+            }
+        }
+    }
+
     private void duelRun(PercolateQuery.QueryStore queryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {
         boolean requireScore = randomBoolean();
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         Query percolateQuery = fieldType.percolateQuery("_name", queryStore,
-            Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+            Collections.singletonList(new BytesArray("{}")), percolateSearcher, Version.CURRENT);
         Query query = requireScore ? percolateQuery : new ConstantScoreQuery(percolateQuery);
         TopDocs topDocs = shardSearcher.search(query, 10);
 
@@ -499,7 +592,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                                  IndexSearcher shardSearcher) throws IOException {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         Query percolateQuery = fieldType.percolateQuery("_name", queryStore,
-            Collections.singletonList(new BytesArray("{}")), percolateSearcher);
+            Collections.singletonList(new BytesArray("{}")), percolateSearcher, Version.CURRENT);
         return shardSearcher.search(percolateQuery, 10);
     }
 

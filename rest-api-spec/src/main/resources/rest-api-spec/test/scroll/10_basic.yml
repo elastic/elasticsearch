@@ -197,3 +197,23 @@
       clear_scroll:
         scroll_id: $scroll_id
 
+---
+"Scroll cannot used the request cache":
+  - skip:
+      version: " - 6.0.99"
+      reason:  the deprecation appears in 6.1.0
+      features: "warnings"
+
+  - do:
+      indices.create:
+        index: test_scroll
+  - do:
+      warnings:
+        - 'Explicitly set [request_cache] for a scroll query is deprecated and will return a 400 error in future versions'
+      search:
+        index: test_scroll
+        scroll: 1m
+        request_cache: true
+        body:
+          query:
+            match_all: {}

@@ -36,6 +36,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -54,6 +55,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -205,8 +207,56 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(0, scrollResponse.getHits().getHits().length);
             }
 
-            updateRemoteClusterSettings(Collections.singletonMap("skip_unavailable", randomBoolean() ? false : null));
+            updateRemoteClusterSettings(Collections.singletonMap("skip_unavailable", false));
             assertSearchConnectFailure();
+
+            Map<String, Object> map = new HashMap<>();
+            map.put("seeds", null);
+            map.put("skip_unavailable", null);
+            updateRemoteClusterSettings(map);
+        }
+    }
+
+    public void testSkipUnavailableDependsOnSeeds() throws IOException {
+        try (MockTransportService remoteTransport = startTransport("node0", new CopyOnWriteArrayList<>(), Version.CURRENT, threadPool)) {
+            DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+
+            {
+                //check that skip_unavailable alone cannot be set
+                HttpEntity clusterSettingsEntity = buildUpdateSettingsRequestBody(
+                        Collections.singletonMap("skip_unavailable", randomBoolean()));
+                ResponseException responseException = expectThrows(ResponseException.class,
+                        () -> client().performRequest("PUT", "/_cluster/settings", Collections.emptyMap(), clusterSettingsEntity));
+                assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
+                assertThat(responseException.getMessage(),
+                        containsString("Missing required setting [search.remote.remote1.seeds] " +
+                                "for setting [search.remote.remote1.skip_unavailable]"));
+            }
+
+            Map<String, Object> settingsMap = new HashMap<>();
+            settingsMap.put("seeds", remoteNode.getAddress().toString());
+            settingsMap.put("skip_unavailable", randomBoolean());
+            updateRemoteClusterSettings(settingsMap);
+
+            {
+                //check that seeds cannot be reset alone if skip_unavailable is set
+                HttpEntity clusterSettingsEntity = buildUpdateSettingsRequestBody(Collections.singletonMap("seeds", null));
+                ResponseException responseException = expectThrows(ResponseException.class,
+                        () -> client().performRequest("PUT", "/_cluster/settings", Collections.emptyMap(), clusterSettingsEntity));
+                assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
+                assertThat(responseException.getMessage(), containsString("Missing required setting [search.remote.remote1.seeds] " +
+                        "for setting [search.remote.remote1.skip_unavailable]"));
+            }
+
+            if (randomBoolean()) {
+                updateRemoteClusterSettings(Collections.singletonMap("skip_unavailable", null));
+                updateRemoteClusterSettings(Collections.singletonMap("seeds", null));
+            } else {
+                Map<String, Object> nullMap = new HashMap<>();
+                nullMap.put("seeds", null);
+                nullMap.put("skip_unavailable", null);
+                updateRemoteClusterSettings(nullMap);
+            }
         }
     }
 
@@ -231,7 +281,15 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         }
     }
 
+
+
     private static void updateRemoteClusterSettings(Map<String, Object> settings) throws IOException {
+        HttpEntity clusterSettingsEntity = buildUpdateSettingsRequestBody(settings);
+        Response response = client().performRequest("PUT", "/_cluster/settings", Collections.emptyMap(), clusterSettingsEntity);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+    }
+
+    private static HttpEntity buildUpdateSettingsRequestBody(Map<String, Object> settings) throws IOException {
         String requestBody;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -251,9 +309,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             builder.endObject();
             requestBody = builder.string();
         }
-        HttpEntity clusterSettingsEntity = new NStringEntity(requestBody, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest("PUT", "/_cluster/settings", Collections.emptyMap(), clusterSettingsEntity);
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        return new NStringEntity(requestBody, ContentType.APPLICATION_JSON);
     }
 
     private static class HighLevelClient extends RestHighLevelClient {

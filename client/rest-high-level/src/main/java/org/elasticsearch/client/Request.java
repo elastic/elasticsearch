@@ -28,8 +28,10 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -410,8 +412,12 @@ public final class Request {
      * @return the {@link ContentType}
      */
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
-    public static ContentType createContentType(final XContentType xContentType) {
+    public static <Req extends ActionRequest> ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
+    }
+
+    static Request indicesExist(IndicesExistsRequest req) {
+        return null;
     }
 
     /**

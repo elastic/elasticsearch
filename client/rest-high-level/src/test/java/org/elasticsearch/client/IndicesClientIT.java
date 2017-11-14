@@ -38,9 +38,24 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         IndicesExistsRequest request = new IndicesExistsRequest(indexName);
         IndicesExistsResponse response = execute(
             request,
-            highLevelClient().indices()::indexExists,
+            highLevelClient().indices()::exists,
+            highLevelClient().indices()::existsAsync
+        );
+        assertTrue(response.isExists());
+    }
 
-        )
+    public void testIndexExists_IndexNotPresent() throws IOException {
+        // Delete index if exists
+        String indexName = "non_existent_index";
+        createIndex(indexName);
+
+        IndicesExistsRequest request = new IndicesExistsRequest(indexName);
+        IndicesExistsResponse response = execute(
+            request,
+            highLevelClient().indices()::exists,
+            highLevelClient().indices()::existsAsync
+        );
+        assertFalse(response.isExists());
     }
 
     public void testDeleteIndex() throws IOException {

@@ -65,10 +65,21 @@ public final class IndicesClient {
     }
 
     public IndicesExistsResponse exists(IndicesExistsRequest indicesExistsRequest, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(
+        return restHighLevelClient.performRequestAndParseEntity(
             indicesExistsRequest,
             Request::indicesExist,
             IndicesExistsResponse::fromXContent,
+            emptySet(),
+            headers
+        );
+    }
+
+    public void existsAsync(IndicesExistsRequest indicesExistsRequest, ActionListener<IndicesExistsResponse> listener, Header... headers) throws IOException {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            indicesExistsRequest,
+            Request::indicesExist,
+            IndicesExistsResponse::fromXContent,
+            listener,
             emptySet(),
             headers
         );

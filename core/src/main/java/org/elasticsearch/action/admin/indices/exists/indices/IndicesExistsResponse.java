@@ -22,10 +22,13 @@ package org.elasticsearch.action.admin.indices.exists.indices;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class IndicesExistsResponse extends ActionResponse {
+public class IndicesExistsResponse extends ActionResponse implements ToXContentObject {
 
     private boolean exists;
 
@@ -50,5 +53,14 @@ public class IndicesExistsResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(exists);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return null;
+    }
+
+    public static IndicesExistsResponse fromXContent(XContentParser xContentParser) {
+        return null;
     }
 }

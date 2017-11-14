@@ -75,9 +75,15 @@ public class VersionUtils {
             + "but was [" + versions.get(versions.size() - 1) + "] and current was [" + current + "]";
 
         if (current.revision != 0) {
-            /* If we are in a stable branch there should be no unreleased version constants
-             * because we don't expect to release any new versions in older branches. If there
-             * are extra constants then gradle will yell about it. */
+            /* If we are in a stable branch then the only unreleased versions should be the current one and
+             * the latest one in the previous major version. If there are extra constants then gradle will yell about it. */
+            for (int i = versions.size() - 1; i >= 0; i--) {
+                if (versions.get(i).major < current.major) {
+                    Version lastOfPreviousMajor = versions.remove(i);
+                    return new Tuple<>(unmodifiableList(versions), Arrays.asList(lastOfPreviousMajor, current));
+                }
+            }
+
             return new Tuple<>(unmodifiableList(versions), singletonList(current));
         }
 

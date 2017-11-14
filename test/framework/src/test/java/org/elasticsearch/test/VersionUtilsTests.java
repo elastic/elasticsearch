@@ -168,6 +168,31 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(Arrays.asList(TestUnstableBranch.V_5_3_2, TestUnstableBranch.V_5_4_0, TestUnstableBranch.V_6_0_0_beta2), unreleased);
     }
 
+    static class TestNewMajorRelease {
+        public static final Version V_5_6_0 = Version.fromString("5.6.0");
+        public static final Version V_5_6_1 = Version.fromString("5.6.1");
+        public static final Version V_5_6_2 = Version.fromString("5.6.2");
+        public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
+        public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
+        public static final Version V_6_0_0_beta1 = Version.fromString("6.0.0-beta1");
+        public static final Version V_6_0_0_beta2 = Version.fromString("6.0.0-beta2");
+        public static final Version V_6_0_0 = Version.fromString("6.0.0");
+        public static final Version V_6_0_1 = Version.fromString("6.0.1");
+        public static final Version CURRENT = V_6_0_1;
+    }
+
+    public void testResolveReleasedVersionsAtNewMajorRelease() {
+        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestNewMajorRelease.CURRENT,
+            TestNewMajorRelease.class);
+        List<Version> released = t.v1();
+        List<Version> unreleased = t.v2();
+        assertEquals(Arrays.asList(TestNewMajorRelease.V_5_6_0, TestNewMajorRelease.V_5_6_1,
+            TestNewMajorRelease.V_6_0_0_alpha1, TestNewMajorRelease.V_6_0_0_alpha2,
+            TestNewMajorRelease.V_6_0_0_beta1, TestNewMajorRelease.V_6_0_0_beta2,
+            TestNewMajorRelease.V_6_0_0), released);
+        assertEquals(Arrays.asList(TestNewMajorRelease.V_5_6_2, TestNewMajorRelease.V_6_0_1), unreleased);
+    }
+
     /**
      * Tests that {@link Version#minimumCompatibilityVersion()} and {@link VersionUtils#allReleasedVersions()}
      * agree with the list of wire and index compatible versions we build in gradle.

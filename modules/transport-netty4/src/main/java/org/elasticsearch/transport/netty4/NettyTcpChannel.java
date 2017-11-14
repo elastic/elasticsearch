@@ -40,7 +40,7 @@ public class NettyTcpChannel implements TcpChannel {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
                     Netty4Utils.maybeDie(cause);
-                    closeContext.completeExceptionally(new Exception(cause));
+                    closeContext.completeExceptionally(cause);
                 } else {
                     closeContext.completeExceptionally(cause);
                 }

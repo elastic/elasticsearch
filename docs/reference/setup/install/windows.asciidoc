@@ -73,7 +73,9 @@ part of the installation:
 [[msi-installer-selected-plugins]]
 image::images/msi_installer/msi_installer_selected_plugins.png[]
 
-NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the https://www.elastic.co/subscriptions[available subscriptions] or {ref}/security-settings.html[disable Security]. The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
+NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the 
+https://www.elastic.co/subscriptions[available subscriptions] or {ref}/security-settings.html[disable Security]. 
+The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
 
 After clicking the install button, Elasticsearch will be installed: 
 
@@ -128,12 +130,12 @@ as _properties_ within Windows Installer documentation) that can be passed to ms
 [horizontal]
 `INSTALLDIR`:: 
 
-  The installation directory. Defaults to `%ProgramW6432%\Elastic\Elasticsearch`
+  The installation directory. Defaults to ++%ProgramW6432%\Elastic\Elasticsearch\{version}++
 
 `DATADIRECTORY`:: 
 
   The directory in which to store your data. 
-Defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\data`
+  Defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\data`
 
 `CONFIGDIRECTORY`:: 
 
@@ -245,7 +247,60 @@ Defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\data`
 
 `PLUGINS`:: 
 
-  A comma separated list of the plugins to download and install as part of the installation. Defaults `""`
+  A comma separated list of the plugins to download and install as part of the installation. Defaults to `""`
+
+`HTTPSPROXYHOST`::
+
+  The proxy host to use to download plugins over HTTPS. Defaults to `""`
+
+`HTTPSPROXYPORT`::
+
+  The proxy port to use to download plugins over HTTPS. Defaults to `443`
+
+`HTTPPROXYHOST`::
+
+  The proxy host to use to download plugins over HTTP. Defaults to `""`
+
+`HTTPPROXYPORT`::
+
+  The proxy port to use to download plugins over HTTP. Defaults to `80`
+
+`XPACKLICENSE`::
+
+  When installing X-Pack plugin, the type of _temporary_ license to install,
+  either `Basic` or `Trial`. Defaults to `Basic`
+
+`XPACKSECURITYENABLED`::
+
+  When installing X-Pack plugin with a `Trial` license, whether X-Pack Security should be enabled.
+  Defaults to `true`
+
+`BOOTSTRAPPASSWORD`::
+
+  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password to
+  used to bootstrap the cluster and persisted as the `bootstrap.password` setting in the keystore.
+  Defaults to a randomized value.
+
+`SKIPSETTINGPASSWORDS`:: 
+
+  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, whether the
+  installation should skip setting up the built-in users `elastic`, `kibana` and `logstash_system`.
+  Defaults to `false`
+
+`ELASTICUSERPASSWORD`::
+
+  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password
+  to use for the built-in user `elastic`. Defaults to `""`
+
+`KIBANAUSERPASSWORD`::
+
+  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password
+  to use for the built-in user `kibana`. Defaults to `""`
+
+`LOGSTASHSYSTEMUSERPASSWORD`::
+
+  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password
+  to use for the built-in user `logstash_system`. Defaults to `""`  
 
 To pass a value, simply append the property name and value using the format `<PROPERTYNAME>="<VALUE>"` to
 the installation command. For example, to use a different installation directory to the default one and to install https://www.elastic.co/products/x-pack[X-Pack]:
@@ -280,7 +335,7 @@ to the `<cluster name>.log` file within `LOGSDIRECTORY`, and can be stopped by p
 [[msi-installer-command-line-configuration]]
 ==== Configuring Elasticsearch on the command line
 
-Elasticsearch loads its configuration from the `%ES_HOME%\config\elasticsearch.yml`
+Elasticsearch loads its configuration from the `%ES_PATH_CONF%\elasticsearch.yml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -369,11 +424,16 @@ The `.msi` can also upgrade Elasticsearch using the command line.
 [IMPORTANT]
 ===========================================
 A command line upgrade requires passing the **same** command line properties as
-used at first install time; the Windows Installer does not remember these properties.
+used at first install time; the Windows Installer does not remember these properties. 
 
 For example, if you originally installed with the command line options `PLUGINS="x-pack"` and
 `LOCKMEMORY="true"`, then you must pass these same values when performing an
 upgrade from the command line.
+
+The **exception** is `INSTALLDIR` (if originally specified), which must be a different directory to the 
+current installation. 
+If setting `INSTALLDIR`, we recommend that the final directory in the path be the version of Elasticsearch e.g.
+++C:\Program Files\Elastic\Elasticsearch\{version}++
 ===========================================
 
 The simplest upgrade, assuming Elasticsearch was installed using all defaults, 

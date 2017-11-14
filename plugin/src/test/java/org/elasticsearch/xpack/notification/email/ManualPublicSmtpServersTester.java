@@ -11,6 +11,11 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xpack.watcher.notification.email.Attachment;
+import org.elasticsearch.xpack.watcher.notification.email.Email;
+import org.elasticsearch.xpack.watcher.notification.email.EmailService;
+import org.elasticsearch.xpack.watcher.notification.email.EmailServiceTests;
+import org.elasticsearch.xpack.watcher.notification.email.Profile;
 
 import java.util.Collections;
 import java.util.Locale;

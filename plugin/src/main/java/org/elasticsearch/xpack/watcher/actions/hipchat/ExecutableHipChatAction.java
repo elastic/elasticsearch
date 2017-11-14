@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.watcher.actions.hipchat;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
-import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
-import org.elasticsearch.xpack.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.notification.hipchat.SentMessages;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatAccount;
+import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatMessage;
+import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
+import org.elasticsearch.xpack.watcher.notification.hipchat.SentMessages;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;

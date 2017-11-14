@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.watcher.actions.jira;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.notification.jira.JiraAccount;
-import org.elasticsearch.xpack.notification.jira.JiraIssue;
-import org.elasticsearch.xpack.notification.jira.JiraService;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
+import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
+import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;

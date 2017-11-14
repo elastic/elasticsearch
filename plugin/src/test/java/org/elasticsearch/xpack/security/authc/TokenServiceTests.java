@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.TokenService.BytesKey;
 import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.support.clock.ClockMock;
+import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

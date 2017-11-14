@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.watcher.actions.pagerduty;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
-import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
-import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
-import org.elasticsearch.xpack.notification.pagerduty.SentEvent;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEvent;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.SentEvent;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;

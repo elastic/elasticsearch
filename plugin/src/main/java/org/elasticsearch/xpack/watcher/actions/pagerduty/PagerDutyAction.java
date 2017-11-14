@@ -10,8 +10,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
-import org.elasticsearch.xpack.notification.pagerduty.SentEvent;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEvent;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.SentEvent;
 
 import java.io.IOException;
 import java.util.Objects;

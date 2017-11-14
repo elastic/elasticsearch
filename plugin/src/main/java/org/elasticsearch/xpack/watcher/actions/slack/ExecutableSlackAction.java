@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.watcher.actions.slack;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.notification.slack.SentMessages;
-import org.elasticsearch.xpack.notification.slack.SlackAccount;
-import org.elasticsearch.xpack.notification.slack.SlackService;
-import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.slack.SentMessages;
+import org.elasticsearch.xpack.watcher.notification.slack.SlackAccount;
+import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
+import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.notification;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;

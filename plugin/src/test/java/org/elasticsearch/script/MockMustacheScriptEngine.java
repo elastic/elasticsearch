@@ -6,7 +6,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
 import java.util.Collection;
 import java.util.Collections;

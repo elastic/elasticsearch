@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.common.secret.Secret;
+import org.elasticsearch.xpack.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 import java.io.IOException;

@@ -48,5 +48,5 @@
 # This suite is not needed for testing mixed clusters with minimum version 6.0.0 and higher,
 # because join type should be used instead of _parent field.
   - do:
-      remote.info: {}
+      cluster.remote_info: {}
   - is_true: ''

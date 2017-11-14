@@ -4,6 +4,6 @@
       version: " - 5.3.99"
       reason: this API doesn't exist in 5.3.x yet
   - do:
-      remote.info: {}
+      cluster.remote_info: {}
   - is_true: ''
 

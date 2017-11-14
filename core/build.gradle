@@ -59,11 +59,9 @@ dependencies {
 
   // utilities
   compile "org.elasticsearch:elasticsearch-cli:${version}"
-  compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
   compile 'joda-time:joda-time:2.9.5'
 
   // json and yaml
@@ -267,6 +265,7 @@ if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /jackson-.*/, to: 'jackson'
+  ignoreSha 'elasticsearch-cli'
 }
 
 if (isEclipse == false || project.path == ":core-tests") {

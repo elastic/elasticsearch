@@ -25,7 +25,7 @@ apply plugin: 'ru.vyarus.animalsniffer'
 archivesBaseName = 'elasticsearch-cli'
 
 dependencies {
-    provided 'net.sf.jopt-simple:jopt-simple:5.0.2'
+    compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
 }
 
 test.enabled = false

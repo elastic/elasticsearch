@@ -670,6 +670,7 @@ public class InternalEngine extends Engine {
             switch (index.origin()) {
                 case PRIMARY:
                     assertPrimaryCanOptimizeAddDocument(index);
+                    break;
                 case PEER_RECOVERY:
                 case REPLICA:
                     assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL

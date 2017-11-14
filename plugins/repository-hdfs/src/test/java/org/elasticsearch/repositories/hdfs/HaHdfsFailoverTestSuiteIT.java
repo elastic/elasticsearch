@@ -58,8 +58,6 @@ import org.junit.Assert;
  */
 public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
 
-    private static final Logger LOGGER = Loggers.getLogger(HaHdfsFailoverTestSuiteIT.class);
-
     public void testHAFailoverWithRepository() throws Exception {
         RestClient client = client();
         Map<String, String> emptyParams = Collections.emptyMap();
@@ -89,7 +87,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
             if (Files.isReadable(kt) != true) {
                 throw new IllegalStateException("Could not read keytab at " + kerberosKeytabLocation);
             }
-            LOGGER.info("Keytab Length: " + Files.readAllBytes(kt).length);
+            logger.info("Keytab Length: " + Files.readAllBytes(kt).length);
 
             // set principal names
             hdfsConfiguration.set("dfs.namenode.kerberos.principal", hdfsKerberosPrincipal);
@@ -269,7 +267,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
      * @throws IOException In the event of a raised exception during namenode failover.
      */
     private void failoverHDFS(String from, String to, Configuration configuration) throws IOException {
-        LOGGER.info("Swapping active namenodes: [{}] to standby and [{}] to active", from, to);
+        logger.info("Swapping active namenodes: [{}] to standby and [{}] to active", from, to);
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 CloseableHAAdmin haAdmin = new CloseableHAAdmin();

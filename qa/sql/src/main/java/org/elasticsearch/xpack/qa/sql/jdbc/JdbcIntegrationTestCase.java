@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.qa.sql.embed.EmbeddedJdbcServer;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
+import org.elasticsearch.xpack.sql.jdbc.jdbcx.JdbcDataSource;
 import org.joda.time.DateTimeZone;
 import org.junit.ClassRule;
 
@@ -64,13 +65,28 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
 
     public Connection esJdbc() throws SQLException {
         if (EMBED_SQL) {
-            return EMBEDDED_SERVER.connection();
+            return EMBEDDED_SERVER.connection(connectionProperties());
         }
-        // tag::connect
+        return randomBoolean() ? useDriverManager() : useDataSource();
+    }
+
+    protected Connection useDriverManager() throws SQLException {
+        // tag::connect-dm
         String address = "jdbc:es://" + elasticsearchAddress();   // <1>
         Properties connectionProperties = connectionProperties(); // <2>
         return DriverManager.getConnection(address, connectionProperties);
-        // end::connect
+        // end::connect-dm
+    }
+
+    protected Connection useDataSource() throws SQLException {
+        // tag::connect-ds
+        JdbcDataSource dataSource = new JdbcDataSource();
+        String address = "jdbc:es://" + elasticsearchAddress();   // <1>
+        dataSource.setUrl(address);
+        Properties connectionProperties = connectionProperties(); // <2>
+        dataSource.setProperties(connectionProperties);
+        return dataSource.getConnection();
+        // end::connect-ds
     }
 
     public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
@@ -110,5 +126,4 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         Collections.sort(ids);
         return randomFrom(ids);
     }
-
 }

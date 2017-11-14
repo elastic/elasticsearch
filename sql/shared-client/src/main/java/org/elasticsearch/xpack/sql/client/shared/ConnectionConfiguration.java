@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.client.shared;
 
-import org.elasticsearch.xpack.sql.client.shared.StringUtils;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -72,7 +70,8 @@ public class ConnectionConfiguration {
     // Auth
 
     public static final String AUTH_USER = "user";
-    public static final String AUTH_PASS = "pass";
+    // NB: this is password instead of pass since that's what JDBC DriverManager/tools use
+    public static final String AUTH_PASS = "password";
 
     protected static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
             Arrays.asList(CONNECT_TIMEOUT, NETWORK_TIMEOUT, QUERY_TIMEOUT, PAGE_TIMEOUT, PAGE_SIZE, AUTH_USER, AUTH_PASS));

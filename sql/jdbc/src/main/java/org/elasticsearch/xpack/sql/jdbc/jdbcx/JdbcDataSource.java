@@ -9,8 +9,8 @@ import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConnection;
+import org.elasticsearch.xpack.sql.jdbc.util.Version;
 
-import java.io.Closeable;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -22,7 +22,11 @@ import java.util.logging.Logger;
 
 import javax.sql.DataSource;
 
-public class JdbcDataSource implements DataSource, Wrapper, Closeable {
+public class JdbcDataSource implements DataSource, Wrapper {
+
+    static {
+        Version.version();
+    }
 
     private String url;
     private PrintWriter writer;
@@ -68,26 +72,26 @@ public class JdbcDataSource implements DataSource, Wrapper, Closeable {
     }
 
     public Properties getProperties() {
-        return props;
+        Properties copy = new Properties();
+        if (props != null) {
+            copy.putAll(props);
+        }
+        return copy;
     }
 
     public void setProperties(Properties props) {
-        this.props = props;
-    }
-
-    private Properties createConfig() {
-        Properties p = props != null ? new Properties(props) : new Properties();
-        return p;
+        this.props = new Properties();
+        this.props.putAll(props);
     }
 
     @Override
     public Connection getConnection() throws SQLException {
-        return doGetConnection(props);
+        return doGetConnection(getProperties());
     }
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        Properties p = createConfig();
+        Properties p = getProperties();
         p.setProperty(ConnectionConfiguration.AUTH_USER, username);
         p.setProperty(ConnectionConfiguration.AUTH_PASS, password);
         return doGetConnection(p);
@@ -100,7 +104,7 @@ public class JdbcDataSource implements DataSource, Wrapper, Closeable {
         }
         JdbcConnection con = new JdbcConnection(cfg);
         // enable logging if needed
-        return Debug.proxy(cfg, con, writer);
+        return cfg.debug() ? Debug.proxy(cfg, con, writer) : con;
     }
 
     @Override
@@ -115,10 +119,5 @@ public class JdbcDataSource implements DataSource, Wrapper, Closeable {
             return (T) this;
         }
         throw new SQLException();
-    }
-
-    @Override
-    public void close() {
-        Debug.close();
     }
 }

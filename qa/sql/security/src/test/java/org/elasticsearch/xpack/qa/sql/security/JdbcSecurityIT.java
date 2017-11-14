@@ -27,7 +27,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         // tag::admin_properties
         Properties properties = new Properties();
         properties.put("user", "test_admin");
-        properties.put("pass", "x-pack-test-password");
+        properties.put("password", "x-pack-test-password");
         // end::admin_properties
         return properties;
     }
@@ -42,7 +42,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         }
         Properties prop = new Properties();
         prop.put("user", user);
-        prop.put("pass", "testpass");
+        prop.put("password", "testpass");
         return prop;
     }
 

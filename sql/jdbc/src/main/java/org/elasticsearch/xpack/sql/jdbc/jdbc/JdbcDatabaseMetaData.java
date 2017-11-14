@@ -1082,12 +1082,12 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public int getJDBCMajorVersion() throws SQLException {
-        return JdbcDriver.jdbcMajorVersion();
+        return Version.jdbcMajorVersion();
     }
 
     @Override
     public int getJDBCMinorVersion() throws SQLException {
-        return JdbcDriver.jdbcMinorVersion();
+        return Version.jdbcMinorVersion();
     }
 
     @Override

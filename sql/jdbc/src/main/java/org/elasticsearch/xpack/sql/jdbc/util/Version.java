@@ -21,8 +21,17 @@ public abstract class Version {
     private static final String VER;
     private static final String SHORT_HASH;
 
-    private static final int VER_MAJ, VER_MIN;
+    private static final int VER_MAJ, VER_MIN, VER_REV;
 
+    static int[] from(String ver) {
+        String[] parts = ver.split("[.-]");
+        if (parts.length == 3 || parts.length == 4) {
+            return new int[] { Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]) };
+        }
+        else {
+            throw new Error("Detected Elasticsearch SQL JDBC driver but found invalid version " + ver);
+        }
+    }
 
     static {
         // check classpath
@@ -32,8 +41,7 @@ public abstract class Version {
         try {
             res = Version.class.getClassLoader().getResources(target);
         } catch (IOException ex) {
-            //            LogFactory.getLog(Version.class)
-            //                    .warn("Cannot detect Elasticsearch JDBC driver jar; it typically indicates a deployment issue...");
+            throw new Error("Cannot detect Elasticsearch SQL JDBC driver jar; it typically indicates a deployment issue...");
         }
 
         if (res != null) {
@@ -47,7 +55,7 @@ public abstract class Version {
             int foundJars = 0;
             if (normalized.size() > 1) {
                 StringBuilder sb = new StringBuilder(
-                        "Multiple Elasticsearch JDBC driver versions detected in the classpath; please use only one\n");
+                        "Multiple Elasticsearch SQL JDBC driver versions detected in the classpath; please use only one\n");
                 for (String s : normalized) {
                     if (s.contains("jar:")) {
                         foundJars++;
@@ -56,32 +64,37 @@ public abstract class Version {
                     }
                 }
                 if (foundJars > 1) {
-//                    LogFactory.getLog(Version.class).fatal(sb);
                     throw new Error(sb.toString());
                 }
             }
         }
 
         // This is similar to how Elasticsearch's Build class digs up its build information.
+        // Since version info is not critical, the parsing is lenient
         URL url = Version.class.getProtectionDomain().getCodeSource().getLocation();
         String urlStr = url.toString();
+
+        int maj = 0, min = 0, rev = 0;
+        String ver = "Unknown";
+        String hash = ver;
+
         if (urlStr.startsWith("file:/") && (urlStr.endsWith(".jar") || urlStr.endsWith("-SNAPSHOT.jar"))) {
             try (JarInputStream jar = new JarInputStream(url.openStream())) {
                 Manifest manifest = jar.getManifest();
-                VER = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
-                int sep = VER.indexOf('.');
-                VER_MAJ = Integer.parseInt(VER.substring(0, sep - 1));
-                VER_MIN = Integer.parseInt(VER.substring(sep, VER.indexOf(sep, '.') - 1));
-                SHORT_HASH = manifest.getMainAttributes().getValue("Change");
-            } catch (IOException e) {
-                throw new RuntimeException("error finding version of driver", e);
+                hash = manifest.getMainAttributes().getValue("Change");
+                int[] vers = from(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version"));
+                maj = vers[0];
+                min = vers[1];
+                rev = vers[2];
+            } catch (Exception ex) {
+                throw new Error("Detected Elasticsearch SQL JDBC driver but cannot retrieve its version", ex);
             }
-        } else {
-            VER_MAJ = 0;
-            VER_MIN = 0;
-            VER = "Unknown";
-            SHORT_HASH = "Unknown";
         }
+        VER_MAJ = maj;
+        VER_MIN = min;
+        VER_REV = rev;
+        VER = ver;
+        SHORT_HASH = hash;
     }
 
     public static int versionMajor() {
@@ -92,15 +105,27 @@ public abstract class Version {
         return VER_MIN;
     }
 
+    public static int versionRevision() {
+        return VER_REV;
+    }
+
     public static String version() {
-        return "v" + versionNumber() + " [" + versionHashShort() + "]";
+        return "v" + versionNumber() + " [" + versionHash() + "]";
     }
 
     public static String versionNumber() {
         return VER;
     }
 
-    public static String versionHashShort() {
+    public static String versionHash() {
         return SHORT_HASH;
+    }
+
+    public static int jdbcMajorVersion() {
+        return 4;
+    }
+
+    public static int jdbcMinorVersion() {
+        return 2;
     }
 }

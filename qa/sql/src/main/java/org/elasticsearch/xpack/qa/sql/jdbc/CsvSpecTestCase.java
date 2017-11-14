@@ -10,7 +10,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConnection;
+import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.relique.io.TableReader;
 import org.relique.jdbc.csv.CsvConnection;
@@ -28,7 +28,6 @@ import java.sql.Statement;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
-import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 
@@ -83,9 +82,6 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         try (Connection csv = new CsvConnection(tableReader, csvProperties, "") {};
              Connection es = esJdbc()) {
 
-            // make sure ES uses UTC (otherwise JDBC driver picks up the JVM timezone per spec/convention)
-            ((JdbcConnection) es).setTimeZone(TimeZone.getTimeZone("UTC"));
-
             // pass the testName as table for debugging purposes (in case the underlying reader is missing)
             ResultSet expected = csv.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)
                     .executeQuery("SELECT * FROM " + csvTableName);
@@ -94,6 +90,14 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
             ResultSet elasticResults = executeJdbcQuery(es, query);
             assertResults(expected, elasticResults);
         }
+    }
+
+    // make sure ES uses UTC (otherwise JDBC driver picks up the JVM timezone per spec/convention)
+    @Override
+    protected Properties connectionProperties() {
+        Properties connectionProperties = new Properties();
+        connectionProperties.setProperty(JdbcConfiguration.TIME_ZONE, "UTC");
+        return connectionProperties;
     }
 
     private Tuple<String,String> extractColumnTypes(String expectedResults) throws IOException {

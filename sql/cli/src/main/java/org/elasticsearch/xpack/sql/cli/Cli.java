@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.ResponseType;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
 import org.elasticsearch.xpack.sql.client.shared.IOUtils;
-import org.elasticsearch.xpack.sql.client.shared.SuppressForbidden;
 import org.elasticsearch.xpack.sql.client.shared.StringUtils;
+import org.elasticsearch.xpack.sql.client.shared.SuppressForbidden;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.jline.reader.EndOfFileException;
@@ -87,8 +87,8 @@ public class Cli {
                         password = new BufferedReader(term.reader()).readLine();
                         term.echo(true);
                     }
-                    properties.setProperty("user", user);
-                    properties.setProperty("pass", password);
+                    properties.setProperty(CliConfiguration.AUTH_USER, user);
+                    properties.setProperty(CliConfiguration.AUTH_PASS, password);
                 }
 
                 boolean debug = StringUtils.parseBoolean(System.getProperty("cli.debug", "false"));

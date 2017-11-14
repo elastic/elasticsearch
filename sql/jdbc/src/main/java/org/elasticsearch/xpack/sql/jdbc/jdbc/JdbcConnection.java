@@ -27,7 +27,6 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.util.Map;
 import java.util.Properties;
-import java.util.TimeZone;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
@@ -384,26 +383,17 @@ public class JdbcConnection implements Connection, JdbcWrapper {
 
     @Override
     public void abort(Executor executor) throws SQLException {
-        if (executor == null) {
-            throw new SQLException("Null executor");
-        }
-        close();
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
-        if (executor == null) {
-            throw new SQLException("Null executor");
-        }
-        if (milliseconds < 0) {
-            throw new SQLException("Negative milliseconds");
-        }
-        client.setNetworkTimeout(milliseconds);
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public int getNetworkTimeout() throws SQLException {
-        return (int) client.getNetworkTimeout();
+        throw new SQLFeatureNotSupportedException();
     }
 
     private void checkResultSet(int resultSetType, int resultSetConcurrency) throws SQLException {
@@ -439,9 +429,5 @@ public class JdbcConnection implements Connection, JdbcWrapper {
 
     int esInfoMinorVersion() throws SQLException {
         return client.serverInfo().minorVersion;
-    }
-
-    public void setTimeZone(TimeZone tz) {
-        cfg.timeZone(tz);
     }
 }

@@ -72,8 +72,10 @@ public class EmbeddedJdbcServer extends ExternalResource {
         server = null;
     }
 
-    public Connection connection() throws SQLException {
+    public Connection connection(Properties props) throws SQLException {
         assertNotNull("ES JDBC Server is null - make sure ES is properly run as a @ClassRule", server);
-        return DriverManager.getConnection(jdbcUrl, properties);
+        Properties p = new Properties(properties);
+        p.putAll(props);
+        return DriverManager.getConnection(jdbcUrl, p);
     }
 }

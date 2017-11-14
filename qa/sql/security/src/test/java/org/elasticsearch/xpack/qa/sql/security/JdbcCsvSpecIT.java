@@ -22,6 +22,8 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
 
     @Override
     protected Properties connectionProperties() {
-        return JdbcSecurityIT.adminProperties();
+        Properties sp = super.connectionProperties();
+        sp.putAll(JdbcSecurityIT.adminProperties());
+        return sp;
     }
 }

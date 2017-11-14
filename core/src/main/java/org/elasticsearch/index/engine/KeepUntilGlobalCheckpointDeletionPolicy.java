@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.function.LongSupplier;
 
 /**
- * An {@link IndexDeletionPolicy} keeps the latest (eg. youngest) commit whose local checkpoint is not
+ * An {@link IndexDeletionPolicy} keeps the oldest commit whose local checkpoint is not
  * greater than the current global checkpoint, and also keeps all subsequent commits. Once those
  * commits are kept, a {@link CombinedDeletionPolicy} will retain translog operations at least up to
  * the current global checkpoint.
@@ -53,18 +53,17 @@ public final class KeepUntilGlobalCheckpointDeletionPolicy extends IndexDeletion
         }
     }
 
-    // commits are sorted by age (the 0th one is the oldest commit).
     private int indexOfKeptCommits(List<? extends IndexCommit> commits) throws IOException {
-        final long globalCheckpoint = globalCheckpointSupplier.getAsLong();
+        final long currentGlobalCheckpoint = globalCheckpointSupplier.getAsLong();
+        // Commits are sorted by age (the 0th one is the oldest commit).
         for (int i = commits.size() - 1; i >= 0; i--) {
-            if (localCheckpoint(commits.get(i)) <= globalCheckpoint) {
+            final IndexCommit commit = commits.get(i);
+            long localCheckpointFromCommit = Long.parseLong(commit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            if (localCheckpointFromCommit <= currentGlobalCheckpoint) {
                 return i;
             }
         }
         return -1;
     }
 
-    private static long localCheckpoint(IndexCommit commit) throws IOException {
-        return Long.parseLong(commit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-    }
 }

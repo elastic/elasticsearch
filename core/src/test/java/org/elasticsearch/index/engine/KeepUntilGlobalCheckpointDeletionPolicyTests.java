@@ -45,12 +45,10 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase {
     final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
-    final AtomicInteger docId = new AtomicInteger();
 
     @Before
     public void resetCounters() throws Exception {
         globalCheckpoint.set(SequenceNumbers.UNASSIGNED_SEQ_NO);
-        docId.set(0);
     }
 
     public void testUnassignedGlobalCheckpoint() throws IOException {
@@ -61,7 +59,7 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
             int initCommits = 1;
             try (InternalEngine engine = newEngine(store, indexPath)) {
                 for (int i = 0; i < initDocs; i++) {
-                    addDoc(engine);
+                    addDoc(engine, Integer.toString(i));
                     if (frequently()) {
                         initCommits++;
                         engine.flush(true, true);
@@ -83,7 +81,7 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
                 int moreDocs = scaledRandomIntBetween(1, 100);
                 int extraCommits = 0;
                 for (int i = 0; i < moreDocs; i++) {
-                    addDoc(engine);
+                    addDoc(engine, Integer.toString(initDocs + i));
                     if (frequently()) {
                         engine.flush(true, true);
                         extraCommits++;
@@ -105,7 +103,7 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
             int initDocs = scaledRandomIntBetween(10, 1000);
             try (InternalEngine engine = newEngine(store, indexPath)) {
                 for (int i = 0; i < initDocs; i++) {
-                    addDoc(engine);
+                    addDoc(engine, Integer.toString(i));
                     globalCheckpoint.set(engine.seqNoService().getLocalCheckpoint());
                     if (frequently()) {
                         engine.flush(true, true);
@@ -118,7 +116,7 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
                 assertThat("OnInit deletes unreferenced commits", DirectoryReader.listCommits(store.directory()), hasSize(1));
                 int moreDocs = scaledRandomIntBetween(1, 100);
                 for (int i = 0; i < moreDocs; i++) {
-                    addDoc(engine);
+                    addDoc(engine, Integer.toString(initDocs + i));
                     globalCheckpoint.set(engine.seqNoService().getLocalCheckpoint());
                     if (frequently()) {
                         engine.flush(true, true);
@@ -135,7 +133,7 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
             int initDocs = scaledRandomIntBetween(100, 1000);
             try (InternalEngine engine = newEngine(store, indexPath)) {
                 for (int i = 0; i < initDocs; i++) {
-                    addDoc(engine);
+                    addDoc(engine, Integer.toString(i));
                     if (frequently()) {
                         globalCheckpoint.set(engine.seqNoService().getLocalCheckpoint());
                     }
@@ -157,7 +155,7 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
                 assertThat("Reserved commits should always be 1", reservedCommits(), hasSize(1));
                 int moreDocs = scaledRandomIntBetween(1, 100);
                 for (int i = 0; i < moreDocs; i++) {
-                    addDoc(engine);
+                    addDoc(engine, Integer.toString(initDocs + i));
                     if (frequently()) {
                         globalCheckpoint.set(engine.seqNoService().getLocalCheckpoint());
                     }
@@ -191,10 +189,10 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
         return reservedCommits;
     }
 
-    void addDoc(Engine engine) throws IOException {
+    void addDoc(Engine engine, String id) throws IOException {
         ParseContext.Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
-        ParsedDocument doc = testParsedDocument(Integer.toString(docId.getAndIncrement()), null, document, B_1, null);
+        ParsedDocument doc = testParsedDocument(id, null, document, B_1, null);
         engine.index(indexForDoc(doc));
     }
 

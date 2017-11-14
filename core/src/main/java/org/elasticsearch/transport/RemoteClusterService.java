@@ -94,7 +94,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =
             Setting.affixKeySetting("search.remote.", "skip_unavailable",
-                    key -> boolSetting(key, false, Setting.Property.NodeScope, Setting.Property.Dynamic));
+                    key -> boolSetting(key, false, Setting.Property.NodeScope, Setting.Property.Dynamic), REMOTE_CLUSTERS_SEEDS);
 
     private final TransportService transportService;
     private final int numRemoteConnections;
@@ -299,15 +299,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
-        //assert remote != null : "remote cluster [" + clusterAlias + "] not registered";
-        //this happens if skip_unavaialble is provided for a remote cluster that is not registered.
-        //for instance if you set seeds to null in the same call where you set skip_unavailable to null, the latter will not find
-        //the remote cluster.
-        //TODO it should be possible to remove the if and uncomment the assertion above once we accept
-        //the skip_unavailable setting only for registered remote clusters.
-        if (remote != null) {
-            remote.updateSkipUnavailable(skipUnavailable);
-        }
+        assert remote != null : "remote cluster [" + clusterAlias + "] not registered";
+        remote.updateSkipUnavailable(skipUnavailable);
     }
 
     protected void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {

@@ -26,6 +26,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -591,17 +592,42 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testRemoteClusterSkipUnavailableSetting() {
-        //TODO this should be changed so that skip_unavailable can only be set for registered clusters with at least one seed
-        Settings settings = Settings.builder()
-                .put("search.remote.foo.skip_unavailable", true)
-                .put("search.remote.bar.skip_unavailable", false).build();
-        RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+    public void testRemoteClusterSkipIfDisconnectedSetting() {
+        {
+            Settings settings = Settings.builder()
+                    .put("search.remote.foo.skip_unavailable", true)
+                    .put("search.remote.bar.skip_unavailable", false).build();
+            RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+        }
+        {
+            Settings brokenSettings = Settings.builder()
+                    .put("search.remote.foo.skip_unavailable", "broken").build();
+            expectThrows(IllegalArgumentException.class, () ->
+                    RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(brokenSettings)
+                            .forEach(setting -> setting.get(brokenSettings)));
+        }
 
-        Settings brokenSettings = Settings.builder()
-                .put("search.remote.foo.skip_unavailable", "broken").build();
-        expectThrows(IllegalArgumentException.class, () ->
-                RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(brokenSettings)
-                        .forEach(setting -> setting.get(brokenSettings)));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
+                        RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE)));
+        {
+            Settings settings = Settings.builder().put("search.remote.foo.skip_unavailable", randomBoolean()).build();
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(settings, true));
+            assertEquals("Missing required setting [search.remote.foo.seeds] for setting [search.remote.foo.skip_unavailable]",
+                    iae.getMessage());
+        }
+        {
+            try (MockTransportService remoteSeedTransport = startTransport("seed", new CopyOnWriteArrayList<>(), Version.CURRENT)) {
+                String seed = remoteSeedTransport.getLocalDiscoNode().getAddress().toString();
+                service.validate(Settings.builder().put("search.remote.foo.skip_unavailable", randomBoolean())
+                        .put("search.remote.foo.seeds", seed).build(), true);
+                service.validate(Settings.builder().put("search.remote.foo.seeds", seed).build(), true);
+
+                AbstractScopedSettings service2 = new ClusterSettings(Settings.builder().put("search.remote.foo.seeds", seed).build(),
+                        new HashSet<>(Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
+                                RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE)));
+                service2.validate(Settings.builder().put("search.remote.foo.skip_unavailable", randomBoolean()).build(), false);
+            }
+        }
     }
 }

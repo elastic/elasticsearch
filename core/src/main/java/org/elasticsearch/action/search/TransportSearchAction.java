@@ -219,7 +219,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     static SearchResponse.Clusters buildClusters(OriginalIndices localIndices, Map<String, OriginalIndices> remoteIndices,
                                                  Map<String, ClusterSearchShardsResponse> searchShardsResponses) {
-        int localClusters = localIndices.indices().length == 0 ? 0 : 1;
+        int localClusters = Math.min(localIndices.indices().length, 1);
         int totalClusters = remoteIndices.size() + localClusters;
         int successfulClusters = localClusters;
         for (ClusterSearchShardsResponse searchShardsResponse : searchShardsResponses.values()) {

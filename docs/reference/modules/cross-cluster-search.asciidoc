@@ -191,13 +191,7 @@ boolean `skip_unavailable` setting, set to `false` by default.
 PUT _cluster/settings
 {
   "persistent": {
-    "search": {
-      "remote": {
-        "cluster_one": {
-          "skip_unavailable": true <1>
-        }
-      }
-    }
+    "search.remote.cluster_one.skip_unavailable": true
   }
 }
 --------------------------------

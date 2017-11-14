@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,9 +37,11 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MultiMatchQuery;
 import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.index.search.QueryStringQueryParser;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -698,10 +701,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             throw new ParsingException(parser.getTokenLocation(), "No text specified for multi_match query");
         }
 
-        if (fieldsBoosts.isEmpty()) {
-            throw new ParsingException(parser.getTokenLocation(), "No fields specified for multi_match query");
-        }
-
         if (fuzziness != null && (type == Type.CROSS_FIELDS || type == Type.PHRASE || type == Type.PHRASE_PREFIX)) {
             throw new ParsingException(parser.getTokenLocation(),
                     "Fuzziness not allowed for type [" + type.parseField.getPreferredName() + "]");
@@ -793,8 +792,14 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 }
             }
         }
-
-        Map<String, Float> newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, fieldsBoosts);
+        Map<String, Float> newFieldsBoosts;
+        if (fieldsBoosts.isEmpty()) {
+            // no fields provided, defaults to index.query.default_field
+            List<String> defaultFields = context.defaultFields();
+            newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, QueryParserHelper.parseFieldsAndWeights(defaultFields));
+        } else {
+            newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, fieldsBoosts);
+        }
         return multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
     }
 

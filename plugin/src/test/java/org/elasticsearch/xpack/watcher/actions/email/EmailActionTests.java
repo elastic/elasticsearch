@@ -16,29 +16,28 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.http.HttpClient;
-import org.elasticsearch.xpack.common.http.HttpRequest;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.common.http.HttpResponse;
-import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.common.secret.Secret;
-import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.notification.email.Attachment;
-import org.elasticsearch.xpack.notification.email.Authentication;
-import org.elasticsearch.xpack.notification.email.DataAttachment;
-import org.elasticsearch.xpack.notification.email.Email;
-import org.elasticsearch.xpack.notification.email.EmailService;
-import org.elasticsearch.xpack.notification.email.EmailTemplate;
-import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
-import org.elasticsearch.xpack.notification.email.Profile;
-import org.elasticsearch.xpack.notification.email.attachment.DataAttachmentParser;
-import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentParser;
-import org.elasticsearch.xpack.notification.email.attachment.EmailAttachments;
-import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
-import org.elasticsearch.xpack.notification.email.attachment.HttpEmailAttachementParser;
-import org.elasticsearch.xpack.notification.email.attachment.HttpRequestAttachment;
+import org.elasticsearch.xpack.watcher.common.http.HttpClient;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
+import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.xpack.watcher.common.secret.Secret;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.email.Attachment;
+import org.elasticsearch.xpack.watcher.notification.email.Authentication;
+import org.elasticsearch.xpack.watcher.notification.email.Email;
+import org.elasticsearch.xpack.watcher.notification.email.EmailService;
+import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
+import org.elasticsearch.xpack.watcher.notification.email.Profile;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachments;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpRequestAttachment;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
@@ -118,7 +117,7 @@ public class EmailActionTests extends ESTestCase {
         Authentication auth = new Authentication("user", new Secret("passwd".toCharArray()));
         Profile profile = randomFrom(Profile.values());
 
-        DataAttachment dataAttachment = randomDataAttachment();
+        org.elasticsearch.xpack.watcher.notification.email.DataAttachment dataAttachment = randomDataAttachment();
         EmailAttachments emailAttachments = randomEmailAttachments();
 
         EmailAction action = new EmailAction(email, account, auth, profile, dataAttachment, emailAttachments);
@@ -194,7 +193,7 @@ public class EmailActionTests extends ESTestCase {
         TextTemplate subject = randomBoolean() ? new TextTemplate("_subject") : null;
         TextTemplate textBody = randomBoolean() ? new TextTemplate("_text_body") : null;
         TextTemplate htmlBody = randomBoolean() ? new TextTemplate("_text_html") : null;
-        DataAttachment dataAttachment = randomDataAttachment();
+        org.elasticsearch.xpack.watcher.notification.email.DataAttachment dataAttachment = randomDataAttachment();
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("account", "_account")
                 .field("profile", profile.name())
@@ -205,7 +204,7 @@ public class EmailActionTests extends ESTestCase {
         if (dataAttachment != null) {
             builder.field("attach_data", dataAttachment);
         } else if (randomBoolean()) {
-            dataAttachment = DataAttachment.DEFAULT;
+            dataAttachment = org.elasticsearch.xpack.watcher.notification.email.DataAttachment.DEFAULT;
             builder.field("attach_data", true);
         } else if (randomBoolean()) {
             builder.field("attach_data", false);
@@ -361,7 +360,7 @@ public class EmailActionTests extends ESTestCase {
         Authentication auth = randomBoolean() ? null : new Authentication("_user", new Secret("_passwd".toCharArray()));
         Profile profile = randomFrom(Profile.values());
         String account = randomAlphaOfLength(6);
-        DataAttachment dataAttachment = randomDataAttachment();
+        org.elasticsearch.xpack.watcher.notification.email.DataAttachment dataAttachment = randomDataAttachment();
         EmailAttachments emailAttachments = randomEmailAttachments();
 
         EmailAction action = new EmailAction(email, account, auth, profile, dataAttachment, emailAttachments);
@@ -573,8 +572,9 @@ public class EmailActionTests extends ESTestCase {
                 .buildMock();
     }
 
-    static DataAttachment randomDataAttachment() {
-        return randomFrom(DataAttachment.JSON, DataAttachment.YAML, null);
+    static org.elasticsearch.xpack.watcher.notification.email.DataAttachment randomDataAttachment() {
+        return randomFrom(org.elasticsearch.xpack.watcher.notification.email.DataAttachment.JSON,
+                org.elasticsearch.xpack.watcher.notification.email.DataAttachment.YAML, null);
     }
 
     private EmailAttachments randomEmailAttachments() throws IOException {
@@ -592,8 +592,9 @@ public class EmailActionTests extends ESTestCase {
             attachments.add(new HttpRequestAttachment(randomAlphaOfLength(10), template,
                     randomBoolean(), randomFrom("my/custom-type", null)));
         } else if ("data".equals(attachmentType)) {
-            attachments.add(new org.elasticsearch.xpack.notification.email.attachment.DataAttachment(randomAlphaOfLength(10),
-                    randomFrom(DataAttachment.JSON, DataAttachment.YAML)));
+            attachments.add(new org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachment(randomAlphaOfLength(10),
+                    randomFrom(org.elasticsearch.xpack.watcher.notification.email.DataAttachment.JSON, org.elasticsearch.xpack.watcher
+                            .notification.email.DataAttachment.YAML)));
         }
 
         return new EmailAttachments(attachments);

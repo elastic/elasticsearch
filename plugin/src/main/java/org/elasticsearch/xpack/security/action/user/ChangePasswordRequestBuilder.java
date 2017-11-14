@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.support.Validation;
 import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.common.xcontent.XContentUtils;
+import org.elasticsearch.xpack.security.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.nio.CharBuffer;

@@ -11,10 +11,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
-import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
-import org.elasticsearch.xpack.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.notification.hipchat.SentMessages;
+import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatAccount;
+import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatMessage;
+import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
+import org.elasticsearch.xpack.watcher.notification.hipchat.SentMessages;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @Network
-@TestLogging("org.elasticsearch.xpack.common.http:TRACE")
+@TestLogging("org.elasticsearch.xpack.watcher.common.http:TRACE")
 public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {

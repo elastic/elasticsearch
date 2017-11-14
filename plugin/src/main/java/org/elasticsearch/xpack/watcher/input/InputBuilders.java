@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.input;
 
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.input.chain.ChainInput;
 import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.watcher.input.none.NoneInput;

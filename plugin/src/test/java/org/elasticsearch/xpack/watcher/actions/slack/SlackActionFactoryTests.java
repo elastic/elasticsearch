@@ -10,15 +10,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.notification.slack.SlackAccount;
-import org.elasticsearch.xpack.notification.slack.SlackService;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.slack.SlackAccount;
+import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.junit.Before;
 
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.notification.slack.message.SlackMessageTests.createRandomTemplate;
+import static org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessageTests.createRandomTemplate;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.slackAction;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;

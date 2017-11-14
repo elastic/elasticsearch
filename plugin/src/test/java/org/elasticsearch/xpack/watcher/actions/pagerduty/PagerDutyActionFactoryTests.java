@@ -10,9 +10,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
-import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.junit.Before;
 
 import java.util.Collections;

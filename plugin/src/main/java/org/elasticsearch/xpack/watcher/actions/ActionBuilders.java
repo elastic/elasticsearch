@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.watcher.actions;
 
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.notification.email.EmailTemplate;
-import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
-import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEvent;
+import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;

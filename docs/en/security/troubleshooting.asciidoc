@@ -17,6 +17,29 @@ answers for frequently asked questions.
 
 To get help, see <<xpack-help>>.
 
+[[security-auth-failure-upgrade]]
+=== Can't log in after upgrading to {version}
+
+*Symptoms:*
+
+* Native realm credentials don't work after $version upgrade or snapshot restore.
+* Error message: "Security index is not on the current version - the native
+realm will not be operational until the upgrade API is run on the security index"
+
+*Resolution:*
+
+You must manually upgrade the `.security` index to the 6.x format. For
+instructions, see 
+{stack-ref}/upgrading-elastic-stack.html#upgrade-internal-indices[Upgrading
+internal indices].
+
+There are two situations where it's necessary to manually upgrade the
+`.security` index:
+
+* After upgrading directly to $version from 5.5 or earlier.
+* After restoring a snapshot from 5.5 or earlier that contains a `.security`
+index in the old format to a 6.0 cluster.
+
 [[security-trb-settings]]
 === Some settings are not returned via the nodes settings API
 

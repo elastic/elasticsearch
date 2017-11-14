@@ -414,7 +414,7 @@ public final class Request {
      * @return the {@link ContentType}
      */
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
-    public static <Req extends ActionRequest> ContentType createContentType(final XContentType xContentType) {
+    public static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 

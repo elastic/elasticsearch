@@ -95,6 +95,7 @@ PUT _cluster/settings
 }
 --------------------------------
 // CONSOLE
+// TEST[continued]
 <1> `cluster_one` would be removed from the cluster settings, leaving `cluster_two` intact.
 
 
@@ -146,6 +147,11 @@ will be prefixed with their remote cluster name:
     "successful" : 10,
     "failed" : 0
   },
+  "_clusters" : { <1>
+    "total" : 2,
+    "successful" : 2,
+    "skipped" : 0
+  },
   "hits" : {
     "total" : 2,
     "max_score" : 1.0,
@@ -191,16 +197,17 @@ boolean `skip_unavailable` setting, set to `false` by default.
 PUT _cluster/settings
 {
   "persistent": {
-    "search.remote.cluster_one.skip_unavailable": true
+    "search.remote.cluster_two.skip_unavailable": true <1>
   }
 }
 --------------------------------
 // CONSOLE
-<1> `cluster_one` is made optional
+// TEST[continued]
+<1> `cluster_two` is made optional
 
 [source,js]
 --------------------------------------------------
-POST /cluster_one:twitter,twitter/tweet/_search
+POST /cluster_two:twitter,twitter/tweet/_search
 {
   "query": {
     "match_all": {}
@@ -208,7 +215,7 @@ POST /cluster_one:twitter,twitter/tweet/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:we don't have two clusters set up during docs testing]
+// TEST[continued]
 
 [source,js]
 --------------------------------------------------
@@ -216,11 +223,11 @@ POST /cluster_one:twitter,twitter/tweet/_search
   "took" : 89,
   "timed_out" : false,
   "_shards" : {
-    "total" : 10,
-    "successful" : 10,
+    "total" : 5,
+    "successful" : 5,
     "failed" : 0
   },
-  "_clusters" : {
+  "_clusters" : { <1>
     "total" : 2,
     "successful" : 1,
     "skipped" : 1
@@ -244,8 +251,8 @@ POST /cluster_one:twitter,twitter/tweet/_search
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
-
+// TESTRESPONSE[s/"took": 89,/"took": "$body.took",/]
+<1> The `clusters` section gets returned indicating that one cluster was unavailable and got skipped
 
 
 [float]

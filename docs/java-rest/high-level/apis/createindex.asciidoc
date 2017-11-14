@@ -47,8 +47,8 @@ The following arguments can optionally be provided:
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-request-timeout]
 --------------------------------------------------
-<1> Timeout to wait for the all the nodes to acknowledge the index deletion as a `TimeValue`
-<2> Timeout to wait for the all the nodes to acknowledge the index deletion as a `String`
+<1> Timeout to wait for the all the nodes to acknowledge the index creation as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the index creatiom as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

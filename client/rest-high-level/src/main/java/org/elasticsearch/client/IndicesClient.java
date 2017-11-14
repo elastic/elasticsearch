@@ -23,9 +23,12 @@ import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 
 import java.io.IOException;
-import java.util.Collections;
+
+import static java.util.Collections.emptySet;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
@@ -47,7 +50,7 @@ public final class IndicesClient {
      */
     public DeleteIndexResponse deleteIndex(DeleteIndexRequest deleteIndexRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent,
-            Collections.emptySet(), headers);
+            emptySet(), headers);
     }
 
     /**
@@ -58,6 +61,16 @@ public final class IndicesClient {
      */
     public void deleteIndexAsync(DeleteIndexRequest deleteIndexRequest, ActionListener<DeleteIndexResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent,
-            listener, Collections.emptySet(), headers);
+            listener, emptySet(), headers);
+    }
+
+    public IndicesExistsResponse exists(IndicesExistsRequest indicesExistsRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            indicesExistsRequest,
+            Request::indicesExist,
+            IndicesExistsResponse::fromXContent,
+            emptySet(),
+            headers
+        );
     }
 }

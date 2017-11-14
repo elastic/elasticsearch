@@ -22,11 +22,26 @@ package org.elasticsearch.client;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
+
+    public void testIndexExists_IndexPresent() throws IOException {
+        // Delete index if exists
+        String indexName = "testIndexExists_IndexPresent";
+        createIndex(indexName);
+
+        IndicesExistsRequest request = new IndicesExistsRequest(indexName);
+        IndicesExistsResponse response = execute(
+            request,
+            highLevelClient().indices()::indexExists,
+
+        )
+    }
 
     public void testDeleteIndex() throws IOException {
         {

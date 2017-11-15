@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import java.net.StandardSocketOptions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -29,15 +28,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
-import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -47,7 +45,6 @@ import org.elasticsearch.transport.nio.channel.TcpWriteContext;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
@@ -70,9 +67,9 @@ public class NioTransport extends TcpTransport<NioChannel> {
     public static final Setting<Integer> NIO_ACCEPTOR_COUNT =
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
+    protected final OpenChannels openChannels = new OpenChannels(logger);
     private final Consumer<NioSocketChannel> contextSetter;
     private final ConcurrentMap<String, ChannelFactory> profileToChannelFactory = newConcurrentMap();
-    private final OpenChannels openChannels = new OpenChannels(logger);
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
     private NioClient client;
@@ -102,48 +99,6 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected void closeChannels(List<NioChannel> channels, boolean blocking, boolean doNotLinger) throws IOException {
-        if (doNotLinger) {
-            for (NioChannel channel : channels) {
-                /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't have a gazillion connections sitting
-                 * in TIME_WAIT to free up resources quickly. This is really the only part where we close the connection from the server
-                 * side otherwise the client (node) initiates the TCP closing sequence which doesn't cause these issues. Setting this
-                 * by default from the beginning can have unexpected side-effects an should be avoided, our protocol is designed
-                 * in a way that clients close connection which is how it should be*/
-                if (channel.isOpen() && channel.getRawChannel().supportedOptions().contains(StandardSocketOptions.SO_LINGER)) {
-                    channel.getRawChannel().setOption(StandardSocketOptions.SO_LINGER, 0);
-                }
-            }
-        }
-        ArrayList<CloseFuture> futures = new ArrayList<>(channels.size());
-        for (final NioChannel channel : channels) {
-            if (channel != null && channel.isOpen()) {
-                // We do not need to wait for the close operation to complete. If the close operation fails due
-                // to an IOException, the selector's handler will log the exception. Additionally, in the case
-                // of transport shutdown, where we do want to ensure that all channels are finished closing, the
-                // NioShutdown class will block on close.
-                futures.add(channel.closeAsync());
-            }
-        }
-
-        if (blocking == false) {
-            return;
-        }
-
-        IOException closingExceptions = null;
-        for (CloseFuture future : futures) {
-            try {
-                future.awaitClose();
-            } catch (Exception e) {
-                closingExceptions = addClosingException(closingExceptions, e);
-            }
-        }
-        if (closingExceptions != null) {
-            throw closingExceptions;
-        }
-    }
-
-    @Override
     protected void sendMessage(NioChannel channel, BytesReference reference, ActionListener<NioChannel> listener) {
         if (channel instanceof NioSocketChannel) {
             NioSocketChannel nioSocketChannel = (NioSocketChannel) channel;
@@ -154,20 +109,14 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile, Consumer<NioChannel> onChannelClose)
+    protected NioChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<NioChannel> connectListener)
         throws IOException {
-        NioSocketChannel[] channels = new NioSocketChannel[profile.getNumConnections()];
-        ClientChannelCloseListener closeListener = new ClientChannelCloseListener(onChannelClose);
-        boolean connected = client.connectToChannels(node, channels, profile.getConnectTimeout(), closeListener);
-        if (connected == false) {
+        NioSocketChannel channel = client.initiateConnection(node.getAddress().address());
+        if (channel == null) {
             throw new ElasticsearchException("client is shutdown");
         }
-        return new NodeChannels(node, channels, profile);
-    }
-
-    @Override
-    protected boolean isOpen(NioChannel channel) {
-        return channel.isOpen();
+        channel.addConnectListener(connectListener);
+        return channel;
     }
 
     @Override
@@ -194,7 +143,8 @@ public class NioTransport extends TcpTransport<NioChannel> {
                 int acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
                 for (int i = 0; i < acceptorCount; ++i) {
                     Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-                    AcceptorEventHandler eventHandler = new AcceptorEventHandler(logger, openChannels, selectorSupplier);
+                    AcceptorEventHandler eventHandler = new AcceptorEventHandler(logger, openChannels, selectorSupplier,
+                        this::serverAcceptedChannel);
                     AcceptingSelector acceptor = new AcceptingSelector(eventHandler);
                     acceptors.add(acceptor);
                 }
@@ -235,7 +185,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     protected SocketEventHandler getSocketEventHandler() {
-        return new SocketEventHandler(logger, this::exceptionCaught);
+        return new SocketEventHandler(logger, this::exceptionCaught, openChannels);
     }
 
     final void exceptionCaught(NioSocketChannel channel, Throwable cause) {
@@ -247,29 +197,6 @@ public class NioTransport extends TcpTransport<NioChannel> {
     private NioClient createClient() {
         Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
         ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), contextSetter);
-        return new NioClient(logger, openChannels, selectorSupplier, defaultConnectionProfile.getConnectTimeout(), channelFactory);
-    }
-
-    private IOException addClosingException(IOException closingExceptions, Exception e) {
-        if (closingExceptions == null) {
-            closingExceptions = new IOException("failed to close channels");
-        }
-        closingExceptions.addSuppressed(e);
-        return closingExceptions;
-    }
-
-    class ClientChannelCloseListener implements Consumer<NioChannel> {
-
-        private final Consumer<NioChannel> consumer;
-
-        private ClientChannelCloseListener(Consumer<NioChannel> consumer) {
-            this.consumer = consumer;
-        }
-
-        @Override
-        public void accept(final NioChannel channel) {
-            consumer.accept(channel);
-            openChannels.channelClosed(channel);
-        }
+        return new NioClient(openChannels, selectorSupplier, channelFactory);
     }
 }

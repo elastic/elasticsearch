@@ -110,7 +110,9 @@ public class RankEvalSpecTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, shuffled.bytes())) {
 
             RankEvalSpec parsedItem = RankEvalSpec.parse(parser);
-            // IRL these come from URL parameters - see RestRankEvalAction
+            // indices, come from URL parameters, so they don't survive xContent roundtrip
+            // for the sake of being able to use equals() next, we add it to the parsed object
+            parsedItem.addIndices(testItem.getIndices());
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -142,7 +144,7 @@ public class RankEvalSpecTests extends ESTestCase {
     private static RankEvalSpec mutateTestItem(RankEvalSpec original) {
         List<RatedRequest> ratedRequests = new ArrayList<>(original.getRatedRequests());
         EvaluationMetric metric = original.getMetric();
-        Map<String, Script> templates = original.getTemplates();
+        Map<String, Script> templates = new HashMap<>(original.getTemplates());
         List<String> indices = new ArrayList<>(original.getIndices());
 
         int mutate = randomIntBetween(0, 3);

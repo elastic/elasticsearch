@@ -265,7 +265,12 @@ if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /jackson-.*/, to: 'jackson'
-  ignoreSha 'elasticsearch-cli'
+  dependencies = project.configurations.runtime.fileCollection {
+    it.group.startsWith('org.elasticsearch') == false ||
+            // keep the following org.elasticsearch jars in
+            (it.name == 'jna' ||
+             it.name == 'securesm')
+  }
 }
 
 if (isEclipse == false || project.path == ":core-tests") {

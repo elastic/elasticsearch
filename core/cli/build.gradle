@@ -20,7 +20,6 @@
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'ru.vyarus.animalsniffer'
 
 archivesBaseName = 'elasticsearch-cli'
 
@@ -29,8 +28,7 @@ dependencies {
 }
 
 test.enabled = false
-dependencyLicenses.enabled = false // need to chat about this
-jarHell.enabled = false // need to chat about this
+//jarHell.enabled = false // need to chat about this
 
 forbiddenApisMain {
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]

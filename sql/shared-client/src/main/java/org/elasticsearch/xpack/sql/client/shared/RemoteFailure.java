@@ -259,7 +259,7 @@ public class RemoteFailure {
                 responseMessage = builder.toString();
             }
         } catch (IOException replayException) {
-            // NOCOMMIT check for failed reset and return different error
+            // TODO check for failed reset and return different error
             responseMessage = "Attempted to include response but failed because [" + replayException.getMessage() + "].";
         }
         String parserLocation = "";

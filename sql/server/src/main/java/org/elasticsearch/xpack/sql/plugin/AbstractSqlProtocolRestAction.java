@@ -20,6 +20,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
+import org.elasticsearch.xpack.sql.analysis.catalog.MappingException;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
@@ -123,6 +124,9 @@ public abstract class AbstractSqlProtocolRestAction extends BaseRestHandler {
         if (cause instanceof ClientSqlException) {
             if (cause instanceof AnalysisException || cause instanceof ResourceNotFoundException) {
                 return SqlExceptionType.DATA;
+            }
+            if (cause instanceof PlanningException || cause instanceof MappingException) {
+                return SqlExceptionType.NOT_SUPPORTED;
             }
             if (cause instanceof ParsingException) {
                 return SqlExceptionType.SYNTAX;

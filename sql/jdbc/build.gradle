@@ -1,3 +1,7 @@
+plugins {
+  id 'com.github.johnrengelman.shadow' version '2.0.1'
+}
+
 import org.elasticsearch.gradle.test.RunTask
 
 description = 'JDBC driver for Elasticsearch'
@@ -11,23 +15,50 @@ dependencies {
   compile project(':x-pack-elasticsearch:sql:shared-client')
   compile project(':x-pack-elasticsearch:sql:jdbc-proto')
   compile project(':x-pack-elasticsearch:sql:shared-proto')
-  /* We want to limit these dependencies so do not add anything to this list
-   * without serious consideration, and probably shading. */
+  runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  /* We want to limit these dependencies so we don't have a huge jar.
+   * Since we shadow these dependencies we don't have to be super careful
+   * but we have to be *somewhat* careful because things like commons logging
+   * don't shadow properly. */
 }
 
 dependencyLicenses {
   mapping from: /jdbc-proto.*/, to: 'elasticsearch'
   mapping from: /shared-client.*/, to: 'elasticsearch'
   mapping from: /shared-proto.*/, to: 'elasticsearch'
+  mapping from: /jackson-.*/, to: 'jackson'
   ignoreSha 'jdbc-proto'
   ignoreSha 'shared-client'
   ignoreSha 'shared-proto'
 }
 
+/* Disable the jar task configured by the java plugin. We're not going to
+ * distribute an unshaded jar so there is no need making one. */
 jar {
-  // Bundle all dependencies into the jar.
-  from {
-    configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
-    configurations.runtime.collect { it.isDirectory() ? it : zipTree(it) }
+  enabled = false
+}
+configurations.archives.artifacts.removeAll { it.archiveTask.is jar }
+
+/* Move the shaded jar to the empty classifier because it is the only one
+ * we're shipping. */
+shadowJar {
+  classifier = null
+  // We only need to relocate jackson
+  relocate 'com.fasterxml.jackson', 'org.elasticsearch.xpack.sql.jdbc.shadow.jacksonp'
+  manifest {
+    inheritFrom jar.manifest
   }
+}
+assemble.dependsOn shadowJar
+artifacts {
+  archives shadowJar
+}
+
+// And for better realism let's use the shaded jar for testing
+test {
+  classpath -= compileJava.outputs.files
+  classpath -= configurations.compile
+  classpath -= configurations.runtime
+  classpath += shadowJar.outputs.files
+  dependsOn shadowJar
 }

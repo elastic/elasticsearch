@@ -8,12 +8,13 @@ package org.elasticsearch.xpack.sql.jdbc.util;
 import org.elasticsearch.test.ESTestCase;
 
 public class VersionTests extends ESTestCase {
-    public void testVersionIsUnknownWithoutAJar() {
-        // We aren't running in a jar so we have a bunch of "Unknown"
-        assertEquals("Unknown", Version.versionNumber());
-        assertEquals("Unknown", Version.versionHash());
-        assertEquals(0, Version.versionMajor());
-        assertEquals(0, Version.versionMinor());
+    public void testVersionIsCurrent() {
+        /* This test will only work properly in gradle because in gradle we run the tests
+         * using the jar. */
+        assertEquals(org.elasticsearch.Version.CURRENT.toString(), Version.versionNumber());
+        assertNotNull(Version.versionHash());
+        assertEquals(org.elasticsearch.Version.CURRENT.major, Version.versionMajor());
+        assertEquals(org.elasticsearch.Version.CURRENT.minor, Version.versionMinor());
     }
 
     public void test70Version() {

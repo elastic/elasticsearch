@@ -11,10 +11,14 @@ import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.ErrorResponse;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.ExceptionResponse;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
+import org.elasticsearch.xpack.sql.protocol.shared.Request;
+import org.elasticsearch.xpack.sql.protocol.shared.Response;
 
-import java.io.DataOutput;
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.AccessController;
@@ -37,7 +41,7 @@ class HttpClient {
             this.url = new URL(baseUrl, "_sql/jdbc?error_trace=true");
         } catch (MalformedURLException ex) {
             throw new JdbcException(ex, "Cannot connect to JDBC endpoint [" + baseUrl.toString() + "_sql/jdbc]");
-    }
+        }
     }
 
     void setNetworkTimeout(long millis) {
@@ -61,13 +65,24 @@ class HttpClient {
         }
     }
 
-    BytesArray put(CheckedConsumer<DataOutput, IOException> os) throws SQLException {
+    Response put(Request request) throws SQLException {
         try {
-            return AccessController.doPrivileged((PrivilegedAction<BytesArray>) () -> {    
-                return JreHttpUrlConnection.http(url, cfg, con -> {
-                    return new BytesArray(con.post(os));
-                });
-            });
+            return AccessController.doPrivileged((PrivilegedAction<Response>) () ->
+                JreHttpUrlConnection.http(url, cfg, con ->
+                    con.post(
+                        out -> Proto.INSTANCE.writeRequest(request, out),
+                        in -> Proto.INSTANCE.readResponse(request, in),
+                        (status, failure) -> {
+                            if (status >= 500) {
+                                return new ErrorResponse((RequestType) request.requestType(), failure.reason(),
+                                    failure.type(), failure.remoteTrace());
+                            }
+                            return new ExceptionResponse((RequestType) request.requestType(), failure.reason(),
+                                failure.type(), SqlExceptionType.fromRemoteFailureType(failure.type()));
+                        }
+                    )
+                )
+            );
         } catch (ClientException ex) {
             throw new JdbcSQLException(ex, "Transport failure");
         }

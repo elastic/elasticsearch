@@ -12,12 +12,14 @@ dependencies {
 
   runtime "org.fusesource.jansi:jansi:1.16"
   runtime "org.elasticsearch:jna:4.4.0-1"
+  runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 }
 
 dependencyLicenses {
   mapping from: /cli-proto.*/, to: 'elasticsearch'
   mapping from: /shared-client.*/, to: 'elasticsearch'
   mapping from: /shared-proto.*/, to: 'elasticsearch'
+  mapping from: /jackson-.*/, to: 'jackson'
   ignoreSha 'cli-proto'
   ignoreSha 'shared-client'
   ignoreSha 'shared-proto'

@@ -7,9 +7,8 @@ package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.ResponseType;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
-import org.elasticsearch.xpack.sql.client.shared.IOUtils;
-import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 import org.elasticsearch.xpack.sql.client.shared.SuppressForbidden;
+import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.jline.reader.EndOfFileException;
@@ -25,9 +24,11 @@ import org.jline.utils.InfoCmp.Capability;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.logging.LogManager;
@@ -92,7 +93,7 @@ public class Cli {
                 }
 
                 boolean debug = StringUtils.parseBoolean(System.getProperty("cli.debug", "false"));
-                Cli console = new Cli(debug, new CliConfiguration(hostAndPort + "/_sql/cli", properties), term);
+                Cli console = new Cli(debug, new CliConfiguration(hostAndPort + "/_sql/cli?error_trace", properties), term);
                 console.run();
             } catch (FatalException e) {
                 term.writer().println(e.getMessage());
@@ -119,7 +120,7 @@ public class Cli {
                 .terminal(term)
                 .completer(Completers.INSTANCE)
                 .build();
-        
+
         String DEFAULT_PROMPT = new AttributedString("sql> ", DEFAULT.foreground(YELLOW)).toAnsi(term);
         String MULTI_LINE_PROMPT = new AttributedString("   | ", DEFAULT.foreground(YELLOW)).toAnsi(term);
 
@@ -187,7 +188,7 @@ public class Cli {
 
     /**
      * Handle an exception while communication with the server. Extracted
-     * into a method so that tests can bubble the failure. 
+     * into a method so that tests can bubble the failure.
      */
     protected void handleExceptionWhileCommunicatingWithServer(RuntimeException e) {
         AttributedStringBuilder asb = new AttributedStringBuilder();
@@ -200,20 +201,22 @@ public class Cli {
         }
     }
 
-    private static String logo() {
-        try (InputStream io = Cli.class.getResourceAsStream("/logo.txt")) {
-            if (io == null) {
+    private void printLogo() {
+        term.puts(Capability.clear_screen);
+        try (InputStream in = Cli.class.getResourceAsStream("/logo.txt")) {
+            if (in == null) {
                 throw new FatalException("Could not find logo!");
             }
-            return IOUtils.asBytes(io).toString();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    term.writer().println(line);
+                }
+            }
         } catch (IOException e) {
             throw new FatalException("Could not load logo!", e);
         }
-    }
 
-    private void printLogo() {
-        term.puts(Capability.clear_screen);
-        term.writer().println(logo());
         term.writer().println();
     }
 
@@ -273,7 +276,7 @@ public class Cli {
 
         return false;
     }
-    
+
     private boolean isServerInfo(String line) {
         line = line.toLowerCase(Locale.ROOT);
         return line.equals("info");

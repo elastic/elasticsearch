@@ -78,11 +78,12 @@ public abstract class Version {
         String ver = "Unknown";
         String hash = ver;
 
-        if (urlStr.startsWith("file:/") && (urlStr.endsWith(".jar") || urlStr.endsWith("-SNAPSHOT.jar"))) {
+        if (urlStr.startsWith("file:/") && urlStr.endsWith("-SNAPSHOT.jar")) {
             try (JarInputStream jar = new JarInputStream(url.openStream())) {
                 Manifest manifest = jar.getManifest();
                 hash = manifest.getMainAttributes().getValue("Change");
-                int[] vers = from(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version"));
+                ver = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+                int[] vers = from(ver);
                 maj = vers[0];
                 min = vers[1];
                 rev = vers[2];

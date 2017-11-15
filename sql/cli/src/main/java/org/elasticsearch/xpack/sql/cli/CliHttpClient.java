@@ -5,29 +5,30 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
+import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageRequest;
-import org.elasticsearch.xpack.sql.client.shared.Bytes;
+import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
+import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Instant;
 import java.util.TimeZone;
 
 public class CliHttpClient {
-    private final HttpClient http;
     private final CliConfiguration cfg;
 
     public CliHttpClient(CliConfiguration cfg) {
         this.cfg = cfg;
-        this.http = new HttpClient(cfg);
     }
 
     public InfoResponse serverInfo() {
@@ -51,14 +52,23 @@ public class CliHttpClient {
         long clientTime = Instant.now().toEpochMilli();
         return new TimeoutInfo(clientTime, cfg.queryTimeout(), cfg.pageTimeout());
     }
+
     private Response sendRequest(Request request) {
-        Bytes ba = http.post(out -> Proto.INSTANCE.writeRequest(request, out));
-        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(ba.bytes(), 0, ba.size()))) {
-            return Proto.INSTANCE.readResponse(request, in);
-        } catch (IOException ex) {
-            throw new CliException(ex, "Cannot read response");
-        }
+        return AccessController.doPrivileged((PrivilegedAction<Response>) () ->
+            JreHttpUrlConnection.http(cfg.asUrl(), cfg, con ->
+                con.post(
+                    out -> Proto.INSTANCE.writeRequest(request, out),
+                    in -> Proto.INSTANCE.readResponse(request, in),
+                    (status, failure) -> {
+                        if (status >= 500) {
+                            return new ErrorResponse((RequestType) request.requestType(), failure.reason(),
+                                failure.type(), failure.remoteTrace());
+                        }
+                        return new ExceptionResponse((RequestType) request.requestType(), failure.reason(),
+                            failure.type(), SqlExceptionType.fromRemoteFailureType(failure.type()));
+                    }
+                )
+            )
+        );
     }
 }
-
-

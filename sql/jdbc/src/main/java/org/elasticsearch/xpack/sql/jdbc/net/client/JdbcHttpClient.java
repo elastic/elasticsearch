@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageResponse;
-import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
-import org.elasticsearch.xpack.sql.jdbc.util.FastByteArrayInputStream;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
@@ -66,8 +64,7 @@ public class JdbcHttpClient {
     public Cursor query(String sql, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
         QueryInitRequest request = new QueryInitRequest(sql, fetch, conCfg.timeZone(), timeout(meta));
-        BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
-        QueryInitResponse response = doIO(ba, in -> (QueryInitResponse) readResponse(request, in));
+        QueryInitResponse response = (QueryInitResponse) checkResponse(http.put(request));
         return new DefaultCursor(this, response.cursor(), (Page) response.data, meta);
     }
 
@@ -77,8 +74,7 @@ public class JdbcHttpClient {
      */
     public byte[] nextPage(byte[] cursor, Page page, RequestMeta meta) throws SQLException {
         QueryPageRequest request = new QueryPageRequest(cursor, timeout(meta), page);
-        BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
-        return doIO(ba, in -> ((QueryPageResponse) readResponse(request, in)).cursor());
+        return ((QueryPageResponse) checkResponse(http.put(request))).cursor();
     }
 
     public InfoResponse serverInfo() throws SQLException {
@@ -90,20 +86,17 @@ public class JdbcHttpClient {
 
     private InfoResponse fetchServerInfo() throws SQLException {
         InfoRequest request = new InfoRequest();
-        BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
-        return doIO(ba, in -> (InfoResponse) readResponse(request, in));
+        return (InfoResponse) checkResponse(http.put(request));
     }
 
     public List<String> metaInfoTables(String pattern) throws SQLException {
         MetaTableRequest request = new MetaTableRequest(pattern);
-        BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
-        return doIO(ba, in -> ((MetaTableResponse) readResponse(request, in)).tables);
+        return ((MetaTableResponse) checkResponse(http.put(request))).tables;
     }
 
     public List<MetaColumnInfo> metaInfoColumns(String tablePattern, String columnPattern) throws SQLException {
         MetaColumnRequest request = new MetaColumnRequest(tablePattern, columnPattern);
-        BytesArray ba = http.put(out -> Proto.INSTANCE.writeRequest(request, out));
-        return doIO(ba, in -> ((MetaColumnResponse) readResponse(request, in)).columns);
+        return ((MetaColumnResponse) checkResponse(http.put(request))).columns;
     }
 
     public void setNetworkTimeout(long millis) {
@@ -114,17 +107,7 @@ public class JdbcHttpClient {
         return http.getNetworkTimeout();
     }
 
-    private static <T> T doIO(BytesArray ba, DataInputFunction<T> action) throws SQLException {
-        try (DataInputStream in = new DataInputStream(new FastByteArrayInputStream(ba))) {
-            return action.apply(in);
-        } catch (IOException ex) {
-            throw new JdbcSQLException(ex, "Cannot read response");
-        }
-    }
-
-    private static Response readResponse(Request request, DataInput in) throws IOException, SQLException {
-        Response response = Proto.INSTANCE.readResponse(request, in);
-
+    private static Response checkResponse(Response response) throws SQLException {
         if (response.responseType() == ResponseType.EXCEPTION) {
             ExceptionResponse ex = (ExceptionResponse) response;
             throw ex.asException();

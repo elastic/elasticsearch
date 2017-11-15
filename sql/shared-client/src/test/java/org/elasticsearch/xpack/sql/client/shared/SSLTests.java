@@ -13,8 +13,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.ExternalResource;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
+import java.io.DataInput;
 import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -107,13 +106,16 @@ public class SSLTests extends ESTestCase {
 
     public void testSslPost() throws Exception {
         String message = UUID.randomUUID().toString();
-        Bytes b = AccessController.doPrivileged((PrivilegedAction<Bytes>) () ->
+        String received = AccessController.doPrivileged((PrivilegedAction<String>) () ->
             JreHttpUrlConnection.http(sslServer, cfg, c ->
-                c.post(o -> {
-                    o.writeUTF(message);
-                })));
+                c.post(
+                    out -> out.writeUTF(message),
+                    DataInput::readUTF,
+                    (status, failure) -> "failure: [" + status + "][" + failure + "]"
+                )
+            )
+        );
         
-        String received = new DataInputStream(new ByteArrayInputStream(b.bytes())).readUTF();
         assertEquals(message, received);
     }
 }

@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.sql.client.shared;
 
 import java.io.Closeable;
+import java.io.DataInput;
+import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -17,6 +19,7 @@ import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Base64;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
@@ -99,7 +102,11 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    public Bytes post(CheckedConsumer<DataOutput, IOException> doc) throws ClientException {
+    public <R> R post(
+                CheckedConsumer<DataOutput, IOException> doc,
+                CheckedFunction<DataInput, R, IOException> parser,
+                BiFunction<Integer, RemoteFailure, R> failureConverter
+            ) throws ClientException {
         try {
             con.setRequestMethod("POST");
             con.setDoOutput(true);
@@ -107,15 +114,16 @@ public class JreHttpUrlConnection implements Closeable {
             try (OutputStream out = con.getOutputStream()) {
                 doc.accept(new DataOutputStream(out));
             }
-            if (con.getResponseCode() >= 500) {
-                throw new ClientException("Server error: %s(%d;%s)", con.getResponseMessage(), con.getResponseCode(),
-                        IOUtils.asBytes(getStream(con, con.getErrorStream())).toString());
+            if (con.getResponseCode() < 300) {
+                try (InputStream stream = getStream(con, con.getInputStream())) {
+                    return parser.apply(new DataInputStream(stream));
+                }
             }
-            if (con.getResponseCode() >= 400) {
-                throw new ClientException("Client error: %s(%d;%s)", con.getResponseMessage(), con.getResponseCode(),
-                        IOUtils.asBytes(getStream(con, con.getErrorStream())).toString());
+            RemoteFailure failure;
+            try (InputStream stream = getStream(con, con.getErrorStream())) {
+                failure = RemoteFailure.parseFromResponse(stream);
             }
-            return IOUtils.asBytes(getStream(con, con.getInputStream()));
+            return failureConverter.apply(con.getResponseCode(), failure);
         } catch (IOException ex) {
             throw new ClientException(ex, "Cannot POST address %s (%s)", url, ex.getMessage());
         }

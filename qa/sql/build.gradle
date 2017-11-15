@@ -8,7 +8,7 @@ dependencies {
   compile "org.elasticsearch.test:framework:${versions.elasticsearch}"
 
   // JDBC testing dependencies
-  compile(project(':x-pack-elasticsearch:sql:jdbc')) {
+  compile(project(path: ':x-pack-elasticsearch:sql:jdbc', configuration: 'shadow')) {
     if (false == isEclipse && false == isIdea) {
       /* Skip the transitive dependencies of the server when outside
        * of an IDE because outside of an IDE we use the jdbc jar

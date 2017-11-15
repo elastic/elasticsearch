@@ -24,7 +24,7 @@ import static java.util.Collections.emptyMap;
 /**
  * Base implementation for the binary protocol for the CLI and JDBC.
  * All backwards compatibility is done on the server side using the
- * version number sent in the header. 
+ * version number sent in the header.
  */
 public abstract class AbstractProto {
     private static final int MAGIC_NUMBER = 0x0C0DEC110;
@@ -87,6 +87,23 @@ public abstract class AbstractProto {
         TIMEOUT(SQLTimeoutException::new),
         NOT_SUPPORTED(SQLFeatureNotSupportedException::new);
 
+        public static SqlExceptionType fromRemoteFailureType(String type) {
+            switch (type) {
+            case "analysis":
+            case "resouce_not_found":
+                return DATA;
+            case "planning":
+            case "mapping":
+                return NOT_SUPPORTED;
+            case "parsing":
+                return SYNTAX;
+            case "timeout":
+                return TIMEOUT;
+            default:
+                return null;
+            }
+        }
+
         private final Function<String, SQLException> toException;
 
         SqlExceptionType(Function<String, SQLException> toException) {
@@ -140,7 +157,7 @@ public abstract class AbstractProto {
 
     /**
      * Read the protocol header.
-     * @return the version 
+     * @return the version
      * @throws IOException if there is an underlying {@linkplain IOException} or if the protocol is malformed
      */
     private static int readHeader(DataInput in) throws IOException {

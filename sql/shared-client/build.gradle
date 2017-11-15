@@ -1,5 +1,13 @@
 description = 'Code shared between jdbc and cli'
 
+dependencies {
+  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+}
+
+dependencyLicenses {
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
 forbiddenApisMain {
   // does not depend on core, so only jdk and http signatures should be checked
   signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]

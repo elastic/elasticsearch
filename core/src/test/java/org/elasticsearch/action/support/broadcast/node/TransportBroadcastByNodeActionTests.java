@@ -472,11 +472,6 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
 
         @Override
-        public String action() {
-            return null;
-        }
-
-        @Override
         public String getProfileName() {
             return "";
         }
@@ -492,11 +487,6 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         @Override
         public void sendResponse(Exception exception) throws IOException {
-        }
-
-        @Override
-        public long getRequestId() {
-            return 0;
         }
 
         @Override

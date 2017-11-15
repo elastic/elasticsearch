@@ -18,6 +18,7 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.test.ClusterConfiguration
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 import java.nio.file.Files
@@ -178,108 +179,62 @@ if (fixtureSupported) {
 // Ignore HA integration tests, they are included below as part of integTestHa task.
 integTestRunner.exclude('**/Ha*TestSuiteIT.class')
 
-// Create a Integration Test suite just for HA based tests
-// The following closure must execute before the afterEvaluate block from integTestHa:
+// The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
 project.afterEvaluate {
-  project.integTestHaCluster.dependsOn(project.bundlePlugin)
-  project.integTestHa.clusterConfig.plugin(project.path)
-  project.integTestHa.clusterConfig.jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-          " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-          " " + System.getProperty('tests.jvm.argline', '')
+  for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
+    ClusterConfiguration cluster = project.extensions.getByName("${integTestTaskName}Cluster") as ClusterConfiguration
+    cluster.dependsOn(project.bundlePlugin)
+
+    Task restIntegTestTask = project.tasks.getByName(integTestTaskName)
+    restIntegTestTask.clusterConfig.plugin(project.path)
+
+    // Default jvm arguments for all test clusters
+    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+            " " + System.getProperty('tests.jvm.argline', '')
+
+    // If it's a secure cluster, add the keytab as an extra config, and set the krb5 conf in the JVM options.
+    if (integTestTaskName.equals('integTestSecure') || integTestTaskName.equals('integTestSecureHa')) {
+      Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
+      Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
+
+      restIntegTestTask.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
+      jvmArgs = jvmArgs + " " + "-Djava.security.krb5.conf=${krb5conf}"
+      if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
+        jvmArgs = jvmArgs + " " + '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+      }
+
+      // If it's the HA + Secure tests then also set the Kerberos settings for the integration test JVM since we'll
+      // need to auth to HDFS to trigger namenode failovers.
+      if (integTestTaskName.equals('integTestSecureHa')) {
+        Task restIntegTestTaskRunner = project.tasks.getByName("${integTestTaskName}Runner")
+        restIntegTestTaskRunner.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
+        restIntegTestTaskRunner.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
+        restIntegTestTaskRunner.jvmArg "-Djava.security.krb5.conf=${krb5conf}"
+        if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
+          restIntegTestTaskRunner.jvmArg '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+        }
+        // We want to use the temporary directory to access the keytab file for failing over HDFS remotely.
+        // To do this, we need to ignore the non-empty work dir for the test, and trust this build to wipe it before hand.
+        restIntegTestTaskRunner.onNonEmptyWorkDirectory 'ignore'
+      }
+    }
+
+    restIntegTestTask.clusterConfig.jvmArgs = jvmArgs
+  }
 }
 
+// Create a Integration Test suite just for HA based tests
 RestIntegTestTask integTestHa = project.tasks.create('integTestHa', RestIntegTestTask.class) {
   description = "Runs rest tests against an elasticsearch cluster with HDFS configured with HA Namenode."
 }
 
-if (fixtureSupported) {
-  project.check.dependsOn(integTestHa)
-  integTestHaCluster.dependsOn haHdfsFixture
-  integTestHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
-} else {
-  integTestHa.setEnabled(false)
-}
-
-boolean secureFixtureSupported = false
-if (fixtureSupported) {
-  secureFixtureSupported = project.rootProject.vagrantSupported
-}
-
 // Create a Integration Test suite just for security based tests
-// This must execute before the afterEvaluate block from integTestSecure
-project.afterEvaluate {
-  Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
-  Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
-
-  project.integTestSecureCluster.dependsOn(project.bundlePlugin)
-  project.integTestSecure.clusterConfig.plugin(project.path)
-  project.integTestSecure.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
-
-  final String baseJvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-          " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-          " " + "-Djava.security.krb5.conf=${krb5conf}" +
-          " " + System.getProperty('tests.jvm.argline', '')
-  final String jvmArgs
-  if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
-    jvmArgs = baseJvmArgs + " " + '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
-  } else {
-    jvmArgs = baseJvmArgs
-  }
-
-  project.integTestSecure.clusterConfig.jvmArgs = jvmArgs
-}
-
 RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', RestIntegTestTask.class) {
   description = "Runs rest tests against an elasticsearch cluster with HDFS secured by MIT Kerberos."
 }
 
-if (secureFixtureSupported) {
-  project.check.dependsOn(integTestSecure)
-
-  // Fixture dependencies
-  integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
-  integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
-  // Ignore HA integration Tests. They are included below as part of integTestSecureHa task
-  integTestSecureRunner.exclude('**/Ha*TestSuiteIT.class')
-} else {
-  integTestSecure.enabled = false
-}
-
 // Create a Integration Test suite just for HA related security based tests
-// The following closure must execute before the afterEvaluate block from integTestSecureHA:
-project.afterEvaluate {
-  Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
-  Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
-
-  project.integTestSecureHaCluster.dependsOn(project.bundlePlugin)
-  project.integTestSecureHa.clusterConfig.plugin(project.path)
-  project.integTestSecureHa.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
-
-  final String baseClusterJvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-          " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-          " " + "-Djava.security.krb5.conf=${krb5conf}" +
-          " " + System.getProperty('tests.jvm.argline', '')
-  final String jvmArgs
-  if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
-    jvmArgs = baseClusterJvmArgs + " " + '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
-  } else {
-    jvmArgs = baseClusterJvmArgs
-  }
-
-  project.integTestSecureHa.clusterConfig.jvmArgs = jvmArgs
-
-  // also set the kerberos settings for the integration test JVM since we'll need to auth to HDFS to trigger namenode failovers.
-  project.integTestSecureHaRunner.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
-  project.integTestSecureHaRunner.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-  project.integTestSecureHaRunner.jvmArg "-Djava.security.krb5.conf=${krb5conf}"
-  if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
-    project.integTestSecureHaRunner.jvmArg '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
-  }
-  // We want to use the temporary directory to access the keytab file for failing over HDFS remotely.
-  // To do this, we need to ignore the non-empty work dir for the test, and trust this build to wipe it before hand.
-  project.integTestSecureHaRunner.onNonEmptyWorkDirectory 'ignore'
-}
-
 RestIntegTestTask integTestSecureHa = project.tasks.create('integTestSecureHa', RestIntegTestTask.class) {
   description = "Runs rest tests against an elasticsearch cluster with HDFS configured with HA Namenode and secured by MIT Kerberos."
 }
@@ -296,6 +251,31 @@ project.integTestSecureHaRunner.doFirst {
   Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab").toAbsolutePath()
   Files.copy(elasticsearchKT, tempKeytab)
   project.integTestSecureHaRunner.systemProperty "test.krb5.keytab.hdfs", "${tempKeytab}"
+}
+
+if (fixtureSupported) {
+  project.check.dependsOn(integTestHa)
+  integTestHaCluster.dependsOn haHdfsFixture
+  integTestHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
+} else {
+  integTestHa.setEnabled(false)
+}
+
+boolean secureFixtureSupported = false
+if (fixtureSupported) {
+  secureFixtureSupported = project.rootProject.vagrantSupported
+}
+
+if (secureFixtureSupported) {
+  project.check.dependsOn(integTestSecure)
+
+  // Fixture dependencies
+  integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
+  integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
+  // Ignore HA integration Tests. They are included below as part of integTestSecureHa task
+  integTestSecureRunner.exclude('**/Ha*TestSuiteIT.class')
+} else {
+  integTestSecure.enabled = false
 }
 
 if (secureFixtureSupported) {

@@ -20,34 +20,27 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskManager;
 
 import java.io.IOException;
 
-/**
- * Wrapper around transport channel that delegates all requests to the
- * underlying channel
- */
-public class DelegatingTransportChannel implements TransportChannel {
+public class TaskTransportChannel implements TransportChannel {
 
+    private final Task task;
+
+    private final TaskManager taskManager;
     private final TransportChannel channel;
 
-    protected DelegatingTransportChannel(TransportChannel channel) {
+    TaskTransportChannel(TaskManager taskManager, Task task, TransportChannel channel) {
         this.channel = channel;
-    }
-
-    @Override
-    public String action() {
-        return channel.action();
+        this.task = task;
+        this.taskManager = taskManager;
     }
 
     @Override
     public String getProfileName() {
         return channel.getProfileName();
-    }
-
-    @Override
-    public long getRequestId() {
-        return channel.getRequestId();
     }
 
     @Override
@@ -57,25 +50,32 @@ public class DelegatingTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
+        endTask();
         channel.sendResponse(response);
     }
 
     @Override
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
+        endTask();
         channel.sendResponse(response, options);
     }
 
     @Override
     public void sendResponse(Exception exception) throws IOException {
+        endTask();
         channel.sendResponse(exception);
+    }
+
+    @Override
+    public Version getVersion() {
+        return channel.getVersion();
     }
 
     public TransportChannel getChannel() {
         return channel;
     }
 
-    @Override
-    public Version getVersion() {
-        return channel.getVersion();
+    private void endTask() {
+        taskManager.unregister(task);
     }
 }

@@ -47,7 +47,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -378,19 +377,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             } else {
                 AtomicBoolean sendResponse = new AtomicBoolean(false);
                 request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), new TransportChannel() {
-                    @Override
-                    public String action() {
-                        return null;
-                    }
 
                     @Override
                     public String getProfileName() {
                         return null;
-                    }
-
-                    @Override
-                    public long getRequestId() {
-                        return 0;
                     }
 
                     @Override

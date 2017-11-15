@@ -21,7 +21,6 @@ package org.elasticsearch.transport.nio.channel;
 
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.AcceptingSelector;
@@ -63,22 +62,18 @@ public class ChannelFactory {
         this.rawChannelFactory = rawChannelFactory;
     }
 
-    public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector,
-                                           Consumer<NioChannel> closeListener) throws IOException {
+    public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
         NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel, selector);
         setContexts(channel);
-        channel.getCloseFuture().addListener(ActionListener.wrap(closeListener::accept, (e) -> closeListener.accept(channel)));
         scheduleChannel(channel, selector);
         return channel;
     }
 
-    public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector,
-                                             Consumer<NioChannel> closeListener) throws IOException {
+    public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel, selector);
         setContexts(channel);
-        channel.getCloseFuture().addListener(ActionListener.wrap(closeListener::accept, (e) -> closeListener.accept(channel)));
         scheduleChannel(channel, selector);
         return channel;
     }

@@ -12,12 +12,17 @@ dependencies {
     // all of x-pack for now, and transport client will be going away in the future. 
     compile "org.elasticsearch.plugin:x-pack-api:${version}"
     compile "org.elasticsearch.client:transport:${version}"
+    compile "org.elasticsearch:x-pack-client-api-objects:${version}"
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
 }
 
 dependencyLicenses.enabled = false
+
+dependencyLicenses {
+    ignoreSha 'x-pack-client-api-objects'
+}
 
 forbiddenApisTest {
     // we don't use the core test-framework, no lucene classes present so we don't want the es-test-signatures to

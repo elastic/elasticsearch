@@ -221,15 +221,7 @@ public class VersionUtilsTests extends ESTestCase {
 
         // Now the wire compatible versions
         VersionsFromProperty wireCompatible = new VersionsFromProperty("tests.gradle_wire_compat_versions");
-
-        // Big horrible hack:
-        // This *should* be:
-        //         Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
-        // But instead it is:
-        Version minimumCompatibleVersion = Version.V_5_6_0;
-        // Because things blow up all over the place if the minimum compatible version isn't released.
-        // We'll fix this very, very soon. But for now, this hack.
-        // end big horrible hack
+        Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
         List<String> releasedWireCompatible = released.stream()
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)

@@ -19,7 +19,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.transport.DelegatingTransportChannel;
+import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -109,8 +109,8 @@ public interface ServerTransportFilter {
             String securityAction = actionMapper.action(action, request);
 
             TransportChannel unwrappedChannel = transportChannel;
-            while (unwrappedChannel instanceof DelegatingTransportChannel) {
-                unwrappedChannel = ((DelegatingTransportChannel) unwrappedChannel).getChannel();
+            if (unwrappedChannel instanceof TaskTransportChannel) {
+                unwrappedChannel = ((TaskTransportChannel) unwrappedChannel).getChannel();
             }
 
             if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel) &&

@@ -450,7 +450,7 @@ public final class Script implements ToXContentObject, Writeable {
             this.lang = in.readOptionalString();
             this.idOrCode = in.readString();
             @SuppressWarnings("unchecked")
-            Map<String, String> options = (Map)in.readMap();
+            Map<String, String> options = (Map<String, String>)(Map)in.readMap();
             this.options = options;
             this.params = in.readMap();
         // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
@@ -463,7 +463,7 @@ public final class Script implements ToXContentObject, Writeable {
 
             this.idOrCode = in.readString();
             @SuppressWarnings("unchecked")
-            Map<String, String> options = (Map)in.readMap();
+            Map<String, String> options = (Map<String, String>)(Map)in.readMap();
 
             if (this.type != ScriptType.INLINE && options.isEmpty()) {
                 this.options = null;
@@ -520,7 +520,7 @@ public final class Script implements ToXContentObject, Writeable {
             out.writeOptionalString(lang);
             out.writeString(idOrCode);
             @SuppressWarnings("unchecked")
-            Map<String, Object> options = (Map)this.options;
+            Map<String, Object> options = (Map<String, Object>)(Map)this.options;
             out.writeMap(options);
             out.writeMap(params);
         // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
@@ -537,7 +537,7 @@ public final class Script implements ToXContentObject, Writeable {
 
             out.writeString(idOrCode);
             @SuppressWarnings("unchecked")
-            Map<String, Object> options = (Map)this.options;
+            Map<String, Object> options = (Map<String, Object>)(Map)this.options;
 
             if (options == null) {
                 out.writeMap(new HashMap<>());

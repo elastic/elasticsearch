@@ -22,7 +22,7 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
     private final HttpClient httpClient;
 
     public PagerDutyService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super(settings);
+        super(settings, "pagerduty");
         this.httpClient = httpClient;
         clusterSettings.addSettingsUpdateConsumer(PAGERDUTY_ACCOUNT_SETTING, this::setAccountSetting);
         setAccountSetting(PAGERDUTY_ACCOUNT_SETTING.get(settings));
@@ -32,5 +32,4 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
     protected PagerDutyAccount createAccount(String name, Settings accountSettings) {
         return new PagerDutyAccount(name, accountSettings, accountSettings, httpClient, logger);
     }
-
 }

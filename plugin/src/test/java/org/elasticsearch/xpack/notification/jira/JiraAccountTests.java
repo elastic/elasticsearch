@@ -32,7 +32,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -72,91 +71,6 @@ public class JiraAccountTests extends ESTestCase {
         Settings settings4 = Settings.builder().put("url", url).put("user", "foo").put("password", "").build();
         e = expectThrows(SettingsException.class, () -> new JiraAccount("test", settings4, null));
         assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [password] setting"));
-    }
-
-    public void testSingleAccount() throws Exception {
-        Settings.Builder builder = Settings.builder().put("xpack.notification.jira.default_account", "account1");
-        addAccountSettings("account1", builder);
-
-        JiraService service = new JiraService(builder.build(), httpClient, clusterSettings);
-        JiraAccount account = service.getAccount("account1");
-        assertThat(account, notNullValue());
-        assertThat(account.getName(), equalTo("account1"));
-        account = service.getAccount(null); // falling back on the default
-        assertThat(account, notNullValue());
-        assertThat(account.getName(), equalTo("account1"));
-    }
-
-    public void testSingleAccountNoExplicitDefault() throws Exception {
-        Settings.Builder builder = Settings.builder();
-        addAccountSettings("account1", builder);
-
-        JiraService service = new JiraService(builder.build(), httpClient, clusterSettings);
-        JiraAccount account = service.getAccount("account1");
-        assertThat(account, notNullValue());
-        assertThat(account.getName(), equalTo("account1"));
-        account = service.getAccount(null); // falling back on the default
-        assertThat(account, notNullValue());
-        assertThat(account.getName(), equalTo("account1"));
-    }
-
-    public void testMultipleAccounts() throws Exception {
-        Settings.Builder builder = Settings.builder().put("xpack.notification.jira.default_account", "account1");
-        addAccountSettings("account1", builder);
-        addAccountSettings("account2", builder);
-
-        JiraService service = new JiraService(builder.build(), httpClient, clusterSettings);
-        JiraAccount account = service.getAccount("account1");
-        assertThat(account, notNullValue());
-        assertThat(account.getName(), equalTo("account1"));
-        account = service.getAccount("account2");
-        assertThat(account, notNullValue());
-        assertThat(account.getName(), equalTo("account2"));
-        account = service.getAccount(null); // falling back on the default
-        assertThat(account, notNullValue());
-        assertThat(account.getName(), equalTo("account1"));
-    }
-
-    public void testMultipleAccountsNoExplicitDefault() throws Exception {
-        Settings.Builder builder = Settings.builder().put("xpack.notification.jira.default_account", "account1");
-        addAccountSettings("account1", builder);
-        addAccountSettings("account2", builder);
-
-        JiraService service = new JiraService(builder.build(), httpClient, clusterSettings);
-        JiraAccount account = service.getAccount("account1");
-        assertThat(account, notNullValue());
-        assertThat(account.getName(), equalTo("account1"));
-        account = service.getAccount("account2");
-        assertThat(account, notNullValue());
-        assertThat(account.getName(), equalTo("account2"));
-        account = service.getAccount(null);
-        assertThat(account, notNullValue());
-        assertThat(account.getName(), isOneOf("account1", "account2"));
-    }
-
-    public void testMultipleAccountsUnknownDefault() throws Exception {
-        Settings.Builder builder = Settings.builder().put("xpack.notification.jira.default_account", "unknown");
-        addAccountSettings("account1", builder);
-        addAccountSettings("account2", builder);
-        SettingsException e = expectThrows(SettingsException.class, () -> new JiraService(builder.build(), httpClient, clusterSettings)
-        );
-        assertThat(e.getMessage(), is("could not find default account [unknown]"));
-    }
-
-    public void testNoAccount() throws Exception {
-        Settings.Builder builder = Settings.builder();
-        JiraService service = new JiraService(builder.build(), httpClient, clusterSettings);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.getAccount(null));
-        assertThat(e.getMessage(), is("no account found for name: [null]"));
-    }
-
-    public void testNoAccountWithDefaultAccount() throws Exception {
-        Settings.Builder builder = Settings.builder().put("xpack.notification.jira.default_account", "unknown");
-
-        SettingsException e = expectThrows(SettingsException.class, () -> new JiraService(builder.build(), httpClient, clusterSettings)
-        );
-        assertThat(e.getMessage(), is("could not find default account [unknown]"));
     }
 
     public void testUnsecureAccountUrl() throws Exception {

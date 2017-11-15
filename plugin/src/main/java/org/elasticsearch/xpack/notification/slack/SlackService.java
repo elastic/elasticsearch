@@ -16,12 +16,13 @@ import org.elasticsearch.xpack.notification.NotificationService;
  */
 public class SlackService extends NotificationService<SlackAccount> {
 
-    private final HttpClient httpClient;
     public static final Setting<Settings> SLACK_ACCOUNT_SETTING =
         Setting.groupSetting("xpack.notification.slack.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
+    private final HttpClient httpClient;
+
     public SlackService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super(settings);
+        super(settings, "slack");
         this.httpClient = httpClient;
         clusterSettings.addSettingsUpdateConsumer(SLACK_ACCOUNT_SETTING, this::setAccountSetting);
         setAccountSetting(SLACK_ACCOUNT_SETTING.get(settings));
@@ -31,5 +32,4 @@ public class SlackService extends NotificationService<SlackAccount> {
     protected SlackAccount createAccount(String name, Settings accountSettings) {
         return new SlackAccount(name, accountSettings, accountSettings, httpClient, logger);
     }
-
 }

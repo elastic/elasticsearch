@@ -260,7 +260,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeOptionalBoolean(lenient);
         } else {
-            out.writeBoolean(lenient);
+            out.writeBoolean(lenient == null ? MatchQuery.DEFAULT_LENIENCY : lenient);
         }
         out.writeOptionalFloat(cutoffFrequency);
         zeroTermsQuery.writeTo(out);

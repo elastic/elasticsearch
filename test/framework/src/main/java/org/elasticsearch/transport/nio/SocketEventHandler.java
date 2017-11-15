@@ -37,8 +37,8 @@ public class SocketEventHandler extends EventHandler {
     private final BiConsumer<NioSocketChannel, Throwable> exceptionHandler;
     private final Logger logger;
 
-    public SocketEventHandler(Logger logger, BiConsumer<NioSocketChannel, Throwable> exceptionHandler) {
-        super(logger);
+    public SocketEventHandler(Logger logger, BiConsumer<NioSocketChannel, Throwable> exceptionHandler, OpenChannels openChannels) {
+        super(logger, openChannels);
         this.exceptionHandler = exceptionHandler;
         this.logger = logger;
     }

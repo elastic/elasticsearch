@@ -21,11 +21,11 @@
       },
       "params": {
         "from": {
-          "type": "integer",
+          "type": "int",
           "description": "Skips a number of documents"
         },
         "size": {
-          "type": "integer",
+          "type": "int",
           "description": "The default number of documents returned in queries as a string."
         },
         "start": {

@@ -36,7 +36,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
-      remote.info: {}
+      cluster.remote_info: {}
   - match: { my_remote_cluster.connected: true }
   - match: { my_remote_cluster.num_nodes_connected: 1}
   - match: { my_remote_cluster.max_connections_per_cluster: 1}
@@ -69,7 +69,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
-      remote.info: {}
+      cluster.remote_info: {}
   - set: { my_remote_cluster.http_addresses.0: remote_http }
   - match: { test_remote_cluster.http_addresses.0: $remote_http }
 

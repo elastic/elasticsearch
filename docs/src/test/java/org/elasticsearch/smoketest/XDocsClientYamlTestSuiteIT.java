@@ -19,6 +19,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.elasticsearch.xpack.ml.integration.MlRestTestStateCleaner;
 import org.junit.After;
 
 import java.io.IOException;
@@ -115,5 +116,10 @@ public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 getAdminExecutionContext().callApi("xpack.security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
             }
         }
+    }
+
+    @After
+    public void cleanMlState() {
+        new MlRestTestStateCleaner(logger, adminClient(), this);
     }
 }

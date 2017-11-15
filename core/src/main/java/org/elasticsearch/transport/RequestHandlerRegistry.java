@@ -23,6 +23,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 public class RequestHandlerRegistry<Request extends TransportRequest> {
 

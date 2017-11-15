@@ -102,17 +102,21 @@ public class VersionUtils {
         for (int i = versions.size() - 1; i >= 0; i--) {
             Version currConsideredVersion = versions.get(i);
             if (currConsideredVersion.major == 5) {
-            /* Currently considering the latest version in the 5.x series,
-             * which is (a) unreleased and (b) the only such. So we're done. */
                 unreleased.add(currConsideredVersion);
                 versions.remove(i);
                 if (currConsideredVersion.revision != 0) {
+                    /* Currently considering the latest version in the 5.x series,
+                     * which is (a) unreleased and (b) the only such. So we're done. */
                     break;
                 }
+                /* ... else we're on a version of the form 5.n.0, and have not yet
+                 * considered a version of the form 5.n.m (m>0), so this entire branch
+                 * is unreleased, so carry on looking for a branch containing releases.
+                 */
             } else if (currConsideredVersion.major != prevConsideredVersion.major
                 || currConsideredVersion.minor != prevConsideredVersion.minor) {
-            /* Have moved to the end of a new minor branch, so this is
-             * an unreleased version. */
+                /* Have moved to the end of a new minor branch, so this is
+                 * an unreleased version. */
                 unreleased.add(currConsideredVersion);
                 versions.remove(i);
             }

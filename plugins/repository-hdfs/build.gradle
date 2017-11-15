@@ -118,6 +118,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 
     final List<String> miniHDFSArgs = []
 
+    // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
       dependsOn krb5kdcFixture, krb5AddPrincipals
       Path krb5Config = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf")
@@ -127,13 +128,16 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
       }
     }
 
+    // If it's an HA fixture, set a nameservice to use in the JVM options
     if (fixtureName.equals('haHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("-Dha-nameservice=ha-hdfs")
     }
 
+    // Common options
     miniHDFSArgs.add('hdfs.MiniHDFS')
     miniHDFSArgs.add(baseDir)
 
+    // If it's a secure fixture, then set the principal name and keytab locations to use for auth.
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
       Path keytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab")
       miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")

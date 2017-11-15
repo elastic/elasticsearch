@@ -70,5 +70,5 @@ to require multiple binds when authenticating in user search mode.
 See also:
 
 * <<release-notes-6.0.0-rc2,{es} 6.0.0-rc2 Release Notes>>
-* {kibana-ref}/release-notes-xpackkb.html[{kib} {xpack} Release Notes]
+* {kibana-ref}/release-notes-xkb.html[{kib} {xpack} Release Notes]
 * {logstash-ref}/release-notes-xls.html[Logstash {xpack} Release Notes]

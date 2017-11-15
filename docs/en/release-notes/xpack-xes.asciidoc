@@ -18,7 +18,7 @@ components in {es}.
 See also:
 
 * <<es-release-notes,{es} Release Notes>>
-* {kibana-ref}/release-notes-xpackkb.html[{kib} {xpack} Release Notes]
+* {kibana-ref}/release-notes-xkb.html[{kib} {xpack} Release Notes]
 * {logstash-ref}/release-notes-xls.html[Logstash {xpack} Release Notes]
 
 --

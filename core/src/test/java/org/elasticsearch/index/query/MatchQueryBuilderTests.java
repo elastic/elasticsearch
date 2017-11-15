@@ -19,16 +19,21 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
@@ -43,6 +48,8 @@ import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -391,5 +398,50 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
         assertThat(query.toString(),
             containsString("field:[string_no_pos] was indexed without position data; cannot run PhraseQuery"));
+    }
+
+    public void testLenientNumberQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        MatchQuery b = new MatchQuery(context);
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () ->  b.parse(Type.BOOLEAN, INT_FIELD_NAME, "foo 200"));
+        assertThat(exc.getMessage(), containsString("foo"));
+
+        b.setLenient(true);
+        Query query = b.parse(Type.BOOLEAN, INT_FIELD_NAME, "foo 200");
+        assertThat(query, instanceOf(BooleanQuery.class));
+        Query expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(""), BooleanClause.Occur.SHOULD)
+            .add(IntPoint.newExactQuery(INT_FIELD_NAME, 200), BooleanClause.Occur.SHOULD)
+            .build();
+        assertThat(expected, equalTo(query));
+    }
+
+    public void testLenientDateQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        MatchQuery b = new MatchQuery(context);
+        DateTime date = new DateTime(System.currentTimeMillis(), DateTimeZone.UTC);
+        long time = date.toInstant().getMillis();
+        String queryString = "foo " + date.toString();
+
+        ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class,
+            () ->  b.parse(Type.BOOLEAN, DATE_FIELD_NAME, queryString));
+        assertThat(exc.getMessage(), containsString("foo"));
+
+        b.setLenient(true);
+        Query query = b.parse(Type.BOOLEAN, DATE_FIELD_NAME, queryString);
+        assertThat(query, instanceOf(BooleanQuery.class));
+        Query expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(""), BooleanClause.Occur.SHOULD)
+            .add(
+                new IndexOrDocValuesQuery(
+                    LongPoint.newExactQuery(DATE_FIELD_NAME, time),
+                    SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, time, time)
+                ), BooleanClause.Occur.SHOULD)
+            .build();
+        assertThat(expected, equalTo(query));
     }
 }

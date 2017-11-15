@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -41,6 +43,7 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -392,6 +395,31 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             ), 0.0f
         );
         assertEquals(expected, query);
+    }
+
+    public void testLenientNumberQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        MultiMatchQueryBuilder b = new MultiMatchQueryBuilder("foo 200", STRING_FIELD_NAME, INT_FIELD_NAME);
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () ->  b.toQuery(context));
+        assertThat(exc.getMessage(), Matchers.containsString("foo"));
+
+        b.lenient(true);
+        Query query = b.toQuery(context);
+        Query expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "foo")), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "200")), BooleanClause.Occur.SHOULD)
+                    .build(),
+                new BooleanQuery.Builder()
+                    .add(new MatchNoDocsQuery(""), BooleanClause.Occur.SHOULD)
+                    .add(IntPoint.newExactQuery(INT_FIELD_NAME, 200), BooleanClause.Occur.SHOULD)
+                    .build()
+            ), 0.0f);
+        assertThat(expected, Matchers.equalTo(query));
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

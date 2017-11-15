@@ -731,7 +731,10 @@ public class SearchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(matchQuery("double", "2")).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
-        expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch().setQuery(matchQuery("double", "2 3 4")).get());
+        searchResponse = client().prepareSearch().setQuery(matchQuery("double", "2 3 4")).get();
+        assertHitCount(searchResponse, 2L);
+        assertFirstHit(searchResponse, hasId("2"));
+        assertSecondHit(searchResponse, hasId("3"));
     }
 
     public void testMultiMatchQuery() throws Exception {

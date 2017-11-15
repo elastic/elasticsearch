@@ -797,7 +797,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .field(INT_FIELD_NAME);
             IllegalArgumentException exc =
                 expectThrows(IllegalArgumentException.class, () -> queryBuilder.toQuery(createShardContext()));
-            assertThat(exc.getMessage(), equalTo("For input string: \">10 foo\""));
+            assertThat(exc.getMessage(), equalTo("For input string: \">10\""));
         }
     }
 

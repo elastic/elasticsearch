@@ -630,21 +630,18 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("alpha 15", "first_name", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .lenient(true))).get();
-        assertHitCount(searchResponse, 1L);
+        assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("ultimate1"));
-        /*
-         * Doesn't find theone because "alpha 15" isn't a number and we don't
-         * break on spaces.
-         */
-        assertHitCount(searchResponse, 1);
+        assertSecondHit(searchResponse, hasId("theone"));
 
         // Lenient wasn't always properly lenient with two numeric fields
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("alpha 15", "int-field", "first_name", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .lenient(true))).get();
-        assertHitCount(searchResponse, 1L);
+        assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("ultimate1"));
+        assertSecondHit(searchResponse, hasId("theone"));
 
 
         // Check that cross fields works with date fields

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexOptions;
@@ -52,7 +53,10 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -139,6 +143,8 @@ public class MatchQuery {
      * the default zero terms query
      */
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
+
+    private static Analyzer WHITESPACE_ANALYZER = new WhitespaceAnalyzer();
 
     protected final QueryShardContext context;
 
@@ -240,7 +246,8 @@ public class MatchQuery {
     }
 
     private boolean hasPositions(MappedFieldType fieldType) {
-        return fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
+        return fieldType.tokenized() &&
+            fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
@@ -250,21 +257,27 @@ public class MatchQuery {
         }
         final String field = fieldType.name();
 
+        boolean noForcedAnalyzer = this.analyzer == null;
+        Analyzer analyzer;
+
         /*
          * If the user forced an analyzer we really don't care if they are
          * searching a type that wants term queries to be used with query string
          * because the QueryBuilder will take care of it. If they haven't forced
-         * an analyzer then types like NumberFieldType that want terms with
-         * query string will blow up because their analyzer isn't capable of
-         * passing through QueryBuilder.
+         * an analyzer then we use a whitespace analyzer for numbers, dates and ips
+         * in order to be able to handle multiple clauses separated by spaces in the same query.
          */
-        boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType.tokenized() == false && noForcedAnalyzer) {
+        if (noForcedAnalyzer &&
+                fieldType instanceof NumberFieldMapper.NumberFieldType ||
+                fieldType instanceof DateFieldMapper.DateFieldType ||
+                fieldType instanceof IpFieldMapper.IpFieldType) {
+            analyzer = WHITESPACE_ANALYZER;
+        } else if (fieldType.tokenized() == false && noForcedAnalyzer) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
+        } else {
+            analyzer = getAnalyzer(fieldType, type == Type.PHRASE);
+            assert analyzer != null;
         }
-
-        Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE);
-        assert analyzer != null;
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
         if (hasPositions(fieldType)) {

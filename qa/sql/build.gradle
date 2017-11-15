@@ -8,16 +8,17 @@ dependencies {
   compile "org.elasticsearch.test:framework:${versions.elasticsearch}"
 
   // JDBC testing dependencies
-  compile(project(path: ':x-pack-elasticsearch:sql:jdbc', configuration: 'shadow')) {
-    if (false == isEclipse && false == isIdea) {
-      /* Skip the transitive dependencies of the server when outside
-       * of an IDE because outside of an IDE we use the jdbc jar
-       * which includes all the transitive dependencies *already*.
-       * If we didn't skip these dependencies the jar hell checks
-       * would fail. And we need the transitive dependencies to
-       * run in embedded mode but only do that inside of an IDE. */
-      transitive = false
-    }
+  if (false == isEclipse && false == isIdea) {
+    // If we're not doing IDE stuff use the shadowed jar
+    compile(project(path: ':x-pack-elasticsearch:sql:jdbc', configuration: 'shadow'))
+  } else {
+    /* If we're doing IDE stuff then use then use the project
+     * dependency so the IDEs don't get confused. Transitive
+     * deps are OK here too because this is the only time we
+     * pull all of those deps in. We make sure exclude them
+     * below so they don't cause jar hell with the shadowed
+     * jar. */
+    compile(project(':x-pack-elasticsearch:sql:jdbc'))
   }
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
   runtime "com.h2database:h2:1.4.194"

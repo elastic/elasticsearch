@@ -85,8 +85,9 @@ public class VersionUtils {
          * minor branch_ is unreleased, whereas in 5.x it's more complicated: There were
          * (sometimes, and sometimes multiple) minor branches containing no releases, each
          * of which contains a single version constant of the form 5.n.0, and these
-         * branches always followed a branch that _did_ contain a released version of the
-         * form 5.n.m (m>0).
+         * branches always followed a branch that _did_ contain a version of the
+         * form 5.m.p (p>0). All versions strictly before the last 5.m version are released,
+         * and all other 5.* versions are unreleased.
          */
 
         if (current.major == 5 && current.revision != 0) {

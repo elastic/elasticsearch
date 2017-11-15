@@ -141,7 +141,9 @@ as _properties_ within Windows Installer documentation) that can be passed to ms
 [horizontal]
 `INSTALLDIR`:: 
 
-  The installation directory. Defaults to ++%ProgramW6432%\Elastic\Elasticsearch\{version}++
+  The installation directory. The final directory in the path **must** 
+  be the version of Elasticsearch.
+  Defaults to ++%ProgramW6432%\Elastic\Elasticsearch{backslash}{version}++.
 
 `DATADIRECTORY`:: 
 
@@ -443,8 +445,9 @@ upgrade from the command line.
 
 The **exception** to this is `INSTALLDIR` (if originally specified), which must be a different directory to the 
 current installation. 
-If setting `INSTALLDIR`, we recommend that the final directory in the path be the version of Elasticsearch e.g.
-++C:\Program Files\Elastic\Elasticsearch\{version}++
+If setting `INSTALLDIR`, the final directory in the path **must** be the version of Elasticsearch e.g.
+
+++C:\Program Files\Elastic\Elasticsearch{backslash}{version}++
 ===========================================
 
 The simplest upgrade, assuming Elasticsearch was installed using all defaults, 

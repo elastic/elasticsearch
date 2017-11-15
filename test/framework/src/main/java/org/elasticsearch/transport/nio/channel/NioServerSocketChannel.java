@@ -23,6 +23,7 @@ import org.elasticsearch.transport.nio.AcceptingSelector;
 
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
+import java.util.concurrent.Future;
 
 public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChannel> {
 

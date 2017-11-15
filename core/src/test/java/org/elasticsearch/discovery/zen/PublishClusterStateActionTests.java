@@ -915,11 +915,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         @Override
-        public String action() {
-            return "_noop_";
-        }
-
-        @Override
         public String getProfileName() {
             return "_noop_";
         }
@@ -940,11 +935,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         public void sendResponse(Exception exception) throws IOException {
             this.error.set(exception);
             assertThat(response.get(), nullValue());
-        }
-
-        @Override
-        public long getRequestId() {
-            return 0;
         }
 
         @Override

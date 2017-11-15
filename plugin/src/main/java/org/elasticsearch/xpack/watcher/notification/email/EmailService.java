@@ -24,7 +24,7 @@ public class EmailService extends NotificationService<Account> {
         Setting.groupSetting("xpack.notification.email.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, ClusterSettings clusterSettings) {
-        super(settings);
+        super(settings, "email");
         this.cryptoService = cryptoService;
         clusterSettings.addSettingsUpdateConsumer(EMAIL_ACCOUNT_SETTING, this::setAccountSetting);
         setAccountSetting(EMAIL_ACCOUNT_SETTING.get(settings));

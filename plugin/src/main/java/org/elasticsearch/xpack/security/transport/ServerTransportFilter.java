@@ -19,11 +19,12 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.transport.DelegatingTransportChannel;
+import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.netty4.NettyTcpChannel;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.Authentication;
@@ -109,17 +110,17 @@ public interface ServerTransportFilter {
             String securityAction = actionMapper.action(action, request);
 
             TransportChannel unwrappedChannel = transportChannel;
-            while (unwrappedChannel instanceof DelegatingTransportChannel) {
-                unwrappedChannel = ((DelegatingTransportChannel) unwrappedChannel).getChannel();
+            if (unwrappedChannel instanceof TaskTransportChannel) {
+                unwrappedChannel = ((TaskTransportChannel) unwrappedChannel).getChannel();
             }
 
             if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel) &&
-                ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof io.netty.channel.Channel) {
-                Channel channel = (io.netty.channel.Channel) ((TcpTransportChannel) unwrappedChannel).getChannel();
+                ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof NettyTcpChannel) {
+                Channel channel = ((NettyTcpChannel) ((TcpTransportChannel) unwrappedChannel).getChannel()).getLowLevelChannel();
                 SslHandler sslHandler = channel.pipeline().get(SslHandler.class);
                 if (channel.isOpen()) {
                     assert sslHandler != null : "channel [" + channel + "] did not have a ssl handler. pipeline " + channel.pipeline();
-                    extactClientCertificates(logger, threadContext, sslHandler.engine(), channel);
+                    extractClientCertificates(logger, threadContext, sslHandler.engine(), channel);
                 }
             }
 
@@ -170,7 +171,7 @@ public interface ServerTransportFilter {
         }
     }
 
-    static void extactClientCertificates(Logger logger, ThreadContext threadContext, SSLEngine sslEngine, Object channel) {
+    static void extractClientCertificates(Logger logger, ThreadContext threadContext, SSLEngine sslEngine, Channel channel) {
         try {
             Certificate[] certs = sslEngine.getSession().getPeerCertificates();
             if (certs instanceof X509Certificate[]) {

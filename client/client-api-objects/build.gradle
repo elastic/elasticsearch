@@ -1,0 +1,10 @@
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+    provided "org.elasticsearch:elasticsearch:${version}"
+}
+
+archivesBaseName = 'x-pack-client-api-objects'
+
+// TODO: enable this once we have tests
+test.enabled=false

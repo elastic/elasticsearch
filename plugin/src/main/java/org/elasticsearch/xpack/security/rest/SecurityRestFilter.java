@@ -52,7 +52,7 @@ public class SecurityRestFilter implements RestHandler {
                 Netty4HttpRequest nettyHttpRequest = (Netty4HttpRequest) request;
                 SslHandler handler = nettyHttpRequest.getChannel().pipeline().get(SslHandler.class);
                 assert handler != null;
-                ServerTransportFilter.extactClientCertificates(logger, threadContext, handler.engine(), nettyHttpRequest.getChannel());
+                ServerTransportFilter.extractClientCertificates(logger, threadContext, handler.engine(), nettyHttpRequest.getChannel());
             }
             service.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
                 authentication -> {

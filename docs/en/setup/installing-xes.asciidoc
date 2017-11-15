@@ -12,13 +12,18 @@ see https://www.elastic.co/products/x-pack.
 You must run the version of {xpack} that matches the version of {es} you are
 running. See the
 https://www.elastic.co/support/matrix#matrix_compatibility[Elastic Support Matrix]
-for more information about product compatibility. 
+for more information about product compatibility.
 
 IMPORTANT: If you are installing {xpack} for the first time on an existing
 cluster, you must perform a full cluster restart. Installing {xpack} enables
 security and security must be enabled on ALL nodes in a cluster for the cluster
 to operate correctly. When upgrading you can usually perform
 a {ref}/rolling-upgrades.html[rolling upgrade].
+
+The following diagram provides an overview of the steps that are required to
+set up {xpack} on {es}:
+
+image::setup/images/ElasticsearchFlow.jpg[Installation overview on {es}]
 
 To install {xpack} in {es}:
 

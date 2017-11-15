@@ -50,6 +50,7 @@ subprojects {
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin']
+  ext.projectSubstitutions += [ "org.elasticsearch:x-pack-client-api-objects:${version}": ':x-pack-elasticsearch:client:client-api-objects']
 
   if (wireCompatVersions[-1].snapshot) {
     /* The last and second to last versions can be snapshots. Rather than use

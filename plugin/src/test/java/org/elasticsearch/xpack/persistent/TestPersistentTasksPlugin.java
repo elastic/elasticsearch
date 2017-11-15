@@ -309,7 +309,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask task, TestParams params) {
+        protected void nodeOperation(AllocatedPersistentTask task, TestParams params, Task.Status status) {
             logger.info("started node operation for the task {}", task);
             try {
                 TestTask testTask = (TestTask) task;
@@ -332,9 +332,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
                     } else if ("update_status".equals(testTask.getOperation())) {
                         testTask.setOperation(null);
                         CountDownLatch latch = new CountDownLatch(1);
-                        Status status = new Status("phase " + phase.incrementAndGet());
-                        logger.info("updating the task status to {}", status);
-                        task.updatePersistentStatus(status, new ActionListener<PersistentTask<?>>() {
+                        Status newStatus = new Status("phase " + phase.incrementAndGet());
+                        logger.info("updating the task status to {}", newStatus);
+                        task.updatePersistentStatus(newStatus, new ActionListener<PersistentTask<?>>() {
                             @Override
                             public void onResponse(PersistentTask<?> persistentTask) {
                                 logger.info("updating was successful");

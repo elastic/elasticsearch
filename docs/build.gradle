@@ -97,6 +97,7 @@ buildRestTests.expectedUnconvertedCandidates = [
 
 dependencies {
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
 }
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->

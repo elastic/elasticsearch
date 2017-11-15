@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -128,16 +129,11 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
-import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.PersistentTaskParams;
-import org.elasticsearch.xpack.persistent.PersistentTasksClusterService;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.persistent.PersistentTasksExecutorRegistry;
+import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksNodeService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
-import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
-import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
@@ -177,6 +173,9 @@ public class MachineLearning implements ActionPlugin {
     private final boolean transportClientMode;
     private final boolean tribeNode;
     private final boolean tribeNodeClient;
+
+    private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
+    private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
 
     public MachineLearning(Settings settings, Environment env, XPackLicenseState licenseState) {
         this.settings = settings;
@@ -296,7 +295,7 @@ public class MachineLearning implements ActionPlugin {
     }
 
     public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, ThreadPool threadPool,
-                                               NamedXContentRegistry xContentRegistry) {
+                                               NamedXContentRegistry xContentRegistry, PersistentTasksService persistentTasksService) {
         if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
             return emptyList();
         }
@@ -337,17 +336,14 @@ public class MachineLearning implements ActionPlugin {
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, internalClient, threadPool,
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, xContentRegistry, auditor);
-        PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, internalClient);
+        this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(internalClient, jobProvider, auditor, System::currentTimeMillis);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, internalClient, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor, persistentTasksService);
+        this.datafeedManager.set(datafeedManager);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(env, clusterService, datafeedManager, autodetectProcessManager);
         InvalidLicenseEnforcer invalidLicenseEnforcer =
                 new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedManager, autodetectProcessManager);
-        PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Arrays.asList(
-                new OpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager),
-                new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, datafeedManager)
-        ));
 
         return Arrays.asList(
                 mlLifeCycleService,
@@ -358,12 +354,20 @@ public class MachineLearning implements ActionPlugin {
                 new MlInitializationService(settings, threadPool, clusterService, internalClient),
                 jobDataCountsPersister,
                 datafeedManager,
-                persistentTasksService,
-                persistentTasksExecutorRegistry,
-                new PersistentTasksClusterService(Settings.EMPTY, persistentTasksExecutorRegistry, clusterService),
                 auditor,
                 invalidLicenseEnforcer,
                 new MlAssignmentNotifier(settings, auditor, clusterService)
+        );
+    }
+
+    public List<PersistentTasksExecutor<?>> createPersistentTasksExecutors(ClusterService clusterService) {
+        if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
+            return emptyList();
+        }
+
+        return Arrays.asList(
+                new OpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get()),
+                new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, datafeedManager.get())
         );
     }
 
@@ -466,10 +470,6 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(StopDatafeedAction.INSTANCE, StopDatafeedAction.TransportAction.class),
                 new ActionHandler<>(IsolateDatafeedAction.INSTANCE, IsolateDatafeedAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class),
-                new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
-                new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
-                new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
-                new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(UpdateProcessAction.INSTANCE, UpdateProcessAction.TransportAction.class),
                 new ActionHandler<>(DeleteExpiredDataAction.INSTANCE, DeleteExpiredDataAction.TransportAction.class),
                 new ActionHandler<>(ForecastJobAction.INSTANCE, ForecastJobAction.TransportAction.class)

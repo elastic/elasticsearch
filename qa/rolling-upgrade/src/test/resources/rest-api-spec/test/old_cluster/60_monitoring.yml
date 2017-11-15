@@ -6,6 +6,9 @@ setup:
 
 ---
 "Index monitoring data and search on the old cluster":
+  - skip:
+      version:     " - 999"
+      reason:      "AwaitsFix'ing, see x-pack-elasticsearch #2948"
   - do:
       xpack.monitoring.bulk:
         system_id:          "kibana"

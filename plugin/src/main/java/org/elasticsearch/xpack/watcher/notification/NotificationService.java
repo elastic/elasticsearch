@@ -20,12 +20,14 @@ import java.util.function.BiFunction;
  */
 public abstract class NotificationService<Account> extends AbstractComponent {
 
+    private final String type;
     // both are guarded by this
     private Map<String, Account> accounts;
     protected Account defaultAccount;
 
-    public NotificationService(Settings settings) {
+    public NotificationService(Settings settings, String type) {
         super(settings);
+        this.type = type;
     }
 
     protected synchronized void setAccountSetting(Settings settings) {
@@ -46,6 +48,10 @@ public abstract class NotificationService<Account> extends AbstractComponent {
             defaultAccount = this.defaultAccount;
         }
         Account theAccount = accounts.getOrDefault(name, defaultAccount);
+        if (theAccount == null && name == null) {
+            throw new IllegalArgumentException("no accounts of type [" + type + "] configured. " +
+                    "Please set up an account using the [xpack.notification." + type +"] settings");
+        }
         if (theAccount == null) {
             throw new IllegalArgumentException("no account found for name: [" + name + "]");
         }

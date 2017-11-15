@@ -136,7 +136,7 @@ public class VersionUtilsTests extends ESTestCase {
         public static final Version V_5_5_0 = Version.fromString("5.5.0");
         public static final Version CURRENT = V_5_5_0;
     }
-    public void testResolveReleasedVersionsForStableBtranchBehindStableBranch() {
+    public void testResolveReleasedVersionsForStableBranchBehindStableBranch() {
         Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestStableBranchBehindStableBranch.CURRENT,
                 TestStableBranchBehindStableBranch.class);
         List<Version> released = t.v1();
@@ -190,6 +190,62 @@ public class VersionUtilsTests extends ESTestCase {
             TestNewMajorRelease.V_6_0_0_beta1, TestNewMajorRelease.V_6_0_0_beta2,
             TestNewMajorRelease.V_6_0_0), released);
         assertEquals(Arrays.asList(TestNewMajorRelease.V_5_6_2, TestNewMajorRelease.V_6_0_1), unreleased);
+    }
+
+    static class TestVersionBumpIn6x {
+        public static final Version V_5_6_0 = Version.fromString("5.6.0");
+        public static final Version V_5_6_1 = Version.fromString("5.6.1");
+        public static final Version V_5_6_2 = Version.fromString("5.6.2");
+        public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
+        public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
+        public static final Version V_6_0_0_beta1 = Version.fromString("6.0.0-beta1");
+        public static final Version V_6_0_0_beta2 = Version.fromString("6.0.0-beta2");
+        public static final Version V_6_0_0 = Version.fromString("6.0.0");
+        public static final Version V_6_0_1 = Version.fromString("6.0.1");
+        public static final Version V_6_1_0 = Version.fromString("6.1.0");
+        public static final Version CURRENT = V_6_1_0;
+    }
+
+    public void testResolveReleasedVersionsAtVersionBumpIn6x() {
+        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestVersionBumpIn6x.CURRENT,
+            TestVersionBumpIn6x.class);
+        List<Version> released = t.v1();
+        List<Version> unreleased = t.v2();
+        assertEquals(Arrays.asList(TestVersionBumpIn6x.V_5_6_0, TestVersionBumpIn6x.V_5_6_1,
+            TestVersionBumpIn6x.V_6_0_0_alpha1, TestVersionBumpIn6x.V_6_0_0_alpha2,
+            TestVersionBumpIn6x.V_6_0_0_beta1, TestVersionBumpIn6x.V_6_0_0_beta2,
+            TestVersionBumpIn6x.V_6_0_0), released);
+        assertEquals(Arrays.asList(TestVersionBumpIn6x.V_5_6_2, TestVersionBumpIn6x.V_6_0_1, TestVersionBumpIn6x.V_6_1_0), unreleased);
+    }
+
+    static class TestNewMinorBranchIn6x {
+        public static final Version V_5_6_0 = Version.fromString("5.6.0");
+        public static final Version V_5_6_1 = Version.fromString("5.6.1");
+        public static final Version V_5_6_2 = Version.fromString("5.6.2");
+        public static final Version V_6_0_0_alpha1 = Version.fromString("6.0.0-alpha1");
+        public static final Version V_6_0_0_alpha2 = Version.fromString("6.0.0-alpha2");
+        public static final Version V_6_0_0_beta1 = Version.fromString("6.0.0-beta1");
+        public static final Version V_6_0_0_beta2 = Version.fromString("6.0.0-beta2");
+        public static final Version V_6_0_0 = Version.fromString("6.0.0");
+        public static final Version V_6_0_1 = Version.fromString("6.0.1");
+        public static final Version V_6_1_0 = Version.fromString("6.1.0");
+        public static final Version V_6_1_1 = Version.fromString("6.1.1");
+        public static final Version V_6_1_2 = Version.fromString("6.1.2");
+        public static final Version V_6_2_0 = Version.fromString("6.2.0");
+        public static final Version CURRENT = V_6_2_0;
+    }
+
+    public void testResolveReleasedVersionsAtNewMinorBranchIn6x() {
+        Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestNewMinorBranchIn6x.CURRENT,
+            TestNewMinorBranchIn6x.class);
+        List<Version> released = t.v1();
+        List<Version> unreleased = t.v2();
+        assertEquals(Arrays.asList(TestNewMinorBranchIn6x.V_5_6_0, TestNewMinorBranchIn6x.V_5_6_1,
+            TestNewMinorBranchIn6x.V_6_0_0_alpha1, TestNewMinorBranchIn6x.V_6_0_0_alpha2,
+            TestNewMinorBranchIn6x.V_6_0_0_beta1, TestNewMinorBranchIn6x.V_6_0_0_beta2,
+            TestNewMinorBranchIn6x.V_6_0_0, TestNewMinorBranchIn6x.V_6_1_0, TestNewMinorBranchIn6x.V_6_1_1), released);
+        assertEquals(Arrays.asList(TestNewMinorBranchIn6x.V_5_6_2, TestNewMinorBranchIn6x.V_6_0_1,
+            TestNewMinorBranchIn6x.V_6_1_2, TestNewMinorBranchIn6x.V_6_2_0), unreleased);
     }
 
     /**

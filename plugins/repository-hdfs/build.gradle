@@ -67,21 +67,6 @@ dependencyLicenses {
   mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
-task hdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
-  dependsOn project.configurations.hdfsFixture
-  executable = new File(project.javaHome, 'bin/java')
-  env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
-  args 'hdfs.MiniHDFS',
-       baseDir
-}
-
-task haHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
-  dependsOn project.configurations.hdfsFixture
-  executable = new File(project.javaHome, 'bin/java')
-  env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
-  args "-Dha-nameservice=ha-hdfs", 'hdfs.MiniHDFS', baseDir
-}
-
 // MIT Kerberos Vagrant Testing Fixture
 String box = "krb5kdc"
 Map<String,String> vagrantEnvVars = [
@@ -124,48 +109,39 @@ for (String principal : principals) {
   krb5AddPrincipals.dependsOn(create)
 }
 
-task secureHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
-  dependsOn project.configurations.hdfsFixture, krb5kdcFixture, krb5AddPrincipals
-  executable = new File(project.javaHome, 'bin/java')
-  env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
+// Create HDFS File System Testing Fixtures for HA/Secure combinations
+for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
+  project.tasks.create(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
+    dependsOn project.configurations.hdfsFixture
+    executable = new File(project.javaHome, 'bin/java')
+    env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
 
-  Path keytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab")
-  Path krb5Config = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf")
+    final List<String> miniHDFSArgs = []
 
-  final List<String> miniHDFSArgs = ["-Djava.security.krb5.conf=${krb5Config}"]
+    if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
+      dependsOn krb5kdcFixture, krb5AddPrincipals
+      Path krb5Config = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf")
+      miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5Config}");
+      if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
+        miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
+      }
+    }
 
-  if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
-    miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
+    if (fixtureName.equals('haHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
+      miniHDFSArgs.add("-Dha-nameservice=ha-hdfs")
+    }
+
+    miniHDFSArgs.add('hdfs.MiniHDFS')
+    miniHDFSArgs.add(baseDir)
+
+    if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
+      Path keytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab")
+      miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
+      miniHDFSArgs.add("${keytabPath}")
+    }
+
+    args miniHDFSArgs.toArray()
   }
-
-  miniHDFSArgs.add('hdfs.MiniHDFS')
-  miniHDFSArgs.add(baseDir)
-  miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
-  miniHDFSArgs.add("${keytabPath}")
-
-  args miniHDFSArgs.toArray()
-}
-
-task secureHaHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
-  dependsOn project.configurations.hdfsFixture, krb5kdcFixture, krb5AddPrincipals
-  executable = new File(project.javaHome, 'bin/java')
-  env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
-
-  Path keytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab")
-  Path krb5Config = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf")
-
-  final List<String> miniHDFSArgs = ["-Djava.security.krb5.conf=${krb5Config}", "-Dha-nameservice=ha-hdfs"]
-
-  if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
-    miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
-  }
-
-  miniHDFSArgs.add('hdfs.MiniHDFS')
-  miniHDFSArgs.add(baseDir)
-  miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
-  miniHDFSArgs.add("${keytabPath}")
-
-  args miniHDFSArgs.toArray()
 }
 
 boolean fixtureSupported = false

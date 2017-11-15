@@ -262,11 +262,12 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         return Objects.equals(ratedRequests, other.ratedRequests) &&
                 Objects.equals(metric, other.metric) &&
                 Objects.equals(maxConcurrentSearches, other.maxConcurrentSearches) &&
-                Objects.equals(templates, other.templates);
+                Objects.equals(templates, other.templates) &&
+                Objects.equals(indices, other.indices);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(ratedRequests, metric, templates, maxConcurrentSearches);
+        return Objects.hash(ratedRequests, metric, templates, maxConcurrentSearches, indices);
     }
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -43,22 +42,16 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(
-                new ActionHandler<>(RankEvalAction.INSTANCE, TransportRankEvalAction.class));
+        return Arrays.asList(new ActionHandler<>(RankEvalAction.INSTANCE, TransportRankEvalAction.class));
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController,
-            ClusterSettings clusterSettings, IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(new RestRankEvalAction(settings, restController));
     }
 
-    /**
-     * Returns parsers for {@link NamedWriteable} objects that this plugin sends over the transport protocol.
-     * @see NamedWriteableRegistry
-     */
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();

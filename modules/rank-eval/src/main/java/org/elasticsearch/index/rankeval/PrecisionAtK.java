@@ -38,10 +38,13 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
 /**
- * Evaluate Precision of the search results. Documents without a rating are
- * ignored. By default documents with a rating equal or bigger than 1 are
- * considered to be "relevant" for the precision calculation. This value can be
- * changes using the "relevant_rating_threshold" parameter.
+ * Metric implementing Precision@K
+ * (https://en.wikipedia.org/wiki/Information_retrieval#Precision_at_K).<br>
+ * By default documents with a rating equal or bigger than 1 are considered to
+ * be "relevant" for this calculation. This value can be changes using the
+ * relevant_rating_threshold` parameter.<br>
+ * The `ignore_unlabeled` parameter (default to false) controls if unrated
+ * documents should be ignored.
  */
 public class PrecisionAtK implements EvaluationMetric {
 
@@ -50,24 +53,25 @@ public class PrecisionAtK implements EvaluationMetric {
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
     private static final ParseField IGNORE_UNLABELED_FIELD = new ParseField("ignore_unlabeled");
 
-    /**
-     * This setting controls how unlabeled documents in the search hits are
-     * treated. Set to 'true', unlabeled documents are ignored and neither count
-     * as true or false positives. Set to 'false', they are treated as false
-     * positives.
-     */
     private final boolean ignoreUnlabeled;
-
-    /** ratings equal or above this value will be considered relevant. */
     private final int relevantRatingThreshhold;
 
+    /**
+     * Metric implementing Precision@K.
+     * @param threshold
+     *            ratings equal or above this value will be considered relevant.
+     * @param ignoreUnlabeled
+     *            Controls how unlabeled documents in the search hits are treated.
+     *            Set to 'true', unlabeled documents are ignored and neither count
+     *            as true or false positives. Set to 'false', they are treated as
+     *            false positives.
+     */
     public PrecisionAtK(int threshold, boolean ignoreUnlabeled) {
-            if (threshold < 0) {
-                throw new IllegalArgumentException(
-                        "Relevant rating threshold for precision must be positive integer.");
-            }
-            this.relevantRatingThreshhold = threshold;
-            this.ignoreUnlabeled = ignoreUnlabeled;
+        if (threshold < 0) {
+            throw new IllegalArgumentException("Relevant rating threshold for precision must be positive integer.");
+        }
+        this.relevantRatingThreshhold = threshold;
+        this.ignoreUnlabeled = ignoreUnlabeled;
     }
 
     public PrecisionAtK() {
@@ -113,7 +117,7 @@ public class PrecisionAtK implements EvaluationMetric {
     }
 
     /**
-     * Gets the 'ìgnore_unlabeled' parameter
+     * Gets the 'ignore_unlabeled' parameter.
      */
     public boolean getIgnoreUnlabeled() {
         return ignoreUnlabeled;
@@ -151,7 +155,7 @@ public class PrecisionAtK implements EvaluationMetric {
             precision = (double) truePositives / (truePositives + falsePositives);
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision);
-        evalQueryQuality.addMetricDetails(
+        evalQueryQuality.setMetricDetails(
                 new PrecisionAtK.Breakdown(truePositives, truePositives + falsePositives));
         evalQueryQuality.addHitsAndRatings(ratedSearchHits);
         return evalQueryQuality;
@@ -186,19 +190,19 @@ public class PrecisionAtK implements EvaluationMetric {
         return Objects.hash(relevantRatingThreshhold, ignoreUnlabeled);
     }
 
-    public static class Breakdown implements MetricDetails {
+    static class Breakdown implements MetricDetails {
 
-        public static final String DOCS_RETRIEVED_FIELD = "docs_retrieved";
-        public static final String RELEVANT_DOCS_RETRIEVED_FIELD = "relevant_docs_retrieved";
+        private static final String DOCS_RETRIEVED_FIELD = "docs_retrieved";
+        private static final String RELEVANT_DOCS_RETRIEVED_FIELD = "relevant_docs_retrieved";
         private int relevantRetrieved;
         private int retrieved;
 
-        public Breakdown(int relevantRetrieved, int retrieved) {
+        Breakdown(int relevantRetrieved, int retrieved) {
             this.relevantRetrieved = relevantRetrieved;
             this.retrieved = retrieved;
         }
 
-        public Breakdown(StreamInput in) throws IOException {
+        Breakdown(StreamInput in) throws IOException {
             this.relevantRetrieved = in.readVInt();
             this.retrieved = in.readVInt();
         }
@@ -222,11 +226,11 @@ public class PrecisionAtK implements EvaluationMetric {
             return NAME;
         }
 
-        public int getRelevantRetrieved() {
+        int getRelevantRetrieved() {
             return relevantRetrieved;
         }
 
-        public int getRetrieved() {
+        int getRetrieved() {
             return retrieved;
         }
 

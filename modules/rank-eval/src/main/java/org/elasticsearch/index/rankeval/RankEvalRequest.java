@@ -27,51 +27,46 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Instances of this class represent a complete precision at request. They
- * encode a precision task including search intents and search specifications to
- * be executed subsequently.
+ * Request to perform a search ranking evaluation.
  */
 public class RankEvalRequest extends ActionRequest {
 
-    /** The request data to use for evaluation. */
-    private RankEvalSpec task;
+    private RankEvalSpec rankingEvaluation;
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = null;
-        if (task == null) {
+        if (rankingEvaluation == null) {
             e = new ActionRequestValidationException();
             e.addValidationError("missing ranking evaluation specification");
         }
-        return null;
+        return e;
     }
 
     /**
-     * Returns the specification of this qa run including intents to execute,
-     * specifications detailing intent translation and metrics to compute.
+     * Returns the specification of the ranking evaluation.
      */
     public RankEvalSpec getRankEvalSpec() {
-        return task;
+        return rankingEvaluation;
     }
 
     /**
-     * Returns the specification of this qa run including intents to execute,
-     * specifications detailing intent translation and metrics to compute.
+     * Set the the specification of the ranking evaluation.
      */
     public void setRankEvalSpec(RankEvalSpec task) {
-        this.task = task;
+        this.rankingEvaluation = task;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        task = new RankEvalSpec(in);
+        rankingEvaluation = new RankEvalSpec(in);
 
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        task.writeTo(out);
+        rankingEvaluation.writeTo(out);
     }
 }

@@ -22,6 +22,9 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
 
+/**
+ * Details about a specific {@link EvaluationMetric} that should be included in the resonse.
+ */
 public interface MetricDetails extends ToXContent, NamedWriteable {
 
 }

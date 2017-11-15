@@ -94,6 +94,12 @@ public class RankEvalSpecTests extends ESTestCase {
         }
         RankEvalSpec spec = new RankEvalSpec(ratedRequests, metric, templates);
         maybeSet(spec::setMaxConcurrentSearches, randomInt(100));
+        List<String> indices = new ArrayList<>();
+        int size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            indices.add(randomAlphaOfLengthBetween(0, 50));
+        }
+        spec.addIndices(indices);
         return spec;
     }
 
@@ -137,11 +143,12 @@ public class RankEvalSpecTests extends ESTestCase {
         List<RatedRequest> ratedRequests = new ArrayList<>(original.getRatedRequests());
         EvaluationMetric metric = original.getMetric();
         Map<String, Script> templates = original.getTemplates();
+        List<String> indices = new ArrayList<>(original.getIndices());
 
-        int mutate = randomIntBetween(0, 2);
+        int mutate = randomIntBetween(0, 3);
         switch (mutate) {
         case 0:
-            RatedRequest request = RatedRequestsTests.createTestItem(new ArrayList<>(), true);
+            RatedRequest request = RatedRequestsTests.createTestItem(true);
             ratedRequests.add(request);
             break;
         case 1:
@@ -154,6 +161,9 @@ public class RankEvalSpecTests extends ESTestCase {
         case 2:
             templates.put("mutation", new Script(ScriptType.INLINE, "mustache", randomAlphaOfLength(10), new HashMap<>()));
             break;
+        case 3:
+            indices.add(randomAlphaOfLength(5));
+            break;
         default:
             throw new IllegalStateException("Requested to modify more than available parameters.");
         }
@@ -162,31 +172,28 @@ public class RankEvalSpecTests extends ESTestCase {
         for (Entry<String, Script> entry : templates.entrySet()) {
             scripts.add(new ScriptWithId(entry.getKey(), entry.getValue()));
         }
-
         RankEvalSpec result = new RankEvalSpec(ratedRequests, metric, scripts);
+        result.addIndices(indices);
         return result;
     }
 
-    public void testMissingRatedRequestsFailsParsing() {
+    public void testMissingRatedRequestsFails() {
         EvaluationMetric metric = new PrecisionAtK();
-        expectThrows(IllegalStateException.class, () -> new RankEvalSpec(new ArrayList<>(), metric));
-        expectThrows(IllegalStateException.class, () -> new RankEvalSpec(null, metric));
+        expectThrows(IllegalArgumentException.class, () -> new RankEvalSpec(new ArrayList<>(), metric));
+        expectThrows(IllegalArgumentException.class, () -> new RankEvalSpec(null, metric));
     }
 
-    public void testMissingMetricFailsParsing() {
-        List<String> strings = Arrays.asList("value");
-        List<RatedRequest> ratedRequests = randomList(() -> RatedRequestsTests.createTestItem(strings, randomBoolean()));
-        expectThrows(IllegalStateException.class, () -> new RankEvalSpec(ratedRequests, null));
+    public void testMissingMetricFails() {
+        List<RatedRequest> ratedRequests = randomList(() -> RatedRequestsTests.createTestItem(randomBoolean()));
+        expectThrows(NullPointerException.class, () -> new RankEvalSpec(ratedRequests, null));
     }
 
-    public void testMissingTemplateAndSearchRequestFailsParsing() {
+    public void testMissingTemplateAndSearchRequestFails() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
-
         RatedRequest request = new RatedRequest("id", ratedDocs, params, "templateId");
         List<RatedRequest> ratedRequests = Arrays.asList(request);
-
         expectThrows(IllegalStateException.class, () -> new RankEvalSpec(ratedRequests, new PrecisionAtK()));
     }
 }

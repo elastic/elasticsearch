@@ -17,18 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.smoketest;
+package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.index.rankeval.Precision;
-import org.elasticsearch.index.rankeval.RankEvalAction;
-import org.elasticsearch.index.rankeval.RankEvalPlugin;
-import org.elasticsearch.index.rankeval.RankEvalRequest;
-import org.elasticsearch.index.rankeval.RankEvalRequestBuilder;
-import org.elasticsearch.index.rankeval.RankEvalResponse;
-import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RankEvalSpec.ScriptWithId;
-import org.elasticsearch.index.rankeval.RatedDocument;
-import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -88,7 +79,6 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         ams_params.put("querystring", "amsterdam");
         RatedRequest amsterdamRequest = new RatedRequest(
                 "amsterdam_query", createRelevant("2", "3", "4", "5"), ams_params, MATCH_TEMPLATE);
-        amsterdamRequest.setIndices(indices);
 
         specifications.add(amsterdamRequest);
 
@@ -96,10 +86,9 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         berlin_params.put("querystring", "berlin");
         RatedRequest berlinRequest = new RatedRequest(
                 "berlin_query", createRelevant("1"), berlin_params, MATCH_TEMPLATE);
-        berlinRequest.setIndices(indices);
         specifications.add(berlinRequest);
 
-        Precision metric = new Precision();
+        PrecisionAtK metric = new PrecisionAtK();
 
         ScriptWithId template =
                 new ScriptWithId(
@@ -111,11 +100,12 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         Set<ScriptWithId> templates = new HashSet<>();
         templates.add(template);
         RankEvalSpec task = new RankEvalSpec(specifications, metric, templates);
+        task.addIndices(indices);
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-        assertEquals(0.9, response.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(0.9, response.getEvaluationResult(), Double.MIN_VALUE);
     }
 
     private static List<RatedDocument> createRelevant(String... docs) {

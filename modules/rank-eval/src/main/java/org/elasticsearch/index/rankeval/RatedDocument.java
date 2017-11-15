@@ -36,7 +36,7 @@ import java.util.Objects;
  * Represents a document (specified by its _index/_id) and its corresponding rating
  * with respect to a specific search query.
  * <p>
- * Json structure in a request:
+ * The json structure of this element in a request:
  * <pre>
  * {
  *   "_index": "my_index",

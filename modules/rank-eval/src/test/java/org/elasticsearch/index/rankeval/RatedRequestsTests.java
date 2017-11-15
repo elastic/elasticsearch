@@ -73,7 +73,7 @@ public class RatedRequestsTests extends ESTestCase {
         return xContentRegistry;
     }
 
-    public static RatedRequest createTestItem(List<String> indices, boolean forceRequest) {
+    public static RatedRequest createTestItem(boolean forceRequest) {
         String requestId = randomAlphaOfLength(50);
 
         List<RatedDocument> ratedDocs = new ArrayList<>();
@@ -104,31 +104,22 @@ public class RatedRequestsTests extends ESTestCase {
         RatedRequest ratedRequest = null;
         if (params.size() == 0) {
             ratedRequest = new RatedRequest(requestId, ratedDocs, testRequest);
-            ratedRequest.setIndices(indices);
-            ratedRequest.setSummaryFields(summaryFields);
+            ratedRequest.addSummaryFields(summaryFields);
         } else {
             ratedRequest = new RatedRequest(requestId, ratedDocs, params, randomAlphaOfLength(5));
-            ratedRequest.setIndices(indices);
-            ratedRequest.setSummaryFields(summaryFields);
+            ratedRequest.addSummaryFields(summaryFields);
         }
         return ratedRequest;
     }
 
     public void testXContentRoundtrip() throws IOException {
-        List<String> indices = new ArrayList<>();
-        int size = randomIntBetween(0, 20);
-        for (int i = 0; i < size; i++) {
-            indices.add(randomAlphaOfLengthBetween(0, 50));
-        }
-
-        RatedRequest testItem = createTestItem(indices, randomBoolean());
+        RatedRequest testItem = createTestItem(randomBoolean());
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
         try (XContentParser itemParser = createParser(shuffled)) {
             itemParser.nextToken();
 
             RatedRequest parsedItem = RatedRequest.fromXContent(itemParser);
-            parsedItem.setIndices(indices); // IRL these come from URL parameters - see RestRankEvalAction
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -136,12 +127,7 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        List<String> indices = new ArrayList<>();
-        int size = randomIntBetween(0, 20);
-        for (int i = 0; i < size; i++) {
-            indices.add(randomAlphaOfLengthBetween(0, 50));
-        }
-        RatedRequest original = createTestItem(indices, randomBoolean());
+        RatedRequest original = createTestItem(randomBoolean());
         RatedRequest deserialized = copy(original);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
@@ -155,24 +141,18 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testEqualsAndHash() throws IOException {
-        List<String> indices = new ArrayList<>();
-        int size = randomIntBetween(0, 20);
-        for (int i = 0; i < size; i++) {
-            indices.add(randomAlphaOfLengthBetween(0, 50));
-        }
-        checkEqualsAndHashCode(createTestItem(indices, randomBoolean()), RatedRequestsTests::copy, RatedRequestsTests::mutateTestItem);
+        checkEqualsAndHashCode(createTestItem(randomBoolean()), RatedRequestsTests::copy, RatedRequestsTests::mutateTestItem);
     }
 
     private static RatedRequest mutateTestItem(RatedRequest original) {
         String id = original.getId();
         SearchSourceBuilder testRequest = original.getTestRequest();
         List<RatedDocument> ratedDocs = original.getRatedDocs();
-        List<String> indices = original.getIndices();
         Map<String, Object> params = original.getParams();
         List<String> summaryFields = original.getSummaryFields();
         String templateId = original.getTemplateId();
 
-        int mutate = randomIntBetween(0, 4);
+        int mutate = randomIntBetween(0, 3);
         switch (mutate) {
         case 0:
             id = randomValueOtherThan(id, () -> randomAlphaOfLength(10));
@@ -198,79 +178,65 @@ public class RatedRequestsTests extends ESTestCase {
             ratedDocs = Arrays.asList(randomValueOtherThanMany(ratedDocs::contains, () -> RatedDocumentTests.createRatedDocument()));
             break;
         case 3:
-            indices = Arrays.asList(randomValueOtherThanMany(indices::contains, () -> randomAlphaOfLength(10)));
-            break;
-        case 4:
             summaryFields = Arrays.asList(randomValueOtherThanMany(summaryFields::contains, () -> randomAlphaOfLength(10)));
             break;
         default:
             throw new IllegalStateException("Requested to modify more than available parameters.");
         }
 
-        RatedRequest ratedRequest = new RatedRequest(id, ratedDocs, testRequest, params, templateId);
-        ratedRequest.setIndices(indices);
-        ratedRequest.setSummaryFields(summaryFields);
+        RatedRequest ratedRequest;
+        if (testRequest == null) {
+            ratedRequest = new RatedRequest(id, ratedDocs, params, templateId);
+        } else {
+            ratedRequest = new RatedRequest(id, ratedDocs, testRequest);
+        }
+        ratedRequest.addSummaryFields(summaryFields);
 
         return ratedRequest;
     }
 
     public void testDuplicateRatedDocThrowsException() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1), new RatedDocument("index1", "id1", 5));
-
-        // search request set, no summary fields
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder()));
-        assertEquals("Found duplicate rated document key [{\"_index\":\"index1\",\"_id\":\"id1\"}]",
+                () -> new RatedRequest("test_query", ratedDocs, new SearchSourceBuilder()));
+        assertEquals("Found duplicate rated document key [{\"_index\":\"index1\",\"_id\":\"id1\"}] in evaluation request [test_query]",
                 ex.getMessage());
-        // templated path, no summary fields
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
-        ex = expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, params, "templateId"));
-        assertEquals("Found duplicate rated document key [{\"_index\":\"index1\",\"_id\":\"id1\"}]",
+        ex = expectThrows(IllegalArgumentException.class, () -> new RatedRequest("test_query", ratedDocs, params, "templateId"));
+        assertEquals("Found duplicate rated document key [{\"_index\":\"index1\",\"_id\":\"id1\"}] in evaluation request [test_query]",
                 ex.getMessage());
     }
 
     public void testNullSummaryFieldsTreatment() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         RatedRequest request = new RatedRequest("id", ratedDocs, new SearchSourceBuilder());
-        expectThrows(IllegalArgumentException.class, () -> request.setSummaryFields(null));
+        expectThrows(NullPointerException.class, () -> request.addSummaryFields(null));
     }
 
     public void testNullParamsTreatment() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
-        RatedRequest request = new RatedRequest("id", ratedDocs, new SearchSourceBuilder(), null, null);
+        RatedRequest request = new RatedRequest("id", ratedDocs, new SearchSourceBuilder());
         assertNotNull(request.getParams());
-    }
-
-    public void testSettingParamsAndRequestThrows() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
-        Map<String, Object> params = new HashMap<>();
-        params.put("key", "value");
-        expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder(), params, null));
+        assertEquals(0, request.getParams().size());
     }
 
     public void testSettingNeitherParamsNorRequestThrows() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, null));
-        expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, new HashMap<>(), "templateId"));
+        expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, new HashMap<>(), "templateId"));
     }
 
     public void testSettingParamsWithoutTemplateIdThrows() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
-        expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, params, null));
-    }
-
-    public void testSettingTemplateIdAndRequestThrows() {
-        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
-        expectThrows(IllegalArgumentException.class,
-                () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder(), null, "templateId"));
+        expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, params, null));
     }
 
     public void testSettingTemplateIdNoParamsThrows() {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
-        expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, null, "templateId"));
+        expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, "templateId"));
     }
 
     /**

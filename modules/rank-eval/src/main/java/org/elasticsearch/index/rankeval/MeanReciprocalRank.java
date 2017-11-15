@@ -32,16 +32,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import javax.naming.directory.SearchResult;
-
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
 /**
- * Evaluates using mean reciprocal rank. By default documents with a rating
- * equal or bigger than 1 are considered to be "relevant" for the reciprocal
- * rank calculation. This value can be changes using the
- * "relevant_rating_threshold" parameter.
+ * Metric implementing Mean Reciprocal Rank (https://en.wikipedia.org/wiki/Mean_reciprocal_rank).<br>
+ * By default documents with a rating equal or bigger than 1 are considered to be "relevant" for the reciprocal
+ * rank calculation. This value can be changes using the relevant_rating_threshold` parameter.
  */
 public class MeanReciprocalRank implements EvaluationMetric {
 
@@ -56,16 +53,24 @@ public class MeanReciprocalRank implements EvaluationMetric {
         this(DEFAULT_RATING_THRESHOLD);
     }
 
-    public MeanReciprocalRank(StreamInput in) throws IOException {
+    MeanReciprocalRank(StreamInput in) throws IOException {
         this.relevantRatingThreshhold = in.readVInt();
     }
 
-    public MeanReciprocalRank(int threshold) {
-        if (threshold < 0) {
-            throw new IllegalArgumentException(
-                    "Relevant rating threshold for precision must be positive integer.");
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(relevantRatingThreshhold);
+    }
+
+    /**
+     * Metric implementing Mean Reciprocal Rank (https://en.wikipedia.org/wiki/Mean_reciprocal_rank).<br>
+     * @param relevantRatingThreshold the rating value that a document needs to be regarded as "relevalnt". Defaults to 1.
+     */
+    public MeanReciprocalRank(int relevantRatingThreshold) {
+        if (relevantRatingThreshold < 0) {
+            throw new IllegalArgumentException("Relevant rating threshold for precision must be positive integer.");
         }
-        this.relevantRatingThreshhold = threshold;
+        this.relevantRatingThreshhold = relevantRatingThreshold;
     }
 
     @Override
@@ -74,8 +79,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
     }
 
     /**
-     * Return the rating threshold above which ratings are considered to be
-     * "relevant" for this metric. Defaults to 1.
+     * Return the rating threshold above which ratings are considered to be "relevant".
      */
     public int getRelevantRatingThreshold() {
         return relevantRatingThreshhold;
@@ -83,8 +87,6 @@ public class MeanReciprocalRank implements EvaluationMetric {
 
     /**
      * Compute ReciprocalRank based on provided relevant document IDs.
-     *
-     * @return reciprocal Rank for above {@link SearchResult} list.
      **/
     @Override
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
@@ -105,14 +107,9 @@ public class MeanReciprocalRank implements EvaluationMetric {
 
         double reciprocalRank = (firstRelevant == -1) ? 0 : 1.0d / firstRelevant;
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, reciprocalRank);
-        evalQueryQuality.addMetricDetails(new Breakdown(firstRelevant));
+        evalQueryQuality.setMetricDetails(new Breakdown(firstRelevant));
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(relevantRatingThreshhold);
     }
 
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
@@ -161,15 +158,15 @@ public class MeanReciprocalRank implements EvaluationMetric {
         return Objects.hash(relevantRatingThreshhold);
     }
 
-    public static class Breakdown implements MetricDetails {
+    static class Breakdown implements MetricDetails {
 
-        private int firstRelevantRank;
+        private final int firstRelevantRank;
 
-        public Breakdown(int firstRelevantRank) {
+        Breakdown(int firstRelevantRank) {
             this.firstRelevantRank = firstRelevantRank;
         }
 
-        public Breakdown(StreamInput in) throws IOException {
+        Breakdown(StreamInput in) throws IOException {
             this.firstRelevantRank = in.readVInt();
         }
 
@@ -190,7 +187,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
             return NAME;
         }
 
-        public int getFirstRelevantRank() {
+        int getFirstRelevantRank() {
             return firstRelevantRank;
         }
 

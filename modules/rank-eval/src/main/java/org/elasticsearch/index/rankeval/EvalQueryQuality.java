@@ -32,46 +32,43 @@ import java.util.List;
 import java.util.Objects;;
 
 /**
- * This class represents the partial information from running the ranking evaluation metric on one
- * request alone. It contains all information necessary to render the response for this part of the
- * overall evaluation.
+ * Result of the evaluation metric calculation on one particular query alone.
  */
 public class EvalQueryQuality implements ToXContent, Writeable {
 
-    /** documents seen as result for one request that were not annotated.*/
-    private String id;
-    private double qualityLevel;
+    private final String queryId;
+    private final double evaluationResult;
     private MetricDetails optionalMetricDetails;
-    private List<RatedSearchHit> hits = new ArrayList<>();
+    private final List<RatedSearchHit> hits = new ArrayList<>();
 
-    public EvalQueryQuality(String id, double qualityLevel) {
-        this.id = id;
-        this.qualityLevel = qualityLevel;
+    public EvalQueryQuality(String id, double evaluationResult) {
+        this.queryId = id;
+        this.evaluationResult = evaluationResult;
     }
 
     public EvalQueryQuality(StreamInput in) throws IOException {
         this(in.readString(), in.readDouble());
-        this.hits = in.readList(RatedSearchHit::new);
+        this.hits.addAll(in.readList(RatedSearchHit::new));
         this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetails.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
-        out.writeDouble(qualityLevel);
+        out.writeString(queryId);
+        out.writeDouble(evaluationResult);
         out.writeList(hits);
         out.writeOptionalNamedWriteable(this.optionalMetricDetails);
     }
 
     public String getId() {
-        return id;
+        return queryId;
     }
 
     public double getQualityLevel() {
-        return qualityLevel;
+        return evaluationResult;
     }
 
-    public void addMetricDetails(MetricDetails breakdown) {
+    public void setMetricDetails(MetricDetails breakdown) {
         this.optionalMetricDetails = breakdown;
     }
 
@@ -80,7 +77,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
     }
 
     public void addHitsAndRatings(List<RatedSearchHit> hits) {
-        this.hits = hits;
+        this.hits.addAll(hits);
     }
 
     public List<RatedSearchHit> getHitsAndRatings() {
@@ -89,8 +86,8 @@ public class EvalQueryQuality implements ToXContent, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(id);
-        builder.field("quality_level", this.qualityLevel);
+        builder.startObject(queryId);
+        builder.field("quality_level", this.evaluationResult);
         builder.startArray("unknown_docs");
         for (DocumentKey key : EvaluationMetric.filterUnknownDocuments(hits)) {
             builder.startObject();
@@ -122,14 +119,14 @@ public class EvalQueryQuality implements ToXContent, Writeable {
             return false;
         }
         EvalQueryQuality other = (EvalQueryQuality) obj;
-        return Objects.equals(id, other.id) &&
-                Objects.equals(qualityLevel, other.qualityLevel) &&
+        return Objects.equals(queryId, other.queryId) &&
+                Objects.equals(evaluationResult, other.evaluationResult) &&
                 Objects.equals(hits, other.hits) &&
                 Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(id, qualityLevel, hits, optionalMetricDetails);
+        return Objects.hash(queryId, evaluationResult, hits, optionalMetricDetails);
     }
 }

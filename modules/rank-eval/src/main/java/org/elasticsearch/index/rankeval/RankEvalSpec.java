@@ -42,19 +42,12 @@ import java.util.Map.Entry;
 import java.util.Objects;
 
 /**
- * This class defines a ranking evaluation task including an id, a collection of
- * queries to evaluate and the evaluation metric.
- *
- * Each QA run is based on a set of queries to send to the index and multiple QA
- * specifications that define how to translate the query intents into elastic
- * search queries.
+ * Specification of the ranking evaluation request.<br>
+ * This class groups the queries to evaluate, including their document ratings,
+ * and the evaluation metric including its parameters.
  */
-
 public class RankEvalSpec implements Writeable, ToXContentObject {
-    /**
-     * Collection of query specifications, that is e.g. search request templates
-     * to use for query translation.
-     */
+    /** List of search request to use for the evaluation */
     private final List<RatedRequest> ratedRequests;
     /** Definition of the quality metric, e.g. precision at N */
     private final EvaluationMetric metric;
@@ -64,34 +57,30 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     private static final int MAX_CONCURRENT_SEARCHES = 10;
     /** optional: Templates to base test requests on */
     private Map<String, Script> templates = new HashMap<>();
+    /** the indices this ranking evaluation targets */
+    private final List<String> indices;
 
-    public RankEvalSpec(List<RatedRequest> ratedRequests, EvaluationMetric metric,
-            Collection<ScriptWithId> templates) {
-        if (ratedRequests == null || ratedRequests.size() < 1) {
-            throw new IllegalStateException(
-                    "Cannot evaluate ranking if no search requests with rated results are provided."
-                            + " Seen: " + ratedRequests);
+    public RankEvalSpec(List<RatedRequest> ratedRequests, EvaluationMetric metric, Collection<ScriptWithId> templates) {
+        this.metric = Objects.requireNonNull(metric, "Cannot evaluate ranking if no evaluation metric is provided.");
+        if (ratedRequests == null || ratedRequests.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Cannot evaluate ranking if no search requests with rated results are provided. Seen: " + ratedRequests);
         }
-        if (metric == null) {
-            throw new IllegalStateException(
-                    "Cannot evaluate ranking if no evaluation metric is provided.");
-        }
-        if (templates == null || templates.size() < 1) {
+        this.ratedRequests = ratedRequests;
+        if (templates == null || templates.isEmpty()) {
             for (RatedRequest request : ratedRequests) {
                 if (request.getTestRequest() == null) {
-                    throw new IllegalStateException(
-                            "Cannot evaluate ranking if neither template nor test request is "
-                                    + "provided. Seen for request id: " + request.getId());
+                    throw new IllegalStateException("Cannot evaluate ranking if neither template nor test request is "
+                            + "provided. Seen for request id: " + request.getId());
                 }
             }
         }
-        this.ratedRequests = ratedRequests;
-        this.metric = metric;
         if (templates != null) {
             for (ScriptWithId idScript : templates) {
                 this.templates.put(idScript.id, idScript.script);
             }
         }
+        this.indices = new ArrayList<>();
     }
 
     public RankEvalSpec(List<RatedRequest> ratedRequests, EvaluationMetric metric) {
@@ -112,6 +101,11 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
             this.templates.put(key, value);
         }
         maxConcurrentSearches = in.readVInt();
+        int indicesSize = in.readInt();
+        indices = new ArrayList<>(indicesSize);
+        for (int i = 0; i < indicesSize; i++) {
+            this.indices.add(in.readString());
+        }
     }
 
     @Override
@@ -127,6 +121,10 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
             entry.getValue().writeTo(out);
         }
         out.writeVInt(maxConcurrentSearches);
+        out.writeInt(indices.size());
+        for (String index : indices) {
+            out.writeString(index);
+        }
     }
 
     /** Returns the metric to use for quality evaluation.*/
@@ -154,30 +152,35 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         this.maxConcurrentSearches = maxConcurrentSearches;
     }
 
+    public void addIndices(List<String> indices) {
+        this.indices.addAll(indices);
+    }
+
+    public List<String> getIndices() {
+        return Collections.unmodifiableList(indices);
+    }
+
     private static final ParseField TEMPLATES_FIELD = new ParseField("templates");
     private static final ParseField METRIC_FIELD = new ParseField("metric");
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
-    private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD
-    = new ParseField("max_concurrent_searches");
+    private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD = new ParseField("max_concurrent_searches");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RankEvalSpec, Void> PARSER =
-            new ConstructingObjectParser<>("rank_eval",
-                    a -> new RankEvalSpec((List<RatedRequest>) a[0],
-                            (EvaluationMetric) a[1], (Collection<ScriptWithId>) a[2]));
+    private static final ConstructingObjectParser<RankEvalSpec, Void> PARSER = new ConstructingObjectParser<>("rank_eval",
+            a -> new RankEvalSpec((List<RatedRequest>) a[0], (EvaluationMetric) a[1], (Collection<ScriptWithId>) a[2]));
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
-                return RatedRequest.fromXContent(p);
-        } , REQUESTS_FIELD);
+            return RatedRequest.fromXContent(p);
+        }, REQUESTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
             try {
                 return EvaluationMetric.fromXContent(p);
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
             }
-        } , METRIC_FIELD);
+        }, METRIC_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-                return ScriptWithId.fromXContent(p);
+            return ScriptWithId.fromXContent(p);
         }, TEMPLATES_FIELD);
         PARSER.declareInt(RankEvalSpec::setMaxConcurrentSearches, MAX_CONCURRENT_SEARCHES_FIELD);
     }
@@ -186,14 +189,14 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    public static class ScriptWithId {
+    static class ScriptWithId {
         private Script script;
         private String id;
 
         private static final ParseField TEMPLATE_FIELD = new ParseField("template");
         private static final ParseField TEMPLATE_ID_FIELD = new ParseField("id");
 
-        public ScriptWithId(String id, Script script) {
+        ScriptWithId(String id, Script script) {
             this.id = id;
             this.script = script;
         }
@@ -212,8 +215,7 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
                 try {
                     return Script.parse(p, "mustache");
                 } catch (IOException ex) {
-                    throw new ParsingException(p.getTokenLocation(), "error parsing rank request",
-                            ex);
+                    throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
                 }
             }, TEMPLATE_FIELD);
         }

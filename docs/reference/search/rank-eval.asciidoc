@@ -62,7 +62,7 @@ The request section contains several search requests typical to your application
             "ratings": [ <3> 
                  { "_index": "my_index", "_id": "doc1", "rating": 0 },
                  { "_index": "my_index", "_id": "doc2", "rating": 3},
-                 { "_index": "my_index", _id": "doc3", "rating": 1 }
+                 { "_index": "my_index", "_id": "doc3", "rating": 1 }
             ]
         },
         {
@@ -192,7 +192,9 @@ GET /twitter/_rank_eval
         "ratings": []  
     }],
     "metric": {
-        "mean_reciprocal_rank": {}
+        "mean_reciprocal_rank": {
+            "relevant_rating_threshold" : 1
+        }
     }
 }
 --------------------------------

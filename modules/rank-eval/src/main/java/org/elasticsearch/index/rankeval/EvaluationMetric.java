@@ -87,8 +87,10 @@ public interface EvaluationMetric extends ToXContent, NamedWriteable {
         return rc;
     }
 
+    /**
+     * join hits with rated documents using the joint _index/_id document key
+     */
     static List<RatedSearchHit> joinHitsWithRatings(SearchHit[] hits, List<RatedDocument> ratedDocs) {
-        // join hits with rated documents
         Map<DocumentKey, RatedDocument> ratedDocumentMap = ratedDocs.stream()
                 .collect(Collectors.toMap(RatedDocument::getKey, item -> item));
         List<RatedSearchHit> ratedSearchHits = new ArrayList<>(hits.length);

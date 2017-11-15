@@ -66,20 +66,18 @@ import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
  * returned for each search specification for the full set of search intents as
  * averaged precision at n.
  */
-public class TransportRankEvalAction
-        extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
+public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
     private Client client;
     private ScriptService scriptService;
     Queue<RequestTask> taskQueue = new ConcurrentLinkedQueue<>();
     private NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportRankEvalAction(Settings settings, ThreadPool threadPool,
-            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-            Client client, TransportService transportService, ScriptService scriptService,
-            NamedXContentRegistry namedXContentRegistry) {
-        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, RankEvalRequest::new);
+    public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
+            ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
+        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+                RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;
@@ -87,23 +85,21 @@ public class TransportRankEvalAction
 
     @Override
     protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
-        RankEvalSpec qualityTask = request.getRankEvalSpec();
+        RankEvalSpec evaluationSpecification = request.getRankEvalSpec();
+        List<String> indices = evaluationSpecification.getIndices();
 
-        Collection<RatedRequest> ratedRequests = qualityTask.getRatedRequests();
+        Collection<RatedRequest> ratedRequests = evaluationSpecification.getRatedRequests();
         AtomicInteger responseCounter = new AtomicInteger(ratedRequests.size());
         Map<String, EvalQueryQuality> partialResults = new ConcurrentHashMap<>(
                 ratedRequests.size());
         Map<String, Exception> errors = new ConcurrentHashMap<>(ratedRequests.size());
 
         Map<String, TemplateScript.Factory> scriptsWithoutParams = new HashMap<>();
-        for (Entry<String, Script> entry : qualityTask.getTemplates().entrySet()) {
-            scriptsWithoutParams.put(entry.getKey(),
-                    scriptService.compile(entry.getValue(), TemplateScript.CONTEXT));
+        for (Entry<String, Script> entry : evaluationSpecification.getTemplates().entrySet()) {
+            scriptsWithoutParams.put(entry.getKey(), scriptService.compile(entry.getValue(), TemplateScript.CONTEXT));
         }
 
         for (RatedRequest ratedRequest : ratedRequests) {
-            final RankEvalActionListener searchListener = new RankEvalActionListener(listener,
-                    qualityTask.getMetric(), ratedRequest, partialResults, errors, responseCounter);
             SearchSourceBuilder ratedSearchSource = ratedRequest.getTestRequest();
             if (ratedSearchSource == null) {
                 Map<String, Object> params = ratedRequest.getParams();
@@ -116,34 +112,32 @@ public class TransportRankEvalAction
                     listener.onFailure(e);
                 }
             }
+
             List<String> summaryFields = ratedRequest.getSummaryFields();
             if (summaryFields.isEmpty()) {
                 ratedSearchSource.fetchSource(false);
             } else {
-                ratedSearchSource.fetchSource(
-                        summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
+                ratedSearchSource.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
             }
 
-            String[] indices = new String[ratedRequest.getIndices().size()];
-            indices = ratedRequest.getIndices().toArray(indices);
-            SearchRequest templatedRequest = new SearchRequest(indices, ratedSearchSource);
-
+            SearchRequest templatedRequest = new SearchRequest(indices.toArray(new String[indices.size()]), ratedSearchSource);
+            final RankEvalActionListener searchListener = new RankEvalActionListener(listener,
+                    evaluationSpecification.getMetric(), ratedRequest, partialResults, errors, responseCounter);
             RequestTask task = new RequestTask(templatedRequest, searchListener);
             taskQueue.add(task);
         }
 
-        // Execute top n tasks, further execution is triggered in
-        // RankEvalActionListener
+        // Execute top n tasks, further execution is triggered in RankEvalActionListener
         for (int i = 0; (i < Math.min(ratedRequests.size(),
-                qualityTask.getMaxConcurrentSearches())); i++) {
+                evaluationSpecification.getMaxConcurrentSearches())); i++) {
             RequestTask task = taskQueue.poll();
             client.search(task.request, task.searchListener);
         }
     }
 
     private class RequestTask {
-        public SearchRequest request;
-        public RankEvalActionListener searchListener;
+        private SearchRequest request;
+        private RankEvalActionListener searchListener;
 
         RequestTask(SearchRequest request, RankEvalActionListener listener) {
             this.request = request;
@@ -151,7 +145,7 @@ public class TransportRankEvalAction
         }
     }
 
-    public class RankEvalActionListener implements ActionListener<SearchResponse> {
+    class RankEvalActionListener implements ActionListener<SearchResponse> {
 
         private ActionListener<RankEvalResponse> listener;
         private RatedRequest specification;
@@ -160,7 +154,7 @@ public class TransportRankEvalAction
         private EvaluationMetric metric;
         private AtomicInteger responseCounter;
 
-        public RankEvalActionListener(ActionListener<RankEvalResponse> listener,
+        RankEvalActionListener(ActionListener<RankEvalResponse> listener,
                 EvaluationMetric metric, RatedRequest specification,
                 Map<String, EvalQueryQuality> details, Map<String, Exception> errors,
                 AtomicInteger responseCounter) {
@@ -189,9 +183,7 @@ public class TransportRankEvalAction
 
         private void handleResponse() {
             if (responseCounter.decrementAndGet() == 0) {
-                // TODO add other statistics like micro/macro avg?
-                listener.onResponse(new RankEvalResponse(metric.combine(requestDetails.values()),
-                        requestDetails, errors));
+                listener.onResponse(new RankEvalResponse(metric.combine(requestDetails.values()), requestDetails, errors));
             } else {
                 if (!taskQueue.isEmpty()) {
                     RequestTask task = taskQueue.poll();

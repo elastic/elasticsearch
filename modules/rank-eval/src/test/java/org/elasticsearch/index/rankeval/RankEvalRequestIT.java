@@ -70,19 +70,18 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         testQuery.query(new MatchAllQueryBuilder());
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
                 createRelevant("2", "3", "4", "5"), testQuery);
-        amsterdamRequest.setIndices(indices);
-        amsterdamRequest.setSummaryFields(Arrays.asList(new String[] { "text", "title" }));
+        amsterdamRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
 
         specifications.add(amsterdamRequest);
         RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("1"),
                 testQuery);
-        berlinRequest.setIndices(indices);
-        berlinRequest.setSummaryFields(Arrays.asList(new String[] { "text", "title" }));
+        berlinRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
 
         specifications.add(berlinRequest);
 
         PrecisionAtK metric = new PrecisionAtK(1, true);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
+        task.addIndices(indices);
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
                 RankEvalAction.INSTANCE, new RankEvalRequest());
@@ -90,7 +89,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request())
                 .actionGet();
-        assertEquals(1.0, response.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(1.0, response.getEvaluationResult(), Double.MIN_VALUE);
         Set<Entry<String, EvalQueryQuality>> entrySet = response.getPartialResults().entrySet();
         assertEquals(2, entrySet.size());
         for (Entry<String, EvalQueryQuality> entry : entrySet) {
@@ -136,17 +135,16 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         amsterdamQuery.query(new MatchAllQueryBuilder());
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
                 createRelevant("2", "3", "4", "5"), amsterdamQuery);
-        amsterdamRequest.setIndices(indices);
         specifications.add(amsterdamRequest);
 
         SearchSourceBuilder brokenQuery = new SearchSourceBuilder();
         brokenQuery.query(QueryBuilders.termQuery("population", "noStringOnNumericFields"));
         RatedRequest brokenRequest = new RatedRequest("broken_query", createRelevant("1"),
                 brokenQuery);
-        brokenRequest.setIndices(indices);
         specifications.add(brokenRequest);
 
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
+        task.addIndices(indices);
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
                 RankEvalAction.INSTANCE, new RankEvalRequest());

@@ -40,7 +40,6 @@ import java.util.List;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-
 public class DiscountedCumulativeGainTests extends ESTestCase {
 
     /**

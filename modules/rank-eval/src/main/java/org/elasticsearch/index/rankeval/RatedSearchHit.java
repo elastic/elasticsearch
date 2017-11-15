@@ -24,13 +24,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Combines a {@link SearchHit} with a document rating.
+ */
 public class RatedSearchHit implements Writeable, ToXContent {
 
     private final SearchHit searchHit;
@@ -41,7 +43,7 @@ public class RatedSearchHit implements Writeable, ToXContent {
         this.rating = rating;
     }
 
-    public RatedSearchHit(StreamInput in) throws IOException {
+    RatedSearchHit(StreamInput in) throws IOException {
         this(SearchHit.readSearchHit(in),
                 in.readBoolean() == true ? Optional.of(in.readVInt()) : Optional.empty());
     }
@@ -82,37 +84,12 @@ public class RatedSearchHit implements Writeable, ToXContent {
             return false;
         }
         RatedSearchHit other = (RatedSearchHit) obj;
-        // NORELEASE this is a workaround because InternalSearchHit does not
-        // properly implement equals()/hashCode(), so we compare their
-        // xcontent
-        XContentBuilder builder;
-        String hitAsXContent;
-        String otherHitAsXContent;
-        try {
-            builder = XContentFactory.jsonBuilder();
-            hitAsXContent = searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS).string();
-            builder = XContentFactory.jsonBuilder();
-            otherHitAsXContent = other.searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS)
-                    .string();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
         return Objects.equals(rating, other.rating)
-                && Objects.equals(hitAsXContent, otherHitAsXContent);
+                && Objects.equals(searchHit, other.searchHit);
     }
 
     @Override
     public final int hashCode() {
-        // NORELEASE for this to work requires InternalSearchHit to properly
-        // implement equals()/hashCode()
-        XContentBuilder builder;
-        String hitAsXContent;
-        try {
-            builder = XContentFactory.jsonBuilder();
-            hitAsXContent = searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS).string();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return Objects.hash(rating, hitAsXContent);
+        return Objects.hash(rating, searchHit);
     }
 }

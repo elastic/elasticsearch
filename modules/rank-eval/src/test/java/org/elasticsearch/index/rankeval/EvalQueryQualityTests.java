@@ -47,8 +47,11 @@ public class EvalQueryQualityTests extends ESTestCase {
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAlphaOfLength(10),
                 randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
-            // TODO randomize this
-            evalQueryQuality.addMetricDetails(new PrecisionAtK.Breakdown(1, 5));
+            if (randomBoolean()) {
+                evalQueryQuality.setMetricDetails(new PrecisionAtK.Breakdown(randomIntBetween(0, 1000), randomIntBetween(0, 1000)));
+            } else {
+                evalQueryQuality.setMetricDetails(new MeanReciprocalRank.Breakdown(randomIntBetween(0, 1000)));
+            }
         }
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
@@ -96,7 +99,7 @@ public class EvalQueryQualityTests extends ESTestCase {
             throw new IllegalStateException("The test should only allow four parameters mutated");
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, qualityLevel);
-        evalQueryQuality.addMetricDetails(metricDetails);
+        evalQueryQuality.setMetricDetails(metricDetails);
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
     }

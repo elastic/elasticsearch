@@ -30,6 +30,7 @@ from {es} for analysis and anomaly results are displayed in {kib} dashboards.
 include::overview.asciidoc[]
 include::getting-started.asciidoc[]
 include::configuring.asciidoc[]
+include::stopping-ml.asciidoc[]
 // include::ml-scenarios.asciidoc[]
 include::api-quickref.asciidoc[]
 //include::troubleshooting.asciidoc[]  Referenced from x-pack/docs/public/xpack-troubleshooting.asciidoc

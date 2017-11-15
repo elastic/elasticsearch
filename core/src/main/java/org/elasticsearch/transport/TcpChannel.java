@@ -87,6 +87,13 @@ public interface TcpChannel extends Releasable {
      */
     InetSocketAddress getLocalAddress();
 
+    /**
+     * Sends a tcp message to the channel. The listener will be executed once the send process has been
+     * completed.
+     *
+     * @param reference to send to channel
+     * @param listener to execute upon send completion
+     */
     void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener);
 
     /**

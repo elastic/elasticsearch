@@ -474,7 +474,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             assertBusy(() -> {
                 ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-                assertTrue(securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
+                assertTrue("security index mapping and template not sufficient to read:\n" + clusterState.toString(),
+                        securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
@@ -495,7 +496,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             assertBusy(() -> {
                 ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-                assertTrue(securityIndexMappingAndTemplateUpToDate(clusterState, logger));
+                assertTrue("security index mapping and template not up to date:\n" + clusterState.toString(),
+                        securityIndexMappingAndTemplateUpToDate(clusterState, logger));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);

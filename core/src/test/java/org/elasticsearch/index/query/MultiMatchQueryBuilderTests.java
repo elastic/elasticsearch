@@ -352,29 +352,38 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     public void testDefaultField() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
+        MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("hello");
+        // should pass because we set lenient to true when default field is `*`
+        Query query = builder.toQuery(context);
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+
         context.getIndexSettings().updateIndexMetaData(
             newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
         );
+
         MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("hello");
-        Query q = qb.toQuery(context);
+        query = qb.toQuery(context);
         DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
             Arrays.asList(
                 new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
                 new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
             ), 0.0f
         );
-        assertEquals(expected, q);
+        assertEquals(expected, query);
 
         context.getIndexSettings().updateIndexMetaData(
             newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5", INT_FIELD_NAME).build())
         );
+        // should fail because lenient defaults to false
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> qb.toQuery(context));
         assertThat(exc, instanceOf(NumberFormatException.class));
         assertThat(exc.getMessage(), equalTo("For input string: \"hello\""));
+
+        // explicitly sets lenient
         qb.lenient(true);
-        q = qb.toQuery(context);
+        query = qb.toQuery(context);
         expected = new DisjunctionMaxQuery(
             Arrays.asList(
                 new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
@@ -382,7 +391,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]")
             ), 0.0f
         );
-        assertEquals(expected, q);
+        assertEquals(expected, query);
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

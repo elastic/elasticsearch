@@ -7,10 +7,15 @@ package org.elasticsearch.xpack.sql.client.shared;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,6 +25,12 @@ import static java.util.Collections.emptyMap;
  * A failure that happened on the remote server.
  */
 public class RemoteFailure {
+    /**
+     * The maximum number of bytes before we no longer include the raw response if
+     * there is a catastrophic error parsing the remote failure.
+     */
+    private static final int MAX_RAW_RESPONSE = 50*1024;
+
     private static final JsonFactory JSON_FACTORY = new JsonFactory();
     static {
         // Set up the factory similarly to how XContent does
@@ -29,17 +40,30 @@ public class RemoteFailure {
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
         JSON_FACTORY.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         JSON_FACTORY.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, false);
-
+        // Don't close the stream because we might need to reset and reply it if there is an error. The caller closes the stream.
+        JSON_FACTORY.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, false);
     }
+
+    /**
+     * Parse a failure from the response. The stream is not closed when the parsing is complete.
+     * The caller must close it.
+     * @throws IOException if there is a catastrophic failure parsing the remote failure
+     */
     public static RemoteFailure parseFromResponse(InputStream stream) throws IOException {
-        try (JsonParser parser = JSON_FACTORY.createParser(stream)) {
-            try {
-                return parseResponseTopLevel(parser);
-            } catch (IOException e) {
-                throw new IOException(
-                        "Can't parse error from Elasticearch [" + e.getMessage() + "] at [line "
-                            + parser.getTokenLocation().getLineNr() + " col " + parser.getTokenLocation().getColumnNr() + "]",
-                        e);
+        // Mark so we can rewind to get the entire response in case we have to render an error.
+        stream = new BufferedInputStream(stream);
+        stream.mark(MAX_RAW_RESPONSE);
+        JsonParser parser = null;
+        try {
+            parser = JSON_FACTORY.createParser(stream);
+            return parseResponseTopLevel(parser);
+        } catch (JsonParseException e) {
+            throw new IOException(parseErrorMessage(e.getOriginalMessage(), stream, parser), e);
+        } catch (IOException e) {
+            throw new IOException(parseErrorMessage(e.getMessage(), stream, parser), e);
+        } finally {
+            if (parser != null) {
+                parser.close();
             }
         }
     }
@@ -215,5 +239,34 @@ public class RemoteFailure {
         }
 
         return headers;
+    }
+
+    /**
+     * Build an error message from a parse failure.
+     */
+    private static String parseErrorMessage(String message, InputStream stream, JsonParser parser) {
+        String responseMessage;
+        try {
+            stream.reset();
+            try (Reader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+                StringBuilder builder = new StringBuilder();
+                builder.append("Response:\n");
+                char[] buf = new char[512];
+                int read;
+                while ((read = reader.read(buf)) != -1) {
+                    builder.append(buf, 0, read);
+                }
+                responseMessage = builder.toString();
+            }
+        } catch (IOException replayException) {
+            // NOCOMMIT check for failed reset and return different error
+            responseMessage = "Attempted to include response but failed because [" + replayException.getMessage() + "].";
+        }
+        String parserLocation = "";
+        if (parser != null) {
+            parserLocation = " at [line " + parser.getTokenLocation().getLineNr()
+                    + " col " + parser.getTokenLocation().getColumnNr() + "]";
+        }
+        return "Can't parse error from Elasticearch [" + message + "]" + parserLocation + ". "  + responseMessage;
     }
 }

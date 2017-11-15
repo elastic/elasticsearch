@@ -278,13 +278,11 @@ setup:
         index: test
         type:  test
         body:
-          collapse: {
-            field: numeric_group,
-            inner_hits: [
-              { name: sub_hits_asc, size: 2, sort: [{ sort: asc }] },
-              { name: sub_hits_desc, size: 1, sort: [{ sort: desc }] }
-            ]
-          }
+          collapse: 
+            field: numeric_group
+            inner_hits:
+              - { name: sub_hits_asc, size: 2, sort: [{ sort: asc }] }
+              - { name: sub_hits_desc, size: 1, sort: [{ sort: desc }] }
           sort: [{ sort: desc }]
 
   - match: { hits.total: 6 }

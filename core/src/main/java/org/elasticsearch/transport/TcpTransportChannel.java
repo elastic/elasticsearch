@@ -25,17 +25,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class TcpTransportChannel<Channel extends TcpChannel> implements TransportChannel {
     private final TcpTransport<Channel> transport;
-    protected final Version version;
-    protected final String action;
-    protected final long requestId;
+    private final Version version;
+    private final String action;
+    private final long requestId;
     private final String profileName;
     private final long reservedBytes;
     private final AtomicBoolean released = new AtomicBoolean();
     private final String channelType;
     private final Channel channel;
 
-    public TcpTransportChannel(TcpTransport<Channel> transport, Channel channel, String channelType, String action,
-                               long requestId, Version version, String profileName, long reservedBytes) {
+    TcpTransportChannel(TcpTransport<Channel> transport, Channel channel, String channelType, String action,
+                        long requestId, Version version, String profileName, long reservedBytes) {
         this.version = version;
         this.channel = channel;
         this.transport = transport;
@@ -49,11 +49,6 @@ public final class TcpTransportChannel<Channel extends TcpChannel> implements Tr
     @Override
     public String getProfileName() {
         return profileName;
-    }
-
-    @Override
-    public String action() {
-        return this.action;
     }
 
     @Override
@@ -78,6 +73,7 @@ public final class TcpTransportChannel<Channel extends TcpChannel> implements Tr
             release(true);
         }
     }
+
     private Exception releaseBy;
 
     private void release(boolean isExceptionResponse) {
@@ -92,22 +88,17 @@ public final class TcpTransportChannel<Channel extends TcpChannel> implements Tr
     }
 
     @Override
-    public long getRequestId() {
-        return requestId;
-    }
-
-    @Override
     public String getChannelType() {
         return channelType;
-    }
-
-    public Channel getChannel() {
-        return channel;
     }
 
     @Override
     public Version getVersion() {
         return version;
+    }
+
+    public Channel getChannel() {
+        return channel;
     }
 }
 

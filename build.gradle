@@ -257,7 +257,7 @@ subprojects {
       ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
     }
   } else if (indexCompatVersions[-2].snapshot) {
-    /* This is a terrible hack for the bump to 6.0.1 which needs properly fixing at a later date */
+    /* This is a terrible hack for the bump to 6.0.1 which will be fixed by #27397 */
     ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
     ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
     ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'

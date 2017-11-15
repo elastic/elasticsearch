@@ -144,7 +144,7 @@ public class MatchQuery {
      */
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
-    private static Analyzer WHITESPACE_ANALYZER = new WhitespaceAnalyzer();
+    private static final Analyzer WHITESPACE_ANALYZER = new WhitespaceAnalyzer();
 
     protected final QueryShardContext context;
 

@@ -28,6 +28,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class Version implements Comparable<Version> {
     /*
@@ -363,19 +368,23 @@ public class Version implements Comparable<Version> {
      * is a beta or RC release then the version itself is returned.
      */
     public Version minimumCompatibilityVersion() {
-        final int bwcMajor;
-        final int bwcMinor;
-        // TODO: remove this entirely, making it static for each version
-        if (major == 6) { // we only specialize for current major here
-            bwcMajor = Version.V_5_6_0.major;
-            bwcMinor = Version.V_5_6_0.minor;
-        } else if (major == 7) { // we only specialize for current major here
-            return V_6_1_0;
-        } else {
-            bwcMajor = major;
-            bwcMinor = 0;
+        if (major >= 6) {
+            // all major versions from 6 onwards are compatible with last minor series of the previous major
+            final List<Version> declaredVersions = getDeclaredVersions(getClass());
+            Version bwcVersion = null;
+            for (int i = declaredVersions.size() - 1; i >= 0; i--) {
+                final Version candidateVersion = declaredVersions.get(i);
+                if (candidateVersion.major == major - 1 && candidateVersion.isRelease() && after(candidateVersion)) {
+                    if (bwcVersion != null && candidateVersion.minor < bwcVersion.minor) {
+                        break;
+                    }
+                    bwcVersion = candidateVersion;
+                }
+            }
+            return bwcVersion == null ? this : bwcVersion;
         }
-        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
+
+        return Version.min(this, fromId((int) major * 1000000 + 0 * 10000 + 99));
     }
 
     /**
@@ -484,5 +493,35 @@ public class Version implements Comparable<Version> {
 
     public boolean isRelease() {
         return build == 99;
+    }
+
+    /**
+     * Extracts a sorted list of declared version constants from a class.
+     * The argument would normally be Version.class but is exposed for
+     * testing with other classes-containing-version-constants.
+     */
+    public static List<Version> getDeclaredVersions(final Class<?> versionClass) {
+        final Field[] fields = versionClass.getFields();
+        final List<Version> versions = new ArrayList<>(fields.length);
+        for (final Field field : fields) {
+            final int mod = field.getModifiers();
+            if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
+                continue;
+            }
+            if (field.getType() != Version.class) {
+                continue;
+            }
+            if ("CURRENT".equals(field.getName())) {
+                continue;
+            }
+            assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
+            try {
+                versions.add(((Version) field.get(null)));
+            } catch (final IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        Collections.sort(versions);
+        return versions;
     }
 }

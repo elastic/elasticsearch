@@ -50,7 +50,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
-        // TODO: temporar
+        // TODO: Temporary conversion due to types
         writeContext.sendMessage(reference, new ActionListener<NioChannel>() {
             @Override
             public void onResponse(NioChannel nioChannel) {

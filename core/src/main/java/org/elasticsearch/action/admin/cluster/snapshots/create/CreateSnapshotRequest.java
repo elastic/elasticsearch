@@ -380,8 +380,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @param source snapshot definition
      * @return this request
      */
+    @SuppressWarnings("unchecked")
     public CreateSnapshotRequest source(Map<String, Object> source) {
-        for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
@@ -402,7 +403,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             }
         }
-        indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));
+        indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
         return this;
     }
 

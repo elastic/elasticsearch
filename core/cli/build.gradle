@@ -28,7 +28,8 @@ dependencies {
 }
 
 test.enabled = false
-//jarHell.enabled = false // need to chat about this
+// Since CLI does not depend on :core, it cannot run the jarHell task
+jarHell.enabled = false
 
 forbiddenApisMain {
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]

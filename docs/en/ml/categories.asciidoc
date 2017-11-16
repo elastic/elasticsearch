@@ -11,10 +11,15 @@ example:
 //NOTCONSOLE
 
 You can use {ml} to observe the static parts of the message, cluster similar
-messages together, and classify them into message categories. The {ml} model
-learns what volume and pattern is normal for each category over time. You can
-then detect anomalies and surface rare events or unusual types of messages by
-using count or rare functions. For example:
+messages together, and classify them into message categories.
+
+NOTE: Categorization uses English tokenization rules and dictionary words in
+order to identify log message categories. As such, only English language log
+messages are supported.
+
+The {ml} model learns what volume and pattern is normal for each category over
+time. You can then detect anomalies and surface rare events or unusual types of
+messages by using count or rare functions. For example:
 
 //Obtained from it_ops_new_app_logs.sh
 [source,js]

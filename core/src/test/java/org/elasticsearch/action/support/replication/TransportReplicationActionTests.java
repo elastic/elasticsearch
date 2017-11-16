@@ -1238,11 +1238,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         return new TransportChannel() {
 
             @Override
-            public String action() {
-                return null;
-            }
-
-            @Override
             public String getProfileName() {
                 return "";
             }
@@ -1260,11 +1255,6 @@ public class TransportReplicationActionTests extends ESTestCase {
             @Override
             public void sendResponse(Exception exception) throws IOException {
                 listener.onFailure(exception);
-            }
-
-            @Override
-            public long getRequestId() {
-                return 0;
             }
 
             @Override

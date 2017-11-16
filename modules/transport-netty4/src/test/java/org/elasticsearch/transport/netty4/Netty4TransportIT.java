@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport.netty4;
 
-import io.netty.channel.Channel;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -109,7 +108,7 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
             super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         }
 
-        protected String handleRequest(Channel channel, String profileName,
+        protected String handleRequest(NettyTcpChannel channel, String profileName,
                                        StreamInput stream, long requestId, int messageLengthBytes, Version version,
                                        InetSocketAddress remoteAddress, byte status) throws IOException {
             String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,

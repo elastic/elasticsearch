@@ -48,6 +48,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.geo.RandomShapeGenerator.createGeometryCollectionWithin;
 import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomPoint;
 import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomRectangle;
@@ -467,5 +468,39 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .execute().actionGet();
 
         assertEquals(1, response.getHits().getTotalHits());
+    }
+
+    public void testPointsOnlyExplicit() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("tree", randomBoolean() ? "quadtree" : "geohash")
+            .field("tree_levels", "6")
+            .field("distance_error_pct", "0.01")
+            .field("points_only", true)
+            .endObject().endObject()
+            .endObject().endObject().string();
+
+        client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
+        ensureGreen();
+
+        // MULTIPOINT
+        ShapeBuilder shape = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.MULTIPOINT);
+        client().prepareIndex("geo_points_only", "type1", "1")
+            .setSource(jsonBuilder().startObject().field("location", shape).endObject())
+            .setRefreshPolicy(IMMEDIATE).get();
+
+        // POINT
+        shape = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.POINT);
+        client().prepareIndex("geo_points_only", "type1", "2")
+            .setSource(jsonBuilder().startObject().field("location", shape).endObject())
+            .setRefreshPolicy(IMMEDIATE).get();
+
+        // test that point was inserted
+        SearchResponse response = client().prepareSearch("geo_points_only").setTypes("type1")
+            .setQuery(matchAllQuery())
+            .execute().actionGet();
+
+        assertEquals(2, response.getHits().getTotalHits());
     }
 }

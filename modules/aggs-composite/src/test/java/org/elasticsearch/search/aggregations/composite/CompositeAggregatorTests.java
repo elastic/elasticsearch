@@ -42,9 +42,11 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -84,9 +86,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         FIELD_TYPES[2].setName("double");
         FIELD_TYPES[2].setHasDocValues(true);
 
-        FIELD_TYPES[3] = new DateFieldMapper.DateFieldType();
-        FIELD_TYPES[3].setName("date");
-        FIELD_TYPES[3].setHasDocValues(true);
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder("date");
+        builder.docValues(true);
+        DateFieldMapper fieldMapper =
+            builder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
+        FIELD_TYPES[3] = fieldMapper.fieldType();
 
         FIELD_TYPES[4] = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         FIELD_TYPES[4].setName("price");

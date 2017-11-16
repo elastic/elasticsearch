@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -124,7 +125,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                     keys[j] = randomDouble();
                     break;
                 case 2:
-                    keys[j] = new BytesRef(randomAlphaOfLengthBetween(1, 20));
+                    keys[j] = new BytesRef(randomAsciiLettersOfLengthBetween(1, 20));
                     break;
                 default:
                     throw new AssertionError("illegal branch");
@@ -216,18 +217,22 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     @Override
     protected void assertReduced(InternalComposite reduced, List<InternalComposite> inputs) {
-        List<InternalComposite.InternalBucket> expectedBuckets = inputs.stream()
+        List<CompositeKey> expectedKeys = inputs.stream()
             .flatMap((s) -> s.getBuckets().stream())
-            .sorted(getBucketComparator())
+            .map(InternalComposite.InternalBucket::getRawKey)
+            .sorted(getKeyComparator())
+            .distinct()
             .limit(reduced.getSize())
             .collect(Collectors.toList());
 
         assertThat(reduced.getBuckets().size(), lessThanOrEqualTo(size));
-        assertThat(reduced.getBuckets().size(), equalTo(expectedBuckets.size()));
-        Iterator<InternalComposite.InternalBucket> expectedIt = expectedBuckets.iterator();
+        assertThat(reduced.getBuckets().size(), equalTo(expectedKeys.size()));
+        Iterator<CompositeKey> expectedIt = expectedKeys.iterator();
         for (InternalComposite.InternalBucket bucket : reduced.getBuckets()) {
-            assertThat(bucket.getKey(), equalTo(expectedIt.next().getKey()));
+            assertTrue(expectedIt.hasNext());
+            assertThat(bucket.getRawKey(), equalTo(expectedIt.next()));
         }
+        assertFalse(expectedIt.hasNext());
     }
 
     public void testReduceSame() throws IOException {
@@ -244,7 +249,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         Iterator<InternalComposite.InternalBucket> expectedIt = result.getBuckets().iterator();
         for (InternalComposite.InternalBucket bucket : finalReduce.getBuckets()) {
             InternalComposite.InternalBucket expectedBucket = expectedIt.next();
-            assertThat(bucket.getKey(), equalTo(expectedBucket.getKey()));
+            assertThat(bucket.getRawKey(), equalTo(expectedBucket.getRawKey()));
             assertThat(bucket.getDocCount(), equalTo(expectedBucket.getDocCount()*numSame));
         }
     }

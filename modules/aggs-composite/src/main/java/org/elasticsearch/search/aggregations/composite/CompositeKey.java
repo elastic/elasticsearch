@@ -69,16 +69,4 @@ class CompositeKey {
     public int hashCode() {
         return Arrays.hashCode(values);
     }
-
-    static String formatValue(Object value, DocValueFormat formatter) {
-        if (value.getClass() == Long.class || value.getClass() == Integer.class) {
-            return formatter.format(((Number) value).longValue());
-        } if (value.getClass() == Double.class || value.getClass() == Float.class) {
-            return formatter.format(((Number) value).doubleValue());
-        } else if (value.getClass() == BytesRef.class) {
-            return formatter.format((BytesRef) value);
-        } else {
-            return value.toString();
-        }
-    }
 }

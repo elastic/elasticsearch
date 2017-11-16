@@ -470,6 +470,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * @param source restore definition
      * @return this request
      */
+    @SuppressWarnings("unchecked")
     public RestoreSnapshotRequest source(Map<String, Object> source) {
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
@@ -523,7 +524,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 }
             }
         }
-        indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));
+        indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
         return this;
     }
 

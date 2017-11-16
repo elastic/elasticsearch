@@ -129,7 +129,7 @@ public final class Mapping implements ToXContentFragment {
         root.toXContent(builder, params, new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (meta != null && !meta.isEmpty()) {
+                if (meta != null) {
                     builder.field("_meta", meta);
                 }
                 for (Mapper mapper : metadataMappers) {

@@ -106,7 +106,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
         // TODO - reinstate this line once checkFieldNames is backported to 6.1 
         // otherwise 7.0 commit will cause many BWC failures
 //        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-        if (in.getVersion().after(Version.V_6_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             checkFieldNames = in.readBoolean();
         }
         
@@ -127,7 +127,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
         // TODO - reinstate this line once checkFieldNames is backported to 6.1 
         // otherwise 7.0 commit will cause many BWC failures
 //        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-        if (out.getVersion().after(Version.V_6_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeBoolean(checkFieldNames);
         }
     }

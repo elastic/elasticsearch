@@ -475,11 +475,8 @@ public final class SearchPhaseController extends AbstractComponent {
             QuerySearchResult result = entry.queryResult();
             
             // OR the list of unmapped fieldnames from the same index.
-            Set<String> unmappedFieldNamesForIndex = perIndexUnmappedFieldsNames.get(result.getSearchShardTarget().getIndex());
-            if (unmappedFieldNamesForIndex == null){
-                unmappedFieldNamesForIndex = new HashSet<String>();
-                perIndexUnmappedFieldsNames.put(result.getSearchShardTarget().getIndex(), unmappedFieldNamesForIndex);
-            }
+            Set<String> unmappedFieldNamesForIndex = perIndexUnmappedFieldsNames.computeIfAbsent(result.getSearchShardTarget().getIndex(), 
+                    key -> new HashSet<>());
             unmappedFieldNamesForIndex.addAll(result.unmappedFieldnames());
             
                 
@@ -641,7 +638,7 @@ public final class SearchPhaseController extends AbstractComponent {
          * Throws an error if all indices have reported the same query field names as unmapped.
          */
         public void checkFieldNames() {
-            if (unanimouslyUnmappedFieldNames.size() > 0) {
+            if (unanimouslyUnmappedFieldNames.isEmpty() == false) {
                 throw new ParsingException(null, "The following fields were unmapped in all indices searched: " + unanimouslyUnmappedFieldNames);
             }
         }

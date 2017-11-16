@@ -98,8 +98,8 @@ public final class Mapping implements ToXContentFragment {
             }
             mergedMetaDataMappers.put(merged.getClass(), merged);
         }
-        return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]),
-            mergeWith.meta != null ? mergeWith.meta : meta);
+        Map<String, Object> mergedMeta = mergeWith.meta == null ? meta : mergeWith.meta;
+        return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
     /**

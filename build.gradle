@@ -119,8 +119,8 @@ if (versions.toSorted { it.id } != versions) {
   throw new GradleException("Versions.java contains out of order version constants")
 }
 if (prevBugfixIndex != -1) {
-  versions[prevBugfixIndex] = new Version(
-      versions[prevBugfixIndex].major, versions[prevBugfixIndex].minor, versions[prevBugfixIndex].bugfix, true)
+  versions[prevBugfixIndex] = new Version(versions[prevBugfixIndex].major, versions[prevBugfixIndex].minor,
+                                          versions[prevBugfixIndex].bugfix, versions[prevBugfixIndex].suffix, true)
 }
 if (currentVersion.bugfix == 0) {
   // If on a release branch, after the initial release of that branch, the bugfix version will

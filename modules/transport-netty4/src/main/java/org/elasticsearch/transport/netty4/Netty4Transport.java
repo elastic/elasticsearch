@@ -42,7 +42,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
@@ -57,6 +56,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 
@@ -79,7 +79,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * longer. Med is for the typical search / single doc index. And High for things like cluster state. Ping is reserved for
  * sending out ping requests to other nodes.
  */
-public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
+public class Netty4Transport extends TcpTransport {
 
     static {
         Netty4Utils.setup();
@@ -249,7 +249,7 @@ public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
     }
 
     @Override
-    protected NettyTcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<NettyTcpChannel> listener)
+    protected NettyTcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<TcpChannel> listener)
         throws IOException {
         ChannelFuture channelFuture = bootstrap.connect(node.getAddress().address());
         Channel channel = channelFuture.channel();
@@ -277,28 +277,6 @@ public class Netty4Transport extends TcpTransport<NettyTcpChannel> {
         });
 
         return nettyChannel;
-    }
-
-    @Override
-    protected void sendMessage(NettyTcpChannel channel, BytesReference reference, ActionListener<NettyTcpChannel> listener) {
-        final ChannelFuture future = channel.getLowLevelChannel().writeAndFlush(Netty4Utils.toByteBuf(reference));
-        future.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(channel);
-            } else {
-                final Throwable cause = f.cause();
-                Netty4Utils.maybeDie(cause);
-                logger.warn((Supplier<?>) () ->
-                    new ParameterizedMessage("write and flush on the network layer failed (channel: {})", channel), cause);
-                assert cause instanceof Exception;
-                listener.onFailure((Exception) cause);
-            }
-        });
-    }
-
-    @Override
-    protected InetSocketAddress getLocalAddress(NettyTcpChannel channel) {
-        return (InetSocketAddress) channel.getLowLevelChannel().localAddress();
     }
 
     @Override

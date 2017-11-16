@@ -20,6 +20,8 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 
@@ -44,6 +46,22 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         super(profile, socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
         this.socketSelector = selector;
+    }
+
+    @Override
+    public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
+        // TODO: Temporary conversion due to types
+        writeContext.sendMessage(reference, new ActionListener<NioChannel>() {
+            @Override
+            public void onResponse(NioChannel nioChannel) {
+                listener.onResponse(nioChannel);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     @Override

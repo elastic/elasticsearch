@@ -149,36 +149,6 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
   }
 }
 
-boolean fixtureSupported = false
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-  // hdfs fixture will not start without hadoop native libraries on windows
-  String nativePath = System.getenv("HADOOP_HOME")
-  if (nativePath != null) {
-    Path path = Paths.get(nativePath);
-    if (Files.isDirectory(path) &&
-        Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
-        Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
-        Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
-      fixtureSupported = true
-    } else {
-      throw new IllegalStateException("HADOOP_HOME: ${path} is invalid, does not contain hadoop native libraries in \$HADOOP_HOME/bin");
-    }
-  }
-} else {
-  fixtureSupported = true
-}
-
-if (fixtureSupported) {
-  integTestCluster.dependsOn hdfsFixture
-  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository'
-} else {
-  logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
-  // just tests that the plugin loads
-  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
-}
-// Ignore HA integration tests, they are included below as part of integTestHa task.
-integTestRunner.exclude('**/Ha*TestSuiteIT.class')
-
 // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
 project.afterEvaluate {
   for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
@@ -239,7 +209,8 @@ RestIntegTestTask integTestSecureHa = project.tasks.create('integTestSecureHa', 
   description = "Runs rest tests against an elasticsearch cluster with HDFS configured with HA Namenode and secured by MIT Kerberos."
 }
 
-// set the keytab file somewhere we can access it from the test. In this case, place it into the temporary directory:
+// Set the keytab file somewhere we can access it from the test. In this case, place it into the temporary directory:
+// TODO: This is hacky. Fix it.
 project.integTestSecureHaRunner.doFirst {
   Path tempDir = project.buildDir.toPath().resolve("testrun").resolve("integTestSecureHaRunner").resolve("J0").resolve("temp")
   // As stated above, instead of the test process wiping the working directory on start, we are going to ignore that it exists.
@@ -253,14 +224,52 @@ project.integTestSecureHaRunner.doFirst {
   project.integTestSecureHaRunner.systemProperty "test.krb5.keytab.hdfs", "${tempKeytab}"
 }
 
+// Determine HDFS Fixture compatibility for the current build environment.
+boolean fixtureSupported = false
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  // hdfs fixture will not start without hadoop native libraries on windows
+  String nativePath = System.getenv("HADOOP_HOME")
+  if (nativePath != null) {
+    Path path = Paths.get(nativePath);
+    if (Files.isDirectory(path) &&
+            Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
+            Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
+            Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
+      fixtureSupported = true
+    } else {
+      throw new IllegalStateException("HADOOP_HOME: ${path} is invalid, does not contain hadoop native libraries in \$HADOOP_HOME/bin");
+    }
+  }
+} else {
+  fixtureSupported = true
+}
+
+// Always ignore HA integration tests in the normal integration test runner, they are included below as
+// part of their own HA-specific integration test tasks.
+integTestRunner.exclude('**/Ha*TestSuiteIT.class')
+
 if (fixtureSupported) {
+  // Check depends on the HA test. Already depends on the standard test.
   project.check.dependsOn(integTestHa)
+
+  // Both standard and HA tests depend on their respective HDFS fixtures
+  integTestCluster.dependsOn hdfsFixture
   integTestHaCluster.dependsOn haHdfsFixture
+
+  // The normal test runner only runs the standard hdfs rest tests
+  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository'
+
+  // Only include the HA integration tests for the HA test task
   integTestHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
 } else {
+  logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  // The normal integration test runner will just test that the plugin loads
+  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
+  // HA fixture is unsupported. Don't run them.
   integTestHa.setEnabled(false)
 }
 
+// Secure HDFS testing relies on the Vagrant based Kerberos fixture.
 boolean secureFixtureSupported = false
 if (fixtureSupported) {
   secureFixtureSupported = project.rootProject.vagrantSupported
@@ -268,21 +277,22 @@ if (fixtureSupported) {
 
 if (secureFixtureSupported) {
   project.check.dependsOn(integTestSecure)
+  project.check.dependsOn(integTestSecureHa)
 
   // Fixture dependencies
   integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
-  integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
-  // Ignore HA integration Tests. They are included below as part of integTestSecureHa task
-  integTestSecureRunner.exclude('**/Ha*TestSuiteIT.class')
-} else {
-  integTestSecure.enabled = false
-}
-
-if (secureFixtureSupported) {
-  project.check.dependsOn(integTestSecureHa)
   integTestSecureHaCluster.dependsOn secureHaHdfsFixture, krb5kdcFixture
+
+  // Run just the secure hdfs rest test suite.
+  integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
+  // Ignore HA integration Tests. They are included below as part of integTestSecureHa test runner.
+  integTestSecureRunner.exclude('**/Ha*TestSuiteIT.class')
+
+  // Only include the HA integration tests for the HA test task
   integTestSecureHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
 } else {
+  // Security tests unsupported. Don't run these tests.
+  integTestSecure.enabled = false
   integTestSecureHa.enabled = false
 }
 

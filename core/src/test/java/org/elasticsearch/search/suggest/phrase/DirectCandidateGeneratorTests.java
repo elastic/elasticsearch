@@ -89,7 +89,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         mutators.add(() -> mutation.preFilter(original.preFilter() == null ? "preFilter" : original.preFilter() + "_other"));
         mutators.add(() -> mutation.sort(original.sort() == null ? "score" : original.sort() + "_other"));
         mutators.add(
-                () -> mutation.stringDistance(original.stringDistance() == null ? "levenstein" : original.stringDistance() + "_other"));
+                () -> mutation.stringDistance(original.stringDistance() == null ? "levenshtein" : original.stringDistance() + "_other"));
         mutators.add(() -> mutation.suggestMode(original.suggestMode() == null ? "missing" : original.suggestMode() + "_other"));
         return randomFrom(mutators).get();
     }
@@ -189,7 +189,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         maybeSet(generator::postFilter, randomAlphaOfLengthBetween(1, 20));
         maybeSet(generator::size, randomIntBetween(1, 20));
         maybeSet(generator::sort, randomFrom("score", "frequency"));
-        maybeSet(generator::stringDistance, randomFrom("internal", "damerau_levenshtein", "levenstein", "jarowinkler", "ngram"));
+        maybeSet(generator::stringDistance, randomFrom("internal", "damerau_levenshtein", "levenshtein", "jarowinkler", "ngram"));
         maybeSet(generator::suggestMode, randomFrom("missing", "popular", "always"));
         return generator;
     }

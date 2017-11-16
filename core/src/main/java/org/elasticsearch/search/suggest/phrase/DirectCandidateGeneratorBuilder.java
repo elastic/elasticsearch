@@ -211,7 +211,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      * string distance for terms inside the index.
      * <li><code>damerau_levenshtein</code> - String distance algorithm
      * based on Damerau-Levenshtein algorithm.
-     * <li><code>levenstein</code> - String distance algorithm based on
+     * <li><code>levenshtein</code> - String distance algorithm based on
      * Levenstein edit distance algorithm.
      * <li><code>jarowinkler</code> - String distance algorithm based on
      * Jaro-Winkler algorithm.
@@ -464,7 +464,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
             return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
         } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {
             return new LuceneLevenshteinDistance();
-        } else if ("levenstein".equals(distanceVal)) {
+        } else if ("levenshtein".equals(distanceVal)) {
             return new LevensteinDistance();
             // TODO Jaro and Winkler are 2 people - so apply same naming logic
             // as damerau_levenshtein

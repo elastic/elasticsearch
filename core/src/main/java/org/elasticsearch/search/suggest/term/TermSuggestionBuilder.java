@@ -214,7 +214,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * string distance for terms inside the index.
      * <li><code>damerau_levenshtein</code> - String distance algorithm based on
      * Damerau-Levenshtein algorithm.
-     * <li><code>levenstein</code> - String distance algorithm based on
+     * <li><code>levenshtein</code> - String distance algorithm based on
      * Levenstein edit distance algorithm.
      * <li><code>jarowinkler</code> - String distance algorithm based on
      * Jaro-Winkler algorithm.
@@ -544,7 +544,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             }
         },
         /** String distance algorithm based on Levenstein edit distance algorithm. */
-        LEVENSTEIN {
+        LEVENSHTEIN {
             @Override
             public StringDistance toLucene() {
                 return new LevensteinDistance();
@@ -583,8 +583,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 case "damerau_levenshtein":
                 case "damerauLevenshtein":
                     return DAMERAU_LEVENSHTEIN;
-                case "levenstein":
-                    return LEVENSTEIN;
+                case "levenshtein":
+                    return LEVENSHTEIN;
                 case "ngram":
                     return NGRAM;
                 case "jarowinkler":

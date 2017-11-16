@@ -104,7 +104,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0).build();
-        boolean hasNested = true || randomBoolean();
+        boolean hasNested = randomBoolean();
         int targetShardId = randomIntBetween(0, numShards-1);
         for (int j = 0; j < numDocs; j++) {
             String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 5);
@@ -149,7 +149,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0).build();
-        boolean hasNested = true;randomBoolean();
+        boolean hasNested = randomBoolean();
         int targetShardId = randomIntBetween(0, numShards-1);
         for (int j = 0; j < numDocs; j++) {
             Iterable<IndexableField> rootDoc;

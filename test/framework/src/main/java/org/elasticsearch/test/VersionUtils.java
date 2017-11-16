@@ -35,7 +35,6 @@ import static java.util.Collections.unmodifiableList;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
-
     /**
      * Sort versions that have backwards compatibility guarantees from
      * those that don't. Doesn't actually check whether or not the versions

@@ -487,7 +487,7 @@ public class Version implements Comparable<Version> {
 
     /**
      * Extracts a sorted list of declared version constants from a class.
-     * version. The argument would normally be Version.class but is exposed for
+     * The argument would normally be Version.class but is exposed for
      * testing with other classes-containing-version-constants.
      */
     public static List<Version> getDeclaredVersions(Class<?> versionClass) {

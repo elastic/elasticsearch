@@ -280,6 +280,9 @@ public class VersionUtilsTests extends ESTestCase {
                 /* Gradle skips the current version because being backwards compatible
                  * with yourself is implied. Java lists the version because it is useful. */
                 .filter(v -> v != Version.CURRENT)
+                /* Java lists all versions from the 5.x series onwards, but we only want to consider
+                 * ones that we're supposed to be compatible with. */
+                .filter(v -> v.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()))
                 /* Note that gradle skips alphas because they don't have any backwards
                  * compatibility guarantees but keeps the last beta and rc in a branch
                  * on when there are only betas an RCs in that branch so that we have

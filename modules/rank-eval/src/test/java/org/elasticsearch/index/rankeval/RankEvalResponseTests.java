@@ -19,20 +19,28 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class RankEvalResponseTests extends ESTestCase {
 
@@ -41,13 +49,14 @@ public class RankEvalResponseTests extends ESTestCase {
         Map<String, EvalQueryQuality> partials = new HashMap<>(numberOfRequests);
         for (int i = 0; i < numberOfRequests; i++) {
             String id = randomAlphaOfLengthBetween(3, 10);
-            int numberOfUnknownDocs = randomIntBetween(0, 5);
-            List<DocumentKey> unknownDocs = new ArrayList<>(numberOfUnknownDocs);
-            for (int d = 0; d < numberOfUnknownDocs; d++) {
-                unknownDocs.add(new DocumentKey(randomAlphaOfLength(10), randomAlphaOfLength(10)));
-            }
             EvalQueryQuality evalQuality = new EvalQueryQuality(id,
                     randomDoubleBetween(0.0, 1.0, true));
+            int numberOfDocs = randomIntBetween(0, 5);
+            List<RatedSearchHit> ratedHits = new ArrayList<>(numberOfDocs);
+            for (int d = 0; d < numberOfDocs; d++) {
+                ratedHits.add(searchHit(randomAlphaOfLength(10), randomIntBetween(0, 1000), randomIntBetween(0, 10)));
+            }
+            evalQuality.addHitsAndRatings(ratedHits);
             partials.put(id, evalQuality);
         }
         int numberOfErrors = randomIntBetween(0, 2);
@@ -76,12 +85,39 @@ public class RankEvalResponseTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        RankEvalResponse randomResponse = createRandomResponse();
+        EvalQueryQuality coffeeQueryQuality = new EvalQueryQuality("coffee_query", 0.1);
+        coffeeQueryQuality.addHitsAndRatings(Arrays.asList(searchHit("index", 123, 5), searchHit("index", 456, null)));
+        RankEvalResponse response = new RankEvalResponse(0.123, Collections.singletonMap("coffee_query", coffeeQueryQuality),
+                Collections.singletonMap("beer_query", new ParsingException(new XContentLocation(0, 0), "someMsg")));
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        if (ESTestCase.randomBoolean()) {
-            builder.prettyPrint();
-        }
-        randomResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        // TODO check the correctness of the output
+        String xContent = response.toXContent(builder, ToXContent.EMPTY_PARAMS).bytes().utf8ToString();
+        assertEquals(("{" +
+                "    \"rank_eval\": {" +
+                "        \"quality_level\": 0.123," +
+                "        \"details\": {" +
+                "            \"coffee_query\": {" +
+                "                \"quality_level\": 0.1," +
+                "                \"unknown_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
+                "                \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"123\",\"_score\":1.0}," +
+                "                           \"rating\":5}," +
+                "                          {\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"456\",\"_score\":1.0}," +
+                "                           \"rating\":null}" +
+                "                         ]" +
+                "            }" +
+                "        }," +
+                "        \"failures\": {" +
+                "            \"beer_query\": {" +
+                "                \"error\": \"ParsingException[someMsg]\"" +
+                "            }" +
+                "        }" +
+                "    }" +
+                "}").replaceAll("\\s+", ""), xContent);
+    }
+
+    private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
+        SearchHit hit = new SearchHit(docId, docId + "", new Text(""), Collections.emptyMap());
+        hit.shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0, null));
+        hit.score(1.0f);
+        return new RatedSearchHit(hit, rating != null ? Optional.of(rating) : Optional.empty());
     }
 }

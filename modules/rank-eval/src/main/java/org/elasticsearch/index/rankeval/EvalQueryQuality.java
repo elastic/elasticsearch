@@ -39,7 +39,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
     private final String queryId;
     private final double evaluationResult;
     private MetricDetails optionalMetricDetails;
-    private final List<RatedSearchHit> hits = new ArrayList<>();
+    private final List<RatedSearchHit> ratedHits = new ArrayList<>();
 
     public EvalQueryQuality(String id, double evaluationResult) {
         this.queryId = id;
@@ -48,7 +48,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
 
     public EvalQueryQuality(StreamInput in) throws IOException {
         this(in.readString(), in.readDouble());
-        this.hits.addAll(in.readList(RatedSearchHit::new));
+        this.ratedHits.addAll(in.readList(RatedSearchHit::new));
         this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetails.class);
     }
 
@@ -56,7 +56,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(queryId);
         out.writeDouble(evaluationResult);
-        out.writeList(hits);
+        out.writeList(ratedHits);
         out.writeOptionalNamedWriteable(this.optionalMetricDetails);
     }
 
@@ -77,11 +77,11 @@ public class EvalQueryQuality implements ToXContent, Writeable {
     }
 
     public void addHitsAndRatings(List<RatedSearchHit> hits) {
-        this.hits.addAll(hits);
+        this.ratedHits.addAll(hits);
     }
 
     public List<RatedSearchHit> getHitsAndRatings() {
-        return this.hits;
+        return this.ratedHits;
     }
 
     @Override
@@ -89,7 +89,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         builder.startObject(queryId);
         builder.field("quality_level", this.evaluationResult);
         builder.startArray("unknown_docs");
-        for (DocumentKey key : EvaluationMetric.filterUnknownDocuments(hits)) {
+        for (DocumentKey key : EvaluationMetric.filterUnknownDocuments(ratedHits)) {
             builder.startObject();
             builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), key.getIndex());
             builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), key.getDocId());
@@ -97,7 +97,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         }
         builder.endArray();
         builder.startArray("hits");
-        for (RatedSearchHit hit : hits) {
+        for (RatedSearchHit hit : ratedHits) {
             hit.toXContent(builder, params);
         }
         builder.endArray();
@@ -121,12 +121,12 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         EvalQueryQuality other = (EvalQueryQuality) obj;
         return Objects.equals(queryId, other.queryId) &&
                 Objects.equals(evaluationResult, other.evaluationResult) &&
-                Objects.equals(hits, other.hits) &&
+                Objects.equals(ratedHits, other.ratedHits) &&
                 Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(queryId, evaluationResult, hits, optionalMetricDetails);
+        return Objects.hash(queryId, evaluationResult, ratedHits, optionalMetricDetails);
     }
 }

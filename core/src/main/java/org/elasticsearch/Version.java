@@ -362,10 +362,10 @@ public class Version implements Comparable<Version> {
     public Version minimumCompatibilityVersion() {
         if (major >= 6) {
             // all major versions from 6 onwards are compatible with last minor series of the previous major
-            List<Version> declaredVersions = getDeclaredVersions(getClass());
+            final List<Version> declaredVersions = getDeclaredVersions(getClass());
             Version bwcVersion = null;
             for (int i = declaredVersions.size() - 1; i >= 0; i--) {
-                Version candidateVersion = declaredVersions.get(i);
+                final Version candidateVersion = declaredVersions.get(i);
                 if (candidateVersion.major == major - 1 && candidateVersion.isRelease() && after(candidateVersion)) {
                     if (bwcVersion != null && candidateVersion.minor < bwcVersion.minor) {
                         break;
@@ -490,9 +490,9 @@ public class Version implements Comparable<Version> {
      * The argument would normally be Version.class but is exposed for
      * testing with other classes-containing-version-constants.
      */
-    public static List<Version> getDeclaredVersions(Class<?> versionClass) {
-        Field[] fields = versionClass.getFields();
-        List<Version> versions = new ArrayList<>(fields.length);
+    public static List<Version> getDeclaredVersions(final Class<?> versionClass) {
+        final Field[] fields = versionClass.getFields();
+        final List<Version> versions = new ArrayList<>(fields.length);
         for (final Field field : fields) {
             final int mod = field.getModifiers();
             if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {

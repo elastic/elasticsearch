@@ -28,10 +28,10 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -340,6 +340,47 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
         public String toString() {
             return "Edge[Component=" + component + "; start=" + coordinate + " " + "; intersection=" + intersect + "]";
         }
+    }
+
+    protected StringBuilder contentToWKT() {
+        return coordinateListToWKT(this.coordinates);
+    }
+
+    public String toWKT() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(type().wktName());
+        sb.append(GeoWKTParser.SPACE);
+        sb.append(contentToWKT());
+        return sb.toString();
+    }
+
+    protected static StringBuilder coordinateListToWKT(final List<Coordinate> coordinates) {
+        final StringBuilder sb = new StringBuilder();
+
+        if (coordinates.isEmpty()) {
+            sb.append(GeoWKTParser.EMPTY);
+        } else {
+            // walk through coordinates:
+            sb.append(GeoWKTParser.LPAREN);
+            sb.append(coordinateToWKT(coordinates.get(0)));
+            for (int i = 1; i < coordinates.size(); ++i) {
+                sb.append(GeoWKTParser.COMMA);
+                sb.append(GeoWKTParser.SPACE);
+                sb.append(coordinateToWKT(coordinates.get(i)));
+            }
+            sb.append(GeoWKTParser.RPAREN);
+        }
+
+        return sb;
+    }
+
+    private static String coordinateToWKT(final Coordinate coordinate) {
+        final StringBuilder sb = new StringBuilder();
+        sb.append(coordinate.x + GeoWKTParser.SPACE + coordinate.y);
+        if (Double.isNaN(coordinate.z) == false) {
+            sb.append(GeoWKTParser.SPACE + coordinate.z);
+        }
+        return sb.toString();
     }
 
     protected static final IntersectionOrder INTERSECTION_ORDER = new IntersectionOrder();

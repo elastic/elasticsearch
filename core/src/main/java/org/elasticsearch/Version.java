@@ -485,6 +485,11 @@ public class Version implements Comparable<Version> {
         return build == 99;
     }
 
+    /**
+     * Extracts a sorted list of declared version constants from a class.
+     * version. The argument would normally be Version.class but is exposed for
+     * testing with other classes-containing-version-constants.
+     */
     public static List<Version> getDeclaredVersions(Class<?> versionClass) {
         Field[] fields = versionClass.getFields();
         List<Version> versions = new ArrayList<>(fields.length);

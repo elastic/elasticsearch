@@ -72,7 +72,8 @@ public class NioTransport extends TcpTransport {
     private final ConcurrentMap<String, ChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
-    private NioClient client;
+    private RoundRobinSelectorSupplier clientSelectorSupplier;
+    private ChannelFactory clientChannelFactory;
     private int acceptorNumber;
 
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
@@ -96,10 +97,8 @@ public class NioTransport extends TcpTransport {
     @Override
     protected NioChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<TcpChannel> connectListener)
         throws IOException {
-        NioSocketChannel channel = client.initiateConnection(node.getAddress().address());
-        if (channel == null) {
-            throw new ElasticsearchException("client is shutdown");
-        }
+        NioSocketChannel channel = clientChannelFactory.openNioChannel(node.getAddress().address(), clientSelectorSupplier.get());
+        openChannels.clientChannelOpened(channel);
         // TODO: Temporary conversion due to types
         channel.addConnectListener(new ActionListener<NioChannel>() {
             @Override
@@ -133,7 +132,8 @@ public class NioTransport extends TcpTransport {
                 }
             }
 
-            client = createClient();
+            clientSelectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
+            clientChannelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), contextSetter);
 
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 int acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
@@ -174,7 +174,7 @@ public class NioTransport extends TcpTransport {
     @Override
     protected void stopInternal() {
         NioShutdown nioShutdown = new NioShutdown(logger);
-        nioShutdown.orderlyShutdown(openChannels, client, acceptors, socketSelectors);
+        nioShutdown.orderlyShutdown(openChannels, acceptors, socketSelectors);
 
         profileToChannelFactory.clear();
         socketSelectors.clear();
@@ -188,11 +188,5 @@ public class NioTransport extends TcpTransport {
         final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
         final Throwable t = unwrapped != null ? unwrapped : cause;
         onException(channel, t instanceof Exception ? (Exception) t : new ElasticsearchException(t));
-    }
-
-    private NioClient createClient() {
-        Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), contextSetter);
-        return new NioClient(openChannels, selectorSupplier, channelFactory);
     }
 }

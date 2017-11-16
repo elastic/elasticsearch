@@ -23,12 +23,17 @@ package org.elasticsearch.common.breaker;
  * A CircuitBreaker that doesn't increment or adjust, and all operations are
  * basically noops
  */
-public class NoopCircuitBreaker implements CircuitBreaker {
+public class NoopCircuitBreaker extends DebuggingBreaker {
     public static final int LIMIT = -1;
 
     private final String name;
 
     public NoopCircuitBreaker(String name) {
+        this(name, false, false);
+    }
+
+    public NoopCircuitBreaker(String name, boolean isDebug, boolean isDebugStack) {
+        super(isDebug, isDebugStack);
         this.name = name;
     }
 

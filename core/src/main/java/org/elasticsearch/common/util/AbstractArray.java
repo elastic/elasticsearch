@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -31,17 +32,26 @@ abstract class AbstractArray implements BigArray {
     private final BigArrays bigArrays;
     public final boolean clearOnResize;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private CircuitBreaker.BreakerKey breakerKey;
 
     AbstractArray(BigArrays bigArrays, boolean clearOnResize) {
         this.bigArrays = bigArrays;
         this.clearOnResize = clearOnResize;
     }
 
+    public void setBreakerKey(CircuitBreaker.BreakerKey breakerKey) {
+        this.breakerKey = breakerKey;
+    }
+
+    public CircuitBreaker.BreakerKey getBreakerKey() {
+        return breakerKey;
+    }
+
     @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) {
             try {
-                bigArrays.adjustBreaker(-ramBytesUsed(), true);
+                bigArrays.releaseAllFromBreaker(breakerKey);
             } finally {
                 doClose();
             }

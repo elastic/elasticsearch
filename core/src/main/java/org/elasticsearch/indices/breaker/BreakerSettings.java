@@ -31,16 +31,20 @@ public class BreakerSettings {
     private final long limitBytes;
     private final double overhead;
     private final CircuitBreaker.Type type;
+    private final boolean debug;
+    private final boolean debugStack;
 
     public BreakerSettings(String name, long limitBytes, double overhead) {
-        this(name, limitBytes, overhead, CircuitBreaker.Type.MEMORY);
+        this(name, limitBytes, overhead, CircuitBreaker.Type.MEMORY, false, false);
     }
 
-    public BreakerSettings(String name, long limitBytes, double overhead, CircuitBreaker.Type type) {
+    public BreakerSettings(String name, long limitBytes, double overhead, CircuitBreaker.Type type, boolean debug, boolean debugStack) {
         this.name = name;
         this.limitBytes = limitBytes;
         this.overhead = overhead;
         this.type = type;
+        this.debug = debug;
+        this.debugStack = debugStack;
     }
 
     public String getName() {
@@ -57,6 +61,14 @@ public class BreakerSettings {
 
     public CircuitBreaker.Type getType() {
         return this.type;
+    }
+
+    public boolean isDebug() {
+        return debug;
+    }
+
+    public boolean isDebugStack() {
+        return debugStack;
     }
 
     @Override

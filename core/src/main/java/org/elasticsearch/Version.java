@@ -28,6 +28,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class Version implements Comparable<Version> {
     /*
@@ -474,5 +479,30 @@ public class Version implements Comparable<Version> {
 
     public boolean isRelease() {
         return build == 99;
+    }
+
+    public static List<Version> getDeclaredVersions(Class<?> versionClass) {
+        Field[] fields = versionClass.getFields();
+        List<Version> versions = new ArrayList<>(fields.length);
+        for (final Field field : fields) {
+            final int mod = field.getModifiers();
+            if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
+                continue;
+            }
+            if (field.getType() != Version.class) {
+                continue;
+            }
+            if ("CURRENT".equals(field.getName())) {
+                continue;
+            }
+            assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
+            try {
+                versions.add(((Version) field.get(null)));
+            } catch (final IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        Collections.sort(versions);
+        return versions;
     }
 }

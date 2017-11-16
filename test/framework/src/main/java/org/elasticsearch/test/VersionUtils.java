@@ -23,10 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -39,30 +36,6 @@ import static java.util.Collections.unmodifiableList;
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
 
-    static List<Version> getDeclaredVersions(Class<?> versionClass) {
-        Field[] fields = versionClass.getFields();
-        List<Version> versions = new ArrayList<>(fields.length);
-        for (final Field field : fields) {
-            final int mod = field.getModifiers();
-            if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
-                continue;
-            }
-            if (field.getType() != Version.class) {
-                continue;
-            }
-            if ("CURRENT".equals(field.getName())) {
-                continue;
-            }
-            assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
-            try {
-                versions.add(((Version) field.get(null)));
-            } catch (final IllegalAccessException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return versions;
-    }
-
     /**
      * Sort versions that have backwards compatibility guarantees from
      * those that don't. Doesn't actually check whether or not the versions
@@ -74,8 +47,7 @@ public class VersionUtils {
      * guarantees in v1 and versions without the guranteees in v2
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
-        List<Version> versions = getDeclaredVersions(versionClass);
-        Collections.sort(versions);
+        List<Version> versions = Version.getDeclaredVersions(versionClass);
         Version last = versions.remove(versions.size() - 1);
         assert last.equals(current) : "The highest version must be the current one "
             + "but was [" + last + "] and current was [" + current + "]";

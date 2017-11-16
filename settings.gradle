@@ -30,6 +30,7 @@ List projects = [
   'test:fixtures:old-elasticsearch',
   'test:logger-usage',
   'modules:aggs-matrix-stats',
+  'modules:aggs-composite',
   'modules:analysis-common',
   'modules:ingest-common',
   'modules:lang-expression',

@@ -262,8 +262,9 @@ public class VersionUtilsTests extends ESTestCase {
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
         List<Version> released = VersionUtils.allReleasedVersions().stream()
-                // Java lists some non-index compatible versions but gradle does not include them.
-                .filter(v -> v.major == Version.CURRENT.major || v.major == Version.CURRENT.major - 1)
+                /* Java lists all versions from the 5.x series onwards, but we only want to consider
+                 * ones that we're supposed to be compatible with. */
+                .filter(v -> v.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()))
                 /* Gradle will never include *released* alphas or betas because it will prefer
                  * the unreleased branch head. Gradle is willing to use branch heads that are
                  * beta or rc so that we have *something* to test against even though we

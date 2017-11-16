@@ -109,7 +109,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected void onException(NettyTcpChannel channel, Exception e) {
+    protected void onException(TcpChannel channel, Exception e) {
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             TcpChannel.closeChannel(channel, false);

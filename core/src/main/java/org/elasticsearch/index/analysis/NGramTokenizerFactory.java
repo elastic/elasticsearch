@@ -84,8 +84,14 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
 
     public NGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
+        int maxAllowedNgramDiff = indexSettings.getMaxNgramDiff();
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
+        int ngramDiff = maxGram - minGram;
+        if (ngramDiff > maxAllowedNgramDiff) {
+            deprecationLogger.deprecated("Deprecated big difference between max_gram and min_gram in NGram Tokenizer,"
+                + "expected difference must be less than or equal to: [" + maxAllowedNgramDiff + "]");
+        }
         this.matcher = parseTokenChars(settings.getAsList("token_chars"));
     }
 

@@ -34,10 +34,10 @@ import java.util.function.BiConsumer;
  */
 public class SocketEventHandler extends EventHandler {
 
-    private final BiConsumer<NioSocketChannel, Throwable> exceptionHandler;
+    private final BiConsumer<NioSocketChannel, Exception> exceptionHandler;
     private final Logger logger;
 
-    public SocketEventHandler(Logger logger, BiConsumer<NioSocketChannel, Throwable> exceptionHandler, OpenChannels openChannels) {
+    public SocketEventHandler(Logger logger, BiConsumer<NioSocketChannel, Exception> exceptionHandler, OpenChannels openChannels) {
         super(logger, openChannels);
         this.exceptionHandler = exceptionHandler;
         this.logger = logger;

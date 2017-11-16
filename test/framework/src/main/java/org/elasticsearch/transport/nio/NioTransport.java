@@ -188,9 +188,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
         return new SocketEventHandler(logger, this::exceptionCaught, openChannels);
     }
 
-    final void exceptionCaught(NioSocketChannel channel, Throwable cause) {
-        final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
-        final Throwable t = unwrapped != null ? unwrapped : cause;
-        onException(channel, t instanceof Exception ? (Exception) t : new ElasticsearchException(t));
+    final void exceptionCaught(NioSocketChannel channel, Exception exception) {
+        onException(channel, exception);
     }
 }

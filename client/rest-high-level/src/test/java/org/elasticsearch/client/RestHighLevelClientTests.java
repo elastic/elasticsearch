@@ -62,6 +62,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
@@ -647,7 +648,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(2, namedXContents.size());
+        assertEquals(3, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -658,9 +659,10 @@ public class RestHighLevelClientTests extends ESTestCase {
             }
         }
         assertEquals(1, categories.size());
-        assertEquals(Integer.valueOf(2), categories.get(Aggregation.class));
+        assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
+        assertTrue(names.contains(CompositeAggregationBuilder.NAME));
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

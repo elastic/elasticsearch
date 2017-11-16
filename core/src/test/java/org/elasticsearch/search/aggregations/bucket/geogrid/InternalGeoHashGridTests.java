@@ -22,7 +22,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid.Bucket;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -109,7 +109,7 @@ public class InternalGeoHashGridTests extends InternalMultiBucketAggregationTest
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
         return ParsedGeoHashGrid.class;
     }
-    
+
     @Override
     protected InternalGeoHashGrid mutateInstance(InternalGeoHashGrid instance) {
         String name = instance.getName();

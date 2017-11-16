@@ -5,6 +5,13 @@ The following limitations and known problems apply to the {version} release of
 {xpack}:
 
 [float]
+=== Categorization uses English tokenization rules and dictionary words
+//See x-pack-elasticsearch/#3021
+Categorization identifies static parts of unstructured logs and groups similar
+messages together. This is currently supported only for English language log
+messages.
+
+[float]
 === Pop-ups must be enabled in browsers
 //See x-pack-elasticsearch/#844
 

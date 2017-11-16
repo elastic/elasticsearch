@@ -360,12 +360,8 @@ public class Version implements Comparable<Version> {
      * is a beta or RC release then the version itself is returned.
      */
     public Version minimumCompatibilityVersion() {
-        final int bwcMajor;
-        final int bwcMinor;
-        if (major == 6) { // we only specialize for current major here
-            bwcMajor = Version.V_5_6_0.major;
-            bwcMinor = Version.V_5_6_0.minor;
-        } else if (major > 6) { // all the future major versions are compatible with last minor series of the previous major
+        if (major >= 6) {
+            // all major versions from 6 onwards are compatible with last minor series of the previous major
             List<Version> declaredVersions = getDeclaredVersions(getClass());
             Version bwcVersion = null;
             for (int i = declaredVersions.size() - 1; i >= 0; i--) {
@@ -378,11 +374,9 @@ public class Version implements Comparable<Version> {
                 }
             }
             return bwcVersion == null ? this : bwcVersion;
-        } else {
-            bwcMajor = major;
-            bwcMinor = 0;
         }
-        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
+
+        return Version.min(this, fromId((int) major * 1000000 + 0 * 10000 + 99));
     }
 
     /**

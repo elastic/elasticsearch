@@ -33,9 +33,14 @@
 ################################################################
 
 ## GC configuration
--XX:+UseConcMarkSweepGC
--XX:CMSInitiatingOccupancyFraction=75
--XX:+UseCMSInitiatingOccupancyOnly
+-XX:+UseG1GC
+-XX:InitiatingHeapOccupancyPercent=75
+
+# To use the older CMS garbage collector configuration, comment out the GC
+# configuration above and uncomment these:
+#-XX:+UseConcMarkSweepGC
+#-XX:CMSInitiatingOccupancyFraction=75
+#-XX:+UseCMSInitiatingOccupancyOnly
 
 ## optimizations
 

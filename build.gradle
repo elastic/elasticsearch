@@ -81,6 +81,7 @@ List<Version> versions = []
 // keep track of the previous major version's last minor, so we know where wire compat begins
 int prevMinorIndex = -1 // index in the versions list of the last minor from the prev major
 int lastPrevMinor = -1 // the minor version number from the prev major we most recently seen
+int prevBugfixIndex = -1 // index in the versions list of the last bugfix release from the prev major
 for (String line : versionLines) {
   /* Note that this skips alphas and betas which is fine because they aren't
    * compatible with anything. */
@@ -108,11 +109,18 @@ for (String line : versionLines) {
         lastPrevMinor = minor
       }
     }
+    if (major == prevMajor) {
+      prevBugfixIndex = versions.size() - 1
+    }
   }
 }
 if (versions.toSorted { it.id } != versions) {
   println "Versions: ${versions}"
   throw new GradleException("Versions.java contains out of order version constants")
+}
+if (prevBugfixIndex != -1) {
+  versions[prevBugfixIndex] = new Version(versions[prevBugfixIndex].major, versions[prevBugfixIndex].minor,
+                                          versions[prevBugfixIndex].bugfix, versions[prevBugfixIndex].suffix, true)
 }
 if (currentVersion.bugfix == 0) {
   // If on a release branch, after the initial release of that branch, the bugfix version will
@@ -242,6 +250,7 @@ subprojects {
     "org.elasticsearch.plugin:parent-join-client:${version}": ':modules:parent-join',
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
+    "org.elasticsearch.plugin:aggs-composite-client:${version}": ':modules:aggs-composite',
   ]
   if (indexCompatVersions[-1].snapshot) {
     /* The last and second to last versions can be snapshots. Rather than use
@@ -261,6 +270,11 @@ subprojects {
       ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
       ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
     }
+  } else if (indexCompatVersions[-2].snapshot) {
+    /* This is a terrible hack for the bump to 6.0.1 which will be fixed by #27397 */
+    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
   }
   project.afterEvaluate {
     configurations.all {

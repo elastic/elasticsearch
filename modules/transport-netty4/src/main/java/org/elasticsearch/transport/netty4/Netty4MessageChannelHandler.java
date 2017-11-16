@@ -20,8 +20,10 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.util.Attribute;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.Transports;
@@ -53,11 +55,13 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         final int remainingMessageSize = buffer.getInt(buffer.readerIndex() - TcpHeader.MESSAGE_LENGTH_SIZE);
         final int expectedReaderIndex = buffer.readerIndex() + remainingMessageSize;
         try {
-            InetSocketAddress remoteAddress = (InetSocketAddress) ctx.channel().remoteAddress();
+            Channel channel = ctx.channel();
+            InetSocketAddress remoteAddress = (InetSocketAddress) channel.remoteAddress();
             // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
             // buffer, or in the cumulative buffer, which is cleaned each time so it could be bigger than the actual size
             BytesReference reference = Netty4Utils.toBytesReference(buffer, remainingMessageSize);
-            transport.messageReceived(reference, ctx.channel(), profileName, remoteAddress, remainingMessageSize);
+            Attribute<NettyTcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
+            transport.messageReceived(reference, channelAttribute.get(), profileName, remoteAddress, remainingMessageSize);
         } finally {
             // Set the expected position of the buffer, no matter what happened
             buffer.readerIndex(expectedReaderIndex);

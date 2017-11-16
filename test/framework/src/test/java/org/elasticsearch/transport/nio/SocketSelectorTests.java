@@ -34,7 +34,6 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.mockito.Matchers.any;

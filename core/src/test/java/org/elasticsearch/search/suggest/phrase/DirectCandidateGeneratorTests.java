@@ -146,7 +146,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
             logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
         } else {
             directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
-            assertIllegalXContent(directGenerator, ParsingException.class,
+            assertIllegalXContent(directGenerator, IllegalArgumentException.class,
                 "[direct_generator] failed to parse field [field]");
         }
 
@@ -162,7 +162,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
 
         // test unexpected token
         directGenerator = "{ \"size\" : [ \"xxl\" ] }";
-        assertIllegalXContent(directGenerator, IllegalArgumentException.class,
+        assertIllegalXContent(directGenerator, ParsingException.class,
                 "[direct_generator] size doesn't support values of type: START_ARRAY");
     }
 

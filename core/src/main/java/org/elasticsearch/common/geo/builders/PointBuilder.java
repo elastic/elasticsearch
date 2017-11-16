@@ -19,86 +19,78 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Point;
 import com.vividsolutions.jts.geom.Coordinate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
+import java.util.ArrayList;
 
-public class PointBuilder extends ShapeBuilder {
+public class PointBuilder extends ShapeBuilder<Point, PointBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
-
-    private Coordinate coordinate;
 
     /**
      * Create a point at [0.0,0.0]
      */
     public PointBuilder() {
-        this.coordinate = ZERO_ZERO;
+        super();
+        this.coordinates.add(ZERO_ZERO);
     }
 
-    /**
-     * Read from a stream.
-     */
+    public PointBuilder(double lon, double lat) {
+        //super(new ArrayList<>(1));
+        super();
+        this.coordinates.add(new Coordinate(lon, lat));
+    }
+
     public PointBuilder(StreamInput in) throws IOException {
-        coordinate = readFromStream(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        writeCoordinateTo(coordinate, out);
+        super(in);
     }
 
     public PointBuilder coordinate(Coordinate coordinate) {
-        this.coordinate = coordinate;
+        this.coordinates.set(0, coordinate);
         return this;
     }
 
     public double longitude() {
-        return coordinate.x;
+        return coordinates.get(0).x;
     }
 
     public double latitude() {
-        return coordinate.y;
+        return coordinates.get(0).y;
+    }
+
+    /**
+     * Create a new point
+     *
+     * @param longitude longitude of the point
+     * @param latitude latitude of the point
+     * @return a new {@link PointBuilder}
+     */
+    public static PointBuilder newPoint(double longitude, double latitude) {
+        return new PointBuilder().coordinate(new Coordinate(longitude, latitude));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
        builder.startObject();
-       builder.field(FIELD_TYPE, TYPE.shapeName());
-       builder.field(FIELD_COORDINATES);
-       toXContent(builder, coordinate);
+       builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
+       builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+       toXContent(builder, coordinates.get(0));
        return builder.endObject();
     }
 
     @Override
     public Point build() {
-        return SPATIAL_CONTEXT.makePoint(coordinate.x, coordinate.y);
+        return SPATIAL_CONTEXT.makePoint(coordinates.get(0).x, coordinates.get(0).y);
     }
 
     @Override
     public GeoShapeType type() {
         return TYPE;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(coordinate);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        PointBuilder other = (PointBuilder) obj;
-        return Objects.equals(coordinate, other.coordinate);
     }
 }

@@ -163,6 +163,25 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         assertSuggestFields(fields, 1);
     }
 
+    public void testParsingFailure() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("completion")
+            .field("type", "completion")
+            .endObject().endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+            defaultMapper.parse(SourceToParse.source("test", "type1", "1", XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("completion", 1.0)
+                    .endObject()
+                    .bytes(),
+                XContentType.JSON)));
+        assertEquals("failed to parse [completion]: expected text or object, but got VALUE_NUMBER", e.getCause().getMessage());
+    }
+
     public void testParsingMultiValued() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")

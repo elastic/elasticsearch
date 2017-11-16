@@ -23,6 +23,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -57,15 +58,23 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.IntFunction;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -78,13 +87,14 @@ public class SplitIndexIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class);
     }
 
-    public void testCreateSplitIndexToN() {
+    public void testCreateSplitIndexToN() throws IOException {
         int[][] possibleShardSplits = new int[][] {{2,4,8}, {3, 6, 12}, {1, 2, 4}};
         int[] shardSplits = randomFrom(possibleShardSplits);
         assertEquals(shardSplits[0], (shardSplits[0] * shardSplits[1]) / shardSplits[1]);
         assertEquals(shardSplits[1], (shardSplits[1] * shardSplits[2]) / shardSplits[2]);
         internalCluster().ensureAtLeastNumDataNodes(2);
         final boolean useRouting =  randomBoolean();
+        final boolean useNested = randomBoolean();
         final boolean useMixedRouting = useRouting ? randomBoolean() : false;
         CreateIndexRequestBuilder createInitialIndex = prepareCreate("source");
         final int routingShards = shardSplits[2] * randomIntBetween(1, 10);
@@ -93,16 +103,43 @@ public class SplitIndexIT extends ESIntegTestCase {
             .put("index.number_of_routing_shards", routingShards);
         if (useRouting && useMixedRouting == false && randomBoolean()) {
             settings.put("index.routing_partition_size", randomIntBetween(1, routingShards - 1));
-            createInitialIndex.addMapping("t1", "_routing", "required=true");
+            if (useNested) {
+                createInitialIndex.addMapping("t1", "_routing", "required=true", "nested1", "type=nested");
+            } else {
+                createInitialIndex.addMapping("t1", "_routing", "required=true");
+            }
+        } else if (useNested) {
+            createInitialIndex.addMapping("t1", "nested1", "type=nested");
         }
-        logger.info("use routing {} use mixed routing {}", useRouting, useMixedRouting);
+        logger.info("use routing {} use mixed routing {} use nested {}", useRouting, useMixedRouting, useNested);
         createInitialIndex.setSettings(settings).get();
 
         int numDocs = randomIntBetween(10, 50);
         String[] routingValue = new String[numDocs];
+
+        BiFunction<String, Integer, IndexRequestBuilder> indexFunc = (index, id) -> {
+            try {
+                return client().prepareIndex(index, "t1", Integer.toString(id))
+                    .setSource(jsonBuilder().startObject()
+                        .field("foo", "bar")
+                        .field("i", id)
+                        .startArray("nested1")
+                        .startObject()
+                        .field("n_field1", "n_value1_1")
+                        .field("n_field2", "n_value2_1")
+                        .endObject()
+                        .startObject()
+                        .field("n_field1", "n_value1_2")
+                        .field("n_field2", "n_value2_2")
+                        .endObject()
+                        .endArray()
+                        .endObject());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
         for (int i = 0; i < numDocs; i++) {
-            IndexRequestBuilder builder = client().prepareIndex("source", "t1", Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON);
+            IndexRequestBuilder builder = indexFunc.apply("source", i);
             if (useRouting) {
                 String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
                 if (useMixedRouting && randomBoolean()) {
@@ -118,8 +155,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         if (randomBoolean()) {
             for (int i = 0; i < numDocs; i++) { // let's introduce some updates / deletes on the index
                 if (randomBoolean()) {
-                    IndexRequestBuilder builder = client().prepareIndex("source", "t1", Integer.toString(i))
-                        .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON);
+                    IndexRequestBuilder builder = indexFunc.apply("source", i);
                     if (useRouting) {
                         builder.setRouting(routingValue[i]);
                     }
@@ -145,8 +181,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
 
         for (int i = 0; i < numDocs; i++) { // now update
-            IndexRequestBuilder builder = client().prepareIndex("first_split", "t1", Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON);
+            IndexRequestBuilder builder = indexFunc.apply("first_split", i);
             if (useRouting) {
                 builder.setRouting(routingValue[i]);
             }
@@ -180,8 +215,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
 
         for (int i = 0; i < numDocs; i++) { // now update
-            IndexRequestBuilder builder = client().prepareIndex("second_split", "t1", Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON);
+            IndexRequestBuilder builder = indexFunc.apply("second_split", i);
             if (useRouting) {
                 builder.setRouting(routingValue[i]);
             }
@@ -195,14 +229,25 @@ public class SplitIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
-
+        if (useNested) {
+            assertNested("source", numDocs);
+            assertNested("first_split", numDocs);
+            assertNested("second_split", numDocs);
+        }
         assertAllUniqueDocs(client().prepareSearch("second_split").setSize(100)
             .setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         assertAllUniqueDocs(client().prepareSearch("first_split").setSize(100)
             .setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         assertAllUniqueDocs(client().prepareSearch("source").setSize(100)
             .setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+    }
 
+    public void assertNested(String index, int numDocs) {
+        // now, do a nested query
+        SearchResponse searchResponse = client().prepareSearch(index).setQuery(nestedQuery("nested1", termQuery("nested1.n_field1",
+            "n_value1_1"), ScoreMode.Avg)).get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo((long)numDocs));
     }
 
     public void assertAllUniqueDocs(SearchResponse response, int numDocs) {

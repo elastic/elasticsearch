@@ -117,6 +117,8 @@ final class ShardSplittingQuery extends Query {
                         return new ConstantScoreScorer(this, score(), twoPhaseIterator);
                     } else {
                         // here we potentially guard the docID consumers with our parent bitset if we have one.
+                        // this ensures that we are only marking root documents in the nested case and if necessary
+                        // we do a second pass to mark the corresponding children in markChildDocs
                         Function<IntConsumer, IntConsumer> maybeWrapConsumer = consumer -> {
                             if (parentBitSet != null) {
                                 return docId -> {
@@ -317,6 +319,7 @@ final class ShardSplittingQuery extends Query {
             if (doc > nextParent) {
                 // we only check once per nested/parent set
                 nextParent = parentDocs.nextSetBit(doc);
+                // never check a child document against the visitor, they neihter have _id nor _routing as stored fields
                 nextParentMatches = visitor.matches(nextParent);
             }
             return nextParentMatches;

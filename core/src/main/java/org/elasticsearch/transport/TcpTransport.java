@@ -118,7 +118,7 @@ import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseC
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractLifecycleComponent implements Transport {
+public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
 
     public static final String TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX = "transport_server_worker";
     public static final String TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX = "transport_client_boss";
@@ -199,8 +199,8 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
     protected final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
 
     protected final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
-    private final Map<String, List<Channel>> serverChannels = newConcurrentMap();
-    private final Set<Channel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Map<String, List<TcpChannel>> serverChannels = newConcurrentMap();
+    private final Set<TcpChannel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     protected final KeyedLock<String> connectionLock = new KeyedLock<>();
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -340,10 +340,10 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
                 DiscoveryNode node = entry.getKey();
                 NodeChannels channels = entry.getValue();
-                for (Channel channel : channels.getChannels()) {
-                    internalSendMessage(channel, pingHeader, new SendMetricListener<Channel>(pingHeader.length()) {
+                for (TcpChannel channel : channels.getChannels()) {
+                    internalSendMessage(channel, pingHeader, new SendMetricListener(pingHeader.length()) {
                         @Override
-                        protected void innerInnerOnResponse(Channel channel) {
+                        protected void innerInnerOnResponse(TcpChannel channel) {
                             successfulPings.inc();
                         }
 
@@ -397,12 +397,12 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
 
     public final class NodeChannels implements Connection {
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
-        private final List<Channel> channels;
+        private final List<TcpChannel> channels;
         private final DiscoveryNode node;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Version version;
 
-        NodeChannels(DiscoveryNode node, List<Channel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
+        NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
             this.node = node;
             this.channels = Collections.unmodifiableList(channels);
             assert channels.size() == connectionProfile.getNumConnections() : "expected channels size to be == "
@@ -420,11 +420,11 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             return version;
         }
 
-        public List<Channel> getChannels() {
+        public List<TcpChannel> getChannels() {
             return channels;
         }
 
-        public Channel channel(TransportRequestOptions.Type type) {
+        public TcpChannel channel(TransportRequestOptions.Type type) {
             ConnectionProfile.ConnectionTypeHandle connectionTypeHandle = typeMapping.get(type);
             if (connectionTypeHandle == null) {
                 throw new IllegalArgumentException("no type channel for [" + type + "]");
@@ -477,7 +477,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             if (closed.get()) {
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
-            Channel channel = channel(options.type());
+            TcpChannel channel = channel(options.type());
             sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte) 0);
         }
 
@@ -594,13 +594,13 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             try {
                 int numConnections = connectionProfile.getNumConnections();
                 assert numConnections > 0 : "A connection profile must be configured with at least one connection";
-                List<Channel> channels = new ArrayList<>(numConnections);
-                List<ActionFuture<Channel>> connectionFutures = new ArrayList<>(numConnections);
+                List<TcpChannel> channels = new ArrayList<>(numConnections);
+                List<ActionFuture<TcpChannel>> connectionFutures = new ArrayList<>(numConnections);
                 for (int i = 0; i < numConnections; ++i) {
                     try {
-                        PlainActionFuture<Channel> connectFuture = PlainActionFuture.newFuture();
+                        PlainActionFuture<TcpChannel> connectFuture = PlainActionFuture.newFuture();
                         connectionFutures.add(connectFuture);
-                        Channel channel = initiateChannel(node, connectionProfile.getConnectTimeout(), connectFuture);
+                        TcpChannel channel = initiateChannel(node, connectionProfile.getConnectTimeout(), connectFuture);
                         channels.add(channel);
                     } catch (Exception e) {
                         // If there was an exception when attempting to instantiate the raw channels, we close all of the channels
@@ -618,7 +618,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
                 }
 
                 // If we make it past the block above, we have successfully established connections for all of the channels
-                final Channel handshakeChannel = channels.get(0); // one channel is guaranteed by the connection profile
+                final TcpChannel handshakeChannel = channels.get(0); // one channel is guaranteed by the connection profile
                 handshakeChannel.addCloseListener(ActionListener.wrap(() -> cancelHandshakeForChannel(handshakeChannel)));
                 Version version;
                 try {
@@ -635,7 +635,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
                 transportService.onConnectionOpened(nodeChannels);
                 final NodeChannels finalNodeChannels = nodeChannels;
                 final AtomicBoolean runOnce = new AtomicBoolean(false);
-                Consumer<Channel> onClose = c -> {
+                Consumer<TcpChannel> onClose = c -> {
                     assert c.isOpen() == false : "channel is still open when onClose is called";
                     // we only need to disconnect from the nodes once since all other channels
                     // will also try to run this we protect it from running multiple times.
@@ -772,15 +772,15 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
         boolean success = portsRange.iterate(portNumber -> {
             try {
-                Channel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
+                TcpChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
                 synchronized (serverChannels) {
-                    List<Channel> list = serverChannels.get(name);
+                    List<TcpChannel> list = serverChannels.get(name);
                     if (list == null) {
                         list = new ArrayList<>();
                         serverChannels.put(name, list);
                     }
                     list.add(channel);
-                    boundSocket.set(getLocalAddress(channel));
+                    boundSocket.set(channel.getLocalAddress());
                 }
             } catch (Exception e) {
                 lastException.set(e);
@@ -937,9 +937,9 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             closeLock.writeLock().lock();
             try {
                 // first stop to accept any incoming connections so nobody can connect to this transport
-                for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
+                for (Map.Entry<String, List<TcpChannel>> entry : serverChannels.entrySet()) {
                     String profile = entry.getKey();
-                    List<Channel> channels = entry.getValue();
+                    List<TcpChannel> channels = entry.getValue();
                     ActionListener<TcpChannel> closeFailLogger = ActionListener.wrap(c -> {},
                         e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e));
                     channels.forEach(c -> c.addCloseListener(closeFailLogger));
@@ -979,7 +979,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
         }
     }
 
-    protected void onException(Channel channel, Exception e) {
+    protected void onException(TcpChannel channel, Exception e) {
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             TcpChannel.closeChannel(channel, false);
@@ -1014,9 +1014,9 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
-                final SendMetricListener<Channel> closeChannel = new SendMetricListener<Channel>(message.length()) {
+                final SendMetricListener closeChannel = new SendMetricListener(message.length()) {
                     @Override
-                    protected void innerInnerOnResponse(Channel channel) {
+                    protected void innerInnerOnResponse(TcpChannel channel) {
                         TcpChannel.closeChannel(channel, false);
                     }
 
@@ -1036,16 +1036,11 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
         }
     }
 
-    protected void serverAcceptedChannel(Channel channel) {
+    protected void serverAcceptedChannel(TcpChannel channel) {
         boolean addedOnThisCall = acceptedChannels.add(channel);
         assert addedOnThisCall : "Channel should only be added to accept channel set once";
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
     }
-
-    /**
-     * Returns the channels local address
-     */
-    protected abstract InetSocketAddress getLocalAddress(Channel channel);
 
     /**
      * Binds to the given {@link InetSocketAddress}
@@ -1053,17 +1048,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
      * @param name    the profile name
      * @param address the address to bind to
      */
-    protected abstract Channel bind(String name, InetSocketAddress address) throws IOException;
-
-    /**
-     * Sends message to channel. The listener's onResponse method will be called when the send is complete unless an exception
-     * is thrown during the send. If an exception is thrown, the listener's onException method will be called.
-     *
-     * @param channel   the destination channel
-     * @param reference the byte reference for the message
-     * @param listener  the listener to call when the operation has completed
-     */
-    protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener);
+    protected abstract TcpChannel bind(String name, InetSocketAddress address) throws IOException;
 
     /**
      * Initiate a single tcp socket channel to a node. Implementations do not have to observe the connectTimeout.
@@ -1075,7 +1060,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract Channel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Channel> connectListener)
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<TcpChannel> connectListener)
         throws IOException;
 
     /**
@@ -1088,7 +1073,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
         return compress && (!(request instanceof BytesTransportRequest));
     }
 
-    private void sendRequestToChannel(final DiscoveryNode node, final Channel targetChannel, final long requestId, final String action,
+    private void sendRequestToChannel(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                                       final TransportRequest request, TransportRequestOptions options, Version channelVersion,
                                       byte status) throws IOException,
         TransportException {
@@ -1120,9 +1105,9 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream);
             final TransportRequestOptions finalOptions = options;
             // this might be called in a different thread
-            SendListener onRequestSent = new SendListener(stream,
+            SendListener onRequestSent = new SendListener(channel, stream,
                 () -> transportService.onRequestSent(node, requestId, action, request, finalOptions), message.length());
-            internalSendMessage(targetChannel, message, onRequestSent);
+            internalSendMessage(channel, message, onRequestSent);
             addedReleaseListener = true;
         } finally {
             if (!addedReleaseListener) {
@@ -1134,13 +1119,13 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
     /**
      * sends a message to the given channel, using the given callbacks.
      */
-    private void internalSendMessage(Channel targetChannel, BytesReference message, SendMetricListener<Channel> listener) {
+    private void internalSendMessage(TcpChannel channel, BytesReference message, SendMetricListener listener) {
         try {
-            sendMessage(targetChannel, message, listener);
+            channel.sendMessage(message, listener);
         } catch (Exception ex) {
             // call listener to ensure that any resources are released
             listener.onFailure(ex);
-            onException(targetChannel, ex);
+            onException(channel, ex);
         }
     }
 
@@ -1153,12 +1138,12 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
      * @param requestId   the request ID this response replies to
      * @param action      the action this response replies to
      */
-    public void sendErrorResponse(Version nodeVersion, Channel channel, final Exception error, final long requestId,
+    public void sendErrorResponse(Version nodeVersion, TcpChannel channel, final Exception error, final long requestId,
                                   final String action) throws IOException {
         try (BytesStreamOutput stream = new BytesStreamOutput()) {
             stream.setVersion(nodeVersion);
             RemoteTransportException tx = new RemoteTransportException(
-                nodeName(), new TransportAddress(getLocalAddress(channel)), action, error);
+                nodeName(), new TransportAddress(channel.getLocalAddress()), action, error);
             threadPool.getThreadContext().writeTo(stream);
             stream.writeException(tx);
             byte status = 0;
@@ -1167,7 +1152,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
             final BytesReference bytes = stream.bytes();
             final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
             CompositeBytesReference message = new CompositeBytesReference(header, bytes);
-            SendListener onResponseSent = new SendListener(null,
+            SendListener onResponseSent = new SendListener(channel, null,
                 () -> transportService.onResponseSent(requestId, action, error), message.length());
             internalSendMessage(channel, message, onResponseSent);
         }
@@ -1178,12 +1163,12 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
      *
      * @see #sendErrorResponse(Version, TcpChannel, Exception, long, String) for sending back errors to the caller
      */
-    public void sendResponse(Version nodeVersion, Channel channel, final TransportResponse response, final long requestId,
+    public void sendResponse(Version nodeVersion, TcpChannel channel, final TransportResponse response, final long requestId,
                              final String action, TransportResponseOptions options) throws IOException {
         sendResponse(nodeVersion, channel, response, requestId, action, options, (byte) 0);
     }
 
-    private void sendResponse(Version nodeVersion, Channel channel, final TransportResponse response, final long requestId,
+    private void sendResponse(Version nodeVersion, TcpChannel channel, final TransportResponse response, final long requestId,
                               final String action, TransportResponseOptions options, byte status) throws IOException {
         if (compress) {
             options = TransportResponseOptions.builder(options).withCompress(true).build();
@@ -1202,7 +1187,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
 
             final TransportResponseOptions finalOptions = options;
             // this might be called in a different thread
-            SendListener listener = new SendListener(stream,
+            SendListener listener = new SendListener(channel, stream,
                 () -> transportService.onResponseSent(requestId, action, response, finalOptions), message.length());
             internalSendMessage(channel, message, listener);
             addedReleaseListener = true;
@@ -1355,7 +1340,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
     /**
      * This method handles the message receive part for both request and responses
      */
-    public final void messageReceived(BytesReference reference, Channel channel, String profileName,
+    public final void messageReceived(BytesReference reference, TcpChannel channel, String profileName,
                                       InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
         final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
         readBytesMetric.inc(totalMessageSize);
@@ -1494,8 +1479,9 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
         });
     }
 
-    protected String handleRequest(Channel channel, String profileName, final StreamInput stream, long requestId, int messageLengthBytes,
-                                   Version version, InetSocketAddress remoteAddress, byte status) throws IOException {
+    protected String handleRequest(TcpChannel channel, String profileName, final StreamInput stream, long requestId,
+                                   int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
+        throws IOException {
         final String action = stream.readString();
         transportService.onRequestReceived(requestId, action);
         TransportChannel transportChannel = null;
@@ -1514,7 +1500,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
                 } else {
                     getInFlightRequestBreaker().addWithoutBreaking(messageLengthBytes);
                 }
-                transportChannel = new TcpTransportChannel<>(this, channel, transportName, action, requestId, version, profileName,
+                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, profileName,
                     messageLengthBytes);
                 final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(remoteAddress));
@@ -1525,7 +1511,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
         } catch (Exception e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
-                transportChannel = new TcpTransportChannel<>(this, channel, transportName, action, requestId, version, profileName, 0);
+                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, profileName, 0);
             }
             try {
                 transportChannel.sendResponse(e);
@@ -1611,7 +1597,8 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
         }
     }
 
-    protected Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException, InterruptedException {
+    protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout)
+        throws IOException, InterruptedException {
         numHandshakes.inc();
         final long requestId = newRequestId();
         final HandshakeResponseHandler handler = new HandshakeResponseHandler(channel);
@@ -1671,7 +1658,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
     /**
      * Called once the channel is closed for instance due to a disconnect or a closed socket etc.
      */
-    private void cancelHandshakeForChannel(Channel channel) {
+    private void cancelHandshakeForChannel(TcpChannel channel) {
         final Optional<Long> first = pendingHandshakes.entrySet().stream()
             .filter((entry) -> entry.getValue().channel == channel).map(Map.Entry::getKey).findFirst();
         if (first.isPresent()) {
@@ -1699,7 +1686,7 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
     /**
      * This listener increments the transmitted bytes metric on success.
      */
-    private abstract class SendMetricListener<T> extends NotifyOnceListener<T> {
+    private abstract class SendMetricListener extends NotifyOnceListener<TcpChannel> {
         private final long messageSize;
 
         private SendMetricListener(long messageSize) {
@@ -1707,31 +1694,34 @@ public abstract class TcpTransport<Channel extends TcpChannel> extends AbstractL
         }
 
         @Override
-        protected final void innerOnResponse(T object) {
+        protected final void innerOnResponse(org.elasticsearch.transport.TcpChannel object) {
             transmittedBytesMetric.inc(messageSize);
             innerInnerOnResponse(object);
         }
 
-        protected abstract void innerInnerOnResponse(T object);
+        protected abstract void innerInnerOnResponse(org.elasticsearch.transport.TcpChannel object);
     }
 
-    private final class SendListener extends SendMetricListener<Channel> {
+    private final class SendListener extends SendMetricListener {
+        private final TcpChannel channel;
         private final Releasable optionalReleasable;
         private final Runnable transportAdaptorCallback;
 
-        private SendListener(Releasable optionalReleasable, Runnable transportAdaptorCallback, long messageLength) {
+        private SendListener(TcpChannel channel, Releasable optionalReleasable, Runnable transportAdaptorCallback, long messageLength) {
             super(messageLength);
+            this.channel = channel;
             this.optionalReleasable = optionalReleasable;
             this.transportAdaptorCallback = transportAdaptorCallback;
         }
 
         @Override
-        protected void innerInnerOnResponse(Channel channel) {
+        protected void innerInnerOnResponse(TcpChannel channel) {
             release();
         }
 
         @Override
         protected void innerOnFailure(Exception e) {
+            logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
             release();
         }
 

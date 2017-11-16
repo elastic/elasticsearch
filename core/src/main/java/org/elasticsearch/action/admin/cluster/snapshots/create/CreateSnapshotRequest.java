@@ -403,7 +403,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             }
         }
-        indicesOptions(IndicesOptions.fromMap(source, IndicesOptions.strictExpandOpen()));
+        indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
         return this;
     }
 

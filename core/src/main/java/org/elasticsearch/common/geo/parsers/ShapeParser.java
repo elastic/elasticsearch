@@ -51,6 +51,8 @@ public interface ShapeParser {
             return null;
         } if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             return GeoJsonParser.parse(parser, shapeMapper);
+        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            return GeoWKTParser.parse(parser);
         }
         throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
     }

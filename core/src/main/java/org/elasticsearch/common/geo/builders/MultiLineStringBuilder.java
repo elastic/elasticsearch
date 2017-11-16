@@ -20,8 +20,8 @@
 package org.elasticsearch.common.geo.builders;
 
 import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.locationtech.spatial4j.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.LineString;
@@ -80,6 +80,25 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineS
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    protected StringBuilder contentToWKT() {
+        final StringBuilder sb = new StringBuilder();
+        if (lines.isEmpty()) {
+            sb.append(GeoWKTParser.EMPTY);
+        } else {
+            sb.append(GeoWKTParser.LPAREN);
+            if (lines.size() > 0) {
+                sb.append(ShapeBuilder.coordinateListToWKT(lines.get(0).coordinates));
+            }
+            for (int i = 1; i < lines.size(); ++i) {
+                sb.append(GeoWKTParser.COMMA);
+                sb.append(ShapeBuilder.coordinateListToWKT(lines.get(i).coordinates));
+            }
+            sb.append(GeoWKTParser.RPAREN);
+        }
+        return sb;
     }
 
     @Override

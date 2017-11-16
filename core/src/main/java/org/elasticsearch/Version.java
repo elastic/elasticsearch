@@ -365,9 +365,19 @@ public class Version implements Comparable<Version> {
         if (major == 6) { // we only specialize for current major here
             bwcMajor = Version.V_5_6_0.major;
             bwcMinor = Version.V_5_6_0.minor;
-        } else if (major > 6) { // all the future versions are compatible with first minor...
-            bwcMajor = major -1;
-            bwcMinor = 0;
+        } else if (major > 6) { // all the future major versions are compatible with last minor series of the previous major
+            List<Version> declaredVersions = getDeclaredVersions(getClass());
+            Version bwcVersion = null;
+            for (int i = declaredVersions.size() - 1; i >= 0; i--) {
+                Version candidateVersion = declaredVersions.get(i);
+                if (candidateVersion.major == major - 1 && candidateVersion.isRelease() && after(candidateVersion)) {
+                    if (bwcVersion != null && candidateVersion.minor < bwcVersion.minor) {
+                        break;
+                    }
+                    bwcVersion = candidateVersion;
+                }
+            }
+            return bwcVersion == null ? this : bwcVersion;
         } else {
             bwcMajor = major;
             bwcMinor = 0;

@@ -1,13 +1,19 @@
 [[indices-split-index]]
 == Split Index
 
-number_of_routing_shards
-
 The split index API allows you to split an existing index into a new index
 with multiple of it's primary shards. Similarly to the <<indices-shrink-index,Shrink API>>
 where the number of primary shards in the shrunk index must be a factor of the source index.
-The `_split` API requires the source index to be created with a specific number of routing shards
-in order to be split in the future. (Note: this requirement might be remove in future releases)
+Every index is by default created with an implicit `index.number_of_routing_shards` that specify
+how often an index can be split. By default every index can at least be split once by a factor of 2.
+The default number of routing shards is dependent on the number of primary shards in an index.
+Indices with a small number of primary shards can be split more often compared to indices that
+have number of shards closer to `1024`. Note: an index with a single shard can be split into
+a new index with an arbitrary number of shards greater than 1. All properties of default number of
+routing shards then apply to the newly created index.
+
+Optionally, an index can also be created with be created with a specific number of routing shards
+in order to be split in the future.
 The number of routing shards specify the hashing space that is used internally to distribute documents
 across shards, in oder to have a consistent hashing that is compatible with the method elasticsearch
 uses today.
@@ -37,15 +43,14 @@ Splitting works as follows:
 [float]
 === Preparing an index for splitting
 
-Create an index with a routing shards factor:
+Create a new index:
 
 [source,js]
 --------------------------------------------------
 PUT my_source_index
 {
     "settings": {
-        "index.number_of_shards" : 1,
-        "index.number_of_routing_shards" : 2 <1>
+        "index.number_of_shards" : 1
     }
 }
 -------------------------------------------------
@@ -128,7 +133,7 @@ POST my_source_index/_split/my_target_index
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT my_source_index\n{"settings": {"index.blocks.write": true, "index.number_of_routing_shards" : 5, "index.number_of_shards": "1"}}\n/]
+// TEST[s/^/PUT my_source_index\n{"settings": {"index.blocks.write": true, "index.number_of_shards": "1"}}\n/]
 
 <1> The number of shards in the target index. This must be a factor of the
     number of shards in the source index.

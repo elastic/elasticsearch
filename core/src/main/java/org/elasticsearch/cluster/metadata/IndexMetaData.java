@@ -1344,7 +1344,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
         int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
         // this is just an additional assertion that ensures we are a factor of the routing num shards.
-        assert getRoutingFactor(numTargetShards, sourceIndexMetadata.getRoutingNumShards()) >= 0;
+        assert sourceIndexMetadata.getNumberOfShards() == 1 // special case - we can split into anything from 1 shard
+            || getRoutingFactor(numTargetShards, sourceIndexMetadata.getRoutingNumShards()) >= 0;
         return new ShardId(sourceIndexMetadata.getIndex(), shardId/routingFactor);
     }
 

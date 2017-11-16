@@ -90,19 +90,19 @@ GET index/_search
       {
         "_index": "index",
         "_type": "type",
-        "_id": "2",
+        "_id": "1",
         "_score": 0.2876821,
         "_source": {
-          "body": "A pair of skis"
+          "body": "Ski resort"
         }
       },
       {
         "_index": "index",
         "_type": "type",
-        "_id": "1",
+        "_id": "2",
         "_score": 0.2876821,
         "_source": {
-          "body": "Ski resort"
+          "body": "A pair of skis"
         }
       }
     ]

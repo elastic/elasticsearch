@@ -297,4 +297,25 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 .getDefault(Settings.EMPTY)).build()));
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
+
+    public void testCalculateNumRoutingShards() {
+        assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(1));
+        assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(2));
+        assertEquals(1536, MetaDataCreateIndexService.calculateNumRoutingShards(3));
+        assertEquals(1152, MetaDataCreateIndexService.calculateNumRoutingShards(9));
+        assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(512));
+        assertEquals(2048, MetaDataCreateIndexService.calculateNumRoutingShards(1024));
+        assertEquals(4096, MetaDataCreateIndexService.calculateNumRoutingShards(2048));
+
+        for (int i = 0; i < 1000; i++) {
+            int randomNumShards = randomIntBetween(1, 10000);
+            int numRoutingShards = MetaDataCreateIndexService.calculateNumRoutingShards(randomNumShards);
+            double ratio = numRoutingShards / randomNumShards;
+            int intRatio = (int) ratio;
+            assertEquals(ratio, (double)(intRatio), 0.0d);
+            assertTrue(1 < ratio);
+            assertTrue(ratio <= 1024);
+            assertEquals(0, intRatio % 2);
+        }
+    }
 }

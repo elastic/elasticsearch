@@ -92,6 +92,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
@@ -379,16 +380,25 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                 indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                 final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
-
+                final Settings idxSettings = indexSettingsBuilder.build();
+                int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);
                 final int routingNumShards;
                 if (recoverFromIndex == null) {
-                    Settings idxSettings = indexSettingsBuilder.build();
-                    routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);
+                    if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(idxSettings)) {
+                        routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);
+                    } else {
+                        routingNumShards = calculateNumRoutingShards(numTargetShards);
+                    }
                 } else {
                     assert IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettingsBuilder.build()) == false
-                        : "index.number_of_routing_shards should be present on the target index on resize";
+                        : "index.number_of_routing_shards should not be present on the target index on resize";
                     final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(recoverFromIndex);
-                    routingNumShards = sourceMetaData.getRoutingNumShards();
+                    if (sourceMetaData.getNumberOfShards() == 1
+                        && isInvalidSplitFactor(numTargetShards, sourceMetaData.getRoutingNumShards())) {
+                        routingNumShards = calculateNumRoutingShards(numTargetShards);
+                    } else {
+                        routingNumShards = sourceMetaData.getRoutingNumShards();
+                    }
                 }
                 // remove the setting it's temporary and is only relevant once we create the index
                 indexSettingsBuilder.remove(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
@@ -643,7 +653,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                    Set<String> targetIndexMappingsTypes, String targetIndexName,
                                    Settings targetIndexSettings) {
         IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
-        IndexMetaData.selectSplitShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+        if (sourceMetaData.getNumberOfShards() != 1) { // we can split into anything if we only have 1 shard
+            IndexMetaData.selectSplitShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+        }
         if (sourceMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
             // ensure we have a single type since this would make the splitting code considerably more complex
             // and a 5.x index would not be splittable unless it has been shrunk before so rather opt out of the complexity
@@ -716,5 +728,20 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())
             .put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
             .put(IndexMetaData.INDEX_RESIZE_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());
+    }
+
+    /**
+     * Returns a default number of routing shards based on the number of shards of the index. The default number of routing shards will
+     * allow any index to be split at least once and at most 10 times by a factor of two. The closer the number or shards gets to 1024
+     * the less default split operations are supported
+     */
+    public static int calculateNumRoutingShards(int numShards) {
+        int base = 10; // logBase2(1024)
+        return numShards * 1 << Math.max(1, (base - (int) (Math.log(numShards) / Math.log(2))));
+    }
+
+    private static boolean isInvalidSplitFactor(int sourceNumberOfShards, int targetNumberOfShards) {
+        int factor = sourceNumberOfShards / targetNumberOfShards;
+        return factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1;
     }
 }

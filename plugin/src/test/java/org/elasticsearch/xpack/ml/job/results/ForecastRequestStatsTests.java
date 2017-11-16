@@ -47,6 +47,9 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
             forecastRequestStats.setProcessingTime(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            forecastRequestStats.setMemoryUsage(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             forecastRequestStats.setStatus(randomFrom(ForecastRequestStatus.values()));
         }
 

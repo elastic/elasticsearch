@@ -42,6 +42,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     public static final ParseField PROGRESS = new ParseField("forecast_progress");
     public static final ParseField PROCESSED_RECORD_COUNT = new ParseField("processed_record_count");
     public static final ParseField STATUS = new ParseField("forecast_status");
+    public static final ParseField MEMORY_USAGE = new ParseField("forecast_memory_bytes");
 
     public static final ConstructingObjectParser<ForecastRequestStats, Void> PARSER =
             new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new ForecastRequestStats((String) a[0], (long) a[1]));
@@ -60,6 +61,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         PARSER.declareDouble(ForecastRequestStats::setProgress, PROGRESS);
         PARSER.declareLong(ForecastRequestStats::setProcessingTime, PROCESSING_TIME_MS);
         PARSER.declareField(ForecastRequestStats::setStatus, p -> ForecastRequestStatus.fromString(p.text()), STATUS, ValueType.STRING);
+        PARSER.declareLong(ForecastRequestStats::setMemoryUsage, MEMORY_USAGE);
     }
 
     public enum ForecastRequestStatus implements Writeable {
@@ -92,6 +94,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     private Instant dateEnded = Instant.EPOCH;
     private double progress;
     private long processingTime;
+    private long memoryUsage;
     private ForecastRequestStatus status = ForecastRequestStatus.OK;
 
     public ForecastRequestStats(String jobId, long forecastId) {
@@ -108,6 +111,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         dateEnded = Instant.ofEpochMilli(in.readVLong());
         progress = in.readDouble();
         processingTime = in.readLong();
+        setMemoryUsage(in.readLong());
         status = ForecastRequestStatus.readFromStream(in);
     }
 
@@ -121,6 +125,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         out.writeVLong(dateEnded.toEpochMilli());
         out.writeDouble(progress);
         out.writeLong(processingTime);
+        out.writeLong(getMemoryUsage());
         status.writeTo(out);
     }
 
@@ -142,6 +147,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         }
         builder.field(PROGRESS.getPreferredName(), progress);
         builder.field(PROCESSING_TIME_MS.getPreferredName(), processingTime);
+        builder.field(MEMORY_USAGE.getPreferredName(), getMemoryUsage());
         builder.field(STATUS.getPreferredName(), status);
         builder.endObject();
         return builder;
@@ -215,6 +221,14 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         this.processingTime = processingTime;
     }
 
+    public long getMemoryUsage() {
+        return memoryUsage;
+    }
+
+    public void setMemoryUsage(long memoryUsage) {
+        this.memoryUsage = memoryUsage;
+    }
+
     public ForecastRequestStatus getStatus() {
         return status;
     }
@@ -241,12 +255,13 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
                 Objects.equals(this.dateEnded, that.dateEnded) &&
                 this.progress == that.progress &&
                 this.processingTime == that.processingTime &&
+                this.memoryUsage == that.memoryUsage &&
                 Objects.equals(this.status, that.status);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, forecastId, recordCount, message, dateStarted, dateEnded, progress, 
-                processingTime, status);
+                processingTime, memoryUsage, status);
     }
 }

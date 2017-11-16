@@ -29,8 +29,8 @@
 ---
 "nGram_exception":
     - skip:
-        version: " - 6.0.0"
-        reason: starting from version 6.0.1 this produces a warning
+        version: " - 6.0.99"
+        reason: starting from version 6.1.0 this produces a warning
         features: "warnings"
     - do:
         indices.analyze:

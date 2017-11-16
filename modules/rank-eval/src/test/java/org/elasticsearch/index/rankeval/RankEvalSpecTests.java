@@ -20,6 +20,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -49,6 +50,12 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 
 public class RankEvalSpecTests extends ESTestCase {
 
+    @SuppressWarnings("resource")
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new RankEvalPlugin().getNamedXContent());
+    }
+
     private static <T> List<T> randomList(Supplier<T> randomSupplier) {
         List<T> result = new ArrayList<>();
         int size = randomIntBetween(1, 20);
@@ -59,12 +66,10 @@ public class RankEvalSpecTests extends ESTestCase {
     }
 
     private static RankEvalSpec createTestItem() throws IOException {
-        EvaluationMetric metric;
-        if (randomBoolean()) {
-            metric = PrecisionAtKTests.createTestItem();
-        } else {
-            metric = DiscountedCumulativeGainTests.createTestItem();
-        }
+        Supplier<EvaluationMetric> metric = randomFrom(Arrays.asList(
+                () -> PrecisionAtKTests.createTestItem(),
+                () -> MeanReciprocalRankTests.createTestItem(),
+                () -> DiscountedCumulativeGainTests.createTestItem()));
 
         List<RatedRequest> ratedRequests = null;
         Collection<ScriptWithId> templates = null;
@@ -92,7 +97,7 @@ public class RankEvalSpecTests extends ESTestCase {
                     new SearchSourceBuilder());
             ratedRequests = Arrays.asList(ratedRequest);
         }
-        RankEvalSpec spec = new RankEvalSpec(ratedRequests, metric, templates);
+        RankEvalSpec spec = new RankEvalSpec(ratedRequests, metric.get(), templates);
         maybeSet(spec::setMaxConcurrentSearches, randomInt(100));
         List<String> indices = new ArrayList<>();
         int size = randomIntBetween(0, 20);
@@ -105,7 +110,6 @@ public class RankEvalSpecTests extends ESTestCase {
 
     public void testXContentRoundtrip() throws IOException {
         RankEvalSpec testItem = createTestItem();
-
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, shuffled.bytes())) {
 

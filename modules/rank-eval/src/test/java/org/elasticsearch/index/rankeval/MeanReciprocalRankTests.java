@@ -166,7 +166,7 @@ public class MeanReciprocalRankTests extends ESTestCase {
         return hits;
     }
 
-    private static MeanReciprocalRank createTestItem() {
+    static MeanReciprocalRank createTestItem() {
         return new MeanReciprocalRank(randomIntBetween(0, 20));
     }
 

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.AcceptingSelector;
 
 import java.io.IOException;
@@ -37,6 +40,11 @@ public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChann
 
     public ChannelFactory getChannelFactory() {
         return channelFactory;
+    }
+
+    @Override
+    public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
+        throw new UnsupportedOperationException("Cannot send a message to a server channel.");
     }
 
     @Override

@@ -53,9 +53,6 @@ public class RatedRequestsTests extends ESTestCase {
 
     private static NamedXContentRegistry xContentRegistry;
 
-    /**
-     * setup for the whole base test class
-     */
     @BeforeClass
     public static void init() {
         xContentRegistry = new NamedXContentRegistry(

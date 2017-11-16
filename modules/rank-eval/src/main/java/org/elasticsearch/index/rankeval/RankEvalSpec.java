@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
@@ -169,20 +170,19 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
             a -> new RankEvalSpec((List<RatedRequest>) a[0], (EvaluationMetric) a[1], (Collection<ScriptWithId>) a[2]));
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            return RatedRequest.fromXContent(p);
-        }, REQUESTS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            try {
-                return EvaluationMetric.fromXContent(p);
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
-            }
-        }, METRIC_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            return ScriptWithId.fromXContent(p);
-        }, TEMPLATES_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RatedRequest.fromXContent(p), REQUESTS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> parseMetric(p), METRIC_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ScriptWithId.fromXContent(p),
+                TEMPLATES_FIELD);
         PARSER.declareInt(RankEvalSpec::setMaxConcurrentSearches, MAX_CONCURRENT_SEARCHES_FIELD);
+    }
+
+    private static EvaluationMetric parseMetric(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        EvaluationMetric metric = parser.namedObject(EvaluationMetric.class, parser.currentName(), null);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return metric;
     }
 
     public static RankEvalSpec parse(XContentParser parser) {

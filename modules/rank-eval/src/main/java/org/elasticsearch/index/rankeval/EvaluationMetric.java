@@ -19,16 +19,12 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -57,35 +53,6 @@ public interface EvaluationMetric extends ToXContent, NamedWriteable {
      *         relevant doc ids.
      */
     EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs);
-
-    static EvaluationMetric fromXContent(XContentParser parser) throws IOException {
-        EvaluationMetric rc;
-        Token token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(), "[_na] missing required metric name");
-        }
-        String metricName = parser.currentName();
-
-        // TODO switch to using a plugable registry
-        switch (metricName) {
-        case PrecisionAtK.NAME:
-            rc = PrecisionAtK.fromXContent(parser);
-            break;
-        case MeanReciprocalRank.NAME:
-            rc = MeanReciprocalRank.fromXContent(parser);
-            break;
-        case DiscountedCumulativeGain.NAME:
-            rc = DiscountedCumulativeGain.fromXContent(parser);
-            break;
-        default:
-            throw new ParsingException(parser.getTokenLocation(), "[_na] unknown query metric name [{}]", metricName);
-        }
-        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
-            // if we are at END_OBJECT, move to the next one...
-            parser.nextToken();
-        }
-        return rc;
-    }
 
     /**
      * join hits with rated documents using the joint _index/_id document key

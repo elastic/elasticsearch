@@ -97,7 +97,7 @@ public abstract class Command implements Closeable {
      * Setup method to be executed before parsing or execution of the command being run. Any exceptions thrown by the
      * method will not be cleanly caught by the parser.
      */
-    protected void beforeExecute() throws Exception {}
+    protected void beforeExecute() {}
 
     /**
      * Executes the command, but all errors are thrown.
@@ -154,7 +154,7 @@ public abstract class Command implements Closeable {
     }
 
     /** Gets the shutdown hook thread if it exists **/
-    public Thread getShutdownHookThread() {
+    protected Thread getShutdownHookThread() {
         return shutdownHookThread;
     }
 

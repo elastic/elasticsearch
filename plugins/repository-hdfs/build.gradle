@@ -184,9 +184,9 @@ project.afterEvaluate {
         if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
           restIntegTestTaskRunner.jvmArg '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
         }
-        // We want to use the temporary directory to access the keytab file for failing over HDFS remotely.
-        // To do this, we need to ignore the non-empty work dir for the test, and trust this build to wipe it before hand.
-        restIntegTestTaskRunner.onNonEmptyWorkDirectory 'ignore'
+
+        Path hdfsKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab").toAbsolutePath()
+        restIntegTestTaskRunner.systemProperty "test.krb5.keytab.hdfs", "${hdfsKT}"
       }
     }
 
@@ -207,21 +207,6 @@ RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', Rest
 // Create a Integration Test suite just for HA related security based tests
 RestIntegTestTask integTestSecureHa = project.tasks.create('integTestSecureHa', RestIntegTestTask.class) {
   description = "Runs rest tests against an elasticsearch cluster with HDFS configured with HA Namenode and secured by MIT Kerberos."
-}
-
-// Set the keytab file somewhere we can access it from the test. In this case, place it into the temporary directory:
-// TODO: This is hacky. Fix it.
-project.integTestSecureHaRunner.doFirst {
-  Path tempDir = project.buildDir.toPath().resolve("testrun").resolve("integTestSecureHaRunner").resolve("J0").resolve("temp")
-  // As stated above, instead of the test process wiping the working directory on start, we are going to ignore that it exists.
-  // We will explicitly wipe working directory here before execution to keep parity with other tests.
-  tempDir.toFile().deleteDir()
-  tempDir.toFile().mkdirs()
-  // Copy over the keytab to the test's temp/working dir.
-  Path tempKeytab = tempDir.resolve("krb5.keytab")
-  Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab").toAbsolutePath()
-  Files.copy(elasticsearchKT, tempKeytab)
-  project.integTestSecureHaRunner.systemProperty "test.krb5.keytab.hdfs", "${tempKeytab}"
 }
 
 // Determine HDFS Fixture compatibility for the current build environment.
@@ -282,6 +267,13 @@ if (secureFixtureSupported) {
   // Fixture dependencies
   integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
   integTestSecureHaCluster.dependsOn secureHaHdfsFixture, krb5kdcFixture
+
+  // Set the keytab files in the classpath so that we can access them from test code without the security manager
+  // freaking out.
+  Path hdfsKeytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs")
+  project.dependencies {
+    testRuntime fileTree(dir: hdfsKeytabPath.toString(), include: ['*.keytab'])
+  }
 
   // Run just the secure hdfs rest test suite.
   integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'

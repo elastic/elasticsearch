@@ -45,11 +45,9 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.http.Header;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Assert;
 
@@ -78,25 +76,23 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
             "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
         );
 
-        if (securityEnabled) {
-            // ensure that keytab exists
-            Path kt = PathUtils.get(kerberosKeytabLocation);
-            if (Files.exists(kt) == false) {
-                throw new IllegalStateException("Could not locate keytab at " + kerberosKeytabLocation);
-            }
-            if (Files.isReadable(kt) != true) {
-                throw new IllegalStateException("Could not read keytab at " + kerberosKeytabLocation);
-            }
-            logger.info("Keytab Length: " + Files.readAllBytes(kt).length);
-
-            // set principal names
-            hdfsConfiguration.set("dfs.namenode.kerberos.principal", hdfsKerberosPrincipal);
-            hdfsConfiguration.set("dfs.datanode.kerberos.principal", hdfsKerberosPrincipal);
-            hdfsConfiguration.set("dfs.data.transfer.protection", "authentication");
-        }
-
         AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
             if (securityEnabled) {
+                // ensure that keytab exists
+                Path kt = PathUtils.get(kerberosKeytabLocation);
+                if (Files.exists(kt) == false) {
+                    throw new IllegalStateException("Could not locate keytab at " + kerberosKeytabLocation);
+                }
+                if (Files.isReadable(kt) != true) {
+                    throw new IllegalStateException("Could not read keytab at " + kerberosKeytabLocation);
+                }
+                logger.info("Keytab Length: " + Files.readAllBytes(kt).length);
+
+                // set principal names
+                hdfsConfiguration.set("dfs.namenode.kerberos.principal", hdfsKerberosPrincipal);
+                hdfsConfiguration.set("dfs.datanode.kerberos.principal", hdfsKerberosPrincipal);
+                hdfsConfiguration.set("dfs.data.transfer.protection", "authentication");
+
                 SecurityUtil.setAuthenticationMethod(UserGroupInformation.AuthenticationMethod.KERBEROS, hdfsConfiguration);
                 UserGroupInformation.setConfiguration(hdfsConfiguration);
                 UserGroupInformation.loginUserFromKeytab(hdfsKerberosPrincipal, kerberosKeytabLocation);

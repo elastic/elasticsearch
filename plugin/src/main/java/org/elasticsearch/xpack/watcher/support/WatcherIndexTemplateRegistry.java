@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRespo
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -77,13 +78,15 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             return;
         }
 
-        if (event.localNodeMaster() == false) {
-            // Only the node that runs or will run Watcher should update the templates. Otherwise unnecessary put template
-            // calls would happen
-            return;
-        }
+        // if this node is newer than the master node, we probably need to add the history template, which might be newer than the
+        // history template the master node has, so we need potentially add new templates despite being not the master node
+        DiscoveryNode localNode = event.state().getNodes().getLocalNode();
+        DiscoveryNode masterNode = event.state().getNodes().getMasterNode();
+        boolean localNodeVersionAfterMaster = localNode.getVersion().after(masterNode.getVersion());
 
-        addTemplatesIfMissing(state);
+        if (event.localNodeMaster() || localNodeVersionAfterMaster) {
+            addTemplatesIfMissing(state);
+        }
     }
 
     private void addTemplatesIfMissing(ClusterState state) {

@@ -9,8 +9,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 import javax.mail.MessagingException;
 
@@ -35,7 +35,6 @@ public class EmailService extends NotificationService<Account> {
         Account.Config config = new Account.Config(name, accountSettings);
         return new Account(config, cryptoService, logger);
     }
-
 
     public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) throws MessagingException {
         Account account = getAccount(accountName);

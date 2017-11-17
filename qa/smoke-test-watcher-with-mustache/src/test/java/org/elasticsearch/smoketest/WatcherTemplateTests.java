@@ -6,7 +6,6 @@
 package org.elasticsearch.smoketest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -15,9 +14,9 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,7 +30,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class WatcherTemplateIT extends ESTestCase {
+public class WatcherTemplateTests extends ESTestCase {
 
     private TextTemplateEngine textTemplateEngine;
 

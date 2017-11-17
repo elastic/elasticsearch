@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.watcher.crypto.CryptoServiceTests;
 
 public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
 
@@ -35,7 +35,7 @@ public class EncryptSensitiveDataBootstrapCheckTests extends ESTestCase {
 
     public void testKeyInKeystore() {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), CryptoService.generateKey());
+        secureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), CryptoServiceTests.generateKey());
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put(Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.getKey(), true)

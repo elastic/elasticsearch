@@ -50,7 +50,7 @@ PUT _xpack/ml/anomaly_detectors/population
 }
 ----------------------------------
 //CONSOLE
-<1> This `over_field-name` property indicates that the metrics for each user (
+<1> This `over_field_name` property indicates that the metrics for each user (
   as identified by their `username` value) are analyzed relative to other users
   in each bucket.
 

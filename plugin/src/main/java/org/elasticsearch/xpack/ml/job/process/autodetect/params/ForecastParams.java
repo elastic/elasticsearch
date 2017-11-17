@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 
@@ -16,11 +17,13 @@ import java.util.Objects;
 public class ForecastParams {
 
     private final long endTime;
+    private final long duration;
     private final long id;
 
-    private ForecastParams(long id, long endTime) {
+    private ForecastParams(long id, long endTime, long duration) {
         this.id = id;
         this.endTime = endTime;
+        this.duration = duration;
     }
 
     /**
@@ -29,6 +32,14 @@ public class ForecastParams {
      */
     public long getEndTime() {
         return endTime;
+    }
+
+    /**
+     * The forecast duration in seconds
+     * @return The duration in seconds
+     */
+    public long getDuration() {
+        return duration;
     }
 
     /**
@@ -42,7 +53,7 @@ public class ForecastParams {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, endTime);
+        return Objects.hash(id, endTime, duration);
     }
 
     @Override
@@ -54,9 +65,8 @@ public class ForecastParams {
             return false;
         }
         ForecastParams other = (ForecastParams) obj;
-        return Objects.equals(id, other.id) && Objects.equals(endTime, other.endTime);
+        return Objects.equals(id, other.id) && Objects.equals(endTime, other.endTime) && Objects.equals(duration, other.duration);
     }
-
 
     public static Builder builder() {
         return new Builder();
@@ -64,17 +74,15 @@ public class ForecastParams {
 
     public static class Builder {
         private long endTimeEpochSecs;
+        private long durationSecs;
         private long startTime;
         private long forecastId;
 
         private Builder() {
             startTime = System.currentTimeMillis();
-            endTimeEpochSecs = tomorrow(startTime);
+            endTimeEpochSecs = 0;
             forecastId = generateId();
-        }
-
-        static long tomorrow(long now) {
-            return (now / 1000) + (60 * 60 * 24);
+            durationSecs = 0;
         }
 
         private long generateId() {
@@ -94,8 +102,17 @@ public class ForecastParams {
             return this;
         }
 
+        public Builder duration(TimeValue duration) {
+            durationSecs = duration.seconds();
+            return this;
+        }
+
         public ForecastParams build() {
-            return new ForecastParams(forecastId, endTimeEpochSecs);
+            if (endTimeEpochSecs != 0 && durationSecs != 0) {
+                throw new ElasticsearchParseException(Messages.getMessage(Messages.REST_INVALID_DURATION_AND_ENDTIME));
+            }
+
+            return new ForecastParams(forecastId, endTimeEpochSecs, durationSecs);
         }
     }
 }

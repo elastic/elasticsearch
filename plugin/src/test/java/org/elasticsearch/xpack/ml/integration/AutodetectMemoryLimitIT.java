@@ -184,6 +184,55 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getTotalOverFieldCount(), lessThan(60000L));
     }
 
+    public void testTooManyDistinctOverFields() throws Exception {
+        Detector.Builder detector = new Detector.Builder("sum", "value");
+        detector.setOverFieldName("user");
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
+                Arrays.asList(detector.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat("epoch");
+        Job.Builder job = new Job.Builder("autodetect-memory-limit-test-too-many-distinct-over-fields");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+
+        // Set the memory limit to 300MB
+        AnalysisLimits limits = new AnalysisLimits(70L, null);
+        job.setAnalysisLimits(limits);
+
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+
+        long now = Instant.now().getEpochSecond();
+        long timestamp = now - 15 * bucketSpan.seconds();
+        int user = 0;
+        while (timestamp < now) {
+            List<String> data = new ArrayList<>();
+            for (int i = 0; i < 10000; i++) {
+                Map<String, Object> record = new HashMap<>();
+                record.put("time", timestamp);
+                record.put("user", user++);
+                record.put("value", 42.0);
+                data.add(createJsonRecord(record));
+            }
+            postData(job.getId(), data.stream().collect(Collectors.joining()));
+            timestamp += bucketSpan.seconds();
+        }
+
+        closeJob(job.getId());
+
+        // Assert we haven't violated the limit too much
+        GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
+        ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
+        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.OK));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(45000000L));
+        assertThat(modelSizeStats.getModelBytes(), greaterThan(35000000L));
+        assertThat(modelSizeStats.getTotalOverFieldCount(), greaterThan(140000L));
+    }
+
     private static Map<String, Object> createRecord(long timestamp, String user, String department) {
         Map<String, Object> record = new HashMap<>();
         record.put("time", timestamp);

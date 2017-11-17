@@ -9,13 +9,14 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
-import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.crypto.CryptoService;
+import org.elasticsearch.xpack.watcher.crypto.CryptoServiceTests;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
+import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -32,7 +33,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -64,7 +64,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         if (encryptSensitiveData == null) {
             encryptSensitiveData = randomBoolean();
             if (encryptSensitiveData) {
-                encryptionKey = CryptoService.generateKey();
+                encryptionKey = CryptoServiceTests.generateKey();
             }
         }
         Settings.Builder builder = Settings.builder()

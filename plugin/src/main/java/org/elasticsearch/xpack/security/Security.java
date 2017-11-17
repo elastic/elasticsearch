@@ -72,6 +72,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.extensions.XPackExtension;
@@ -889,6 +890,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetaData.TYPE, TokenMetaData::new));
         entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetaData.TYPE, TokenMetaData::readDiffFrom));
+        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackPlugin.SECURITY, SecurityFeatureSet.Usage::new));
         entries.addAll(Arrays.asList(ExpressionParser.NAMED_WRITEABLES));
         return entries;
     }

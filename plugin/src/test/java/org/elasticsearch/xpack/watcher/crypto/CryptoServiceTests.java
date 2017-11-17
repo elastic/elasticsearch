@@ -3,15 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.crypto;
+package org.elasticsearch.xpack.watcher.crypto;
 
-import java.util.Arrays;
-
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
+
+import javax.crypto.KeyGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -22,7 +25,7 @@ public class CryptoServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), CryptoService.generateKey());
+        mockSecureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), generateKey());
         settings = Settings.builder()
                 .setSecureSettings(mockSecureSettings)
                 .build();
@@ -48,5 +51,15 @@ public class CryptoServiceTests extends ESTestCase {
         assertThat(service.isEncrypted(CryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
         assertThat(service.isEncrypted(randomAlphaOfLengthBetween(0, 100).toCharArray()), is(false));
         assertThat(service.isEncrypted(service.encrypt(randomAlphaOfLength(10).toCharArray())), is(true));
+    }
+
+    public static byte[] generateKey() {
+        try {
+            KeyGenerator generator = KeyGenerator.getInstance(CryptoService.KEY_ALGO);
+            generator.init(CryptoService.KEY_SIZE);
+            return generator.generateKey().getEncoded();
+        } catch (NoSuchAlgorithmException e) {
+            throw new ElasticsearchException("failed to generate key", e);
+        }
     }
 }

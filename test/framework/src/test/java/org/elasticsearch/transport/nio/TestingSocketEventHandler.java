@@ -30,11 +30,8 @@ import java.util.function.BiConsumer;
 
 public class TestingSocketEventHandler extends SocketEventHandler {
 
-    private final Logger logger;
-
-    public TestingSocketEventHandler(Logger logger, BiConsumer<NioSocketChannel, Throwable> exceptionHandler, OpenChannels openChannels) {
+    public TestingSocketEventHandler(Logger logger, BiConsumer<NioSocketChannel, Exception> exceptionHandler, OpenChannels openChannels) {
         super(logger, exceptionHandler, openChannels);
-        this.logger = logger;
     }
 
     private Set<NioSocketChannel> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());

@@ -875,7 +875,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 4:
                         return NO_OP;
                     default:
-                        throw new IllegalArgumentException("No type mapped for [" + id + "]");
+                        throw new IllegalArgumentException("no type mapped for [" + id + "]");
                 }
             }
         }
@@ -907,7 +907,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 case NO_OP:
                     return new NoOp(input);
                 default:
-                    throw new IOException("No type for [" + type + "]");
+                    throw new IOException("no type for [" + type + "]");
             }
         }
 
@@ -928,7 +928,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     ((NoOp) operation).write(output);
                     break;
                     default:
-                throw new IOException("No type for [" + operation.opType() + "]");
+                throw new IOException("no type for [" + operation.opType() + "]");
             }
         }
 

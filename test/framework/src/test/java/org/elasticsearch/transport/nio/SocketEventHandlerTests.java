@@ -43,7 +43,7 @@ import static org.mockito.Mockito.when;
 
 public class SocketEventHandlerTests extends ESTestCase {
 
-    private BiConsumer<NioSocketChannel, Throwable> exceptionHandler;
+    private BiConsumer<NioSocketChannel, Exception> exceptionHandler;
 
     private SocketEventHandler handler;
     private NioSocketChannel channel;

@@ -17,7 +17,7 @@ import org.junit.After;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,8 +42,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         detector.setPartitionFieldName("user");
 
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Arrays.asList(detector.build()));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");
@@ -64,6 +63,9 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         List<String> data = new ArrayList<>();
         while (timestamp < now) {
             for (int i = 0; i < 10000; i++) {
+                // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
+                // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                // optimisation is used will make the results of this test very different for the different platforms.
                 data.add(createJsonRecord(createRecord(timestamp, String.valueOf(i), "")));
             }
             timestamp += bucketSpan.seconds();
@@ -76,7 +78,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // and a balance of partitions/by fields were created
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
         assertThat(modelSizeStats.getModelBytes(), lessThan(35000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(30000000L));
 
@@ -87,6 +88,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getTotalPartitionFieldCount(), greaterThan(600L));
         assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(900L));
         assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(600L));
+        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
     public void testTooManyByFields() throws Exception {
@@ -94,8 +96,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         detector.setByFieldName("user");
 
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Arrays.asList(detector.build()));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");
@@ -116,6 +117,9 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         List<String> data = new ArrayList<>();
         while (timestamp < now) {
             for (int i = 0; i < 10000; i++) {
+                // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
+                // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                // optimisation is used will make the results of this test very different for the different platforms.
                 data.add(createJsonRecord(createRecord(timestamp, String.valueOf(i), "")));
             }
             timestamp += bucketSpan.seconds();
@@ -127,11 +131,11 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
         assertThat(modelSizeStats.getModelBytes(), lessThan(36000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(30000000L));
         assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(2100L));
         assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(1500L));
+        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
     public void testTooManyByAndOverFields() throws Exception {
@@ -140,8 +144,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         detector.setOverFieldName("user");
 
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Arrays.asList(detector.build()));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");
@@ -163,6 +166,9 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
             for (int department = 0; department < 10; department++) {
                 List<String> data = new ArrayList<>();
                 for (int user = 0; user < 10000; user++) {
+                    // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
+                    // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                    // optimisation is used will make the results of this test very different for the different platforms.
                     data.add(createJsonRecord(createRecord(
                             timestamp, String.valueOf(department) + "_" + String.valueOf(user), String.valueOf(department))));
                 }
@@ -176,21 +182,20 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
         assertThat(modelSizeStats.getModelBytes(), lessThan(36000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(24000000L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), equalTo(8L));
-        assertThat(modelSizeStats.getTotalOverFieldCount(), greaterThan(50000L));
-        assertThat(modelSizeStats.getTotalOverFieldCount(), lessThan(60000L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), equalTo(7L));
+        assertThat(modelSizeStats.getTotalOverFieldCount(), greaterThan(40000L));
+        assertThat(modelSizeStats.getTotalOverFieldCount(), lessThan(50000L));
+        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
-    public void testTooManyDistinctOverFields() throws Exception {
+    public void testManyDistinctOverFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("sum", "value");
         detector.setOverFieldName("user");
 
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Arrays.asList(detector.build()));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");
@@ -198,8 +203,8 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        // Set the memory limit to 300MB
-        AnalysisLimits limits = new AnalysisLimits(70L, null);
+        // Set the memory limit to 110MB
+        AnalysisLimits limits = new AnalysisLimits(110L, null);
         job.setAnalysisLimits(limits);
 
         registerJob(job);
@@ -212,6 +217,9 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         while (timestamp < now) {
             List<String> data = new ArrayList<>();
             for (int i = 0; i < 10000; i++) {
+                // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
+                // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                // optimisation is used will make the results of this test very different for the different platforms.
                 Map<String, Object> record = new HashMap<>();
                 record.put("time", timestamp);
                 record.put("user", user++);
@@ -227,10 +235,10 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.OK));
-        assertThat(modelSizeStats.getModelBytes(), lessThan(45000000L));
-        assertThat(modelSizeStats.getModelBytes(), greaterThan(35000000L));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(95000000L));
+        assertThat(modelSizeStats.getModelBytes(), greaterThan(75000000L));
         assertThat(modelSizeStats.getTotalOverFieldCount(), greaterThan(140000L));
+        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.OK));
     }
 
     private static Map<String, Object> createRecord(long timestamp, String user, String department) {

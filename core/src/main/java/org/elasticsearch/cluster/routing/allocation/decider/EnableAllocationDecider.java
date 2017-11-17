@@ -116,20 +116,20 @@ public class EnableAllocationDecider extends AllocationDecider {
             case ALL:
                 return allocation.decision(Decision.YES, NAME, "all allocations are allowed");
             case NONE:
-                return allocation.decision(Decision.NO, NAME, "no allocations are allowed due to {}", setting(enable, usedIndexSetting));
+                return allocation.decision(Decision.NO, NAME, "no allocations are allowed due to %s", setting(enable, usedIndexSetting));
             case NEW_PRIMARIES:
                 if (shardRouting.primary() && shardRouting.active() == false &&
                     shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
                     return allocation.decision(Decision.YES, NAME, "new primary allocations are allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden due to {}",
+                    return allocation.decision(Decision.NO, NAME, "non-new primary allocations are forbidden due to %s",
                                                 setting(enable, usedIndexSetting));
                 }
             case PRIMARIES:
                 if (shardRouting.primary()) {
                     return allocation.decision(Decision.YES, NAME, "primary allocations are allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "replica allocations are forbidden due to {}",
+                    return allocation.decision(Decision.NO, NAME, "replica allocations are forbidden due to %s",
                                                 setting(enable, usedIndexSetting));
                 }
             default:

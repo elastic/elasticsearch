@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.net.URL;
+import java.security.CodeSource;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -46,7 +47,7 @@ public class Build {
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
         final URL url = getElasticsearchCodebase();
-        final String urlStr = url.toString();
+        final String urlStr = url == null ? "" : url.toString();
         if (urlStr.startsWith("file:/") && (urlStr.endsWith(esPrefix + ".jar") || urlStr.endsWith(esPrefix + "-SNAPSHOT.jar"))) {
             try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
@@ -88,10 +89,13 @@ public class Build {
     private final boolean isSnapshot;
 
     /**
-     * Returns path to elasticsearch codebase path
+     * The location of the code source for Elasticsearch
+     *
+     * @return the location of the code source for Elasticsearch which may be null
      */
     static URL getElasticsearchCodebase() {
-        return Build.class.getProtectionDomain().getCodeSource().getLocation();
+        final CodeSource codeSource = Build.class.getProtectionDomain().getCodeSource();
+        return codeSource == null ? null : codeSource.getLocation();
     }
 
     private final String shortHash;

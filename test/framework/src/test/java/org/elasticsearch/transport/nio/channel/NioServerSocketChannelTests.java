@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.AcceptorEventHandler;
 import org.elasticsearch.transport.nio.OpenChannels;
@@ -30,8 +31,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -48,7 +47,7 @@ public class NioServerSocketChannelTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void setSelector() throws IOException {
-        selector = new AcceptingSelector(new AcceptorEventHandler(logger, mock(OpenChannels.class), mock(Supplier.class)));
+        selector = new AcceptingSelector(new AcceptorEventHandler(logger, mock(OpenChannels.class), mock(Supplier.class), (c) -> {}));
         thread = new Thread(selector::runLoop);
         closedRawChannel = new AtomicBoolean(false);
         thread.start();
@@ -61,28 +60,25 @@ public class NioServerSocketChannelTests extends ESTestCase {
         thread.join();
     }
 
-    public void testClose() throws IOException, TimeoutException, InterruptedException {
-        AtomicReference<NioChannel> ref = new AtomicReference<>();
+    public void testClose() throws Exception {
+        AtomicReference<TcpChannel> ref = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         NioChannel channel = new DoNotCloseServerChannel("nio", mock(ServerSocketChannel.class), mock(ChannelFactory.class), selector);
-        Consumer<NioChannel> listener = (c) -> {
+        Consumer<TcpChannel> listener = (c) -> {
             ref.set(c);
             latch.countDown();
         };
-        channel.getCloseFuture().addListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(channel)));
+        channel.addCloseListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(channel)));
 
-        CloseFuture closeFuture = channel.getCloseFuture();
-
-        assertFalse(closeFuture.isClosed());
+        assertTrue(channel.isOpen());
         assertFalse(closedRawChannel.get());
 
-        channel.closeAsync();
+        TcpChannel.closeChannel(channel, true);
 
-        closeFuture.awaitClose(100, TimeUnit.SECONDS);
 
         assertTrue(closedRawChannel.get());
-        assertTrue(closeFuture.isClosed());
+        assertFalse(channel.isOpen());
         latch.await();
         assertSame(channel, ref.get());
     }

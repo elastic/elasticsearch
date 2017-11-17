@@ -79,11 +79,11 @@ public class NettyTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
         final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
         future.addListener(f -> {
             if (f.isSuccess()) {
-                listener.onResponse(this);
+                listener.onResponse(null);
             } else {
                 final Throwable cause = f.cause();
                 Netty4Utils.maybeDie(cause);

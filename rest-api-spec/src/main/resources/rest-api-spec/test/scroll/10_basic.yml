@@ -201,7 +201,7 @@
 "Scroll cannot used the request cache":
   - skip:
       version: " - 6.0.99"
-      reason:  the deprecation appears in 6.1.0
+      reason:  the deprecation appears in 6.0.1
       features: "warnings"
 
   - do:

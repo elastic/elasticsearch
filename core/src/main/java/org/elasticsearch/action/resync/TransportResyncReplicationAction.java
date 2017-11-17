@@ -163,7 +163,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
                     final ReplicationResponse.ShardInfo.Failure[] failures = response.getShardInfo().getFailures();
                     for (int i = 0; i < failures.length; i++) {
                         final ReplicationResponse.ShardInfo.Failure f = failures[i];
-                        logger.warn(
+                        logger.info(
                                 new ParameterizedMessage(
                                         "{} primary-replica resync to replica on node [{}] failed", f.fullShardId(), f.nodeId()),
                                 f.getCause());

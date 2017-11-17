@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -172,18 +171,13 @@ public class TcpTransportTests extends ESTestCase {
 
     public void testCompressRequest() throws IOException {
         final boolean compressed = randomBoolean();
-        final AtomicBoolean called = new AtomicBoolean(false);
         Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
         ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
-        AtomicReference<IOException> exceptionReference = new AtomicReference<>();
+        AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
-            TcpTransport<FakeChannel> transport = new TcpTransport<FakeChannel>(
+            TcpTransport transport = new TcpTransport(
                 "test", Settings.builder().put("transport.tcp.compress", compressed).build(), threadPool,
                 new BigArrays(Settings.EMPTY, null), null, null, null) {
-                @Override
-                protected InetSocketAddress getLocalAddress(FakeChannel o) {
-                    return null;
-                }
 
                 @Override
                 protected FakeChannel bind(String name, InetSocketAddress address) throws IOException {
@@ -191,38 +185,9 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void sendMessage(FakeChannel o, BytesReference reference, ActionListener listener) {
-                    try {
-                        StreamInput streamIn = reference.streamInput();
-                        streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
-                        int len = streamIn.readInt();
-                        long requestId = streamIn.readLong();
-                        assertEquals(42, requestId);
-                        byte status = streamIn.readByte();
-                        Version version = Version.fromId(streamIn.readInt());
-                        assertEquals(Version.CURRENT, version);
-                        assertEquals(compressed, TransportStatus.isCompress(status));
-                        called.compareAndSet(false, true);
-                        if (compressed) {
-                            final int bytesConsumed = TcpHeader.HEADER_SIZE;
-                            streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed))
-                                .streamInput(streamIn);
-                        }
-                        threadPool.getThreadContext().readHeaders(streamIn);
-                        assertEquals("foobar", streamIn.readString());
-                        Req readReq = new Req("");
-                        readReq.readFrom(streamIn);
-                        assertEquals(request.value, readReq.value);
-                    } catch (IOException e) {
-                        exceptionReference.set(e);
-                    }
-                }
-
-                @Override
                 protected FakeChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout,
-                                                      ActionListener<FakeChannel> connectListener) throws IOException {
-                    FakeChannel fakeChannel = new FakeChannel();
-                    return fakeChannel;
+                                                      ActionListener<TcpChannel> connectListener) throws IOException {
+                    return new FakeChannel(messageCaptor);
                 }
 
                 @Override
@@ -233,24 +198,53 @@ public class TcpTransportTests extends ESTestCase {
                 @Override
                 public NodeChannels getConnection(DiscoveryNode node) {
                     int numConnections = MockTcpTransport.LIGHT_PROFILE.getNumConnections();
-                    ArrayList<FakeChannel> fakeChannels = new ArrayList<>(numConnections);
+                    ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
                     for (int i = 0; i < numConnections; ++i) {
-                        fakeChannels.add(new FakeChannel());
+                        fakeChannels.add(new FakeChannel(messageCaptor));
                     }
                     return new NodeChannels(node, fakeChannels, MockTcpTransport.LIGHT_PROFILE, Version.CURRENT);
                 }
             };
+
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
             Transport.Connection connection = transport.getConnection(node);
             connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
-            assertTrue(called.get());
-            assertNull("IOException while sending message.", exceptionReference.get());
+
+            BytesReference reference = messageCaptor.get();
+            assertNotNull(reference);
+
+            StreamInput streamIn = reference.streamInput();
+            streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
+            int len = streamIn.readInt();
+            long requestId = streamIn.readLong();
+            assertEquals(42, requestId);
+            byte status = streamIn.readByte();
+            Version version = Version.fromId(streamIn.readInt());
+            assertEquals(Version.CURRENT, version);
+            assertEquals(compressed, TransportStatus.isCompress(status));
+            if (compressed) {
+                final int bytesConsumed = TcpHeader.HEADER_SIZE;
+                streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed))
+                    .streamInput(streamIn);
+                }
+            threadPool.getThreadContext().readHeaders(streamIn);
+            assertEquals("foobar", streamIn.readString());
+            Req readReq = new Req("");
+            readReq.readFrom(streamIn);
+            assertEquals(request.value, readReq.value);
+
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
 
     private static final class FakeChannel implements TcpChannel {
+
+        private final AtomicReference<BytesReference> messageCaptor;
+
+        FakeChannel(AtomicReference<BytesReference> messageCaptor) {
+            this.messageCaptor = messageCaptor;
+        }
 
         @Override
         public void close() {
@@ -267,6 +261,16 @@ public class TcpTransportTests extends ESTestCase {
         @Override
         public boolean isOpen() {
             return false;
+        }
+
+        @Override
+        public InetSocketAddress getLocalAddress() {
+            return null;
+        }
+
+        @Override
+        public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
+            messageCaptor.set(reference);
         }
     }
 

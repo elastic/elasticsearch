@@ -33,7 +33,6 @@ import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -847,7 +846,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      */
-    public interface Operation extends Writeable {
+    public interface Operation {
         enum Type {
             @Deprecated
             CREATE((byte) 1),
@@ -917,7 +916,20 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          */
         static void writeType(Translog.Operation operation, StreamOutput output) throws IOException {
             output.writeByte(operation.opType().id());
-            operation.writeTo(output);
+            switch(operation.opType()) {
+                case CREATE:
+                case INDEX:
+                    ((Index) operation).write(output);
+                    break;
+                case DELETE:
+                    ((Delete) operation).write(output);
+                    break;
+                case NO_OP:
+                    ((NoOp) operation).write(output);
+                    break;
+                    default:
+                throw new IOException("No type for [" + operation.opType() + "]");
+            }
         }
 
     }
@@ -954,7 +966,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private final String routing;
         private final String parent;
 
-        public Index(StreamInput in) throws IOException {
+        private Index(StreamInput in) throws IOException {
             final int format = in.readVInt(); // SERIALIZATION_FORMAT
             assert format >= FORMAT_2_X : "format was: " + format;
             id = in.readString();
@@ -1067,8 +1079,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return new Source(source, routing, parent);
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        private void write(StreamOutput out) throws IOException {
             out.writeVInt(SERIALIZATION_FORMAT);
             out.writeString(id);
             out.writeString(type);
@@ -1156,7 +1167,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private final long version;
         private final VersionType versionType;
 
-        public Delete(StreamInput in) throws IOException {
+        private Delete(StreamInput in) throws IOException {
             final int format = in.readVInt();// SERIALIZATION_FORMAT
             assert format >= FORMAT_5_0 : "format was: " + format;
             if (format >= FORMAT_SINGLE_TYPE) {
@@ -1251,8 +1262,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             throw new IllegalStateException("trying to read doc source from delete operation");
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        private void write(StreamOutput out) throws IOException {
             out.writeVInt(SERIALIZATION_FORMAT);
             out.writeString(type);
             out.writeString(id);
@@ -1322,7 +1332,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return reason;
         }
 
-        NoOp(final StreamInput in) throws IOException {
+        private NoOp(final StreamInput in) throws IOException {
             seqNo = in.readLong();
             primaryTerm = in.readLong();
             reason = in.readString();
@@ -1337,8 +1347,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.reason = reason;
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        private void write(StreamOutput out) throws IOException {
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
             out.writeString(reason);

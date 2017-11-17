@@ -52,6 +52,7 @@ import java.util.Map;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -356,7 +357,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("hello");
         // should pass because we set lenient to true when default field is `*`
         Query query = builder.toQuery(context);
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        assertThat(query, anyOf(instanceOf(AllTermQuery.class), instanceOf(DisjunctionMaxQuery.class)));
 
         context.getIndexSettings().updateIndexMetaData(
             newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",

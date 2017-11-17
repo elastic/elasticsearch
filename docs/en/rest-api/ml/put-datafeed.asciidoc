@@ -99,7 +99,7 @@ PUT _xpack/ml/datafeeds/datafeed-total-requests
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/elasticsearch/pull/27183]
+// TEST[setup:server_metrics_job]
 
 When the {dfeed} is created, you receive the following results:
 [source,js]

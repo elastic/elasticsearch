@@ -4,7 +4,7 @@
 
    - skip:
        version: " - 6.99.99"
-       reason:  _version, _routing are deprecated starting from 7.0, their equivalents without underscore are used instead
+       reason:  _version, _routing are removed starting from 7.0, their equivalents without underscore are used instead
        features: "warnings"
 
    - do:

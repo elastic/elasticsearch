@@ -4,7 +4,7 @@
 
    - skip:
        version: " - 6.99.99"
-       reason:  some parameters are deprecated starting from 7.0, their equivalents without underscore are used instead
+       reason:  some parameters are removed starting from 7.0, their equivalents without underscore are used instead
        features: "warnings"
 
    - do:

@@ -87,7 +87,7 @@ public class NioServerSocketChannelTests extends ESTestCase {
 
         private DoNotCloseServerChannel(String profile, ServerSocketChannel channel, ChannelFactory channelFactory,
                                         AcceptingSelector selector) throws IOException {
-            super(profile, channel, channelFactory, selector);
+            super(channel, channelFactory, selector);
         }
 
         @Override

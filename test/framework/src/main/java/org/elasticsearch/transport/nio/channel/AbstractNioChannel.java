@@ -57,13 +57,11 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     final AtomicBoolean isClosing = new AtomicBoolean(false);
 
     private final InetSocketAddress localAddress;
-    private final String profile;
     private final CompletableFuture<TcpChannel> closeContext = new CompletableFuture<>();
     private final ESSelector selector;
     private SelectionKey selectionKey;
 
-    AbstractNioChannel(String profile, S socketChannel, ESSelector selector) throws IOException {
-        this.profile = profile;
+    AbstractNioChannel(S socketChannel, ESSelector selector) throws IOException {
         this.socketChannel = socketChannel;
         this.localAddress = (InetSocketAddress) socketChannel.getLocalAddress();
         this.selector = selector;
@@ -77,11 +75,6 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     @Override
     public InetSocketAddress getLocalAddress() {
         return localAddress;
-    }
-
-    @Override
-    public String getProfile() {
-        return profile;
     }
 
     /**

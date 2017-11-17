@@ -71,7 +71,7 @@ public class NioSocketChannelTests extends ESTestCase {
         AtomicReference<TcpChannel> ref = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, mock(SocketChannel.class), selector);
+        NioSocketChannel socketChannel = new DoNotCloseChannel(mock(SocketChannel.class), selector);
         openChannels.clientChannelOpened(socketChannel);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         Consumer<TcpChannel> listener = (c) -> {
@@ -96,7 +96,7 @@ public class NioSocketChannelTests extends ESTestCase {
     public void testConnectSucceeds() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenReturn(true);
-        NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, rawChannel, selector);
+        NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         selector.scheduleForRegistration(socketChannel);
 
@@ -112,7 +112,7 @@ public class NioSocketChannelTests extends ESTestCase {
     public void testConnectFails() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenThrow(new ConnectException());
-        NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, rawChannel, selector);
+        NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         selector.scheduleForRegistration(socketChannel);
 
@@ -128,8 +128,8 @@ public class NioSocketChannelTests extends ESTestCase {
 
     private class DoNotCloseChannel extends DoNotRegisterChannel {
 
-        private DoNotCloseChannel(String profile, SocketChannel channel, SocketSelector selector) throws IOException {
-            super(profile, channel, selector);
+        private DoNotCloseChannel(SocketChannel channel, SocketSelector selector) throws IOException {
+            super(channel, selector);
         }
 
         @Override

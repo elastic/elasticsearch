@@ -42,8 +42,8 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     private ReadContext readContext;
     private Exception connectException;
 
-    public NioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
-        super(profile, socketChannel, selector);
+    public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
+        super(socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
         this.socketSelector = selector;
     }
@@ -181,8 +181,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     @Override
     public String toString() {
         return "NioSocketChannel{" +
-            "profile=" + getProfile() +
-            ", localAddress=" + getLocalAddress() +
+            "localAddress=" + getLocalAddress() +
             ", remoteAddress=" + remoteAddress +
             '}';
     }

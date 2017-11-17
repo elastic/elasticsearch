@@ -161,6 +161,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
                 @Override
                 public void handleResponse(ResyncReplicationResponse response) {
                     final ReplicationResponse.ShardInfo.Failure[] failures = response.getShardInfo().getFailures();
+                    // noinspection ForLoopReplaceableByForEach
                     for (int i = 0; i < failures.length; i++) {
                         final ReplicationResponse.ShardInfo.Failure f = failures[i];
                         logger.info(

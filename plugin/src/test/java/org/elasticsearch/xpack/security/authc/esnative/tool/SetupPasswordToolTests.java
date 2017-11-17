@@ -31,6 +31,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +43,7 @@ import javax.net.ssl.SSLException;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -163,8 +165,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
     public void testWrongServer() throws Exception {
         URL url = new URL(httpClient.getDefaultURL());
         URL authnURL = checkURL(url);
-        when(httpClient.postURL(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), any(CheckedSupplier.class),
-                any(CheckedConsumer.class))).thenThrow(randomFrom(IOException.class, SSLException.class));
+        doThrow(randomFrom(new IOException(), new SSLException(""))).when(httpClient).postURL(eq("GET"), eq(authnURL), eq(ElasticUser.NAME),
+                any(SecureString.class), any(CheckedSupplier.class), any(CheckedConsumer.class));
 
         try {
             execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
@@ -195,8 +197,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
         String userToFail = randomFrom(SetupPasswordTool.USERS);
         URL userToFailURL = passwdURL(url, userToFail);
 
-        when(httpClient.postURL(eq("PUT"), eq(userToFailURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-                any(CheckedConsumer.class))).thenThrow(IOException.class);
+        doThrow(new IOException()).when(httpClient).postURL(eq("PUT"), eq(userToFailURL), anyString(), any(SecureString.class),
+                any(CheckedSupplier.class), any(CheckedConsumer.class));
         try {
             execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter, "-b");
             fail("Should have thrown exception");
@@ -277,11 +279,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
         throw new RuntimeException("Did not properly parse password.");
     }
 
-    private URL checkURL(URL url) throws MalformedURLException {
-        return new URL(url, (url.getPath() + "/_xpack/security/_authenticate").replaceAll("/+", "/") + "?pretty");
+    private URL checkURL(URL url) throws MalformedURLException, URISyntaxException {
+        return new URL(url, (url.toURI().getPath() + "/_xpack/security/_authenticate").replaceAll("/+", "/") + "?pretty");
     }
 
-    private URL passwdURL(URL url, String user) throws MalformedURLException {
-        return new URL(url, (url.getPath() + "/_xpack/security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
+    private URL passwdURL(URL url, String user) throws MalformedURLException, URISyntaxException {
+        return new URL(url, (url.toURI().getPath() + "/_xpack/security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
     }
 }

@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +24,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ErrorResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
@@ -51,6 +51,7 @@ import static org.elasticsearch.license.XPackLicenseStateTests.randomBasicStanda
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialBasicStandardGoldOrPlatinumMode;
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialOrPlatinumMode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -160,14 +161,11 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
         disableJdbcLicensing();
 
         Request request = new MetaTableRequest("test");
-        Response response = jdbc(request);
-        assertThat(response, instanceOf(ErrorResponse.class));
-        ErrorResponse er = (ErrorResponse) response;
-        assertEquals(ElasticsearchSecurityException.class.getName(), er.cause);
-        assertEquals("current license is non-compliant for [jdbc]", er.message);
-        enableJdbcLicensing();
+        ResponseException responseException = expectThrows(ResponseException.class, () -> jdbc(request));
+        assertThat(responseException.getMessage(), containsString("current license is non-compliant for [jdbc]"));
 
-        response = jdbc(request);
+        enableJdbcLicensing();
+        Response response = jdbc(request);
         assertThat(response, instanceOf(MetaTableResponse.class));
     }
 

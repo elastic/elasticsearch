@@ -17,7 +17,9 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestRequest.Method;
+import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.catalog.MappingException;
@@ -55,29 +57,16 @@ public abstract class AbstractSqlProtocolRestAction extends BaseRestHandler {
 
     protected abstract RestChannelConsumer innerPrepareRequest(Request request, Client client) throws IOException;
 
-    protected abstract AbstractExceptionResponse buildExceptionResponse(Request request, String message, String cause,
-            SqlExceptionType exceptionType);
-
-    protected abstract AbstractErrorResponse buildErrorResponse(Request request, String message, String cause, String stack);
-
-    protected <T> ActionListener<T> toActionListener(Request request, RestChannel channel, Function<T, Response> responseBuilder) {
-        return new ActionListener<T>() {
+    protected <T> ActionListener<T> toActionListener(RestChannel channel, Function<T, Response> responseBuilder) {
+        return new RestResponseListener<T>(channel) {
             @Override
-            public void onResponse(T response) {
-                try {
-                    sendResponse(channel, responseBuilder.apply(response));
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    sendResponse(channel, exceptionResponse(request, e));
-                } catch (Exception inner) {
-                    inner.addSuppressed(e);
-                    logger.error("failed to send failure response", inner);
+            public RestResponse buildResponse(T response) throws Exception {
+                try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
+                    try (DataOutputStream dataOutputStream = new DataOutputStream(bytesStreamOutput)) {
+                        // NOCOMMIT use the version from the client
+                        proto.writeResponse(responseBuilder.apply(response), Proto.CURRENT_VERSION, dataOutputStream);
+                    }
+                    return new BytesRestResponse(OK, TEXT_CONTENT_TYPE, bytesStreamOutput.bytes());
                 }
             }
         };
@@ -92,63 +81,6 @@ public abstract class AbstractSqlProtocolRestAction extends BaseRestHandler {
         try (DataInputStream in = new DataInputStream(restRequest.content().streamInput())) {
             request = proto.readRequest(in);
         }
-        try {
-            return innerPrepareRequest(request, client);
-        } catch (Exception e) {
-            return channel -> sendResponse(channel, exceptionResponse(request, e));
-        }
-    }
-
-    private Response exceptionResponse(Request request, Exception e) {
-        // TODO I wonder why we don't just teach the servers to handle ES's normal exception response.....
-        SqlExceptionType exceptionType = sqlExceptionType(e);
-
-        String message = EMPTY;
-        String cs = EMPTY;
-        if (Strings.hasText(e.getMessage())) {
-            message = e.getMessage();
-        }
-        cs = e.getClass().getName();
-
-        if (exceptionType != null) {
-            return buildExceptionResponse(request, message, cs, exceptionType);
-        } else {
-            StringWriter sw = new StringWriter();
-            e.printStackTrace(new PrintWriter(sw));
-            // TODO: the stack shouldn't be necessary unless for advance diagnostics
-            return buildErrorResponse(request, message, cs, sw.toString());
-        }
-    }
-
-    private static SqlExceptionType sqlExceptionType(Throwable cause) {
-        if (cause instanceof ClientSqlException) {
-            if (cause instanceof AnalysisException || cause instanceof ResourceNotFoundException) {
-                return SqlExceptionType.DATA;
-            }
-            if (cause instanceof PlanningException || cause instanceof MappingException) {
-                return SqlExceptionType.NOT_SUPPORTED;
-            }
-            if (cause instanceof ParsingException) {
-                return SqlExceptionType.SYNTAX;
-            }
-            if (cause instanceof PlanningException) {
-                return SqlExceptionType.NOT_SUPPORTED;
-            }
-        }
-        if (cause instanceof TimeoutException) {
-            return SqlExceptionType.TIMEOUT;
-        }
-
-        return null;
-    }
-
-    private void sendResponse(RestChannel channel, Response response) throws IOException {
-        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-            try (DataOutputStream dataOutputStream = new DataOutputStream(bytesStreamOutput)) {
-                // NOCOMMIT use the version from the client
-                proto.writeResponse(response, Proto.CURRENT_VERSION, dataOutputStream);
-            }
-            channel.sendResponse(new BytesRestResponse(OK, TEXT_CONTENT_TYPE, bytesStreamOutput.bytes()));
-        }
+        return innerPrepareRequest(request, client);
     }
 }

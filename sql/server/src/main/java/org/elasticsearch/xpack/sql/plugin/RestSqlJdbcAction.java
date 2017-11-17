@@ -79,16 +79,6 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
         return consumer::accept;
     }
 
-    @Override
-    protected ErrorResponse buildErrorResponse(Request request, String message, String cause, String stack) {
-        return new ErrorResponse((RequestType) request.requestType(), message, cause, stack);
-    }
-
-    @Override
-    protected ExceptionResponse buildExceptionResponse(Request request, String message, String cause, SqlExceptionType exceptionType) {
-        return new ExceptionResponse((RequestType) request.requestType(), message, cause, exceptionType);
-    }
-
     /**
      * Actual implementation of the operation
      */
@@ -97,7 +87,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
         RequestType requestType = (RequestType) request.requestType();
         switch (requestType) {
         case INFO:
-            return channel -> client.execute(MainAction.INSTANCE, new MainRequest(), toActionListener(request, channel, response ->
+            return channel -> client.execute(MainAction.INSTANCE, new MainRequest(), toActionListener(channel, response ->
                     new InfoResponse(response.getNodeName(), response.getClusterName().value(),
                             response.getVersion().major, response.getVersion().minor, response.getVersion().toString(),
                             response.getBuild().shortHash(), response.getBuild().date())));
@@ -118,7 +108,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
         String indexPattern = hasText(request.pattern()) ? StringUtils.jdbcToEsPattern(request.pattern()) : "*";
         SqlGetIndicesAction.Request getRequest = new SqlGetIndicesAction.Request(IndicesOptions.lenientExpandOpen(), indexPattern);
         getRequest.local(true); // TODO serialization not supported by get indices action
-        return channel -> client.execute(SqlGetIndicesAction.INSTANCE, getRequest, toActionListener(request, channel, response -> {
+        return channel -> client.execute(SqlGetIndicesAction.INSTANCE, getRequest, toActionListener(channel, response -> {
             return new MetaTableResponse(response.indices().stream()
                     .map(EsIndex::name)
                     .collect(toList()));
@@ -131,7 +121,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
 
         SqlGetIndicesAction.Request getRequest = new SqlGetIndicesAction.Request(IndicesOptions.lenientExpandOpen(), indexPattern);
         getRequest.local(true); // TODO serialization not supported by get indices action
-        return channel -> client.execute(SqlGetIndicesAction.INSTANCE, getRequest, toActionListener(request, channel, response -> {
+        return channel -> client.execute(SqlGetIndicesAction.INSTANCE, getRequest, toActionListener(channel, response -> {
             List<MetaColumnInfo> columns = new ArrayList<>();
             for (EsIndex esIndex : response.indices()) {
               int pos = 0;
@@ -140,7 +130,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
                   String name = entry.getKey();
                   if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                       DataType type = entry.getValue();
-                      // the column size it's actually its precision (based on the Javadocs) 
+                      // the column size it's actually its precision (based on the Javadocs)
                       columns.add(new MetaColumnInfo(esIndex.name(), name, type.sqlType(), type.precision(), pos));
                   }
               }
@@ -150,12 +140,12 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     }
 
     private Consumer<RestChannel> queryInit(Client client, QueryInitRequest request) {
-        SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize, 
+        SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
-                                                TimeValue.timeValueMillis(request.timeout.pageTimeout), 
+                                                TimeValue.timeValueMillis(request.timeout.pageTimeout),
                                                 Cursor.EMPTY);
         long start = System.nanoTime();
-        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(request, channel, response -> {
+        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
             List<JDBCType> types = new ArrayList<>(response.columns().size());
             List<ColumnInfo> columns = new ArrayList<>(response.columns().size());
             for (SqlResponse.ColumnInfo info : response.columns()) {
@@ -177,12 +167,12 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
             throw new IllegalArgumentException("error reading the cursor");
         }
         // NB: the timezone and page size are locked already by the query so pass in defaults (as they are not read anyway)
-        SqlRequest sqlRequest = new SqlRequest(EMPTY, SqlRequest.DEFAULT_TIME_ZONE, 0, 
+        SqlRequest sqlRequest = new SqlRequest(EMPTY, SqlRequest.DEFAULT_TIME_ZONE, 0,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
-                                                TimeValue.timeValueMillis(request.timeout.pageTimeout), 
+                                                TimeValue.timeValueMillis(request.timeout.pageTimeout),
                                                 cursor);
         long start = System.nanoTime();
-        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(request, channel, response -> {
+        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
             return new QueryPageResponse(System.nanoTime() - start, serializeCursor(response.cursor(), types),
                     new SqlResponsePayload(types, response.rows()));
         }));

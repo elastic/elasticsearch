@@ -89,15 +89,16 @@ public abstract class AbstractProto {
 
         public static SqlExceptionType fromRemoteFailureType(String type) {
             switch (type) {
-            case "analysis":
-            case "resouce_not_found":
+            case "analysis_exception":
+            case "resource_not_found_exception":
+            case "verification_exception":
                 return DATA;
-            case "planning":
-            case "mapping":
+            case "planning_exception":
+            case "mapping_exception":
                 return NOT_SUPPORTED;
-            case "parsing":
+            case "parsing_exception":
                 return SYNTAX;
-            case "timeout":
+            case "timeout_exception":
                 return TIMEOUT;
             default:
                 return null;

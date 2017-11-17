@@ -48,22 +48,12 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
     @Override
     public String getName() {
         return "xpack_sql_cli_action";
-        }
+    }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(Request request, Client client) throws IOException {
         Consumer<RestChannel> consumer = operation(request, client);
         return consumer::accept;
-    }
-
-    @Override
-    protected ErrorResponse buildErrorResponse(Request request, String message, String cause, String stack) {
-        return new ErrorResponse((RequestType) request.requestType(), message, cause, stack);
-    }
-
-    @Override
-    protected ExceptionResponse buildExceptionResponse(Request request, String message, String cause, SqlExceptionType exceptionType) {
-        return new ExceptionResponse((RequestType) request.requestType(), message, cause, exceptionType);
     }
 
     /**
@@ -74,7 +64,7 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
         RequestType requestType = (RequestType) request.requestType();
         switch (requestType) {
         case INFO:
-            return channel -> client.execute(MainAction.INSTANCE, new MainRequest(), toActionListener(request, channel, response ->
+            return channel -> client.execute(MainAction.INSTANCE, new MainRequest(), toActionListener(channel, response ->
                     new InfoResponse(response.getNodeName(), response.getClusterName().value(),
                             response.getVersion().major, response.getVersion().minor, response.getVersion().toString(),
                             response.getBuild().shortHash(), response.getBuild().date())));
@@ -94,7 +84,7 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
                                                 TimeValue.timeValueMillis(request.timeout.pageTimeout),
                                                 Cursor.EMPTY);
         long start = System.nanoTime();
-        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(request, channel, response -> {
+        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
             CliFormatter formatter = new CliFormatter(response);
             String data = formatter.formatWithHeader(response);
             return new QueryInitResponse(System.nanoTime() - start, serializeCursor(response.cursor(), formatter), data);
@@ -116,7 +106,7 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
                                                 cursor);
 
         long start = System.nanoTime();
-        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(request, channel, response -> {
+        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
             String data = formatter.formatWithoutHeader(response);
             return new QueryPageResponse(System.nanoTime() - start, serializeCursor(response.cursor(), formatter), data);
         }));
@@ -134,4 +124,4 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
             throw new RuntimeException("unexpected trouble building the cursor", e);
         }
     }
-                    }
+}

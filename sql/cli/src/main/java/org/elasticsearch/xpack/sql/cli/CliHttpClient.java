@@ -64,8 +64,14 @@ public class CliHttpClient {
                             return new ErrorResponse((RequestType) request.requestType(), failure.reason(),
                                 failure.type(), failure.remoteTrace());
                         }
+                        SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
+                        if (type == null) {
+                            return new ErrorResponse((RequestType) request.requestType(),
+                                "Sent bad type [" + failure.type() + "]. Original message is [" + failure.reason() + "]",
+                                failure.type(), failure.remoteTrace());
+                        }
                         return new ExceptionResponse((RequestType) request.requestType(), failure.reason(),
-                            failure.type(), SqlExceptionType.fromRemoteFailureType(failure.type()));
+                            failure.type(), type);
                     }
                 )
             )

@@ -115,7 +115,7 @@ public class JdbcHttpClient {
         if (response.responseType() == ResponseType.ERROR) {
             ErrorResponse error = (ErrorResponse) response;
             // TODO: this could be made configurable to switch between message to error
-            throw new JdbcSQLException("Server returned error: [" + error.stack + "]");
+            throw new JdbcSQLException("Server returned error: [" + error.message + "][" + error.stack + "]");
         }
         return response;
     }

@@ -1117,19 +1117,14 @@ public class TransportService extends AbstractLifecycleComponent {
         final TransportService service;
         final ThreadPool threadPool;
 
-        DirectResponseChannel(Logger logger, DiscoveryNode localNode, String action, long requestId,
-                                     TransportService service, ThreadPool threadPool) {
+        DirectResponseChannel(Logger logger, DiscoveryNode localNode, String action, long requestId, TransportService service,
+                              ThreadPool threadPool) {
             this.logger = logger;
             this.localNode = localNode;
             this.action = action;
             this.requestId = requestId;
             this.service = service;
             this.threadPool = threadPool;
-        }
-
-        @Override
-        public String action() {
-            return action;
         }
 
         @Override
@@ -1177,13 +1172,7 @@ public class TransportService extends AbstractLifecycleComponent {
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processException(handler, rtx);
                 } else {
-                    threadPool.executor(handler.executor()).execute(new Runnable() {
-                        @SuppressWarnings({"unchecked"})
-                        @Override
-                        public void run() {
-                            processException(handler, rtx);
-                        }
-                    });
+                    threadPool.executor(handler.executor()).execute(() -> processException(handler, rtx));
                 }
             }
         }
@@ -1203,11 +1192,6 @@ public class TransportService extends AbstractLifecycleComponent {
                     (Supplier<?>) () -> new ParameterizedMessage(
                         "failed to handle exception for action [{}], handler [{}]", action, handler), e);
             }
-        }
-
-        @Override
-        public long getRequestId() {
-            return requestId;
         }
 
         @Override

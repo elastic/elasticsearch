@@ -80,7 +80,7 @@ public class TcpReadContext implements ReadContext {
 
                 // A message length of 6 bytes it is just a ping. Ignore for now.
                 if (messageLengthWithHeader != 6) {
-                    handler.handleMessage(messageWithoutHeader, channel, channel.getProfile(), messageWithoutHeader.length());
+                    handler.handleMessage(messageWithoutHeader, channel, messageWithoutHeader.length());
                 }
             } catch (Exception e) {
                 handler.handleException(channel, e);

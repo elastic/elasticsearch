@@ -47,19 +47,11 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.watcher.common.http.HttpClient;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.notification.email.EmailService;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
-import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
-import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
-import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
@@ -79,6 +71,14 @@ import org.elasticsearch.xpack.watcher.actions.slack.SlackActionFactory;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.common.http.HttpClient;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.http.HttpSettings;
+import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthFactory;
+import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
 import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
+import org.elasticsearch.xpack.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.execution.AsyncTriggerEventConsumer;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
@@ -105,6 +106,19 @@ import org.elasticsearch.xpack.watcher.input.search.SearchInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
+import org.elasticsearch.xpack.watcher.notification.email.Account;
+import org.elasticsearch.xpack.watcher.notification.email.EmailService;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.support.BodyPartSource;
+import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
+import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.elasticsearch.xpack.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
@@ -155,7 +169,9 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -170,11 +186,16 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
 public class Watcher implements ActionPlugin {
+
+    static {
+        // some classes need to have their own clinit blocks
+        BodyPartSource.init();
+        Account.init();
+    }
 
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
             new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
@@ -199,6 +220,7 @@ public class Watcher implements ActionPlugin {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, WatcherMetaData.TYPE, WatcherMetaData::new));
         entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, WatcherMetaData.TYPE, WatcherMetaData::readDiffFrom));
+        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackPlugin.WATCHER, WatcherFeatureSet.Usage::new));
         return entries;
     }
 
@@ -225,13 +247,44 @@ public class Watcher implements ActionPlugin {
 
     public Collection<Object> createComponents(Clock clock, ScriptService scriptService, InternalClient internalClient,
                                                XPackLicenseState licenseState,
-                                               HttpClient httpClient, HttpRequestTemplate.Parser httpTemplateParser,
-                                               ThreadPool threadPool, ClusterService clusterService, CryptoService cryptoService,
-                                               NamedXContentRegistry xContentRegistry, Collection<Object> components) {
+                                               ThreadPool threadPool, ClusterService clusterService,
+                                               NamedXContentRegistry xContentRegistry, SSLService sslService) {
         if (enabled == false) {
             return Collections.emptyList();
         }
 
+        final CryptoService cryptoService;
+        try {
+            cryptoService = ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? new CryptoService(settings) : null;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        // http client
+        Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
+        httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(cryptoService));
+        // TODO: add more auth types, or remove this indirection
+        HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
+        HttpRequestTemplate.Parser httpTemplateParser = new HttpRequestTemplate.Parser(httpAuthRegistry);
+        final HttpClient httpClient = new HttpClient(settings, httpAuthRegistry, sslService);
+
+        // notification
+        EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
+        HipChatService hipChatService = new HipChatService(settings, httpClient, clusterService.getClusterSettings());
+        JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
+        SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
+        PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
+
+        TextTemplateEngine templateEngine = new TextTemplateEngine(settings, scriptService);
+        Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
+        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpTemplateParser,
+                templateEngine));
+        emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
+        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, templateEngine,
+                httpAuthRegistry));
+        EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(emailAttachmentParsers);
+
+        // conditions
         final Map<String, ConditionFactory> parsers = new HashMap<>();
         parsers.put(AlwaysCondition.TYPE, (c, id, p) -> AlwaysCondition.parse(id, p));
         parsers.put(NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p));
@@ -245,24 +298,19 @@ public class Watcher implements ActionPlugin {
         transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, internalClient, xContentRegistry, scriptService));
         final TransformRegistry transformRegistry = new TransformRegistry(settings, Collections.unmodifiableMap(transformFactories));
 
+        // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
-        TextTemplateEngine templateEngine = getService(TextTemplateEngine.class, components);
-        actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, getService(EmailService.class, components), templateEngine,
-                getService(EmailAttachmentsParser.class, components)));
-        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient,
-                getService(HttpRequestTemplate.Parser.class, components), templateEngine));
+        actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, emailAttachmentsParser));
+        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, httpTemplateParser, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, internalClient));
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
-        actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine,
-                getService(HipChatService.class, components)));
-        actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine,
-                getService(JiraService.class, components)));
-        actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine,
-                getService(SlackService.class, components)));
-        actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(settings, templateEngine,
-                getService(PagerDutyService.class, components)));
+        actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine, hipChatService));
+        actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine, jiraService));
+        actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine, slackService));
+        actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(settings, templateEngine, pagerDutyService));
         final ActionRegistry registry = new ActionRegistry(actionFactoryMap, conditionRegistry, transformRegistry, clock, licenseState);
 
+        // inputs
         final Map<String, InputFactory> inputFactories = new HashMap<>();
         inputFactories.put(SearchInput.TYPE,
                 new SearchInputFactory(settings, internalClient, xContentRegistry, scriptService));
@@ -275,6 +323,8 @@ public class Watcher implements ActionPlugin {
         final WatcherClient watcherClient = new WatcherClient(internalClient);
 
         final HistoryStore historyStore = new HistoryStore(settings, internalClient);
+
+        // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
         scheduleParsers.add(new CronSchedule.Parser());
         scheduleParsers.add(new DailySchedule.Parser());
@@ -321,7 +371,8 @@ public class Watcher implements ActionPlugin {
 
         return Arrays.asList(registry, watcherClient, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, watcherIndexTemplateRegistry);
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, watcherIndexTemplateRegistry,
+                slackService, pagerDutyService);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
@@ -334,16 +385,6 @@ public class Watcher implements ActionPlugin {
 
     protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService) {
         return new AsyncTriggerEventConsumer(settings, executionService);
-    }
-
-    private <T> T getService(Class<T> serviceClass, Collection<Object> services) {
-        List<Object> collect = services.stream().filter(o -> o.getClass() == serviceClass).collect(Collectors.toList());
-        if (collect.isEmpty()) {
-            throw new IllegalArgumentException("no service for class " + serviceClass.getName());
-        } else if (collect.size() > 1) {
-            throw new IllegalArgumentException("more than one service for class " + serviceClass.getName());
-        }
-        return (T) collect.get(0);
     }
 
     public Collection<Module> nodeModules() {
@@ -383,6 +424,18 @@ public class Watcher implements ActionPlugin {
         settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
+
+        // notification services
+        settings.add(SlackService.SLACK_ACCOUNT_SETTING);
+        settings.add(EmailService.EMAIL_ACCOUNT_SETTING);
+        settings.add(HipChatService.HIPCHAT_ACCOUNT_SETTING);
+        settings.add(JiraService.JIRA_ACCOUNT_SETTING);
+        settings.add(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
+        settings.add(ReportingAttachmentParser.RETRIES_SETTING);
+        settings.add(ReportingAttachmentParser.INTERVAL_SETTING);
+
+        // http settings
+        settings.addAll(HttpSettings.getSettings());
 
         // encryption settings
         CryptoService.addSettings(settings);
@@ -519,5 +572,21 @@ public class Watcher implements ActionPlugin {
 
     public List<BootstrapCheck> getBootstrapChecks(Environment env) {
         return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck(env));
+    }
+
+    public Collection<? extends String> getSettingsFilter() {
+        List<String> filters = new ArrayList<>();
+        filters.add("xpack.notification.email.account.*.smtp.password");
+        filters.add("xpack.notification.jira.account.*.password");
+        filters.add("xpack.notification.slack.account.*.url");
+        filters.add("xpack.notification.pagerduty.account.*.url");
+        filters.add("xpack.notification.pagerduty." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        filters.add("xpack.notification.pagerduty.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        filters.add("xpack.notification.hipchat.account.*.auth_token");
+        return filters;
+    }
+
+    public List<ScriptContext> getContexts() {
+        return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
     }
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
@@ -145,6 +146,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.XPackPlugin.MACHINE_LEARNING;
 
 public class MachineLearning implements ActionPlugin {
     public static final String NAME = "ml";
@@ -270,7 +272,10 @@ public class MachineLearning implements ActionPlugin {
                 new NamedWriteableRegistry.Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME,
                         PersistentTasksNodeService.Status::new),
                 new NamedWriteableRegistry.Entry(Task.Status.class, JobTaskStatus.NAME, JobTaskStatus::new),
-                new NamedWriteableRegistry.Entry(Task.Status.class, DatafeedState.NAME, DatafeedState::fromStream)
+                new NamedWriteableRegistry.Entry(Task.Status.class, DatafeedState.NAME, DatafeedState::fromStream),
+
+                // feature set
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, MACHINE_LEARNING, MachineLearningFeatureSet.Usage::new)
         );
     }
 

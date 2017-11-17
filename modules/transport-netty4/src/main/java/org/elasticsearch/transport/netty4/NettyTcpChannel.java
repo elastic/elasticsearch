@@ -34,13 +34,13 @@ import java.util.concurrent.CompletableFuture;
 public class NettyTcpChannel implements TcpChannel {
 
     private final Channel channel;
-    private final CompletableFuture<TcpChannel> closeContext = new CompletableFuture<>();
+    private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
 
     NettyTcpChannel(Channel channel) {
         this.channel = channel;
         this.channel.closeFuture().addListener(f -> {
             if (f.isSuccess()) {
-                closeContext.complete(this);
+                closeContext.complete(null);
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
@@ -59,7 +59,7 @@ public class NettyTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void addCloseListener(ActionListener<TcpChannel> listener) {
+    public void addCloseListener(ActionListener<Void> listener) {
         closeContext.whenComplete(ActionListener.toBiConsumer(listener));
     }
 

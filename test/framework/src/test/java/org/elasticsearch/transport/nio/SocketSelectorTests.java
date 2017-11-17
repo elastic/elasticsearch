@@ -52,7 +52,7 @@ public class SocketSelectorTests extends ESTestCase {
     private NioSocketChannel channel;
     private TestSelectionKey selectionKey;
     private WriteContext writeContext;
-    private ActionListener<NioChannel> listener;
+    private ActionListener<Void> listener;
     private NetworkBytesReference bufferReference = NetworkBytesReference.wrap(new BytesArray(new byte[1]));
 
     @Before

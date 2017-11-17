@@ -895,8 +895,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Reads the type and the operation from the given stream. The operation must be written with
          * {@link Operation#writeOperation(Operation, StreamOutput)}
          */
-        static Operation readOperation(StreamInput input) throws IOException {
-            Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
+        static Operation readOperation(final StreamInput input) throws IOException {
+            final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
             switch (type) {
                 case CREATE:
                     // the de-serialization logic in Index was identical to that of Create when create was deprecated
@@ -914,7 +914,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         /**
          * Writes the type and translog operation to the given stream
          */
-        static void writeOperation(Translog.Operation operation, StreamOutput output) throws IOException {
+        static void writeOperation(final Translog.Operation operation, final StreamOutput output) throws IOException {
             output.writeByte(operation.opType().id());
             switch(operation.opType()) {
                 case CREATE:
@@ -967,7 +967,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private final String routing;
         private final String parent;
 
-        private Index(StreamInput in) throws IOException {
+        private Index(final StreamInput in) throws IOException {
             final int format = in.readVInt(); // SERIALIZATION_FORMAT
             assert format >= FORMAT_2_X : "format was: " + format;
             id = in.readString();
@@ -1080,7 +1080,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return new Source(source, routing, parent);
         }
 
-        private void write(StreamOutput out) throws IOException {
+        private void write(final StreamOutput out) throws IOException {
             out.writeVInt(SERIALIZATION_FORMAT);
             out.writeString(id);
             out.writeString(type);
@@ -1168,7 +1168,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private final long version;
         private final VersionType versionType;
 
-        private Delete(StreamInput in) throws IOException {
+        private Delete(final StreamInput in) throws IOException {
             final int format = in.readVInt();// SERIALIZATION_FORMAT
             assert format >= FORMAT_5_0 : "format was: " + format;
             if (format >= FORMAT_SINGLE_TYPE) {
@@ -1263,7 +1263,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             throw new IllegalStateException("trying to read doc source from delete operation");
         }
 
-        private void write(StreamOutput out) throws IOException {
+        private void write(final StreamOutput out) throws IOException {
             out.writeVInt(SERIALIZATION_FORMAT);
             out.writeString(type);
             out.writeString(id);
@@ -1348,7 +1348,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.reason = reason;
         }
 
-        private void write(StreamOutput out) throws IOException {
+        private void write(final StreamOutput out) throws IOException {
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
             out.writeString(reason);

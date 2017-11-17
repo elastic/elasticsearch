@@ -31,7 +31,11 @@ import java.math.BigInteger;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public final class ShardPath {
     public static final String INDEX_FOLDER_NAME = "index";
@@ -189,29 +193,73 @@ public final class ShardPath {
 
             // TODO - do we need something more extensible? Yet, this does the job for now...
             final NodeEnvironment.NodePath[] paths = env.nodePaths();
-            NodeEnvironment.NodePath bestPath = null;
-            BigInteger maxUsableBytes = BigInteger.valueOf(Long.MIN_VALUE);
-            for (NodeEnvironment.NodePath nodePath : paths) {
-                FileStore fileStore = nodePath.fileStore;
 
-                BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
-                assert usableBytes.compareTo(BigInteger.ZERO) >= 0;
+            // If no better path is chosen, use the one with the most space by default
+            NodeEnvironment.NodePath bestPath = getPathWithMostFreeSpace(env);
 
-                // Deduct estimated reserved bytes from usable space:
-                Integer count = dataPathToShardCount.get(nodePath.path);
-                if (count != null) {
-                    usableBytes = usableBytes.subtract(estShardSizeInBytes.multiply(BigInteger.valueOf(count)));
+            if (paths.length != 1) {
+                int shardCount = indexSettings.getNumberOfShards();
+                // Maximum number of shards that a path should have for a particular index assuming
+                // all the shards were assigned to this node. For example, with a node with 4 data
+                // paths and an index with 9 primary shards, the maximum number of shards per path
+                // would be 3.
+                int maxShardsPerPath = Math.floorDiv(shardCount, paths.length) + ((shardCount % paths.length) == 0 ? 0 : 1);
+
+                Map<NodeEnvironment.NodePath, Long> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
+
+                // Compute how much space there is on each path
+                final Map<NodeEnvironment.NodePath, BigInteger> pathsToSpace = new HashMap<>(paths.length);
+                for (NodeEnvironment.NodePath nodePath : paths) {
+                    FileStore fileStore = nodePath.fileStore;
+                    BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
+                    pathsToSpace.put(nodePath, usableBytes);
                 }
-                if (bestPath == null || usableBytes.compareTo(maxUsableBytes) > 0) {
-                    maxUsableBytes = usableBytes;
-                    bestPath = nodePath;
-                }
+
+                bestPath = Arrays.stream(paths)
+                        // Filter out paths that have enough space
+                        .filter((path) -> pathsToSpace.get(path).subtract(estShardSizeInBytes).compareTo(BigInteger.ZERO) > 0)
+                        // Sort by the number of shards for this index
+                        .sorted((p1, p2) -> {
+                                int cmp = Long.compare(pathToShardCount.getOrDefault(p1, 0L), pathToShardCount.getOrDefault(p2, 0L));
+                                if (cmp == 0) {
+                                    // if the number of shards is equal, tie-break with the number of total shards
+                                    cmp = Integer.compare(dataPathToShardCount.getOrDefault(p1.path, 0),
+                                            dataPathToShardCount.getOrDefault(p2.path, 0));
+                                    if (cmp == 0) {
+                                        // if the number of shards is equal, tie-break with the usable bytes
+                                        cmp = pathsToSpace.get(p2).compareTo(pathsToSpace.get(p1));
+                                    }
+                                }
+                                return cmp;
+                            })
+                        // Return the first result
+                        .findFirst()
+                        // Or the existing best path if there aren't any that fit the criteria
+                        .orElse(bestPath);
             }
 
             statePath = bestPath.resolve(shardId);
             dataPath = statePath;
         }
         return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, shardId);
+    }
+
+    static NodeEnvironment.NodePath getPathWithMostFreeSpace(NodeEnvironment env) throws IOException {
+        final NodeEnvironment.NodePath[] paths = env.nodePaths();
+        NodeEnvironment.NodePath bestPath = null;
+        long maxUsableBytes = Long.MIN_VALUE;
+        for (NodeEnvironment.NodePath nodePath : paths) {
+            FileStore fileStore = nodePath.fileStore;
+            long usableBytes = fileStore.getUsableSpace();
+            assert usableBytes >= 0 : "usable bytes must be >= 0, got: " + usableBytes;
+
+            if (bestPath == null || usableBytes > maxUsableBytes) {
+                // This path has been determined to be "better" based on the usable bytes
+                maxUsableBytes = usableBytes;
+                bestPath = nodePath;
+            }
+        }
+        return bestPath;
     }
 
     @Override

@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -641,7 +642,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // when ignoreAliases option is set, concreteIndexNames resolves the provided expressions
         // only against the defined indices
         IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
-        
+
         String[] indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "foo*");
 
         assertEquals(1, indexNamesIndexWildcard.length);
@@ -657,9 +658,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, indexNamesIndexWildcard.length);
         assertEquals("foo_foo", indexNamesIndexWildcard[0]);
 
-        IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "foo"));
-        assertThat(infe.getIndex().getName(), equalTo("foo"));
+        assertEquals("The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
+                iae.getMessage());
 
         // when ignoreAliases option is not set, concreteIndexNames resolves the provided
         // expressions against the defined indices and aliases
@@ -1005,11 +1007,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(state, new DeleteIndexRequest("does_not_exist")));
             assertEquals("does_not_exist", infe.getIndex().getName());
+            assertEquals("no such index", infe.getMessage());
         }
         {
-            IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(state, new DeleteIndexRequest("test-alias")));
-            assertEquals("test-alias", infe.getIndex().getName());
+            assertEquals("The provided expression [test-alias] matches an alias, " +
+                    "specify the corresponding concrete indices instead.", iae.getMessage());
         }
         {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("test-alias");
@@ -1049,11 +1053,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("test-alias");
-            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                    () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            assertEquals("The provided expression [test-alias] matches an alias, " +
+                    "specify the corresponding concrete indices instead.", iae.getMessage());
         }
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("test-a*");
-            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
+                    () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            assertEquals("test-a*", infe.getIndex().getName());
         }
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("test-index");
@@ -1069,11 +1078,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.remove().index("test-alias");
-            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                    () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            assertEquals("The provided expression [test-alias] matches an alias, " +
+                    "specify the corresponding concrete indices instead.", iae.getMessage());
         }
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.remove().index("test-a*");
-            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
+                    () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            assertEquals("test-a*", infe.getIndex().getName());
         }
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.remove().index("test-index");
@@ -1089,11 +1103,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.removeIndex().index("test-alias");
-            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                    () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            assertEquals("The provided expression [test-alias] matches an alias, " +
+                    "specify the corresponding concrete indices instead.", iae.getMessage());
         }
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.removeIndex().index("test-a*");
-            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
+                    () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            assertEquals("test-a*", infe.getIndex().getName());
         }
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.removeIndex().index("test-index");
@@ -1107,5 +1126,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             assertEquals(1, indices.length);
             assertEquals("test-index", indices[0]);
         }
+    }
+
+    public void testInvalidIndex() {
+        MetaData.Builder mdBuilder = MetaData.builder().put(indexBuilder("test"));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
+
+        InvalidIndexNameException iine = expectThrows(InvalidIndexNameException.class,
+            () -> indexNameExpressionResolver.concreteIndexNames(context, "_foo"));
+        assertEquals("Invalid index name [_foo], must not start with '_'.", iine.getMessage());
     }
 }

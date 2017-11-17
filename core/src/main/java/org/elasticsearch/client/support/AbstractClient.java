@@ -232,10 +232,10 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBui
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
+import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -280,10 +280,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.fieldstats.FieldStatsAction;
-import org.elasticsearch.action.fieldstats.FieldStatsRequest;
-import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
-import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -658,21 +654,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public ClearScrollRequestBuilder prepareClearScroll() {
         return new ClearScrollRequestBuilder(this, ClearScrollAction.INSTANCE);
-    }
-
-    @Override
-    public void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener) {
-        execute(FieldStatsAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request) {
-        return execute(FieldStatsAction.INSTANCE, request);
-    }
-
-    @Override
-    public FieldStatsRequestBuilder prepareFieldStats() {
-        return new FieldStatsRequestBuilder(this, FieldStatsAction.INSTANCE);
     }
 
     @Override
@@ -1211,8 +1192,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public GetStoredScriptRequestBuilder prepareGetStoredScript(String scriptLang, String id) {
-            return prepareGetStoredScript().setLang(scriptLang).setId(id);
+        public GetStoredScriptRequestBuilder prepareGetStoredScript(String id) {
+            return prepareGetStoredScript().setId(id);
         }
 
         @Override
@@ -1247,8 +1228,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(@Nullable String scriptLang, String id){
-            return prepareDeleteStoredScript().setLang(scriptLang).setId(id);
+        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id){
+            return prepareDeleteStoredScript().setId(id);
         }
     }
 
@@ -1749,19 +1730,19 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ShrinkRequestBuilder prepareShrinkIndex(String sourceIndex, String targetIndex) {
-            return new ShrinkRequestBuilder(this, ShrinkAction.INSTANCE).setSourceIndex(sourceIndex)
+        public ResizeRequestBuilder prepareResizeIndex(String sourceIndex, String targetIndex) {
+            return new ResizeRequestBuilder(this, ResizeAction.INSTANCE).setSourceIndex(sourceIndex)
                 .setTargetIndex(new CreateIndexRequest(targetIndex));
         }
 
         @Override
-        public ActionFuture<ShrinkResponse> shrinkIndex(ShrinkRequest request) {
-            return execute(ShrinkAction.INSTANCE, request);
+        public ActionFuture<ResizeResponse> resizeIndex(ResizeRequest request) {
+            return execute(ResizeAction.INSTANCE, request);
         }
 
         @Override
-        public void shrinkIndex(ShrinkRequest request, ActionListener<ShrinkResponse> listener) {
-            execute(ShrinkAction.INSTANCE, request, listener);
+        public void resizeIndex(ResizeRequest request, ActionListener<ResizeResponse> listener) {
+            execute(ResizeAction.INSTANCE, request, listener);
         }
 
         @Override

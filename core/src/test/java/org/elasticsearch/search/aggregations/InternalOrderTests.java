@@ -155,4 +155,21 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         assertNotEquals(o1.hashCode(), o4.hashCode());
     }
 
+    @Override
+    protected BucketOrder mutateInstance(BucketOrder instance) throws IOException {
+        if (instance == InternalOrder.KEY_ASC) {
+            return InternalOrder.COUNT_ASC;
+        } else if (instance == InternalOrder.KEY_DESC) {
+            return InternalOrder.KEY_ASC;
+        } else if (instance == InternalOrder.COUNT_ASC) {
+            return BucketOrder.aggregation(randomAlphaOfLengthBetween(1, 20), randomBoolean());
+        } else if (instance == InternalOrder.COUNT_DESC) {
+            return BucketOrder.compound(getRandomOrder());
+        } else if (instance instanceof InternalOrder.Aggregation) {
+            return InternalOrder.COUNT_DESC;
+        } else {
+            return InternalOrder.KEY_DESC;
+        }
+    }
+
 }

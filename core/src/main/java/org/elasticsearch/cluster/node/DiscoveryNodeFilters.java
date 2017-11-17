@@ -29,7 +29,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 public class DiscoveryNodeFilters {
 
@@ -41,28 +41,19 @@ public class DiscoveryNodeFilters {
     /**
      * Validates the IP addresses in a group of {@link Settings} by looking for the keys
      * "_ip", "_host_ip", and "_publish_ip" and ensuring each of their comma separated values
-     * is a valid IP address.
+     * that has no wildcards is a valid IP address.
      */
-    public static final Consumer<Settings> IP_VALIDATOR = (settings) -> {
-        Map<String, String> settingsMap = settings.getAsMap();
-        for (Map.Entry<String, String> entry : settingsMap.entrySet()) {
-            String propertyKey = entry.getKey();
-            if (entry.getValue() == null) {
-                continue; // this setting gets reset
-            }
-            if ("_ip".equals(propertyKey) || "_host_ip".equals(propertyKey) || "_publish_ip".equals(propertyKey)) {
-                for (String value : Strings.tokenizeToStringArray(entry.getValue(), ",")) {
-                    if (InetAddresses.isInetAddress(value) == false) {
+    public static final BiConsumer<String, String> IP_VALIDATOR = (propertyKey, rawValue) -> {
+        if (rawValue != null) {
+            if (propertyKey.endsWith("._ip") || propertyKey.endsWith("._host_ip") || propertyKey.endsWith("_publish_ip")) {
+                for (String value : Strings.tokenizeToStringArray(rawValue, ",")) {
+                    if (Regex.isSimpleMatchPattern(value) == false && InetAddresses.isInetAddress(value) == false) {
                         throw new IllegalArgumentException("invalid IP address [" + value + "] for [" + propertyKey + "]");
                     }
                 }
             }
         }
     };
-
-    public static DiscoveryNodeFilters buildFromSettings(OpType opType, String prefix, Settings settings) {
-        return buildFromKeyValue(opType, settings.getByPrefix(prefix).getAsMap());
-    }
 
     public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
         Map<String, String[]> bFilters = new HashMap<>();

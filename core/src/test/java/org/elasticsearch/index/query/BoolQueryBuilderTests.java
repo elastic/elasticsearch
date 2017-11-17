@@ -416,7 +416,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         expected.must(new MatchAllQueryBuilder());
         QueryBuilder rewrittenAgain = rewritten.rewrite(createShardContext());
         assertEquals(rewrittenAgain, expected);
-        assertEquals(QueryBuilder.rewriteQuery(boolQueryBuilder, createShardContext()), expected);
+        assertEquals(Rewriteable.rewrite(boolQueryBuilder, createShardContext()), expected);
     }
 
     public void testRewriteWithMatchNone() throws IOException {
@@ -434,7 +434,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.must(new TermQueryBuilder("foo","bar"));
         boolQueryBuilder.filter(new BoolQueryBuilder().should(new TermQueryBuilder("foo","bar")).filter(new MatchNoneQueryBuilder()));
-        rewritten = QueryBuilder.rewriteQuery(boolQueryBuilder, createShardContext());
+        rewritten = Rewriteable.rewrite(boolQueryBuilder, createShardContext());
         assertEquals(new MatchNoneQueryBuilder(), rewritten);
     }
 }

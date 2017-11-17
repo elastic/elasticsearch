@@ -85,10 +85,6 @@ public class Environment {
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile = PathUtils.get(System.getProperty("java.io.tmpdir"));
 
-    public Environment(Settings settings) {
-        this(settings, null);
-    }
-
     public Environment(final Settings settings, final Path configPath) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
@@ -153,9 +149,9 @@ public class Environment {
         Settings.Builder finalSettings = Settings.builder().put(settings);
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         if (PATH_DATA_SETTING.exists(settings)) {
-            finalSettings.putArray(PATH_DATA_SETTING.getKey(), dataPaths);
+            finalSettings.putList(PATH_DATA_SETTING.getKey(), dataPaths);
         }
-        finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile);
+        finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
         this.settings = finalSettings.build();
     }
 

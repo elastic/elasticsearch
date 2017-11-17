@@ -28,6 +28,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class Version implements Comparable<Version> {
     /*
@@ -86,8 +91,22 @@ public class Version implements Comparable<Version> {
     public static final Version V_5_5_0 = new Version(V_5_5_0_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
     public static final int V_5_5_1_ID = 5050199;
     public static final Version V_5_5_1 = new Version(V_5_5_1_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_5_2_ID = 5050299;
+    public static final Version V_5_5_2 = new Version(V_5_5_2_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_5_3_ID = 5050399;
+    public static final Version V_5_5_3 = new Version(V_5_5_3_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
     public static final int V_5_6_0_ID = 5060099;
     public static final Version V_5_6_0 = new Version(V_5_6_0_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_6_1_ID = 5060199;
+    public static final Version V_5_6_1 = new Version(V_5_6_1_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_2_ID = 5060299;
+    public static final Version V_5_6_2 = new Version(V_5_6_2_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_3_ID = 5060399;
+    public static final Version V_5_6_3 = new Version(V_5_6_3_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_4_ID = 5060499;
+    public static final Version V_5_6_4 = new Version(V_5_6_4_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_5_ID = 5060599;
+    public static final Version V_5_6_5 = new Version(V_5_6_5_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 =
             new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
@@ -97,9 +116,28 @@ public class Version implements Comparable<Version> {
     public static final int V_6_0_0_beta1_ID = 6000026;
     public static final Version V_6_0_0_beta1 =
         new Version(V_6_0_0_beta1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version CURRENT = V_6_0_0_beta1;
-
-    // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
+    public static final int V_6_0_0_beta2_ID = 6000027;
+    public static final Version V_6_0_0_beta2 =
+        new Version(V_6_0_0_beta2_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final int V_6_0_0_rc1_ID = 6000051;
+    public static final Version V_6_0_0_rc1 =
+        new Version(V_6_0_0_rc1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final int V_6_0_0_rc2_ID = 6000052;
+    public static final Version V_6_0_0_rc2 =
+        new Version(V_6_0_0_rc2_ID, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final int V_6_0_0_ID = 6000099;
+    public static final Version V_6_0_0 =
+        new Version(V_6_0_0_ID, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final int V_6_0_1_ID = 6000199;
+    public static final Version V_6_0_1 =
+        new Version(V_6_0_1_ID, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final int V_6_1_0_ID = 6010099;
+    public static final Version V_6_1_0 =
+        new Version(V_6_1_0_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
+    public static final int V_7_0_0_alpha1_ID = 7000001;
+    public static final Version V_7_0_0_alpha1 =
+        new Version(V_7_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
+    public static final Version CURRENT = V_7_0_0_alpha1;
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
@@ -112,14 +150,42 @@ public class Version implements Comparable<Version> {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_7_0_0_alpha1_ID:
+                return V_7_0_0_alpha1;
+            case V_6_1_0_ID:
+                return V_6_1_0;
+            case V_6_0_1_ID:
+                return V_6_0_1;
+            case V_6_0_0_ID:
+                return V_6_0_0;
+            case V_6_0_0_rc2_ID:
+                return V_6_0_0_rc2;
+            case V_6_0_0_beta2_ID:
+                return V_6_0_0_beta2;
+            case V_6_0_0_rc1_ID:
+                return V_6_0_0_rc1;
             case V_6_0_0_beta1_ID:
                 return V_6_0_0_beta1;
             case V_6_0_0_alpha2_ID:
                 return V_6_0_0_alpha2;
             case V_6_0_0_alpha1_ID:
                 return V_6_0_0_alpha1;
+            case V_5_6_5_ID:
+                return V_5_6_5;
+            case V_5_6_4_ID:
+                return V_5_6_4;
+            case V_5_6_3_ID:
+                return V_5_6_3;
+            case V_5_6_2_ID:
+                return V_5_6_2;
+            case V_5_6_1_ID:
+                return V_5_6_1;
             case V_5_6_0_ID:
                 return V_5_6_0;
+            case V_5_5_3_ID:
+                return V_5_5_3;
+            case V_5_5_2_ID:
+                return V_5_5_2;
             case V_5_5_1_ID:
                 return V_5_5_1;
             case V_5_5_0_ID:
@@ -305,19 +371,23 @@ public class Version implements Comparable<Version> {
      * is a beta or RC release then the version itself is returned.
      */
     public Version minimumCompatibilityVersion() {
-        final int bwcMajor;
-        final int bwcMinor;
-        if (major == 6) { // we only specialize for current major here
-            bwcMajor = Version.V_5_5_0.major;
-            bwcMinor = Version.V_5_5_0.minor;
-        } else if (major > 6) { // all the future versions are compatible with first minor...
-            bwcMajor = major -1;
-            bwcMinor = 0;
-        } else {
-            bwcMajor = major;
-            bwcMinor = 0;
+        if (major >= 6) {
+            // all major versions from 6 onwards are compatible with last minor series of the previous major
+            final List<Version> declaredVersions = getDeclaredVersions(getClass());
+            Version bwcVersion = null;
+            for (int i = declaredVersions.size() - 1; i >= 0; i--) {
+                final Version candidateVersion = declaredVersions.get(i);
+                if (candidateVersion.major == major - 1 && candidateVersion.isRelease() && after(candidateVersion)) {
+                    if (bwcVersion != null && candidateVersion.minor < bwcVersion.minor) {
+                        break;
+                    }
+                    bwcVersion = candidateVersion;
+                }
+            }
+            return bwcVersion == null ? this : bwcVersion;
         }
-        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
+
+        return Version.min(this, fromId((int) major * 1000000 + 0 * 10000 + 99));
     }
 
     /**
@@ -329,6 +399,8 @@ public class Version implements Comparable<Version> {
         final int bwcMajor;
         if (major == 5) {
             bwcMajor = 2; // we jumped from 2 to 5
+        } else if (major == 7) {
+            return V_6_0_0_beta1;
         } else {
             bwcMajor = major - 1;
         }
@@ -378,6 +450,10 @@ public class Version implements Comparable<Version> {
         return sb.toString();
     }
 
+    public static String displayVersion(final Version version, final boolean isSnapshot) {
+        return version + (isSnapshot ? "-SNAPSHOT" : "");
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -420,5 +496,35 @@ public class Version implements Comparable<Version> {
 
     public boolean isRelease() {
         return build == 99;
+    }
+
+    /**
+     * Extracts a sorted list of declared version constants from a class.
+     * The argument would normally be Version.class but is exposed for
+     * testing with other classes-containing-version-constants.
+     */
+    public static List<Version> getDeclaredVersions(final Class<?> versionClass) {
+        final Field[] fields = versionClass.getFields();
+        final List<Version> versions = new ArrayList<>(fields.length);
+        for (final Field field : fields) {
+            final int mod = field.getModifiers();
+            if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
+                continue;
+            }
+            if (field.getType() != Version.class) {
+                continue;
+            }
+            if ("CURRENT".equals(field.getName())) {
+                continue;
+            }
+            assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
+            try {
+                versions.add(((Version) field.get(null)));
+            } catch (final IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        Collections.sort(versions);
+        return versions;
     }
 }

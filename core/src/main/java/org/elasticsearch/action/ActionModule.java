@@ -128,7 +128,9 @@ import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettin
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
+import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.TransportShrinkAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
@@ -156,8 +158,6 @@ import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesIndexAction;
-import org.elasticsearch.action.fieldstats.FieldStatsAction;
-import org.elasticsearch.action.fieldstats.TransportFieldStatsAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -183,7 +183,6 @@ import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -201,7 +200,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -213,7 +211,6 @@ import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
-import org.elasticsearch.rest.action.RestFieldStatsAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
@@ -274,6 +271,7 @@ import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestShrinkIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestSplitIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpgradeAction;
@@ -318,6 +316,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -326,7 +325,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -344,7 +342,7 @@ public class ActionModule extends AbstractModule {
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler<?, ?>> actions;
-    private final List<Class<? extends ActionFilter>> actionFilters;
+    private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
@@ -440,6 +438,7 @@ public class ActionModule extends AbstractModule {
         actions.register(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
         actions.register(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
         actions.register(ShrinkAction.INSTANCE, TransportShrinkAction.class);
+        actions.register(ResizeAction.INSTANCE, TransportResizeAction.class);
         actions.register(RolloverAction.INSTANCE, TransportRolloverAction.class);
         actions.register(DeleteIndexAction.INSTANCE, TransportDeleteIndexAction.class);
         actions.register(GetIndexAction.INSTANCE, TransportGetIndexAction.class);
@@ -493,7 +492,6 @@ public class ActionModule extends AbstractModule {
         actions.register(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
         actions.register(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
 
-        actions.register(FieldStatsAction.INSTANCE, TransportFieldStatsAction.class);
         actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class,
             TransportFieldCapabilitiesIndexAction.class);
 
@@ -507,8 +505,9 @@ public class ActionModule extends AbstractModule {
         return unmodifiableMap(actions.getRegistry());
     }
 
-    private List<Class<? extends ActionFilter>> setupActionFilters(List<ActionPlugin> actionPlugins) {
-        return unmodifiableList(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toList()));
+    private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
+        return new ActionFilters(
+            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet())));
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
@@ -556,6 +555,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestIndicesAliasesAction(settings, restController));
         registerHandler.accept(new RestCreateIndexAction(settings, restController));
         registerHandler.accept(new RestShrinkIndexAction(settings, restController));
+        registerHandler.accept(new RestSplitIndexAction(settings, restController));
         registerHandler.accept(new RestRolloverIndexAction(settings, restController));
         registerHandler.accept(new RestDeleteIndexAction(settings, restController));
         registerHandler.accept(new RestCloseIndexAction(settings, restController));
@@ -607,7 +607,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutStoredScriptAction(settings, restController));
         registerHandler.accept(new RestDeleteStoredScriptAction(settings, restController));
 
-        registerHandler.accept(new RestFieldStatsAction(settings, restController));
         registerHandler.accept(new RestFieldCapabilitiesAction(settings, restController));
 
         // Tasks API
@@ -654,11 +653,7 @@ public class ActionModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        Multibinder<ActionFilter> actionFilterMultibinder = Multibinder.newSetBinder(binder(), ActionFilter.class);
-        for (Class<? extends ActionFilter> actionFilter : actionFilters) {
-            actionFilterMultibinder.addBinding().to(actionFilter);
-        }
-        bind(ActionFilters.class).asEagerSingleton();
+        bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
 
         if (false == transportClient) {
@@ -679,6 +674,10 @@ public class ActionModule extends AbstractModule {
                 }
             }
         }
+    }
+
+    public ActionFilters getActionFilters() {
+        return actionFilters;
     }
 
     public RestController getRestController() {

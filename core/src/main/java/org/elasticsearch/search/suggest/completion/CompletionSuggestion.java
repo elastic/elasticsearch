@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.suggest.Lookup;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,11 +70,36 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
     public static final int TYPE = 4;
 
+    private boolean skipDuplicates;
+
     public CompletionSuggestion() {
     }
 
-    public CompletionSuggestion(String name, int size) {
+    /**
+     * Ctr
+     * @param name The name for the suggestions
+     * @param size The number of suggestions to return
+     * @param skipDuplicates Whether duplicate suggestions should be filtered out
+     */
+    public CompletionSuggestion(String name, int size, boolean skipDuplicates) {
         super(name, size);
+        this.skipDuplicates = skipDuplicates;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            skipDuplicates = in.readBoolean();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(skipDuplicates);
+        }
     }
 
     /**
@@ -95,7 +122,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     }
 
     public static CompletionSuggestion fromXContent(XContentParser parser, String name) throws IOException {
-        CompletionSuggestion suggestion = new CompletionSuggestion(name, -1);
+        CompletionSuggestion suggestion = new CompletionSuggestion(name, -1, false);
         parseEntries(parser, suggestion, CompletionSuggestion.Entry::fromXContent);
         return suggestion;
     }
@@ -146,9 +173,19 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 // the global top <code>size</code> entries are collected from the shard results
                 // using a priority queue
                 OptionPriorityQueue priorityQueue = new OptionPriorityQueue(leader.getSize(), COMPARATOR);
+                // Dedup duplicate suggestions (based on the surface form) if skip duplicates is activated
+                final CharArraySet seenSurfaceForms = leader.skipDuplicates ? new CharArraySet(leader.getSize(), false) : null;
                 for (Suggest.Suggestion<Entry> suggestion : toReduce) {
                     assert suggestion.getName().equals(name) : "name should be identical across all suggestions";
                     for (Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
+                        if (leader.skipDuplicates) {
+                            assert ((CompletionSuggestion) suggestion).skipDuplicates;
+                            String text = option.getText().string();
+                            if (seenSurfaceForms.contains(text)) {
+                                continue;
+                            }
+                            seenSurfaceForms.add(text);
+                        }
                         if (option == priorityQueue.insertWithOverflow(option)) {
                             // if the current option has overflown from pq,
                             // we can assume all of the successive options
@@ -157,7 +194,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                         }
                     }
                 }
-                final CompletionSuggestion suggestion = new CompletionSuggestion(leader.getName(), leader.getSize());
+                final CompletionSuggestion suggestion = new CompletionSuggestion(leader.getName(), leader.getSize(), leader.skipDuplicates);
                 final Entry entry = new Entry(leaderEntry.getText(), leaderEntry.getOffset(), leaderEntry.getLength());
                 Collections.addAll(entry.getOptions(), priorityQueue.get());
                 suggestion.addTerm(entry);

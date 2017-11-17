@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -268,12 +269,10 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
         client().admin().indices().prepareFlush().execute().actionGet();
-
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(1).execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(2L));
 
         client().admin().indices().prepareFlush().execute().actionGet();
-
         assertThrows(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(1).execute(),
                 VersionConflictEngineException.class);
 
@@ -286,13 +285,16 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThrows(client().prepareDelete("test", "type", "1").setVersion(1).execute(), VersionConflictEngineException.class);
         assertThrows(client().prepareDelete("test", "type", "1").setVersion(1).execute(), VersionConflictEngineException.class);
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
             assertThat(client().prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(2L));
         }
 
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
+            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setVersion(true).
+            execute().actionGet();
+            assertHitCount(searchResponse, 1);
             assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(2L));
         }
     }

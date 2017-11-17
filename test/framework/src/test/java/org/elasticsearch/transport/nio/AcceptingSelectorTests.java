@@ -26,12 +26,15 @@ import org.elasticsearch.transport.nio.utils.TestSelectionKey;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.security.PrivilegedActionException;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -43,7 +46,6 @@ public class AcceptingSelectorTests extends ESTestCase {
     private NioServerSocketChannel serverChannel;
     private AcceptorEventHandler eventHandler;
     private TestSelectionKey selectionKey;
-    private HashSet<SelectionKey> keySet = new HashSet<>();
 
     @Before
     public void setUp() throws Exception {
@@ -59,16 +61,14 @@ public class AcceptingSelectorTests extends ESTestCase {
         selectionKey = new TestSelectionKey(0);
         selectionKey.attach(serverChannel);
         when(serverChannel.getSelectionKey()).thenReturn(selectionKey);
-        when(rawSelector.selectedKeys()).thenReturn(keySet);
-        when(rawSelector.select(0)).thenReturn(1);
+        when(serverChannel.getSelector()).thenReturn(selector);
+        when(serverChannel.isOpen()).thenReturn(true);
     }
 
     public void testRegisteredChannel() throws IOException, PrivilegedActionException {
-        selector.registerServerChannel(serverChannel);
+        selector.scheduleForRegistration(serverChannel);
 
-        when(serverChannel.register(selector)).thenReturn(true);
-
-        selector.doSelect(0);
+        selector.preSelect();
 
         verify(eventHandler).serverChannelRegistered(serverChannel);
         Set<NioChannel> registeredChannels = selector.getRegisteredChannels();
@@ -76,37 +76,61 @@ public class AcceptingSelectorTests extends ESTestCase {
         assertTrue(registeredChannels.contains(serverChannel));
     }
 
+    public void testClosedChannelWillNotBeRegistered() throws Exception {
+        when(serverChannel.isOpen()).thenReturn(false);
+        selector.scheduleForRegistration(serverChannel);
+
+        selector.preSelect();
+
+        verify(eventHandler).registrationException(same(serverChannel), any(ClosedChannelException.class));
+
+        Set<NioChannel> registeredChannels = selector.getRegisteredChannels();
+        assertEquals(0, registeredChannels.size());
+        assertFalse(registeredChannels.contains(serverChannel));
+    }
+
+    public void testRegisterChannelFailsDueToException() throws Exception {
+        selector.scheduleForRegistration(serverChannel);
+
+        ClosedChannelException closedChannelException = new ClosedChannelException();
+        doThrow(closedChannelException).when(serverChannel).register();
+
+        selector.preSelect();
+
+        verify(eventHandler).registrationException(serverChannel, closedChannelException);
+
+        Set<NioChannel> registeredChannels = selector.getRegisteredChannels();
+        assertEquals(0, registeredChannels.size());
+        assertFalse(registeredChannels.contains(serverChannel));
+    }
+
     public void testAcceptEvent() throws IOException {
         selectionKey.setReadyOps(SelectionKey.OP_ACCEPT);
-        keySet.add(selectionKey);
 
-        selector.doSelect(0);
+        selector.processKey(selectionKey);
 
         verify(eventHandler).acceptChannel(serverChannel);
     }
 
     public void testAcceptException() throws IOException {
         selectionKey.setReadyOps(SelectionKey.OP_ACCEPT);
-        keySet.add(selectionKey);
         IOException ioException = new IOException();
 
         doThrow(ioException).when(eventHandler).acceptChannel(serverChannel);
 
-        selector.doSelect(0);
+        selector.processKey(selectionKey);
 
         verify(eventHandler).acceptException(serverChannel, ioException);
     }
 
     public void testCleanup() throws IOException {
-        selector.registerServerChannel(serverChannel);
+        selector.scheduleForRegistration(serverChannel);
 
-        when(serverChannel.register(selector)).thenReturn(true);
-
-        selector.doSelect(0);
+        selector.preSelect();
 
         assertEquals(1, selector.getRegisteredChannels().size());
 
-        selector.cleanup();
+        selector.cleanupAndCloseChannels();
 
         verify(eventHandler).handleClose(serverChannel);
     }

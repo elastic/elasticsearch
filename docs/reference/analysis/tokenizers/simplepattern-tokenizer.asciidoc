@@ -1,7 +1,7 @@
 [[analysis-simplepattern-tokenizer]]
 === Simple Pattern Tokenizer
 
-experimental[]
+experimental[This functionality is marked as experimental in Lucene]
 
 The `simple_pattern` tokenizer uses a regular expression to capture matching
 text as terms. The set of regular expression features it supports is more

@@ -106,7 +106,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             SpecialPermission.check();
             FileContext fileContext = AccessController.doPrivileged((PrivilegedAction<FileContext>)
                 () -> createContext(uri, getMetadata().settings()));
-            blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize);
+            blobStore = new HdfsBlobStore(fileContext, pathSetting, bufferSize, isReadOnly());
             logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), pathSetting);
         } catch (IOException e) {
             throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);
@@ -120,9 +120,9 @@ public final class HdfsRepository extends BlobStoreRepository {
         hadoopConfiguration.setClassLoader(HdfsRepository.class.getClassLoader());
         hadoopConfiguration.reloadConfiguration();
 
-        Map<String, String> map = repositorySettings.getByPrefix("conf.").getAsMap();
-        for (Entry<String, String> entry : map.entrySet()) {
-            hadoopConfiguration.set(entry.getKey(), entry.getValue());
+        final Settings confSettings = repositorySettings.getByPrefix("conf.");
+        for (String key : confSettings.keySet()) {
+            hadoopConfiguration.set(key, confSettings.get(key));
         }
 
         // Create a hadoop user
@@ -132,7 +132,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         hadoopConfiguration.setBoolean("fs.hdfs.impl.disable.cache", true);
 
         // Create the filecontext with our user information
-        // This will correctly configure the filecontext to have our UGI as it's internal user.
+        // This will correctly configure the filecontext to have our UGI as its internal user.
         return ugi.doAs((PrivilegedAction<FileContext>) () -> {
             try {
                 AbstractFileSystem fs = AbstractFileSystem.get(uri, hadoopConfiguration);

@@ -169,10 +169,11 @@ The Elasticsearch service can be configured prior to installation by setting the
     via the setting `path.logs` in the `elasticsearch.yml` configuration file,
     or on the command line.
 
-`CONF_DIR`::
+`ES_PATH_CONF`::
 
-    Configuration file directory (which needs to include `elasticsearch.yml`
-    and `log4j2.properties` files), defaults to `%ES_HOME%\conf`.
+    Configuration file directory (which needs to include `elasticsearch.yml`,
+    `jvm.options`, and `log4j2.properties` files), defaults to
+    `%ES_HOME%\config`.
 
 `ES_JAVA_OPTS`::
 
@@ -234,7 +235,7 @@ directory so that you do not delete important data later on.
 | conf
   | Configuration files including `elasticsearch.yml`
   | %ES_HOME%\config
-  | path.conf
+  | <<config-files-location,ES_PATH_CONF>>
 
 | data
   | The location of the data files of each index / shard allocated

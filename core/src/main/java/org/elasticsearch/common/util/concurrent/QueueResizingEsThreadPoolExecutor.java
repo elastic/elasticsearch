@@ -79,9 +79,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
         this.minQueueSize = minQueueSize;
         this.maxQueueSize = maxQueueSize;
         this.targetedResponseTimeNanos = targetedResponseTime.getNanos();
-        // We choose to start the EWMA with the targeted response time, reasoning that it is a
-        // better start point for a realistic task execution time than starting at 0
-        this.executionEWMA = new ExponentiallyWeightedMovingAverage(EWMA_ALPHA, targetedResponseTimeNanos);
+        this.executionEWMA = new ExponentiallyWeightedMovingAverage(EWMA_ALPHA, 0);
         logger.debug("thread pool [{}] will adjust queue by [{}] when determining automatic queue size",
                 name, QUEUE_ADJUSTMENT_AMOUNT);
     }
@@ -139,6 +137,13 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
      */
     public double getTaskExecutionEWMA() {
         return executionEWMA.getAverage();
+    }
+
+    /**
+     * Returns the current queue size (operations that are queued)
+     */
+    public int getCurrentQueueSize() {
+        return workQueue.size();
     }
 
     @Override
@@ -220,7 +225,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
                     // - Since taskCount will now be incremented forever, it will never be 10 again,
                     //   so there will be no further adjustments
                     logger.debug("[{}]: too many incoming tasks while queue size adjustment occurs, resetting measurements to 0", name);
-                    totalTaskNanos.getAndSet(0);
+                    totalTaskNanos.getAndSet(1);
                     taskCount.getAndSet(0);
                     startNs = System.nanoTime();
                 } else {

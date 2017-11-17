@@ -20,10 +20,10 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -183,7 +183,7 @@ final class IndexShardOperationPermits implements Closeable {
              *   - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;
              *     interruptions are bad here as permit acquisition will throw an interrupted exception which will be swallowed by
              *     the threaded action listener if the queue of the thread pool on which it submits is full
-             *   - if a permit is acquired and the queue of the thread pool which the the threaded action listener uses is full, the
+             *   - if a permit is acquired and the queue of the thread pool which the threaded action listener uses is full, the
              *     onFailure handler is executed on the calling thread; this should not be the recovery thread as it would delay the
              *     recovery
              */
@@ -198,11 +198,14 @@ final class IndexShardOperationPermits implements Closeable {
     /**
      * Acquires a permit whenever permit acquisition is not blocked. If the permit is directly available, the provided
      * {@link ActionListener} will be called on the calling thread. During calls of
-     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed. The provided {@link ActionListener}
-     * will then be called using the provided executor once operations are no longer blocked.
+     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed.
+     * The {@link ActionListener#onResponse(Object)} method will then be called using the provided executor once operations are no
+     * longer blocked. Note that the executor will not be used for {@link ActionListener#onFailure(Exception)} calls. Those will run
+     * directly on the calling thread, which in case of delays, will be a generic thread. Callers should thus make sure
+     * that the {@link ActionListener#onFailure(Exception)} method provided here only contains lightweight operations.
      *
      * @param onAcquired      {@link ActionListener} that is invoked once acquisition is successful or failed
-     * @param executorOnDelay executor to use for delayed call
+     * @param executorOnDelay executor to use for the possibly delayed {@link ActionListener#onResponse(Object)} call
      * @param forceExecution  whether the runnable should force its execution in case it gets rejected
      */
     public void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution) {
@@ -217,7 +220,7 @@ final class IndexShardOperationPermits implements Closeable {
                     final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     if (executorOnDelay != null) {
                         delayedOperations.add(
-                                new ThreadedActionListener<>(logger, threadPool, executorOnDelay,
+                                new PermitAwareThreadedActionListener(threadPool, executorOnDelay,
                                         new ContextPreservingActionListener<>(contextSupplier, onAcquired), forceExecution));
                     } else {
                         delayedOperations.add(new ContextPreservingActionListener<>(contextSupplier, onAcquired));
@@ -266,6 +269,58 @@ final class IndexShardOperationPermits implements Closeable {
             return 0;
         } else {
             return TOTAL_PERMITS - availablePermits;
+        }
+    }
+
+    /**
+     * A permit-aware action listener wrapper that spawns onResponse listener invocations off on a configurable thread-pool.
+     * Being permit-aware, it also releases the permit when hitting thread-pool rejections and falls back to the
+     * invoker's thread to communicate failures.
+     */
+    private static class PermitAwareThreadedActionListener implements ActionListener<Releasable> {
+
+        private final ThreadPool threadPool;
+        private final String executor;
+        private final ActionListener<Releasable> listener;
+        private final boolean forceExecution;
+
+        private PermitAwareThreadedActionListener(ThreadPool threadPool, String executor, ActionListener<Releasable> listener,
+                                                  boolean forceExecution) {
+            this.threadPool = threadPool;
+            this.executor = executor;
+            this.listener = listener;
+            this.forceExecution = forceExecution;
+        }
+
+        @Override
+        public void onResponse(final Releasable releasable) {
+            threadPool.executor(executor).execute(new AbstractRunnable() {
+                @Override
+                public boolean isForceExecution() {
+                    return forceExecution;
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    listener.onResponse(releasable);
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    IOUtils.closeWhileHandlingException(releasable);
+                    super.onRejection(e);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e); // will possibly execute on the caller thread
+                }
+            });
+        }
+
+        @Override
+        public void onFailure(final Exception e) {
+            listener.onFailure(e);
         }
     }
 

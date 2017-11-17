@@ -845,6 +845,29 @@ public final class NodeEnvironment  implements Closeable {
         return shardIds;
     }
 
+    /**
+     * Find all the shards for this index, returning a map of the {@code NodePath} to the number of shards on that path
+     * @param index the index by which to filter shards
+     * @return a map of NodePath to count of the shards for the index on that path
+     * @throws IOException if an IOException occurs
+     */
+    public Map<NodePath, Long> shardCountPerPath(final Index index) throws IOException {
+        assert index != null;
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        assertEnvIsLocked();
+        final Map<NodePath, Long> shardCountPerPath = new HashMap<>();
+        final String indexUniquePathId = index.getUUID();
+        for (final NodePath nodePath : nodePaths) {
+            Path indexLocation = nodePath.indicesPath.resolve(indexUniquePathId);
+            if (Files.isDirectory(indexLocation)) {
+                shardCountPerPath.put(nodePath, (long) findAllShardsForIndex(indexLocation, index).size());
+            }
+        }
+        return shardCountPerPath;
+    }
+
     private static Set<ShardId> findAllShardsForIndex(Path indexPath, Index index) throws IOException {
         assert indexPath.getFileName().toString().equals(index.getUUID());
         Set<ShardId> shardIds = new HashSet<>();
@@ -901,11 +924,12 @@ public final class NodeEnvironment  implements Closeable {
         final NodePath[] nodePaths = nodePaths();
         for (NodePath nodePath : nodePaths) {
             assert Files.isDirectory(nodePath.path) : nodePath.path + " is not a directory";
-            final Path src = nodePath.path.resolve("__es__.tmp");
-            final Path target = nodePath.path.resolve("__es__.final");
+            final Path src = nodePath.path.resolve(TEMP_FILE_NAME + ".tmp");
+            final Path target = nodePath.path.resolve(TEMP_FILE_NAME + ".final");
             try {
+                Files.deleteIfExists(src);
                 Files.createFile(src);
-                Files.move(src, target, StandardCopyOption.ATOMIC_MOVE);
+                Files.move(src, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException ex) {
                 throw new IllegalStateException("atomic_move is not supported by the filesystem on path ["
                         + nodePath.path
@@ -1005,19 +1029,19 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
+    // package private for testing
+    static final String TEMP_FILE_NAME = ".es_temp_file";
+
     private static void tryWriteTempFile(Path path) throws IOException {
         if (Files.exists(path)) {
-            Path resolve = path.resolve(".es_temp_file");
-            boolean tempFileCreated = false;
+            Path resolve = path.resolve(TEMP_FILE_NAME);
             try {
+                // delete any lingering file from a previous failure
+                Files.deleteIfExists(resolve);
                 Files.createFile(resolve);
-                tempFileCreated = true;
+                Files.delete(resolve);
             } catch (IOException ex) {
-                throw new IOException("failed to write in data directory [" + path + "] write permission is required", ex);
-            } finally {
-                if (tempFileCreated) {
-                    Files.deleteIfExists(resolve);
-                }
+                throw new IOException("failed to test writes in data directory [" + path + "] write permission is required", ex);
             }
         }
     }

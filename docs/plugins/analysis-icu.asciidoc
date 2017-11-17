@@ -113,7 +113,7 @@ PUT icu_sample
 
 ===== Rules customization
 
-experimental[]
+experimental[This functionality is marked as experimental in Lucene]
 
 You can customize the `icu-tokenizer` behavior by specifying per-script rule files, see the
 http://userguide.icu-project.org/boundaryanalysis#TOC-RBBI-Rules[RBBI rules syntax reference]

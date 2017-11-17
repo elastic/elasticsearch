@@ -52,6 +52,7 @@ public class RestActions {
     public static final ParseField _SHARDS_FIELD = new ParseField("_shards");
     public static final ParseField TOTAL_FIELD = new ParseField("total");
     public static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
+    public static final ParseField SKIPPED_FIELD = new ParseField("skipped");
     public static final ParseField FAILED_FIELD = new ParseField("failed");
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
 
@@ -73,16 +74,19 @@ public class RestActions {
 
     public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BroadcastResponse response) throws IOException {
         buildBroadcastShardsHeader(builder, params,
-                                   response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
+                                   response.getTotalShards(), response.getSuccessfulShards(), -1, response.getFailedShards(),
                                    response.getShardFailures());
     }
 
     public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params,
-                                                  int total, int successful, int failed,
+                                                  int total, int successful, int skipped, int failed,
                                                   ShardOperationFailedException[] shardFailures) throws IOException {
         builder.startObject(_SHARDS_FIELD.getPreferredName());
         builder.field(TOTAL_FIELD.getPreferredName(), total);
         builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
+        if (skipped >= 0) {
+            builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
+        }
         builder.field(FAILED_FIELD.getPreferredName(), failed);
         if (shardFailures != null && shardFailures.length > 0) {
             builder.startArray(FAILURES_FIELD.getPreferredName());
@@ -239,6 +243,15 @@ public class RestActions {
     private static QueryBuilder parseTopLevelQueryBuilder(XContentParser parser) {
         try {
             QueryBuilder queryBuilder = null;
+            XContentParser.Token first = parser.nextToken();
+            if (first == null) {
+                return null;
+            } else if (first != XContentParser.Token.START_OBJECT) {
+                throw new ParsingException(
+                    parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT +
+                    "] but found [" + first + "]", parser.getTokenLocation()
+                );
+            }
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();

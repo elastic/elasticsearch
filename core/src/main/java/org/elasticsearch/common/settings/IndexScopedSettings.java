@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -70,6 +70,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING,
         IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING,
         IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING,
+        IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING,
         IndexMetaData.INDEX_READ_ONLY_SETTING,
         IndexMetaData.INDEX_BLOCKS_READ_SETTING,
         IndexMetaData.INDEX_BLOCKS_WRITE_SETTING,
@@ -110,6 +111,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
+        IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
+        IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
+        IndexSettings.MAX_SCRIPT_FIELDS_SETTING,
+        IndexSettings.MAX_NGRAM_DIFF_SETTING,
+        IndexSettings.MAX_SHINGLE_DIFF_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
@@ -117,7 +123,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.QUERY_STRING_LENIENT_SETTING,
         IndexSettings.ALLOW_UNMAPPED,
         IndexSettings.INDEX_CHECK_ON_STARTUP,
-        LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE,
         IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
         IndexSettings.MAX_SLICES_PER_SCROLL,
         ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
@@ -143,11 +148,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
         IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
         IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
-        IndexModule.INDEX_QUERY_CACHE_TERM_QUERIES_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
         IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
+
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {
             Map<String, Settings> groups = s.getAsGroups();
@@ -186,7 +191,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     }
 
     @Override
-    protected boolean isPrivateSetting(String key) {
+    public boolean isPrivateSetting(String key) {
         switch (key) {
             case IndexMetaData.SETTING_CREATION_DATE:
             case IndexMetaData.SETTING_INDEX_UUID:
@@ -196,6 +201,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
             case IndexMetaData.INDEX_SHRINK_SOURCE_UUID_KEY:
             case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
+            case IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY:
+            case IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY:
             case IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY:
                 // this was settable in 5.x but not anymore in 6.x so we have to preserve the value ie. make it read-only
                 // this can be removed in later versions

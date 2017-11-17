@@ -20,6 +20,7 @@ package org.elasticsearch.http;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,7 +36,7 @@ import static org.hamcrest.Matchers.is;
  * methods on REST endpoints should respond with status code 405</a> for more
  * information.
  */
-public class RestHttpResponseHeadersIT extends HttpSmokeTestCase {
+public class RestHttpResponseHeadersIT extends ESRestTestCase {
 
     /**
      * For an OPTIONS request to a valid REST endpoint, verify that a 200 HTTP
@@ -45,7 +46,7 @@ public class RestHttpResponseHeadersIT extends HttpSmokeTestCase {
      * - Options</a>).
      */
     public void testValidEndpointOptionsResponseHttpHeader() throws Exception {
-        Response response = getRestClient().performRequest("OPTIONS", "/_tasks");
+        Response response = client().performRequest("OPTIONS", "/_tasks");
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getHeader("Allow"), notNullValue());
         List<String> responseAllowHeaderStringArray =
@@ -63,7 +64,7 @@ public class RestHttpResponseHeadersIT extends HttpSmokeTestCase {
      */
     public void testUnsupportedMethodResponseHttpHeader() throws Exception {
         try {
-            getRestClient().performRequest("DELETE", "/_tasks");
+            client().performRequest("DELETE", "/_tasks");
             fail("Request should have failed with 405 error");
         } catch (ResponseException e) {
             Response response = e.getResponse();
@@ -84,9 +85,9 @@ public class RestHttpResponseHeadersIT extends HttpSmokeTestCase {
      * 17853</a> for more information).
      */
     public void testIndexSettingsPostRequest() throws Exception {
+        client().performRequest("PUT", "/testindex");
         try {
-            createIndex("testindex");
-            getRestClient().performRequest("POST", "/testindex/_settings");
+            client().performRequest("POST", "/testindex/_settings");
             fail("Request should have failed with 405 error");
         } catch (ResponseException e) {
             Response response = e.getResponse();

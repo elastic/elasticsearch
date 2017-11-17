@@ -51,66 +51,56 @@ public class AcceptingSelector extends ESSelector {
     }
 
     @Override
-    void doSelect(int timeout) throws IOException, ClosedSelectorException {
-        setUpNewServerChannels();
-
-        int ready = selector.select(timeout);
-        if (ready > 0) {
-            Set<SelectionKey> selectionKeys = selector.selectedKeys();
-            Iterator<SelectionKey> keyIterator = selectionKeys.iterator();
-            while (keyIterator.hasNext()) {
-                SelectionKey sk = keyIterator.next();
-                keyIterator.remove();
-                acceptChannel(sk);
+    void processKey(SelectionKey selectionKey) {
+        NioServerSocketChannel serverChannel = (NioServerSocketChannel) selectionKey.attachment();
+        if (selectionKey.isAcceptable()) {
+            try {
+                eventHandler.acceptChannel(serverChannel);
+            } catch (IOException e) {
+                eventHandler.acceptException(serverChannel, e);
             }
         }
     }
 
     @Override
+    void preSelect() {
+        setUpNewServerChannels();
+    }
+
+    @Override
     void cleanup() {
-        channelsToClose.addAll(registeredChannels);
-        closePendingChannels();
+        channelsToClose.addAll(newChannels);
     }
 
     /**
-     * Registers a NioServerSocketChannel to be handled by this selector. The channel will by queued and
+     * Schedules a NioServerSocketChannel to be registered with this selector. The channel will by queued and
      * eventually registered next time through the event loop.
+     *
      * @param serverSocketChannel the channel to register
      */
-    public void registerServerChannel(NioServerSocketChannel serverSocketChannel) {
+    public void scheduleForRegistration(NioServerSocketChannel serverSocketChannel) {
         newChannels.add(serverSocketChannel);
         ensureSelectorOpenForEnqueuing(newChannels, serverSocketChannel);
         wakeup();
     }
 
-    private void setUpNewServerChannels() throws ClosedChannelException {
+    private void setUpNewServerChannels() {
         NioServerSocketChannel newChannel;
         while ((newChannel = this.newChannels.poll()) != null) {
-            if (newChannel.register(this)) {
-                SelectionKey selectionKey = newChannel.getSelectionKey();
-                selectionKey.attach(newChannel);
-                registeredChannels.add(newChannel);
-                eventHandler.serverChannelRegistered(newChannel);
-            }
-        }
-    }
-
-    private void acceptChannel(SelectionKey sk) {
-        NioServerSocketChannel serverChannel = (NioServerSocketChannel) sk.attachment();
-        if (sk.isValid()) {
+            assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
             try {
-                if (sk.isAcceptable()) {
-                    try {
-                        eventHandler.acceptChannel(serverChannel);
-                    } catch (IOException e) {
-                        eventHandler.acceptException(serverChannel, e);
-                    }
+                if (newChannel.isOpen()) {
+                    newChannel.register();
+                    SelectionKey selectionKey = newChannel.getSelectionKey();
+                    selectionKey.attach(newChannel);
+                    addRegisteredChannel(newChannel);
+                    eventHandler.serverChannelRegistered(newChannel);
+                } else {
+                    eventHandler.registrationException(newChannel, new ClosedChannelException());
                 }
-            } catch (CancelledKeyException ex) {
-                eventHandler.genericServerChannelException(serverChannel, ex);
+            } catch (IOException e) {
+                eventHandler.registrationException(newChannel, e);
             }
-        } else {
-            eventHandler.genericServerChannelException(serverChannel, new CancelledKeyException());
         }
     }
 }

@@ -26,9 +26,9 @@ import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.threadpool.ThreadPool.ReschedulingRunnable;
+import org.elasticsearch.threadpool.Scheduler.ReschedulingRunnable;
 import org.junit.After;
 import org.junit.Before;
 
@@ -80,7 +80,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
                 Thread.currentThread().interrupt();
             }
         };
-        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, Names.GENERIC, threadPool);
+        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, Names.GENERIC, threadPool,
+                (e) -> {}, (e) -> {});
         // this call was made during construction of the runnable
         verify(threadPool, times(1)).schedule(delay, Names.GENERIC, reschedulingRunnable);
 
@@ -260,7 +261,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
             }
         };
         Runnable runnable = () -> {};
-        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, Names.GENERIC, threadPool);
+        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, Names.GENERIC,
+                threadPool, (e) -> {}, (e) -> {});
         assertTrue(reschedulingRunnable.isCancelled());
     }
 

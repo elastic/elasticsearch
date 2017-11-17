@@ -26,12 +26,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Counter;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
@@ -50,7 +47,6 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEAR
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT;
-import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TIMEOUT;
 import static org.elasticsearch.search.query.TopDocsCollectorContext.shortcutTotalHitCount;
 
 abstract class QueryCollectorContext {
@@ -171,30 +167,13 @@ abstract class QueryCollectorContext {
     }
 
     /**
-     * Creates a time limiting collector limiting the collection to <code>timeOutMillis</code>ms.
-     */
-    static QueryCollectorContext createTimeoutCollectorContext(Counter timeEstimate, long timeoutMillis) {
-        return new QueryCollectorContext(REASON_SEARCH_TIMEOUT) {
-            @Override
-            Collector create(Collector in) throws IOException {
-                return new TimeLimitingCollector(in, timeEstimate, timeoutMillis);
-            }
-
-            @Override
-            boolean shouldCollect() {
-                return false;
-            }
-        };
-    }
-
-    /**
      * Creates a collector that throws {@link TaskCancelledException} if the search is cancelled
      */
-    static QueryCollectorContext createCancellableCollectorContext(Provider<Boolean> cancelled, boolean lowLevelCancellation) {
+    static QueryCollectorContext createCancellableCollectorContext(BooleanSupplier cancelled) {
         return new QueryCollectorContext(REASON_SEARCH_CANCELLED) {
             @Override
             Collector create(Collector in) throws IOException {
-                return new CancellableCollector(cancelled, lowLevelCancellation, in);
+                return new CancellableCollector(cancelled, in);
             }
 
             @Override
@@ -238,13 +217,11 @@ abstract class QueryCollectorContext {
                                                                                boolean trackTotalHits,
                                                                                boolean shouldCollect) {
         return new QueryCollectorContext(REASON_SEARCH_TERMINATE_AFTER_COUNT) {
-            private BooleanSupplier terminatedEarlySupplier;
             private IntSupplier countSupplier = null;
 
             @Override
             Collector create(Collector in) throws IOException {
                 EarlyTerminatingSortingCollector sortingCollector = new EarlyTerminatingSortingCollector(in, indexSort, numHits);
-                terminatedEarlySupplier = sortingCollector::terminatedEarly;
                 Collector collector = sortingCollector;
                 if (trackTotalHits) {
                     int count = shouldCollect ? -1 : shortcutTotalHitCount(reader, query);
@@ -261,9 +238,6 @@ abstract class QueryCollectorContext {
 
             @Override
             void postProcess(QuerySearchResult result, boolean hasCollected) throws IOException {
-                if (terminatedEarlySupplier.getAsBoolean()) {
-                    result.terminatedEarly(true);
-                }
                 if (countSupplier != null) {
                     final TopDocs topDocs = result.topDocs();
                     topDocs.totalHits = countSupplier.getAsInt();

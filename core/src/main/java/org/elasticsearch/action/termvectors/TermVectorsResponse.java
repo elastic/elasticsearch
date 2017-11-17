@@ -305,9 +305,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         long sumDocFreq = curTerms.getSumDocFreq();
         int docCount = curTerms.getDocCount();
         long sumTotalTermFrequencies = curTerms.getSumTotalTermFreq();
-        if (docCount > 0) {
-            assert ((sumDocFreq > 0)) : "docCount >= 0 but sumDocFreq ain't!";
-            assert ((sumTotalTermFrequencies > 0)) : "docCount >= 0 but sumTotalTermFrequencies ain't!";
+        if (docCount >= 0) {
+            assert ((sumDocFreq >= 0)) : "docCount >= 0 but sumDocFreq ain't!";
+            assert ((sumTotalTermFrequencies >= 0)) : "docCount >= 0 but sumTotalTermFrequencies ain't!";
             builder.startObject(FieldStrings.FIELD_STATISTICS);
             builder.field(FieldStrings.SUM_DOC_FREQ, sumDocFreq);
             builder.field(FieldStrings.DOC_COUNT, docCount);

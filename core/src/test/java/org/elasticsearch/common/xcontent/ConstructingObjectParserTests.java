@@ -224,7 +224,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
             parser.apply(createParser(JsonXContent.jsonXContent, "{}"), null);
             fail("Expected AssertionError");
         } catch (AssertionError e) {
-            assertEquals("[constructor_args_required] must configure at least on constructor argument. If it doesn't have any it should "
+            assertEquals("[constructor_args_required] must configure at least one constructor argument. If it doesn't have any it should "
                     + "use ObjectParser instead of ConstructingObjectParser. This is a bug in the parser declaration.", e.getMessage());
         }
     }
@@ -315,7 +315,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         assertEquals(-8, parsed.mineral);
     }
 
-    private static class HasCtorArguments implements ToXContent {
+    private static class HasCtorArguments implements ToXContentObject {
         @Nullable
         final String animal;
         @Nullable

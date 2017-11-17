@@ -20,9 +20,12 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,6 +35,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
@@ -40,10 +44,14 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
+
 /**
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(FieldSortBuilder.class));
+
     public static final String NAME = "field_sort";
     public static final ParseField MISSING = new ParseField("missing");
     public static final ParseField SORT_MODE = new ParseField("mode");
@@ -70,6 +78,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     private String nestedPath;
 
+    private NestedSortBuilder nestedSort;
+
     /** Copy constructor. */
     public FieldSortBuilder(FieldSortBuilder template) {
         this(template.fieldName);
@@ -81,6 +91,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         this.setNestedFilter(template.getNestedFilter());
         this.setNestedPath(template.getNestedPath());
+        if (template.getNestedSort() != null) {
+            this.setNestedSort(template.getNestedSort());
+        };
     }
 
     /**
@@ -107,6 +120,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         order = in.readOptionalWriteable(SortOrder::readFromStream);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
+        }
     }
 
     @Override
@@ -118,6 +134,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(order);
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(unmappedType);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeOptionalWriteable(nestedSort);
+        }
     }
 
     /** Returns the document field this sort should be based on. */
@@ -186,10 +205,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Sets the nested filter that the nested objects should match with in order
      * to be taken into account for sorting.
      *
-     * TODO should the above getters and setters be deprecated/ changed in
-     * favour of real getters and setters?
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public FieldSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -197,7 +219,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     /**
      * Returns the nested filter that the nested objects should match with in
      * order to be taken into account for sorting.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
@@ -206,8 +231,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Sets the nested path if sorting occurs on a field that is inside a nested
      * object. By default when sorting on a field inside a nested object, the
      * nearest upper nested object is selected as nested path.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public FieldSortBuilder setNestedPath(String nestedPath) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedPath = nestedPath;
         return this;
     }
@@ -215,9 +246,32 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     /**
      * Returns the nested path if sorting occurs in a field that is inside a
      * nested object.
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public String getNestedPath() {
         return this.nestedPath;
+    }
+
+    /**
+     * Returns the {@link NestedSortBuilder}
+     */
+    public NestedSortBuilder getNestedSort() {
+        return this.nestedSort;
+    }
+
+    /**
+     * Sets the {@link NestedSortBuilder} to be used for fields that are inside a nested
+     * object. The {@link NestedSortBuilder} takes a `path` argument and an optional
+     * nested filter that the nested objects should match with in
+     * order to be taken into account for sorting.
+     */
+    public FieldSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
+        if (this.nestedFilter != null || this.nestedPath != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
+        this.nestedSort = nestedSort;
+        return this;
     }
 
     @Override
@@ -239,6 +293,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         if (nestedPath != null) {
             builder.field(NESTED_PATH_FIELD.getPreferredName(), nestedPath);
+        }
+        if (nestedSort != null) {
+            builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
         }
         builder.endObject();
         builder.endObject();
@@ -273,7 +330,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
             }
 
-            final Nested nested = resolveNested(context, nestedPath, nestedFilter);
+            final Nested nested;
+            if (nestedSort != null) {
+                // new nested sorts takes priority
+                nested = resolveNested(context, nestedSort);
+            } else {
+                nested = resolveNested(context, nestedPath, nestedFilter);
+            }
+
             IndexFieldData<?> fieldData = context.getForField(fieldType);
             if (fieldData instanceof IndexNumericFieldData == false
                     && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
@@ -298,12 +362,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return (Objects.equals(this.fieldName, builder.fieldName) && Objects.equals(this.nestedFilter, builder.nestedFilter)
                 && Objects.equals(this.nestedPath, builder.nestedPath) && Objects.equals(this.missing, builder.missing)
                 && Objects.equals(this.order, builder.order) && Objects.equals(this.sortMode, builder.sortMode)
-                && Objects.equals(this.unmappedType, builder.unmappedType));
+                && Objects.equals(this.unmappedType, builder.unmappedType) && Objects.equals(this.nestedSort, builder.nestedSort));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.fieldName, this.nestedFilter, this.nestedPath, this.missing, this.order, this.sortMode, this.unmappedType);
+        return Objects.hash(this.fieldName, this.nestedFilter, this.nestedPath, this.nestedSort, this.missing, this.order, this.sortMode,
+            this.unmappedType);
     }
 
     @Override
@@ -328,10 +393,37 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     static {
         PARSER.declareField(FieldSortBuilder::missing, p -> p.objectText(),  MISSING, ValueType.VALUE);
-        PARSER.declareString(FieldSortBuilder::setNestedPath , NESTED_PATH_FIELD);
+        PARSER.declareString((fieldSortBuilder, nestedPath) -> {
+            DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
+            fieldSortBuilder.setNestedPath(nestedPath);
+        }, NESTED_PATH_FIELD);
         PARSER.declareString(FieldSortBuilder::unmappedType , UNMAPPED_TYPE);
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
-        PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> SortBuilder.parseNestedFilter(p), NESTED_FILTER_FIELD);
+        PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> {
+            DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
+            return SortBuilder.parseNestedFilter(p);
+        }, NESTED_FILTER_FIELD);
+        PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
+    }
+
+    @Override
+    public FieldSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (nestedFilter == null && nestedSort == null) {
+            return this;
+        }
+        if (nestedFilter != null) {
+            QueryBuilder rewrite = nestedFilter.rewrite(ctx);
+            if (nestedFilter == rewrite) {
+                return this;
+            }
+            return new FieldSortBuilder(this).setNestedFilter(rewrite);
+        } else {
+            NestedSortBuilder rewrite = nestedSort.rewrite(ctx);
+            if (nestedSort == rewrite) {
+                return this;
+            }
+            return new FieldSortBuilder(this).setNestedSort(rewrite);
+        }
     }
 }

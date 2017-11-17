@@ -1,5 +1,5 @@
 [[secure-settings]]
-== Secure Settings
+=== Secure Settings
 
 Some settings are sensitive, and relying on filesystem permissions to protect
 their values is not sufficient. For this use case, elasticsearch provides a
@@ -32,7 +32,7 @@ A list of the settings in the keystore is available with the `list` command:
 
 [source,sh]
 ----------------------------------------------------------------
-bin/elasticsearch-keystore list 
+bin/elasticsearch-keystore list
 ----------------------------------------------------------------
 
 [float]

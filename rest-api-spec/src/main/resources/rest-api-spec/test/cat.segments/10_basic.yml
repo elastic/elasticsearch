@@ -86,6 +86,10 @@
 ---
 "Test cat segments on closed index behaviour":
 
+  - skip:
+      version: " - 5.99.99"
+      reason:  status code  on closed indices changed in 6.0.0 from 403 to 400
+
   - do:
       indices.create:
         index: index1
@@ -99,7 +103,7 @@
         index: index1
 
   - do:
-      catch: forbidden
+      catch: bad_request
       cat.segments:
         index: index1
 

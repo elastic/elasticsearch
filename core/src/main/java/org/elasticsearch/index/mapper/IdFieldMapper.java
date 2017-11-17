@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
@@ -36,10 +37,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -127,6 +128,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE) {
                 failIfNotIndexed();
@@ -153,7 +159,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (indexOptions() == IndexOptions.NONE) {
                 throw new IllegalArgumentException("Fielddata access on the _uid field is disallowed");
             }

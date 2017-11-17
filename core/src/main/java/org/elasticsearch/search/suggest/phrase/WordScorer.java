@@ -40,8 +40,8 @@ public abstract class WordScorer {
     protected final double realWordLikelyhood;
     protected final BytesRefBuilder spare = new BytesRefBuilder();
     protected final BytesRef separator;
+    protected final long numTerms;
     private final TermsEnum termsEnum;
-    private final long numTerms;
     private final boolean useTotalTermFreq;
 
     public WordScorer(IndexReader reader, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
@@ -57,7 +57,11 @@ public abstract class WordScorer {
         final long vocSize = terms.getSumTotalTermFreq();
         this.vocabluarySize =  vocSize == -1 ? reader.maxDoc() : vocSize;
         this.useTotalTermFreq = vocSize != -1;
-        this.numTerms = terms.size();
+        // terms.size() might be -1 if it's a MultiTerms instance. In that case,
+        // use reader.maxDoc() as an approximation. This also protects from
+        // division by zero, by scoreUnigram.
+        final long nTerms = terms.size();
+        this.numTerms = nTerms == -1 ? reader.maxDoc() : nTerms;
         this.termsEnum = new FreqTermsEnum(reader, field, !useTotalTermFreq, useTotalTermFreq, null, BigArrays.NON_RECYCLING_INSTANCE); // non recycling for now
         this.reader = reader;
         this.realWordLikelyhood = realWordLikelyHood;

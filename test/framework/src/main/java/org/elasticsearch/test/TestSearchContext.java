@@ -29,7 +29,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -55,7 +55,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -69,7 +69,6 @@ public class TestSearchContext extends SearchContext {
 
     final BigArrays bigArrays;
     final IndexService indexService;
-    final IndexFieldDataService indexFieldDataService;
     final BitsetFilterCache fixedBitSetFilterCache;
     final ThreadPool threadPool;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -98,20 +97,22 @@ public class TestSearchContext extends SearchContext {
     public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, IndexService indexService) {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
-        this.indexFieldDataService = indexService.fieldData();
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
-        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
+        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
+        this(queryShardContext, null);
+    }
+
+    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
         this.bigArrays = null;
         this.indexService = null;
-        this.indexFieldDataService = null;
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
-        this.indexShard = null;
+        this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
     }
 
@@ -215,12 +216,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public List<RescoreSearchContext> rescore() {
+    public List<RescoreContext> rescore() {
         return Collections.emptyList();
     }
 
     @Override
-    public void addRescore(RescoreSearchContext rescore) {
+    public void addRescore(RescoreContext rescore) {
     }
 
     @Override
@@ -301,8 +302,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public IndexFieldDataService fieldData() {
-        return indexFieldDataService;
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
+        return queryShardContext.getForField(fieldType);
     }
 
     @Override

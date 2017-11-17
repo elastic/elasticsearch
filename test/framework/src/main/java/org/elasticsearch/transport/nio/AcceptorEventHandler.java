@@ -20,12 +20,15 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
+import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -34,12 +37,15 @@ import java.util.function.Supplier;
 public class AcceptorEventHandler extends EventHandler {
 
     private final Supplier<SocketSelector> selectorSupplier;
+    private final Consumer<NioChannel> acceptedChannelCallback;
     private final OpenChannels openChannels;
 
-    public AcceptorEventHandler(Logger logger, OpenChannels openChannels, Supplier<SocketSelector> selectorSupplier) {
-        super(logger);
+    public AcceptorEventHandler(Logger logger, OpenChannels openChannels, Supplier<SocketSelector> selectorSupplier,
+                                Consumer<NioChannel> acceptedChannelCallback) {
+        super(logger, openChannels);
         this.openChannels = openChannels;
         this.selectorSupplier = selectorSupplier;
+        this.acceptedChannelCallback = acceptedChannelCallback;
     }
 
     /**
@@ -48,9 +54,19 @@ public class AcceptorEventHandler extends EventHandler {
      *
      * @param nioServerSocketChannel that was registered
      */
-    public void serverChannelRegistered(NioServerSocketChannel nioServerSocketChannel) {
+    void serverChannelRegistered(NioServerSocketChannel nioServerSocketChannel) {
         SelectionKeyUtils.setAcceptInterested(nioServerSocketChannel);
         openChannels.serverChannelOpened(nioServerSocketChannel);
+    }
+
+    /**
+     * This method is called when an attempt to register a server channel throws an exception.
+     *
+     * @param channel that was registered
+     * @param exception that occurred
+     */
+    void registrationException(NioServerSocketChannel channel, Exception exception) {
+        logger.error(new ParameterizedMessage("failed to register server channel: {}", channel), exception);
     }
 
     /**
@@ -59,12 +75,12 @@ public class AcceptorEventHandler extends EventHandler {
      *
      * @param nioServerChannel that can accept a connection
      */
-    public void acceptChannel(NioServerSocketChannel nioServerChannel) throws IOException {
+    void acceptChannel(NioServerSocketChannel nioServerChannel) throws IOException {
         ChannelFactory channelFactory = nioServerChannel.getChannelFactory();
-        NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioServerChannel);
+        SocketSelector selector = selectorSupplier.get();
+        NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioServerChannel, selector);
         openChannels.acceptedChannelOpened(nioSocketChannel);
-        nioSocketChannel.getCloseFuture().setListener(openChannels::channelClosed);
-        selectorSupplier.get().registerSocketChannel(nioSocketChannel);
+        acceptedChannelCallback.accept(nioSocketChannel);
     }
 
     /**
@@ -73,19 +89,8 @@ public class AcceptorEventHandler extends EventHandler {
      * @param nioServerChannel that accepting a connection
      * @param exception that occurred
      */
-    public void acceptException(NioServerSocketChannel nioServerChannel, Exception exception) {
-        logger.debug("exception while accepting new channel", exception);
-    }
-
-    /**
-     * This method is called when handling an event from a channel fails due to an unexpected exception.
-     * An example would be if checking ready ops on a {@link java.nio.channels.SelectionKey} threw
-     * {@link java.nio.channels.CancelledKeyException}.
-     *
-     * @param channel that caused the exception
-     * @param exception that was thrown
-     */
-    public void genericServerChannelException(NioServerSocketChannel channel, Exception exception) {
-        logger.debug("event handling exception", exception);
+    void acceptException(NioServerSocketChannel nioServerChannel, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while accepting new channel from server channel: {}",
+            nioServerChannel), exception);
     }
 }

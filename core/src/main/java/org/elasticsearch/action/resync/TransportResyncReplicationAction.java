@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.translog.Translog;
@@ -48,7 +48,7 @@ import java.util.function.Supplier;
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
     ResyncReplicationRequest, ResyncReplicationResponse> implements PrimaryReplicaSyncer.SyncAction {
 
-    public static String ACTION_NAME = "indices:admin/seq_no/resync";
+    private static String ACTION_NAME = "internal:index/seq_no/resync";
 
     @Inject
     public TransportResyncReplicationAction(Settings settings, TransportService transportService,
@@ -80,9 +80,9 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected ReplicationOperation.Replicas newReplicasProxy() {
+    protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
         // We treat the resync as best-effort for now and don't mark unavailable shard copies as stale.
-        return new ReplicasProxy();
+        return new ReplicasProxy(primaryTerm);
     }
 
     @Override
@@ -93,7 +93,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             super.sendReplicaRequest(replicaRequest, node, listener);
         } else {
-            listener.onResponse(new ReplicaResponse(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+            final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
+            listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
         }
     }
 
@@ -135,13 +136,13 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    public void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId,
+    public void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId, long primaryTerm,
                      ActionListener<ResyncReplicationResponse> listener) {
         // skip reroute phase
         transportService.sendChildRequest(
             clusterService.localNode(),
             transportPrimaryAction,
-            new ConcreteShardRequest<>(request, primaryAllocationId),
+            new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
             parentTask,
             transportOptions,
             new TransportResponseHandler<ResyncReplicationResponse>() {

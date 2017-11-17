@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -47,8 +48,8 @@ import java.util.Objects;
 /**
  * A builder for histograms on numeric fields.
  */
-public class HistogramAggregationBuilder
-        extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, HistogramAggregationBuilder> {
+public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, HistogramAggregationBuilder>
+        implements MultiBucketAggregationBuilder {
     public static final String NAME = "histogram";
 
     private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(

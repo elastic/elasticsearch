@@ -21,8 +21,8 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
-import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -69,6 +69,7 @@ import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.SpanWithinQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.TermsSetQueryBuilder;
 import org.elasticsearch.index.query.TypeQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
@@ -86,6 +87,7 @@ import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
 import org.elasticsearch.plugins.SearchPlugin.PipelineAggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
+import org.elasticsearch.plugins.SearchPlugin.RescorerSpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtensionSpec;
@@ -200,6 +202,8 @@ import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptP
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketsort.BucketSortPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketsort.BucketSortPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
@@ -230,7 +234,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -246,6 +250,7 @@ import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -281,7 +286,7 @@ public class SearchModule {
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
         registerQueryParsers(plugins);
-        registerRescorers();
+        registerRescorers(plugins);
         registerSorts();
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
@@ -495,6 +500,11 @@ public class SearchModule {
                 BucketSelectorPipelineAggregator::new,
                 BucketSelectorPipelineAggregationBuilder::parse));
         registerPipelineAggregation(new PipelineAggregationSpec(
+                BucketSortPipelineAggregationBuilder.NAME,
+                BucketSortPipelineAggregationBuilder::new,
+                BucketSortPipelineAggregator::new,
+                BucketSortPipelineAggregationBuilder::parse));
+        registerPipelineAggregation(new PipelineAggregationSpec(
                 SerialDiffPipelineAggregationBuilder.NAME,
                 SerialDiffPipelineAggregationBuilder::new,
                 SerialDiffPipelineAggregator::new,
@@ -522,12 +532,20 @@ public class SearchModule {
 
     private void registerShapes() {
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            ShapeBuilders.register(namedWriteables);
+            namedWriteables.addAll(GeoShapeType.getShapeWriteables());
         }
     }
 
-    private void registerRescorers() {
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RescoreBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new));
+    private void registerRescorers(List<SearchPlugin> plugins) {
+        registerRescorer(new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
+        registerFromPlugin(plugins, SearchPlugin::getRescorers, this::registerRescorer);
+    }
+
+    private void registerRescorer(RescorerSpec<?> spec) {
+        if (false == transportClient) {
+            namedXContents.add(new NamedXContentRegistry.Entry(RescorerBuilder.class, spec.getName(), (p, c) -> spec.getParser().apply(p)));
+        }
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
     private void registerSorts() {
@@ -739,6 +757,7 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(GeoPolygonQueryBuilder.NAME, GeoPolygonQueryBuilder::new, GeoPolygonQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(ExistsQueryBuilder.NAME, ExistsQueryBuilder::new, ExistsQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchNoneQueryBuilder.NAME, MatchNoneQueryBuilder::new, MatchNoneQueryBuilder::fromXContent));
+        registerQuery(new QuerySpec<>(TermsSetQueryBuilder.NAME, TermsSetQueryBuilder::new, TermsSetQueryBuilder::fromXContent));
 
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));

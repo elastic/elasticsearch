@@ -64,6 +64,10 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/fedora-25-x86_64"
     dnf_common config
   end
+  config.vm.define "fedora-26" do |config|
+    config.vm.box = "elastic/fedora-26-x86_64"
+    dnf_common config
+  end
   config.vm.define "opensuse-42" do |config|
     config.vm.box = "elastic/opensuse-42-x86_64"
     opensuse_common config
@@ -272,7 +276,7 @@ def provision(config,
     installed gradle || {
       echo "==> Installing Gradle"
       curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
-      unzip /tmp/gradle.zip -d /opt
+      unzip -q /tmp/gradle.zip -d /opt
       rm -rf /tmp/gradle.zip
       ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
       # make nfs mounted gradle home dir writeable

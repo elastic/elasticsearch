@@ -54,10 +54,9 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("test", "test_shards");
         request.patterns(Collections.singletonList("test_shards*"));
 
-        Map<String, Object> map = new HashMap<>();
-        map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
-        map.put("index.shard.check_on_startup", "blargh");
-        request.settings(Settings.builder().put(map).build());
+        request.settings(Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0")
+            .put("index.shard.check_on_startup", "blargh").build());
 
         List<Throwable> throwables = putTemplate(xContentRegistry(), request);
         assertEquals(throwables.size(), 1);
@@ -72,10 +71,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
         request.patterns(Collections.singletonList("_test_shards*"));
-
-        Map<String, Object> map = new HashMap<>();
-        map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
-        request.settings(Settings.builder().put(map).build());
+        request.settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0").build());
 
         List<Throwable> throwables = putTemplate(xContentRegistry(), request);
         assertEquals(throwables.size(), 1);

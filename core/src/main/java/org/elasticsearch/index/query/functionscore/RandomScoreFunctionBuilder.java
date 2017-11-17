@@ -18,14 +18,16 @@
  */
 package org.elasticsearch.index.query.functionscore;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
@@ -38,7 +40,11 @@ import java.util.Objects;
  * A function that computes a random score for the matched documents
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RandomScoreFunctionBuilder.class));
+
     public static final String NAME = "random_score";
+    private String field;
     private Integer seed;
 
     public RandomScoreFunctionBuilder() {
@@ -52,6 +58,9 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         if (in.readBoolean()) {
             seed = in.readInt();
         }
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            field = in.readOptionalString();
+        }
     }
 
     @Override
@@ -61,6 +70,9 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             out.writeInt(seed);
         } else {
             out.writeBoolean(false);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            out.writeOptionalString(field);
         }
     }
 
@@ -105,11 +117,32 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         return seed;
     }
 
+    /**
+     * Set the field to be used for random number generation. This parameter is compulsory
+     * when a {@link #seed(int) seed} is set and ignored otherwise. Note that documents that
+     * have the same value for a field will get the same score. 
+     */
+    public RandomScoreFunctionBuilder setField(String field) {
+        this.field = field;
+        return this;
+    }
+
+    /**
+     * Get the field to use for random number generation.
+     * @see #setField(String)
+     */
+    public String getField() {
+        return field;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         if (seed != null) {
             builder.field("seed", seed);
+        }
+        if (field != null) {
+            builder.field("field", field);
         }
         builder.endObject();
     }
@@ -126,19 +159,39 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
 
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
-        final MappedFieldType fieldType;
-        if (context.getIndexSettings().isSingleType()) {
-            fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
-        } else {
-            fieldType = context.getMapperService().fullName(UidFieldMapper.NAME);
-        }
-        if (fieldType == null) {
-            // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
-            return new RandomScoreFunction();
-        }
         final int salt = (context.index().getName().hashCode() << 10) | context.getShardId();
-        final IndexFieldData<?> uidFieldData = context.getForField(fieldType);
-        return new RandomScoreFunction(this.seed == null ? hash(context.nowInMillis()) : seed, salt, uidFieldData);
+        if (seed == null) {
+            // DocID-based random score generation
+            return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
+        } else {
+            final MappedFieldType fieldType;
+            if (field != null) {
+                fieldType = context.getMapperService().fullName(field);
+            } else {
+                DEPRECATION_LOGGER.deprecated(
+                        "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
+                if (context.getIndexSettings().isSingleType()) {
+                    fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
+                } else {
+                    fieldType = context.getMapperService().fullName(UidFieldMapper.NAME);
+                }
+            }
+            if (fieldType == null) {
+                if (context.getMapperService().types().isEmpty()) {
+                    // no mappings: the index is empty anyway
+                    return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
+                }
+                throw new IllegalArgumentException("Field [" + field + "] is not mapped on [" + context.index() +
+                        "] and cannot be used as a source of random numbers.");
+            }
+            int seed;
+            if (this.seed != null) {
+                seed = this.seed;
+            } else {
+                seed = hash(context.nowInMillis());
+            }
+            return new RandomScoreFunction(seed, salt, context.getForField(fieldType));
+        }
     }
 
     private static int hash(long value) {
@@ -170,6 +223,8 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                         throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int/long or string, not '"
                                 + token.toString() + "'");
                     }
+                } else if ("field".equals(currentFieldName)) {
+                    randomScoreFunctionBuilder.setField(parser.text());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }

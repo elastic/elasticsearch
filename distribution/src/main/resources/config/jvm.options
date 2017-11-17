@@ -39,9 +39,6 @@
 
 ## optimizations
 
-# disable calls to System#gc
--XX:+DisableExplicitGC
-
 # pre-touch memory pages used by the JVM during initialization
 -XX:+AlwaysPreTouch
 
@@ -66,9 +63,6 @@
 # exceptions because stack traces are important for debugging
 -XX:-OmitStackTraceInFastThrow
 
-# use old-style file permissions on JDK9
--Djdk.io.permissionsUseCanonicalPath=true
-
 # flags to configure Netty
 -Dio.netty.noUnsafe=true
 -Dio.netty.noKeySetOptimization=true
@@ -86,7 +80,7 @@
 
 # specify an alternative path for heap dumps
 # ensure the directory exists and has sufficient space
-#-XX:HeapDumpPath=${heap.dump.path}
+${heap.dump.path}
 
 ## GC logging
 

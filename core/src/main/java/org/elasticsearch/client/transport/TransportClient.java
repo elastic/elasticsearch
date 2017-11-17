@@ -235,7 +235,7 @@ public abstract class TransportClient extends AbstractClient {
     public static final String CLIENT_TYPE = "transport";
 
     final Injector injector;
-    final NamedWriteableRegistry namedWriteableRegistry;
+    protected final NamedWriteableRegistry namedWriteableRegistry;
 
     private final List<LifecycleComponent> pluginLifecycleComponents;
     private final TransportClientNodesService nodesService;

@@ -27,6 +27,11 @@ The last (`node.role`, `master`, and `name`) columns provide ancillary
 information that can often be useful when looking at the cluster as a whole,
 particularly large ones.  How many master-eligible nodes do I have?
 
+The `nodes` API accepts an additional URL parameter `full_id` accepting `true`
+or `false`. The purpose of this parameter is to format the ID field (if
+requested with `id` or `nodeId`) in its full length or in abbreviated form (the
+default).
+
 [float]
 === Columns
 
@@ -53,7 +58,7 @@ GET /_cat/nodes?v&h=id,ip,port,v,m
 
 Might look like:
 
-["source","js",subs="attributes,callouts"]
+["source","txt",subs="attributes,callouts"]
 --------------------------------------------------
 id   ip        port  v         m
 veJR 127.0.0.1 59938 {version} *

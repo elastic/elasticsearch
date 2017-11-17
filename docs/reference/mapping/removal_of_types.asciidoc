@@ -34,14 +34,14 @@ GET twitter/user,tweet/_search
   }
 }
 ----
-// NOCONSOLE
+// NOTCONSOLE
 
 The `_type` field was combined with the document's `_id` to generate a `_uid`
 field, so documents of different types with the same `_id` could exist in a
 single index.
 
 Mapping types were also used to establish a
-/guide/en/elasticsearch/reference/5.4/mapping-parent-field.html[parent-child relationship]
+<<mapping-parent-field,parent-child relationship>>
 between documents, so documents of type `question` could be parents to
 documents of type `answer`.
 
@@ -103,7 +103,7 @@ larger number of primary shards for `tweets`.
 ==== Custom type field
 
 Of course, there is a limit to how many primary shards can exist in a cluster
-so you many not want to waste an entire shard for a collection of only a few
+so you may not want to waste an entire shard for a collection of only a few
 thousand documents.  In this case, you can implement your own custom `type`
 field which will work in a similar way to the old `_type`.
 
@@ -155,7 +155,7 @@ GET twitter/tweet/_search
   }
 }
 ----
-// NOCONSOLE
+// NOTCONSOLE
 
 You could achieve the same thing by adding a custom `type` field as follows:
 
@@ -211,7 +211,7 @@ GET twitter/_search
   }
 }
 ----
-// NOCONSOLE
+// NOTCONSOLE
 <1> The explicit `type` field takes the place of the implicit `_type` field.
 
 [float]
@@ -270,7 +270,7 @@ Elasticsearch 8.x::
 
 * The `type` parameter is no longer supported in URLs.
 
-* The `include_in_type` parameter defaults to `false`.
+* The `include_type_name` parameter defaults to `false`.
 
 Elasticsearch 9.x::
 
@@ -358,7 +358,7 @@ POST _reindex
   }
 }
 ----
-// NOCONSOLE
+// NOTCONSOLE
 
 [float]
 ==== Custom type field
@@ -415,5 +415,5 @@ POST _reindex
   }
 }
 ----
-// NOCONSOLE
+// NOTCONSOLE
 

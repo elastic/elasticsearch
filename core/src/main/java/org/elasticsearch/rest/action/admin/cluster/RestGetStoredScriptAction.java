@@ -40,17 +40,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetStoredScriptAction extends BaseRestHandler {
 
     public static final ParseField _ID_PARSE_FIELD = new ParseField("_id");
-
     public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
 
     public RestGetStoredScriptAction(Settings settings, RestController controller) {
         super(settings);
 
-        // Note {lang} is actually {id} in the first handler.  It appears
-        // parameters as part of the path must be of the same ordering relative
-        // to name or they will not work as expected.
-        controller.registerHandler(GET, "/_scripts/{lang}", this);
-        controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
+        controller.registerHandler(GET, "/_scripts/{id}", this);
     }
 
     @Override
@@ -60,25 +55,8 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        String id;
-        String lang;
-
-        // In the case where only {lang} is not null, we make it {id} because of
-        // name ordering issues in the handlers' paths.
-        if (request.param("id") == null) {
-            id = request.param("lang");;
-            lang = null;
-        } else {
-            id = request.param("id");
-            lang = request.param("lang");
-        }
-
-        if (lang != null) {
-            deprecationLogger.deprecated(
-                "specifying lang [" + lang + "] as part of the url path is deprecated");
-        }
-
-        GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id, lang);
+        String id = request.param("id");
+        GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
 
         return channel -> client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {
             @Override
@@ -86,28 +64,20 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
                 builder.startObject();
                 builder.field(_ID_PARSE_FIELD.getPreferredName(), id);
 
-                if (lang != null) {
-                    builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(), lang);
-                }
-
                 StoredScriptSource source = response.getSource();
                 boolean found = source != null;
                 builder.field(FOUND_PARSE_FIELD.getPreferredName(), found);
 
                 if (found) {
-                    if (lang == null) {
-                        builder.startObject(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
-                        builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(), source.getLang());
-                        builder.field(StoredScriptSource.SOURCE_PARSE_FIELD.getPreferredName(), source.getSource());
+                    builder.startObject(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
+                    builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(), source.getLang());
+                    builder.field(StoredScriptSource.SOURCE_PARSE_FIELD.getPreferredName(), source.getSource());
 
-                        if (source.getOptions().isEmpty() == false) {
-                            builder.field(StoredScriptSource.OPTIONS_PARSE_FIELD.getPreferredName(), source.getOptions());
-                        }
-
-                        builder.endObject();
-                    } else {
-                        builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName(), source.getSource());
+                    if (source.getOptions().isEmpty() == false) {
+                        builder.field(StoredScriptSource.OPTIONS_PARSE_FIELD.getPreferredName(), source.getOptions());
                     }
+
+                    builder.endObject();
                 }
 
                 builder.endObject();

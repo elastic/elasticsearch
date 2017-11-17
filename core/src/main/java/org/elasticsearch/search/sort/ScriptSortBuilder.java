@@ -25,10 +25,13 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,6 +46,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
@@ -55,11 +59,13 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.
  */
 public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ScriptSortBuilder.class));
 
     public static final String NAME = "_script";
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -75,6 +81,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     private QueryBuilder nestedFilter;
 
     private String nestedPath;
+
+    private NestedSortBuilder nestedSort;
 
     /**
      * Constructs a script sort builder with the given script.
@@ -99,6 +107,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         this.sortMode = original.sortMode;
         this.nestedFilter = original.nestedFilter;
         this.nestedPath = original.nestedPath;
+        this.nestedSort = original.nestedSort;
     }
 
     /**
@@ -111,6 +120,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         nestedPath = in.readOptionalString();
         nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
+        }
     }
 
     @Override
@@ -121,6 +133,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(nestedPath);
         out.writeOptionalNamedWriteable(nestedFilter);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeOptionalWriteable(nestedSort);
+        }
     }
 
     /**
@@ -161,15 +176,24 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public ScriptSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedFilter = nestedFilter;
         return this;
     }
 
     /**
      * Gets the nested filter.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
@@ -177,17 +201,47 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Sets the nested path if sorting occurs on a field that is inside a nested object. For sorting by script this
      * needs to be specified.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public ScriptSortBuilder setNestedPath(String nestedPath) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedPath = nestedPath;
         return this;
     }
 
     /**
      * Gets the nested path.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public String getNestedPath() {
         return this.nestedPath;
+    }
+
+    /**
+     * Returns the {@link NestedSortBuilder}
+     */
+    public NestedSortBuilder getNestedSort() {
+        return this.nestedSort;
+    }
+
+    /**
+     * Sets the {@link NestedSortBuilder} to be used for fields that are inside a nested
+     * object. The {@link NestedSortBuilder} takes a `path` argument and an optional
+     * nested filter that the nested objects should match with in
+     * order to be taken into account for sorting.
+     */
+    public ScriptSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
+        if (this.nestedFilter != null || this.nestedPath != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
+        this.nestedSort = nestedSort;
+        return this;
     }
 
     @Override
@@ -206,6 +260,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (nestedFilter != null) {
             builder.field(NESTED_FILTER_FIELD.getPreferredName(), nestedFilter, builderParams);
         }
+        if (nestedSort != null) {
+            builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
+        }
         builder.endObject();
         builder.endObject();
         return builder;
@@ -220,8 +277,15 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareField(constructorArg(), p -> ScriptSortType.fromString(p.text()), TYPE_FIELD, ValueType.STRING);
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
-        PARSER.declareString(ScriptSortBuilder::setNestedPath , NESTED_PATH_FIELD);
-        PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p,c) -> SortBuilder.parseNestedFilter(p), NESTED_FILTER_FIELD);
+        PARSER.declareString((fieldSortBuilder, nestedPath) -> {
+            DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
+            fieldSortBuilder.setNestedPath(nestedPath);
+        }, NESTED_PATH_FIELD);
+        PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p, c) -> {
+            DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
+            return SortBuilder.parseNestedFilter(p);
+        }, NESTED_FILTER_FIELD);
+        PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
     }
 
     /**
@@ -252,7 +316,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             valueMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
         }
 
-        final Nested nested = resolveNested(context, nestedPath, nestedFilter);
+        final Nested nested;
+        if (nestedSort != null) {
+            // new nested sorts takes priority
+            nested = resolveNested(context, nestedSort);
+        } else {
+            nested = resolveNested(context, nestedPath, nestedFilter);
+        }
+
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
             case STRING:
@@ -328,12 +399,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 Objects.equals(order, other.order) &&
                 Objects.equals(sortMode, other.sortMode) &&
                 Objects.equals(nestedFilter, other.nestedFilter) &&
-                Objects.equals(nestedPath, other.nestedPath);
+                Objects.equals(nestedPath, other.nestedPath) &&
+                Objects.equals(nestedSort, other.nestedSort);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(script, type, order, sortMode, nestedFilter, nestedPath);
+        return Objects.hash(script, type, order, sortMode, nestedFilter, nestedPath, nestedSort);
     }
 
     @Override
@@ -374,6 +446,26 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    @Override
+    public ScriptSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (nestedFilter == null && nestedSort == null) {
+            return this;
+        }
+        if (nestedFilter != null) {
+            QueryBuilder rewrite = nestedFilter.rewrite(ctx);
+            if (nestedFilter == rewrite) {
+                return this;
+            }
+            return new ScriptSortBuilder(this).setNestedFilter(rewrite);
+        } else {
+            NestedSortBuilder rewrite = nestedSort.rewrite(ctx);
+            if (nestedSort == rewrite) {
+                return this;
+            }
+            return new ScriptSortBuilder(this).setNestedSort(rewrite);
         }
     }
 }

@@ -39,7 +39,7 @@ public final class LoggingTaskListener<Response> implements TaskListener<Respons
         return (TaskListener<Response>) INSTANCE;
     }
 
-    private static final LoggingTaskListener<Object> INSTANCE = new LoggingTaskListener<Object>();
+    private static final LoggingTaskListener<Object> INSTANCE = new LoggingTaskListener<>();
 
     private LoggingTaskListener() {
     }

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.IndexFolderUpgrader;
@@ -41,6 +40,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 
+import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -68,15 +68,11 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     private volatile Set<Index> previouslyWrittenIndices = emptySet();
 
-    @Inject
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                            TransportNodesListGatewayMetaState nodesListGatewayMetaState,
-                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
-        throws Exception {
+                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) throws IOException {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
-        nodesListGatewayMetaState.init(this);
 
         if (DiscoveryNode.isDataNode(settings)) {
             ensureNoPre019ShardState(nodeEnv);
@@ -114,7 +110,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         }
     }
 
-    public MetaData loadMetaState() throws Exception {
+    public MetaData loadMetaState() throws IOException {
         return metaStateService.loadFullState();
     }
 
@@ -209,7 +205,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     /**
      * Throws an IAE if a pre 0.19 state is detected
      */
-    private void ensureNoPre019State() throws Exception {
+    private void ensureNoPre019State() throws IOException {
         for (Path dataLocation : nodeEnv.nodeDataPaths()) {
             final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
             if (!Files.exists(stateLocation)) {
@@ -241,7 +237,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
      */
     static MetaData upgradeMetaData(MetaData metaData,
                                     MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                                    MetaDataUpgrader metaDataUpgrader) throws Exception {
+                                    MetaDataUpgrader metaDataUpgrader) throws IOException {
         // upgrade index meta data
         boolean changed = false;
         final MetaData.Builder upgradedMetaData = MetaData.builder(metaData);
@@ -287,7 +283,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     }
 
     // shard state BWC
-    private void ensureNoPre019ShardState(NodeEnvironment nodeEnv) throws Exception {
+    private void ensureNoPre019ShardState(NodeEnvironment nodeEnv) throws IOException {
         for (Path dataLocation : nodeEnv.nodeDataPaths()) {
             final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
             if (Files.exists(stateLocation)) {

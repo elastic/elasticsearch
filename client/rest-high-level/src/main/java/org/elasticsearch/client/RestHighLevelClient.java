@@ -43,6 +43,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -75,6 +76,8 @@ import org.elasticsearch.search.aggregations.bucket.nested.ParsedReverseNested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.ParsedBinaryRange;
 import org.elasticsearch.search.aggregations.bucket.range.ParsedDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.ParsedGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
@@ -119,6 +122,8 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStat
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ParsedExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.ParsedSum;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.tophits.ParsedTopHits;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ParsedValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
@@ -138,6 +143,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -157,31 +163,72 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses.
- * The provided {@link RestClient} is externally built and closed.
- * Can be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins, or to
- * add support for custom response sections, again added to Elasticsearch through plugins.
+ * The {@link RestClient} instance is internally built based on the provided {@link RestClientBuilder} and it gets closed automatically
+ * when closing the {@link RestHighLevelClient} instance that wraps it.
+ * In case an already existing instance of a low-level REST client needs to be provided, this class can be subclassed and the
+ * {@link #RestHighLevelClient(RestClient, CheckedConsumer, List)}  constructor can be used.
+ * This class can also be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through
+ * plugins, or to add support for custom response sections, again added to Elasticsearch through plugins.
  */
-public class RestHighLevelClient {
+public class RestHighLevelClient implements Closeable {
 
     private final RestClient client;
     private final NamedXContentRegistry registry;
+    private final CheckedConsumer<RestClient, IOException> doClose;
+
+    private final IndicesClient indicesClient = new IndicesClient(this);
 
     /**
-     * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests.
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
+     * {@link RestClient} to be used to perform requests.
      */
-    public RestHighLevelClient(RestClient restClient) {
-        this(restClient, Collections.emptyList());
+    public RestHighLevelClient(RestClientBuilder restClientBuilder) {
+        this(restClientBuilder, Collections.emptyList());
+    }
+
+    /**
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
+     * {@link RestClient} to be used to perform requests and parsers for custom response sections added to Elasticsearch through plugins.
+     */
+    protected RestHighLevelClient(RestClientBuilder restClientBuilder, List<NamedXContentRegistry.Entry> namedXContentEntries) {
+        this(restClientBuilder.build(), RestClient::close, namedXContentEntries);
     }
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
      * a list of entries that allow to parse custom response sections added to Elasticsearch through plugins.
+     * This constructor can be called by subclasses in case an externally created low-level REST client needs to be provided.
+     * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
+     * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
      */
-    protected RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
-        this.client = Objects.requireNonNull(restClient);
+    protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
+                                  List<NamedXContentRegistry.Entry> namedXContentEntries) {
+        this.client = Objects.requireNonNull(restClient, "restClient must not be null");
+        this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");
         this.registry = new NamedXContentRegistry(
                 Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
                     .flatMap(Function.identity()).collect(toList()));
+    }
+
+    /**
+     * Returns the low-level client that the current high-level client instance is using to perform requests
+     */
+    public RestClient getLowLevelClient() {
+        return client;
+    }
+
+    @Override
+    public final void close() throws IOException {
+        doClose.accept(client);
+    }
+
+    /**
+     * Provides an {@link IndicesClient} which can be used to access the Indices API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
+     */
+    public final IndicesClient indices() {
+        return indicesClient;
     }
 
     /**
@@ -189,7 +236,7 @@ public class RestHighLevelClient {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
-    public BulkResponse bulk(BulkRequest bulkRequest, Header... headers) throws IOException {
+    public final BulkResponse bulk(BulkRequest bulkRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(bulkRequest, Request::bulk, BulkResponse::fromXContent, emptySet(), headers);
     }
 
@@ -198,14 +245,14 @@ public class RestHighLevelClient {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
-    public void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Header... headers) {
+    public final void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(bulkRequest, Request::bulk, BulkResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**
      * Pings the remote Elasticsearch cluster and returns true if the ping succeeded, false otherwise
      */
-    public boolean ping(Header... headers) throws IOException {
+    public final boolean ping(Header... headers) throws IOException {
         return performRequest(new MainRequest(), (request) -> Request.ping(), RestHighLevelClient::convertExistsResponse,
                 emptySet(), headers);
     }
@@ -213,7 +260,7 @@ public class RestHighLevelClient {
     /**
      * Get the cluster info otherwise provided when sending an HTTP request to port 9200
      */
-    public MainResponse info(Header... headers) throws IOException {
+    public final MainResponse info(Header... headers) throws IOException {
         return performRequestAndParseEntity(new MainRequest(), (request) -> Request.info(), MainResponse::fromXContent, emptySet(),
                 headers);
     }
@@ -223,7 +270,7 @@ public class RestHighLevelClient {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
      */
-    public GetResponse get(GetRequest getRequest, Header... headers) throws IOException {
+    public final GetResponse get(GetRequest getRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(getRequest, Request::get, GetResponse::fromXContent, singleton(404), headers);
     }
 
@@ -241,7 +288,7 @@ public class RestHighLevelClient {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
      */
-    public boolean exists(GetRequest getRequest, Header... headers) throws IOException {
+    public final boolean exists(GetRequest getRequest, Header... headers) throws IOException {
         return performRequest(getRequest, Request::exists, RestHighLevelClient::convertExistsResponse, emptySet(), headers);
     }
 
@@ -250,7 +297,7 @@ public class RestHighLevelClient {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
      */
-    public void existsAsync(GetRequest getRequest, ActionListener<Boolean> listener, Header... headers) {
+    public final void existsAsync(GetRequest getRequest, ActionListener<Boolean> listener, Header... headers) {
         performRequestAsync(getRequest, Request::exists, RestHighLevelClient::convertExistsResponse, listener, emptySet(), headers);
     }
 
@@ -259,7 +306,7 @@ public class RestHighLevelClient {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
      */
-    public IndexResponse index(IndexRequest indexRequest, Header... headers) throws IOException {
+    public final IndexResponse index(IndexRequest indexRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(indexRequest, Request::index, IndexResponse::fromXContent, emptySet(), headers);
     }
 
@@ -268,7 +315,7 @@ public class RestHighLevelClient {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
      */
-    public void indexAsync(IndexRequest indexRequest, ActionListener<IndexResponse> listener, Header... headers) {
+    public final void indexAsync(IndexRequest indexRequest, ActionListener<IndexResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(indexRequest, Request::index, IndexResponse::fromXContent, listener, emptySet(), headers);
     }
 
@@ -277,7 +324,7 @@ public class RestHighLevelClient {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
      */
-    public UpdateResponse update(UpdateRequest updateRequest, Header... headers) throws IOException {
+    public final UpdateResponse update(UpdateRequest updateRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, emptySet(), headers);
     }
 
@@ -286,99 +333,101 @@ public class RestHighLevelClient {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
      */
-    public void updateAsync(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener, Header... headers) {
+    public final void updateAsync(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**
-     * Deletes a document by id using the Delete api
+     * Deletes a document by id using the Delete API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
      */
-    public DeleteResponse delete(DeleteRequest deleteRequest, Header... headers) throws IOException {
+    public final DeleteResponse delete(DeleteRequest deleteRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, Collections.singleton(404),
             headers);
     }
 
     /**
-     * Asynchronously deletes a document by id using the Delete api
+     * Asynchronously deletes a document by id using the Delete API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
      */
-    public void deleteAsync(DeleteRequest deleteRequest, ActionListener<DeleteResponse> listener, Header... headers) {
+    public final void deleteAsync(DeleteRequest deleteRequest, ActionListener<DeleteResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, listener,
             Collections.singleton(404), headers);
     }
 
     /**
-     * Executes a search using the Search api
+     * Executes a search using the Search API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
      */
-    public SearchResponse search(SearchRequest searchRequest, Header... headers) throws IOException {
+    public final SearchResponse search(SearchRequest searchRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, emptySet(), headers);
     }
 
     /**
-     * Asynchronously executes a search using the Search api
+     * Asynchronously executes a search using the Search API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
      */
-    public void searchAsync(SearchRequest searchRequest, ActionListener<SearchResponse> listener, Header... headers) {
+    public final void searchAsync(SearchRequest searchRequest, ActionListener<SearchResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**
-     * Executes a search using the Search Scroll api
+     * Executes a search using the Search Scroll API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
      * API on elastic.co</a>
      */
-    public SearchResponse searchScroll(SearchScrollRequest searchScrollRequest, Header... headers) throws IOException {
+    public final SearchResponse searchScroll(SearchScrollRequest searchScrollRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent, emptySet(), headers);
     }
 
     /**
-     * Asynchronously executes a search using the Search Scroll api
+     * Asynchronously executes a search using the Search Scroll API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
      * API on elastic.co</a>
      */
-    public void searchScrollAsync(SearchScrollRequest searchScrollRequest, ActionListener<SearchResponse> listener, Header... headers) {
+    public final void searchScrollAsync(SearchScrollRequest searchScrollRequest,
+                                        ActionListener<SearchResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent,
                 listener, emptySet(), headers);
     }
 
     /**
-     * Clears one or more scroll ids using the Clear Scroll api
+     * Clears one or more scroll ids using the Clear Scroll API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>
      */
-    public ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, Header... headers) throws IOException {
+    public final ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
                 emptySet(), headers);
     }
 
     /**
-     * Asynchronously clears one or more scroll ids using the Clear Scroll api
+     * Asynchronously clears one or more scroll ids using the Clear Scroll API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>
      */
-    public void clearScrollAsync(ClearScrollRequest clearScrollRequest, ActionListener<ClearScrollResponse> listener, Header... headers) {
+    public final void clearScrollAsync(ClearScrollRequest clearScrollRequest,
+                                       ActionListener<ClearScrollResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
                 listener, emptySet(), headers);
     }
 
-    protected <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                             Set<Integer> ignores, Header... headers) throws IOException {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
-    protected <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+    protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                           Set<Integer> ignores, Header... headers) throws IOException {
@@ -389,7 +438,7 @@ public class RestHighLevelClient {
         Request req = requestConverter.apply(request);
         Response response;
         try {
-            response = client.performRequest(req.method, req.endpoint, req.params, req.entity, headers);
+            response = client.performRequest(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), headers);
         } catch (ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {
@@ -412,7 +461,7 @@ public class RestHighLevelClient {
         }
     }
 
-    protected <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
+    protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                  ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
@@ -420,7 +469,7 @@ public class RestHighLevelClient {
                 listener, ignores, headers);
     }
 
-    protected <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
+    protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
@@ -438,10 +487,10 @@ public class RestHighLevelClient {
         }
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
-        client.performRequestAsync(req.method, req.endpoint, req.params, req.entity, responseListener, headers);
+        client.performRequestAsync(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), responseListener, headers);
     }
 
-    <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
+    final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
                                                         ActionListener<Resp> actionListener, Set<Integer> ignores) {
         return new ResponseListener() {
             @Override
@@ -486,7 +535,7 @@ public class RestHighLevelClient {
      * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
      * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
      */
-    ElasticsearchStatusException parseResponseException(ResponseException responseException) {
+    protected final ElasticsearchStatusException parseResponseException(ResponseException responseException) {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
         ElasticsearchStatusException elasticsearchException;
@@ -506,8 +555,8 @@ public class RestHighLevelClient {
         return elasticsearchException;
     }
 
-    <Resp> Resp parseEntity(
-            HttpEntity entity, CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
+    protected final <Resp> Resp parseEntity(final HttpEntity entity,
+                                      final CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
         if (entity == null) {
             throw new IllegalStateException("Response body expected but not returned");
         }
@@ -570,6 +619,8 @@ public class RestHighLevelClient {
         map.put(SignificantLongTerms.NAME, (p, c) -> ParsedSignificantLongTerms.fromXContent(p, (String) c));
         map.put(SignificantStringTerms.NAME, (p, c) -> ParsedSignificantStringTerms.fromXContent(p, (String) c));
         map.put(ScriptedMetricAggregationBuilder.NAME, (p, c) -> ParsedScriptedMetric.fromXContent(p, (String) c));
+        map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
+        map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());

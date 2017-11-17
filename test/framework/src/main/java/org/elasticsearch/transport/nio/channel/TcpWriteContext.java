@@ -88,7 +88,12 @@ public class TcpWriteContext implements WriteContext {
     }
 
     private void singleFlush(WriteOperation headOp) throws IOException {
-        headOp.flush();
+        try {
+            headOp.flush();
+        } catch (IOException e) {
+            headOp.getListener().onFailure(e);
+            throw e;
+        }
 
         if (headOp.isFullyFlushed()) {
             headOp.getListener().onResponse(channel);

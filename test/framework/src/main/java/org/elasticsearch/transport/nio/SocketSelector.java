@@ -24,13 +24,10 @@ import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 
 import java.io.IOException;
-import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.Iterator;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -54,16 +51,28 @@ public class SocketSelector extends ESSelector {
     }
 
     @Override
-    void doSelect(int timeout) throws IOException, ClosedSelectorException {
-        setUpNewChannels();
-        handleQueuedWrites();
-
-        int ready = selector.select(timeout);
-        if (ready > 0) {
-            Set<SelectionKey> selectionKeys = selector.selectedKeys();
-            processKeys(selectionKeys);
+    void processKey(SelectionKey selectionKey) {
+        NioSocketChannel nioSocketChannel = (NioSocketChannel) selectionKey.attachment();
+        int ops = selectionKey.readyOps();
+        if ((ops & SelectionKey.OP_CONNECT) != 0) {
+            attemptConnect(nioSocketChannel, true);
         }
 
+        if (nioSocketChannel.isConnectComplete()) {
+            if ((ops & SelectionKey.OP_WRITE) != 0) {
+                handleWrite(nioSocketChannel);
+            }
+
+            if ((ops & SelectionKey.OP_READ) != 0) {
+                handleRead(nioSocketChannel);
+            }
+        }
+    }
+
+    @Override
+    void preSelect() {
+        setUpNewChannels();
+        handleQueuedWrites();
     }
 
     @Override
@@ -73,16 +82,14 @@ public class SocketSelector extends ESSelector {
             op.getListener().onFailure(new ClosedSelectorException());
         }
         channelsToClose.addAll(newChannels);
-        channelsToClose.addAll(registeredChannels);
-        closePendingChannels();
     }
 
     /**
-     * Registers a NioSocketChannel to be handled by this selector. The channel will by queued and eventually
+     * Schedules a NioSocketChannel to be registered by this selector. The channel will by queued and eventually
      * registered next time through the event loop.
      * @param nioSocketChannel the channel to register
      */
-    public void registerSocketChannel(NioSocketChannel nioSocketChannel) {
+    public void scheduleForRegistration(NioSocketChannel nioSocketChannel) {
         newChannels.offer(nioSocketChannel);
         ensureSelectorOpenForEnqueuing(newChannels, nioSocketChannel);
         wakeup();
@@ -125,38 +132,6 @@ public class SocketSelector extends ESSelector {
         }
     }
 
-    private void processKeys(Set<SelectionKey> selectionKeys) {
-        Iterator<SelectionKey> keyIterator = selectionKeys.iterator();
-        while (keyIterator.hasNext()) {
-            SelectionKey sk = keyIterator.next();
-            keyIterator.remove();
-            NioSocketChannel nioSocketChannel = (NioSocketChannel) sk.attachment();
-            if (sk.isValid()) {
-                try {
-                    int ops = sk.readyOps();
-                    if ((ops & SelectionKey.OP_CONNECT) != 0) {
-                        attemptConnect(nioSocketChannel);
-                    }
-
-                    if (nioSocketChannel.isConnectComplete()) {
-                        if ((ops & SelectionKey.OP_WRITE) != 0) {
-                            handleWrite(nioSocketChannel);
-                        }
-
-                        if ((ops & SelectionKey.OP_READ) != 0) {
-                            handleRead(nioSocketChannel);
-                        }
-                    }
-                } catch (CancelledKeyException e) {
-                    eventHandler.genericChannelException(nioSocketChannel, e);
-                }
-            } else {
-                eventHandler.genericChannelException(nioSocketChannel, new CancelledKeyException());
-            }
-        }
-    }
-
-
     private void handleWrite(NioSocketChannel nioSocketChannel) {
         try {
             eventHandler.handleWrite(nioSocketChannel);
@@ -192,23 +167,29 @@ public class SocketSelector extends ESSelector {
     }
 
     private void setupChannel(NioSocketChannel newChannel) {
+        assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
         try {
-            if (newChannel.register(this)) {
-                registeredChannels.add(newChannel);
+            if (newChannel.isOpen()) {
+                newChannel.register();
+                addRegisteredChannel(newChannel);
                 SelectionKey key = newChannel.getSelectionKey();
                 key.attach(newChannel);
                 eventHandler.handleRegistration(newChannel);
-                attemptConnect(newChannel);
+                attemptConnect(newChannel, false);
+            } else {
+                eventHandler.registrationException(newChannel, new ClosedChannelException());
             }
         } catch (Exception e) {
             eventHandler.registrationException(newChannel, e);
         }
     }
 
-    private void attemptConnect(NioSocketChannel newChannel) {
+    private void attemptConnect(NioSocketChannel newChannel, boolean connectEvent) {
         try {
             if (newChannel.finishConnect()) {
                 eventHandler.handleConnect(newChannel);
+            } else if (connectEvent) {
+                eventHandler.connectException(newChannel, new IOException("Received OP_CONNECT but connect failed"));
             }
         } catch (Exception e) {
             eventHandler.connectException(newChannel, e);

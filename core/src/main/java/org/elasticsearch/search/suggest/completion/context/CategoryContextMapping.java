@@ -19,7 +19,11 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.StringFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -136,10 +141,16 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
             IndexableField[] fields = document.getFields(fieldName);
             values = new HashSet<>(fields.length);
             for (IndexableField field : fields) {
-                if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
+                if (field instanceof SortedDocValuesField ||
+                        field instanceof SortedSetDocValuesField ||
+                        field instanceof StoredField) {
+                    // Ignore doc values and stored fields
+                } else if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
                     values.add(field.binaryValue().utf8ToString());
-                } else {
+                } else if (field.fieldType() instanceof StringFieldType) {
                     values.add(field.stringValue());
+                } else {
+                    throw new IllegalArgumentException("Failed to parse context field [" + fieldName + "], only keyword and text fields are accepted");
                 }
             }
         }

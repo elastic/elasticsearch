@@ -43,6 +43,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -104,7 +106,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.prepareGet("idx", "type", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
         client.prepareSearch().execute(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
         client.prepareDelete("idx", "type", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
-        client.admin().cluster().prepareDeleteStoredScript("lang", "id").execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
+        client.admin().cluster().prepareDeleteStoredScript("id").execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
         client.prepareIndex("idx", "type", "id").setSource("source", XContentType.JSON).execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
@@ -144,7 +146,10 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     }
 
     protected static void assertHeaders(ThreadPool pool) {
-        assertHeaders(pool.getThreadContext().getHeaders(), (Map)HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX).getAsStructuredMap());
+        Map<String, String> headers = new HashMap<>();
+        Settings asSettings = HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX);
+        assertHeaders(pool.getThreadContext().getHeaders(),
+            asSettings.keySet().stream().collect(Collectors.toMap(Function.identity(), k -> asSettings.get(k))));
     }
 
     public static class InternalException extends Exception {
@@ -161,9 +166,11 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         private final String action;
         private final Map<String, String> expectedHeaders;
         private final ThreadPool pool;
+        private static final Settings THREAD_HEADER_SETTINGS = HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX);
 
         public AssertingActionListener(String action, ThreadPool pool) {
-            this(action, (Map)HEADER_SETTINGS.getAsSettings(ThreadContext.PREFIX).getAsStructuredMap(), pool);
+            this(action, THREAD_HEADER_SETTINGS.keySet().stream()
+                .collect(Collectors.toMap(Function.identity(), k -> THREAD_HEADER_SETTINGS.get(k))), pool);
         }
 
        public AssertingActionListener(String action, Map<String, String> expectedHeaders, ThreadPool pool) {

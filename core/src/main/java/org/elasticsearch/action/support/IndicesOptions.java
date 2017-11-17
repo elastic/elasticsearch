@@ -141,17 +141,11 @@ public class IndicesOptions {
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices) {
-        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, true, false);
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, true, false, false);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, IndicesOptions defaultOptions) {
-        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, defaultOptions.allowAliasesToMultipleIndices(), defaultOptions.forbidClosedIndices());
-    }
-
-    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
-            boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices) {
-        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices,
-                forbidClosedIndices, false);
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, defaultOptions.allowAliasesToMultipleIndices(), defaultOptions.forbidClosedIndices(), defaultOptions.ignoreAliases());
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
@@ -223,7 +217,8 @@ public class IndicesOptions {
                 expandWildcardsOpen,
                 expandWildcardsClosed,
                 defaultSettings.allowAliasesToMultipleIndices(),
-                defaultSettings.forbidClosedIndices()
+                defaultSettings.forbidClosedIndices(),
+                defaultSettings.ignoreAliases()
         );
     }
 

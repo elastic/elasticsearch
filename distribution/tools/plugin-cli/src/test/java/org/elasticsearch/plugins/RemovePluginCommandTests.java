@@ -22,9 +22,11 @@ package org.elasticsearch.plugins;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -34,6 +36,7 @@ import java.io.StringReader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
@@ -44,6 +47,21 @@ public class RemovePluginCommandTests extends ESTestCase {
 
     private Path home;
     private Environment env;
+
+    static class MockRemovePluginCommand extends RemovePluginCommand {
+
+        final Environment env;
+
+        private MockRemovePluginCommand(final Environment env) {
+            this.env = env;
+        }
+
+        @Override
+        protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+            return env;
+        }
+
+    }
 
     @Override
     @Before
@@ -56,13 +74,13 @@ public class RemovePluginCommandTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("path.home", home)
                 .build();
-        env = new Environment(settings);
+        env = TestEnvironment.newEnvironment(settings);
     }
 
     static MockTerminal removePlugin(String name, Path home, boolean purge) throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", home).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        new RemovePluginCommand().execute(terminal, env, name, purge);
+        new MockRemovePluginCommand(env).execute(terminal, env, name, purge);
         return terminal;
     }
 
@@ -175,8 +193,8 @@ public class RemovePluginCommandTests extends ESTestCase {
         assertEquals("plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins", e.getMessage());
 
         MockTerminal terminal = new MockTerminal();
-        new RemovePluginCommand() {
-            @Override
+
+        new MockRemovePluginCommand(env) {
             protected boolean addShutdownHook() {
                 return false;
             }

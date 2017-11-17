@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Allocates an unassigned stale primary shard to a specific node. Use with extreme care as this will result in data loss.
@@ -68,6 +69,11 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public Optional<String> getMessage() {
+        return Optional.of("allocated a stale primary for [" + index + "][" + shardId + "] on node [" + node + "] from user command");
     }
 
     public static AllocateStalePrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {
@@ -113,8 +119,9 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         }
 
         if (acceptDataLoss == false) {
-            return explainOrThrowRejectedCommand(explain, allocation,
-                "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
+            String dataLossWarning = "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please " +
+                "confirm by setting the accept_data_loss parameter to true";
+            return explainOrThrowRejectedCommand(explain, allocation, dataLossWarning);
         }
 
         if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {

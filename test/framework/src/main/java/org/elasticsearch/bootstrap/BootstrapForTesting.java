@@ -102,19 +102,19 @@ public class BootstrapForTesting {
                 Permissions perms = new Permissions();
                 Security.addClasspathPermissions(perms);
                 // java.io.tmpdir
-                Security.addPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
+                FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
                 // custom test config file
                 if (Strings.hasLength(System.getProperty("tests.config"))) {
-                    perms.add(new FilePermission(System.getProperty("tests.config"), "read,readlink"));
+                    FilePermissionUtils.addSingleFilePath(perms, PathUtils.get(System.getProperty("tests.config")), "read,readlink");
                 }
                 // jacoco coverage output file
                 final boolean testsCoverage =
                         Booleans.parseBoolean(System.getProperty("tests.coverage", "false"));
                 if (testsCoverage) {
                     Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
-                    perms.add(new FilePermission(coverageDir.resolve("jacoco.exec").toString(), "read,write"));
+                    FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco.exec"), "read,write");
                     // in case we get fancy and use the -integration goals later:
-                    perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
+                    FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco-it.exec"), "read,write");
                 }
                 // intellij hack: intellij test runner wants setIO and will
                 // screw up all test logging without it!

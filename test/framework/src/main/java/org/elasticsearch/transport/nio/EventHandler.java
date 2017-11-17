@@ -20,9 +20,8 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.transport.nio.channel.CloseFuture;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.transport.nio.channel.NioChannel;
-import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
 import java.nio.channels.Selector;
@@ -30,18 +29,30 @@ import java.nio.channels.Selector;
 public abstract class EventHandler {
 
     protected final Logger logger;
+    private final OpenChannels openChannels;
 
-    public EventHandler(Logger logger) {
+    public EventHandler(Logger logger, OpenChannels openChannels) {
         this.logger = logger;
+        this.openChannels = openChannels;
     }
 
     /**
      * This method handles an IOException that was thrown during a call to {@link Selector#select(long)}.
      *
-     * @param exception that was uncaught
+     * @param exception the exception
      */
-    public void selectException(IOException exception) {
-        logger.warn("io exception during select", exception);
+    void selectException(IOException exception) {
+        logger.warn(new ParameterizedMessage("io exception during select [thread={}]", Thread.currentThread().getName()), exception);
+    }
+
+    /**
+     * This method handles an IOException that was thrown during a call to {@link Selector#close()}.
+     *
+     * @param exception the exception
+     */
+    void closeSelectorException(IOException exception) {
+        logger.warn(new ParameterizedMessage("io exception while closing selector [thread={}]", Thread.currentThread().getName()),
+            exception);
     }
 
     /**
@@ -49,7 +60,7 @@ public abstract class EventHandler {
      *
      * @param exception that was uncaught
      */
-    public void uncaughtException(Exception exception) {
+    void uncaughtException(Exception exception) {
         Thread thread = Thread.currentThread();
         thread.getUncaughtExceptionHandler().uncaughtException(thread, exception);
     }
@@ -59,13 +70,35 @@ public abstract class EventHandler {
      *
      * @param channel that should be closed
      */
-    public void handleClose(NioChannel channel) {
-        channel.closeFromSelector();
-        CloseFuture closeFuture = channel.getCloseFuture();
-        assert closeFuture.isDone() : "Should always be done as we are on the selector thread";
-        IOException closeException = closeFuture.getCloseException();
-        if (closeException != null) {
-            logger.trace("exception while closing channel", closeException);
+    void handleClose(NioChannel channel) {
+        openChannels.channelClosed(channel);
+        try {
+            channel.closeFromSelector();
+        } catch (IOException e) {
+            closeException(channel, e);
         }
+        assert channel.isOpen() == false : "Should always be done as we are on the selector thread";
+    }
+
+    /**
+     * This method is called when an attempt to close a channel throws an exception.
+     *
+     * @param channel that was being closed
+     * @param exception that occurred
+     */
+    void closeException(NioChannel channel, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), exception);
+    }
+
+    /**
+     * This method is called when handling an event from a channel fails due to an unexpected exception.
+     * An example would be if checking ready ops on a {@link java.nio.channels.SelectionKey} threw
+     * {@link java.nio.channels.CancelledKeyException}.
+     *
+     * @param channel that caused the exception
+     * @param exception that was thrown
+     */
+    void genericChannelException(NioChannel channel, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while handling event for channel: {}", channel), exception);
     }
 }

@@ -63,7 +63,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
         for (Failure failure: response.getBulkFailures()) {
-            assertThat(failure.getMessage(), containsString("NumberFormatException[For input string: \"words words\"]"));
+            assertThat(failure.getMessage(), containsString("IllegalArgumentException[For input string: \"words words\"]"));
         }
     }
 
@@ -121,7 +121,7 @@ public class ReindexFailureTests extends ReindexTestCase {
     }
 
     private void indexDocs(int count) throws Exception {
-        List<IndexRequestBuilder> docs = new ArrayList<IndexRequestBuilder>(count);
+        List<IndexRequestBuilder> docs = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("test", "words words"));
         }

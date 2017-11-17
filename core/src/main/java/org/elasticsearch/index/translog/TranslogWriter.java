@@ -31,7 +31,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.BufferedOutputStream;
@@ -97,9 +96,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.outputStream = new BufferedChannelOutputStream(java.nio.channels.Channels.newOutputStream(channel), bufferSize.bytesAsInt());
         this.lastSyncedCheckpoint = initialCheckpoint;
         this.totalOffset = initialCheckpoint.offset;
-        assert initialCheckpoint.minSeqNo == SequenceNumbersService.NO_OPS_PERFORMED : initialCheckpoint.minSeqNo;
+        assert initialCheckpoint.minSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.minSeqNo;
         this.minSeqNo = initialCheckpoint.minSeqNo;
-        assert initialCheckpoint.maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
+        assert initialCheckpoint.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
@@ -193,10 +192,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
         totalOffset += data.length();
 
-        if (minSeqNo == SequenceNumbersService.NO_OPS_PERFORMED) {
+        if (minSeqNo == SequenceNumbers.NO_OPS_PERFORMED) {
             assert operationCounter == 0;
         }
-        if (maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED) {
+        if (maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED) {
             assert operationCounter == 0;
         }
 
@@ -211,7 +210,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     private synchronized boolean assertNoSeqNumberConflict(long seqNo, BytesReference data) throws IOException {
-        if (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+        if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             // nothing to do
         } else if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
@@ -299,7 +298,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
 
     @Override
-    public Translog.Snapshot newSnapshot() {
+    public TranslogSnapshot newSnapshot() {
         // make sure to acquire the sync lock first, to prevent dead locks with threads calling
         // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
         synchronized (syncLock) {

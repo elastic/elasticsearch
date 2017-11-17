@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -175,11 +176,17 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         final Set<Index> concreteIndices = new HashSet<>(expressions.size());
         for (String expression : expressions) {
             AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
-            if (aliasOrIndex == null || (aliasOrIndex.isAlias() && context.getOptions().ignoreAliases())) {
+            if (aliasOrIndex == null ) {
                 if (failNoIndices) {
                     IndexNotFoundException infe = new IndexNotFoundException(expression);
                     infe.setResources("index_expression", expression);
                     throw infe;
+                } else {
+                    continue;
+                }
+            } else if (aliasOrIndex.isAlias() && context.getOptions().ignoreAliases()) {
+                if (failNoIndices) {
+                    throw aliasesNotSupportedException(expression);
                 } else {
                     continue;
                 }
@@ -192,7 +199,8 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 for (IndexMetaData indexMetaData : resolvedIndices) {
                     indexNames[i++] = indexMetaData.getIndex().getName();
                 }
-                throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
+                throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" +
+                        Arrays.toString(indexNames) + "], can't execute a single index op");
             }
 
             for (IndexMetaData index : resolvedIndices) {
@@ -218,6 +226,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             throw infe;
         }
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
+    }
+
+    private static IllegalArgumentException aliasesNotSupportedException(String expression) {
+        return new IllegalArgumentException("The provided expression [" + expression + "] matches an " +
+                "alias, specify the corresponding concrete indices instead.");
     }
 
     /**
@@ -270,8 +283,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     }
 
     /**
-     * Iterates through the list of indices and selects the effective list of required aliases for the
-     * given index.
+     * Iterates through the list of indices and selects the effective list of required aliases for the given index.
      * <p>Only aliases where the given predicate tests successfully are returned. If the indices list contains a non-required reference to
      * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.
      */
@@ -588,8 +600,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 if (Strings.isEmpty(expression)) {
-                    throw infe(expression);
+                    throw indexNotFoundException(expression);
                 }
+                validateAliasOrIndex(expression);
                 if (aliasOrIndexExists(options, metaData, expression)) {
                     if (result != null) {
                         result.add(expression);
@@ -608,8 +621,14 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     result = new HashSet<>(expressions.subList(0, i));
                 }
                 if (!Regex.isSimpleMatchPattern(expression)) {
-                    if (!unavailableIgnoredOrExists(options, metaData, expression)) {
-                        throw infe(expression);
+                    //TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
+                    if (options.ignoreUnavailable() == false) {
+                        AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
+                        if (aliasOrIndex == null) {
+                            throw indexNotFoundException(expression);
+                        } else if (aliasOrIndex.isAlias() && options.ignoreAliases()) {
+                            throw aliasesNotSupportedException(expression);
+                        }
                     }
                     if (add) {
                         result.add(expression);
@@ -628,7 +647,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     result.removeAll(expand);
                 }
                 if (options.allowNoIndices() == false && matches.isEmpty()) {
-                    throw infe(expression);
+                    throw indexNotFoundException(expression);
                 }
                 if (Regex.isSimpleMatchPattern(expression)) {
                     wildcardSeen = true;
@@ -637,8 +656,14 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             return result;
         }
 
-        private static boolean unavailableIgnoredOrExists(IndicesOptions options, MetaData metaData, String expression) {
-            return options.ignoreUnavailable() || aliasOrIndexExists(options, metaData, expression);
+        private static void validateAliasOrIndex(String expression) {
+            // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
+            // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
+            // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
+            // if the expression can't be found.
+            if (expression.charAt(0) == '_') {
+                throw new InvalidIndexNameException(expression, "must not start with '_'.");
+            }
         }
 
         private static boolean aliasOrIndexExists(IndicesOptions options, MetaData metaData, String expression) {
@@ -647,7 +672,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             return aliasOrIndex != null && (options.ignoreAliases() == false || aliasOrIndex.isAlias() == false);
         }
 
-        private static IndexNotFoundException infe(String expression) {
+        private static IndexNotFoundException indexNotFoundException(String expression) {
             IndexNotFoundException infe = new IndexNotFoundException(expression);
             infe.setResources("index_or_alias", expression);
             return infe;

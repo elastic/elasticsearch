@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
@@ -59,7 +60,7 @@ import java.util.function.Supplier;
 public class ClusterModuleTests extends ModuleTestCase {
     private ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
     private ClusterService clusterService = new ClusterService(Settings.EMPTY,
-        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, Collections.emptyMap());
     static class FakeAllocationDecider extends AllocationDecider {
         protected FakeAllocationDecider(Settings settings) {
             super(settings);
@@ -174,6 +175,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testAllocationDeciderOrder() {
         List<Class<? extends AllocationDecider>> expectedDeciders = Arrays.asList(
             MaxRetryAllocationDecider.class,
+            ResizeAllocationDecider.class,
             ReplicaAfterPrimaryActiveAllocationDecider.class,
             RebalanceOnlyWhenActiveAllocationDecider.class,
             ClusterRebalanceAllocationDecider.class,
@@ -194,6 +196,57 @@ public class ClusterModuleTests extends ModuleTestCase {
         while (iter.hasNext()) {
             AllocationDecider decider = iter.next();
             assertSame(decider.getClass(), expectedDeciders.get(idx++));
+        }
+    }
+
+    public void testCustomSuppliers() {
+        Map<String, Supplier<ClusterState.Custom>> customSuppliers = ClusterModule.getClusterStateCustomSuppliers(Collections.emptyList());
+        assertEquals(3, customSuppliers.size());
+        assertTrue(customSuppliers.containsKey(SnapshotsInProgress.TYPE));
+        assertTrue(customSuppliers.containsKey(SnapshotDeletionsInProgress.TYPE));
+        assertTrue(customSuppliers.containsKey(RestoreInProgress.TYPE));
+
+        customSuppliers = ClusterModule.getClusterStateCustomSuppliers(Collections.singletonList(new ClusterPlugin() {
+            @Override
+            public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
+                return Collections.singletonMap("foo", () -> null);
+            }
+        }));
+        assertEquals(4, customSuppliers.size());
+        assertTrue(customSuppliers.containsKey(SnapshotsInProgress.TYPE));
+        assertTrue(customSuppliers.containsKey(SnapshotDeletionsInProgress.TYPE));
+        assertTrue(customSuppliers.containsKey(RestoreInProgress.TYPE));
+        assertTrue(customSuppliers.containsKey("foo"));
+
+        {
+            // Eclipse Neon 2 didn't compile the plugins definition inside the lambda expression,
+            // probably due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=511750, which is
+            // fixed in Eclipse Oxygon. Pulled out the plugins definition to make it work in older versions
+            List<ClusterPlugin> plugins = Collections.singletonList(new ClusterPlugin() {
+                @Override
+                public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
+                    return Collections.singletonMap(SnapshotsInProgress.TYPE, () -> null);
+                }
+            });
+            IllegalStateException ise = expectThrows(IllegalStateException.class,
+                    () -> ClusterModule.getClusterStateCustomSuppliers(plugins));
+            assertEquals(ise.getMessage(), "custom supplier key [snapshots] is registered more than once");
+        }
+        {
+            List<ClusterPlugin> plugins = Arrays.asList(new ClusterPlugin() {
+                @Override
+                public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
+                    return Collections.singletonMap("foo", () -> null);
+                }
+            }, new ClusterPlugin() {
+                @Override
+                public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
+                    return Collections.singletonMap("foo", () -> null);
+                }
+            });
+            IllegalStateException ise = expectThrows(IllegalStateException.class,
+                    () -> ClusterModule.getClusterStateCustomSuppliers(plugins));
+            assertEquals(ise.getMessage(), "custom supplier key [foo] is registered more than once");
         }
     }
 }

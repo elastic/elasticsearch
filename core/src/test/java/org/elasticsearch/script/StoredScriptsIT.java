@@ -51,35 +51,31 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
     public void testBasics() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setLang(LANG)
                 .setId("foobar")
-                .setContent(new BytesArray("{\"script\":\"1\"}"), XContentType.JSON));
-        String script = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), XContentType.JSON));
+        String script = client().admin().cluster().prepareGetStoredScript("foobar")
                 .get().getSource().getSource();
         assertNotNull(script);
         assertEquals("1", script);
 
         assertAcked(client().admin().cluster().prepareDeleteStoredScript()
-                .setId("foobar")
-                .setLang(LANG));
-        StoredScriptSource source = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
+                .setId("foobar"));
+        StoredScriptSource source = client().admin().cluster().prepareGetStoredScript("foobar")
                 .get().getSource();
         assertNull(source);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
-                .setLang("lang#")
                 .setId("id#")
                 .setContent(new BytesArray("{}"), XContentType.JSON)
                 .get());
-        assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;" +
-            "2: lang cannot contain '#' for stored script;", e.getMessage());
+        assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }
 
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
-                .setLang(LANG)
                 .setId("foobar")
-                .setContent(new BytesArray(randomAlphaOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)), XContentType.JSON)
+                .setContent(new BytesArray("{\"script\": { \"lang\": \"" + LANG + "\"," +
+                        " \"source\":\"0123456789abcdef\"} }"), XContentType.JSON)
                 .get()
         );
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());

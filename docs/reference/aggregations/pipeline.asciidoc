@@ -2,8 +2,6 @@
 
 == Pipeline Aggregations
 
-experimental[]
-
 Pipeline aggregations work on the outputs produced from other aggregations rather than from document sets, adding
 information to the output tree. There are many different types of pipeline aggregation, each computing different information from
 other aggregations, but these types can be broken down into two families:
@@ -236,4 +234,5 @@ include::pipeline/movavg-aggregation.asciidoc[]
 include::pipeline/cumulative-sum-aggregation.asciidoc[]
 include::pipeline/bucket-script-aggregation.asciidoc[]
 include::pipeline/bucket-selector-aggregation.asciidoc[]
+include::pipeline/bucket-sort-aggregation.asciidoc[]
 include::pipeline/serial-diff-aggregation.asciidoc[]

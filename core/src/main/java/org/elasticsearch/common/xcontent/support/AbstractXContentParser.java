@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -133,7 +134,14 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Short.class);
-            return Short.parseShort(text());
+
+            double doubleValue = Double.parseDouble(text());
+
+            if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
+                throw new IllegalArgumentException("Value [" + text() + "] is out of range for a short");
+            }
+
+            return (short) doubleValue;
         }
         short result = doShortValue();
         ensureNumberConversion(coerce, result, Short.class);
@@ -147,13 +155,18 @@ public abstract class AbstractXContentParser implements XContentParser {
         return intValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
-
     @Override
     public int intValue(boolean coerce) throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Integer.class);
-            return Integer.parseInt(text());
+            double doubleValue = Double.parseDouble(text());
+
+            if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("Value [" + text() + "] is out of range for an integer");
+            }
+
+            return (int) doubleValue;
         }
         int result = doIntValue();
         ensureNumberConversion(coerce, result, Integer.class);
@@ -172,7 +185,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            return Long.parseLong(text());
+            return Numbers.toLong(text(), coerce);
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);

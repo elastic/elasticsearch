@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -110,7 +111,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (indexOptions() == IndexOptions.NONE) {
                 DEPRECATION_LOGGER.deprecated("Fielddata access on the _uid field is deprecated, use _id instead");
                 return new IndexFieldData.Builder() {
@@ -118,7 +119,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
                     public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                             CircuitBreakerService breakerService, MapperService mapperService) {
                         MappedFieldType idFieldType = mapperService.fullName(IdFieldMapper.NAME);
-                        IndexFieldData<?> idFieldData = idFieldType.fielddataBuilder()
+                        IndexFieldData<?> idFieldData = idFieldType.fielddataBuilder(fullyQualifiedIndexName)
                                 .build(indexSettings, idFieldType, cache, breakerService, mapperService);
                         final String type = mapperService.types().iterator().next();
                         return new UidIndexFieldData(indexSettings.getIndex(), type, idFieldData);
@@ -131,6 +132,11 @@ public class UidFieldMapper extends MetadataFieldMapper {
                         TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                         TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
             }
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new MatchAllDocsQuery();
         }
 
         @Override

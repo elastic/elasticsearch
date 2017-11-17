@@ -27,11 +27,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -43,7 +45,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder> {
+public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder>
+        implements MultiBucketAggregationBuilder {
     public static final String NAME = "filters";
 
     private static final ParseField FILTERS_FIELD = new ParseField("filters");
@@ -174,7 +177,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         boolean changed = false;
         for (KeyedFilter kf : filters) {
-            QueryBuilder result = QueryBuilder.rewriteQuery(kf.filter(), queryShardContext);
+            QueryBuilder result = Rewriteable.rewrite(kf.filter(), queryShardContext);
             rewrittenFilters.add(new KeyedFilter(kf.key(), result));
             if (result != kf.filter()) {
                 changed = true;

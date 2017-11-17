@@ -63,7 +63,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 Collections.singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()));
 
         Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
                 indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
@@ -114,7 +114,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
         Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
                 indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
@@ -180,7 +180,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap());
 
         Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
+            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
                 indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,

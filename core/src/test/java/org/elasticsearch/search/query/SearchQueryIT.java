@@ -30,17 +30,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -70,6 +69,8 @@ import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
@@ -99,7 +100,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSeco
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -173,12 +173,12 @@ public class SearchQueryIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown").type(Type.PHRASE).slop(0)).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchPhraseQuery("field2", "quick brown").slop(0)).get();
         assertHitCount(searchResponse, 1L);
 
-        assertFailures(client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(Type.PHRASE).slop(0)),
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    containsString("field \"field1\" was indexed without position data; cannot run PhraseQuery"));
+        assertFailures(client().prepareSearch().setQuery(matchPhraseQuery("field1", "quick brown").slop(0)),
+                    RestStatus.BAD_REQUEST,
+                    containsString("field:[field1] was indexed without position data; cannot run PhraseQuery"));
     }
 
     // see #3521
@@ -264,9 +264,10 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testCommonTermsQuery() throws Exception {
+
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=text,analyzer=whitespace")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)).get();
         indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
@@ -349,7 +350,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .put(indexSettings())
                         .put(SETTING_NUMBER_OF_SHARDS,1)
                         .put("index.analysis.filter.syns.type","synonym")
-                        .putArray("index.analysis.filter.syns.synonyms","quick,fast")
+                        .putList("index.analysis.filter.syns.synonyms","quick,fast")
                         .put("index.analysis.analyzer.syns.tokenizer","whitespace")
                         .put("index.analysis.analyzer.syns.filter","syns")
                         )
@@ -555,7 +556,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTypeFilter() throws Exception {
-        assertAcked(prepareCreate("test").setSettings("index.version.created", Version.V_5_6_0.id));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
@@ -957,7 +958,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {
         float boost = 10.0f;
-        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
                 client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
         );
@@ -971,7 +972,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat((double)searchResponse.getHits().getAt(0).getScore(), closeTo(boost * searchResponse.getHits().getAt(1).getScore(), .1));
 
         searchResponse = client().prepareSearch()
-                .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important").useDisMax(false)).get();
+                .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important")).get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
@@ -1220,7 +1221,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testBasicQueryByIdMultiType() throws Exception {
-        assertAcked(prepareCreate("test").setSettings("index.version.created", Version.V_5_6_0.id));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
@@ -1393,7 +1394,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testMustNot() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
                 //issue manifested only with shards>=2
-                .setSettings(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS)));
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
 
 
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar"),
@@ -1407,7 +1408,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test").setQuery(
                 boolQuery()
-                        .mustNot(matchQuery("description", "anything").type(Type.BOOLEAN))
+                        .mustNot(matchQuery("description", "anything"))
         ).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).get();
         assertHitCount(searchResponse, 2L);
     }
@@ -1572,9 +1573,9 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.analyzer.index.filter", "lowercase")
                 .put("index.analysis.analyzer.search.type", "custom")
                 .put("index.analysis.analyzer.search.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
+                .putList("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
-                .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
+                .putList("index.analysis.filter.synonym.synonyms", "fast, quick"));
         assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
 
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
@@ -1602,9 +1603,9 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.analyzer.index.filter", "lowercase")
                 .put("index.analysis.analyzer.search.type", "custom")
                 .put("index.analysis.analyzer.search.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
+                .putList("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
-                .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
+                .putList("index.analysis.filter.synonym.synonyms", "fast, quick"));
         assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
 
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
@@ -1699,11 +1700,15 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource("field", "type=date,format=epoch_millis").get());
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("field", -1000000000001L),
                 client().prepareIndex("test", "type", "2").setSource("field", -1000000000000L),
-                client().prepareIndex("test", "type", "3").setSource("field", -999999999999L));
+                client().prepareIndex("test", "type", "3").setSource("field", -999999999999L),
+                client().prepareIndex("test", "type", "4").setSource("field", -1000000000001.0123456789),
+                client().prepareIndex("test", "type", "5").setSource("field", -1000000000000.0123456789),
+                client().prepareIndex("test", "type", "6").setSource("field", -999999999999.0123456789));
 
 
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 2);
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 4);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 6);
+
     }
 
     public void testRangeQueryWithTimeZone() throws Exception {
@@ -1784,12 +1789,6 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getId(), is("4"));
-
-        // A Range Filter on a numeric field with a TimeZone should raise an exception
-        e = expectThrows(SearchPhaseExecutionException.class, () ->
-            client().prepareSearch("test")
-                    .setQuery(QueryBuilders.rangeQuery("num").from("0").to("4").timeZone("-01:00"))
-                    .get());
     }
 
     public void testSearchEmptyDoc() {
@@ -1804,12 +1803,13 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testNGramCopyField() {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
+                .put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 9)
                 .put("index.analysis.analyzer.my_ngram_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_ngram_analyzer.tokenizer", "my_ngram_tokenizer")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.type", "nGram")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.min_gram", "1")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.max_gram", "10")
-                .putArray("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
+                .putList("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
         assertAcked(builder.addMapping("test", "origin", "type=text,copy_to=meta", "meta", "type=text,analyzer=my_ngram_analyzer"));
         // we only have ngrams as the index analyzer so searches will get standard analyzer
 
@@ -1855,13 +1855,14 @@ public class SearchQueryIT extends ESIntegTestCase {
         client().prepareIndex("test1", "type1", "2").setSource("field", "trying out Elasticsearch"));
 
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field", "Johnnie la").slop(between(2,5)).type(Type.PHRASE_PREFIX)).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchPhrasePrefixQuery("field", "Johnnie la").slop(between(2, 5)))
+                .get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field", "trying").type(Type.PHRASE_PREFIX)).get();
+        searchResponse = client().prepareSearch().setQuery(matchPhrasePrefixQuery("field", "trying")).get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "2");
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field", "try").type(Type.PHRASE_PREFIX)).get();
+        searchResponse = client().prepareSearch().setQuery(matchPhrasePrefixQuery("field", "try")).get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "2");
     }
@@ -1892,19 +1893,4 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    public void testRangeQueryRangeFields_24744() throws Exception {
-        assertAcked(prepareCreate("test")
-            .addMapping("type1", "int_range", "type=integer_range"));
-
-        client().prepareIndex("test", "type1", "1")
-            .setSource(jsonBuilder()
-                .startObject()
-                .startObject("int_range").field("gte", 10).field("lte", 20).endObject()
-                .endObject()).get();
-        refresh();
-
-        RangeQueryBuilder range = new RangeQueryBuilder("int_range").relation("intersects").from(Integer.MIN_VALUE).to(Integer.MAX_VALUE);
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-    }
 }

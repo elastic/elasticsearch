@@ -22,10 +22,9 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilterFactory;
 import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
-import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
-import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
+import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
@@ -68,6 +67,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("uppercase", UpperCaseTokenFilterFactory.class);
         filters.put("ngram", NGramTokenFilterFactory.class);
         filters.put("edgengram", EdgeNGramTokenFilterFactory.class);
+        filters.put("bengalistem", StemmerTokenFilterFactory.class);
         filters.put("bulgarianstem", StemmerTokenFilterFactory.class);
         filters.put("englishminimalstem", StemmerTokenFilterFactory.class);
         filters.put("englishpossessive", StemmerTokenFilterFactory.class);
@@ -106,6 +106,30 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("commongramsquery", CommonGramsTokenFilterFactory.class);
         filters.put("patternreplace", PatternReplaceTokenFilterFactory.class);
         filters.put("patterncapturegroup", PatternCaptureGroupTokenFilterFactory.class);
+        filters.put("arabicnormalization", ArabicNormalizationFilterFactory.class);
+        filters.put("bengalinormalization", BengaliNormalizationFilterFactory.class);
+        filters.put("germannormalization", GermanNormalizationFilterFactory.class);
+        filters.put("hindinormalization", HindiNormalizationFilterFactory.class);
+        filters.put("indicnormalization", IndicNormalizationFilterFactory.class);
+        filters.put("persiannormalization", PersianNormalizationFilterFactory.class);
+        filters.put("scandinaviannormalization", ScandinavianNormalizationFilterFactory.class);
+        filters.put("serbiannormalization", SerbianNormalizationFilterFactory.class);
+        filters.put("soraninormalization", SoraniNormalizationFilterFactory.class);
+        filters.put("cjkwidth", CJKWidthFilterFactory.class);
+        filters.put("cjkbigram", CJKBigramFilterFactory.class);
+        filters.put("delimitedpayload", DelimitedPayloadTokenFilterFactory.class);
+        filters.put("keepword", KeepWordFilterFactory.class);
+        filters.put("type", KeepTypesFilterFactory.class);
+        filters.put("classic", ClassicFilterFactory.class);
+        filters.put("apostrophe", ApostropheFilterFactory.class);
+        filters.put("decimaldigit", DecimalDigitFilterFactory.class);
+        filters.put("fingerprint", FingerprintTokenFilterFactory.class);
+        filters.put("minhash", MinHashTokenFilterFactory.class);
+        filters.put("scandinavianfolding", ScandinavianFoldingFilterFactory.class);
+        filters.put("arabicstem", ArabicStemTokenFilterFactory.class);
+        filters.put("brazilianstem", BrazilianStemTokenFilterFactory.class);
+        filters.put("czechstem", CzechStemTokenFilterFactory.class);
+        filters.put("germanstem", GermanStemTokenFilterFactory.class);
         return filters;
     }
 
@@ -137,6 +161,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("arabic_normalization", null);
         filters.put("arabic_stem", null);
         filters.put("asciifolding", null);
+        filters.put("bengali_normalization", null);
         filters.put("brazilian_stem", null);
         filters.put("cjk_bigram", null);
         filters.put("cjk_width", null);
@@ -144,7 +169,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("common_grams", null);
         filters.put("czech_stem", null);
         filters.put("decimal_digit", null);
-        filters.put("delimited_payload_filter", DelimitedPayloadTokenFilterFactory.class);
+        filters.put("delimited_payload_filter", org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class);
         filters.put("dutch_stem", SnowballPorterFilterFactory.class);
         filters.put("edge_ngram", null);
         filters.put("edgeNGram", null);

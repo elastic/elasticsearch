@@ -47,8 +47,7 @@ public class ClusterStateRequestTests extends ESTestCase {
 
             StreamInput streamInput = output.bytes().streamInput();
             streamInput.setVersion(testVersion);
-            ClusterStateRequest deserializedCSRequest = new ClusterStateRequest();
-            deserializedCSRequest.readFrom(streamInput);
+            ClusterStateRequest deserializedCSRequest = new ClusterStateRequest(streamInput);
 
             assertThat(deserializedCSRequest.routingTable(), equalTo(clusterStateRequest.routingTable()));
             assertThat(deserializedCSRequest.metaData(), equalTo(clusterStateRequest.metaData()));

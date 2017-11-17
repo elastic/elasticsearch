@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
@@ -36,10 +36,9 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -54,11 +53,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
-    private static final ParseField FIELDDATA_FIELD = new ParseField("fielddata").withAllDeprecated("[no replacement]");
-    private static final ParseField NAME_FIELD = new ParseField("_name")
-        .withAllDeprecated("query name is not supported in short version of range query");
-    public static final ParseField LTE_FIELD = new ParseField("lte", "le");
-    public static final ParseField GTE_FIELD = new ParseField("gte", "ge");
+    public static final ParseField LTE_FIELD = new ParseField("lte");
+    public static final ParseField GTE_FIELD = new ParseField("gte");
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField TO_FIELD = new ParseField("to");
     private static final ParseField INCLUDE_LOWER_FIELD = new ParseField("include_lower");
@@ -116,8 +112,18 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             String relationString = in.readOptionalString();
             if (relationString != null) {
                 relation = ShapeRelation.getRelationByName(relationString);
+                if (relation != null && !isRelationAllowed(relation)) {
+                    throw new IllegalArgumentException(
+                        "[range] query does not support relation [" + relationString + "]");
+                }
             }
         }
+    }
+
+    private boolean isRelationAllowed(ShapeRelation relation) {
+        return relation == ShapeRelation.INTERSECTS
+            || relation == ShapeRelation.CONTAINS
+            || relation == ShapeRelation.WITHIN;
     }
 
     @Override
@@ -318,6 +324,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (this.relation == null) {
             throw new IllegalArgumentException(relation + " is not a valid relation");
         }
+        if (!isRelationAllowed(this.relation)) {
+            throw new IllegalArgumentException("[range] query does not support relation [" + relation + "]");
+        }
         return this;
     }
 
@@ -404,13 +413,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     }
                 }
             } else if (token.isValue()) {
-                if (NAME_FIELD.match(currentFieldName)) {
-                    queryName = parser.text();
-                } else if (FIELDDATA_FIELD.match(currentFieldName)) {
-                    // ignore
-                } else {
                     throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
-                }
             }
         }
 
@@ -440,20 +443,20 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     // Overridable for testing only
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
-        IndexReader reader = queryRewriteContext.getIndexReader();
-        // If the reader is null we are not on the shard and cannot
+        QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+        // If the context is null we are not on the shard and cannot
         // rewrite so just pretend there is an intersection so that the rewrite is a noop
-        if (reader == null) {
+        if (shardContext == null || shardContext.getIndexReader() == null) {
             return MappedFieldType.Relation.INTERSECTS;
         }
-        final MapperService mapperService = queryRewriteContext.getMapperService();
+        final MapperService mapperService = shardContext.getMapperService();
         final MappedFieldType fieldType = mapperService.fullName(fieldName);
         if (fieldType == null) {
             // no field means we have no values
             return MappedFieldType.Relation.DISJOINT;
         } else {
-            DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
-            return fieldType.isFieldWithinQuery(queryRewriteContext.getIndexReader(), from, to, includeLower,
+            DateMathParser dateMathParser = getForceDateParser();
+            return fieldType.isFieldWithinQuery(shardContext.getIndexReader(), from, to, includeLower,
                     includeUpper, timeZone, dateMathParser, queryRewriteContext);
         }
     }
@@ -484,28 +487,28 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (from == null && to == null) {
+            /**
+             * Open bounds on both side, we can rewrite to an exists query
+             * if the {@link FieldNamesFieldMapper} is enabled.
+             */
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+            if (fieldNamesFieldType == null) {
+                return new MatchNoDocsQuery("No mappings yet");
+            }
+            // Exists query would fail if the fieldNames field is disabled.
+            if (fieldNamesFieldType.isEnabled()) {
+                return ExistsQueryBuilder.newFilter(context, fieldName);
+            }
+        }
         Query query = null;
         MappedFieldType mapper = context.fieldMapper(this.fieldName);
         if (mapper != null) {
-            if (mapper instanceof DateFieldMapper.DateFieldType) {
-
-                query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
-                        timeZone, getForceDateParser(), context);
-            } else if (mapper instanceof RangeFieldMapper.RangeFieldType) {
-                DateMathParser forcedDateParser = null;
-                if (mapper.typeName() == RangeFieldMapper.RangeType.DATE.name && this.format != null) {
-                    forcedDateParser = new DateMathParser(this.format);
-                }
-                query = ((RangeFieldMapper.RangeFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
+            DateMathParser forcedDateParser = getForceDateParser();
+            query = mapper.rangeQuery(
+                    from, to, includeLower, includeUpper,
                     relation, timeZone, forcedDateParser, context);
-            } else {
-                if (timeZone != null) {
-                    throw new QueryShardException(context, "[range] time_zone can not be applied to non date field ["
-                            + fieldName + "]");
-                }
-                //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
-                query = mapper.rangeQuery(from, to, includeLower, includeUpper, context);
-            }
         } else {
             if (timeZone != null) {
                 throw new QueryShardException(context, "[range] time_zone can not be applied to non unmapped field ["
@@ -514,7 +517,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         }
 
         if (query == null) {
-            query = new TermRangeQuery(this.fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
+            query = new TermRangeQuery(this.fieldName,
+                    BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to),
+                    includeLower, includeUpper);
         }
         return query;
     }

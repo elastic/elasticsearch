@@ -208,7 +208,9 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     private ShardRouting nonExistentShardRouting(Index index, List<String> nodeIds, boolean primary) {
-        return TestShardRouting.newShardRouting(new ShardId(index, 0), randomFrom(nodeIds), primary, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING, ShardRoutingState.STARTED));
+        ShardRoutingState state = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING, ShardRoutingState.STARTED);
+        return TestShardRouting.newShardRouting(new ShardId(index, 0), randomFrom(nodeIds),
+            state == ShardRoutingState.RELOCATING ? randomFrom(nodeIds) : null, primary, state);
     }
 
     private static void assertTasksSuccessful(

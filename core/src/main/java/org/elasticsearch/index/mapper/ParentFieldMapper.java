@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.DocValuesTermsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -41,7 +41,6 @@ import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -65,7 +64,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
-            FIELD_TYPE.setEagerGlobalOrdinals(true);
+            FIELD_TYPE.setEagerGlobalOrdinals(false);
             FIELD_TYPE.freeze();
         }
     }
@@ -78,6 +77,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         public Builder(String documentType) {
             super(Defaults.NAME, new ParentFieldType(Defaults.FIELD_TYPE, documentType), Defaults.FIELD_TYPE);
+            // Defaults to true
+            eagerGlobalOrdinals(true);
             this.documentType = documentType;
             builder = this;
         }
@@ -117,7 +118,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                     iterator.remove();
                 } else if (FIELDDATA.match(fieldName)) {
                     // for bw compat only
-                    Map<String, String> fieldDataSettings = SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(fieldNode, "fielddata"));
+                    Map<String, Object> fieldDataSettings = nodeMapValue(fieldNode, "fielddata");
                     if (fieldDataSettings.containsKey("loading")) {
                         builder.eagerGlobalOrdinals("eager_global_ordinals".equals(fieldDataSettings.get("loading")));
                     }
@@ -179,6 +180,11 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new DocValuesFieldExistsQuery(name());
+        }
+
+        @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             return termsQuery(Collections.singletonList(value), context);
         }
@@ -196,7 +202,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             return new DocValuesIndexFieldData.Builder();
         }
     }
@@ -287,7 +293,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         builder.startObject(CONTENT_TYPE);
         builder.field("type", parentType);
-        if (includeDefaults || fieldType().eagerGlobalOrdinals() != defaultFieldType.eagerGlobalOrdinals()) {
+        if (includeDefaults || fieldType().eagerGlobalOrdinals() == false) {
             builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
         }
         builder.endObject();

@@ -47,7 +47,6 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -60,7 +59,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.Scheduler;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -283,7 +282,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request = new UpdateRequest("posts", "doc", "1").fetchSource(true);
             //tag::update-request-with-stored-script
             Script stored =
-                    new Script(ScriptType.STORED, "painless", "increment-field", parameters);  // <1>
+                    new Script(ScriptType.STORED, null, "increment-field", parameters);  // <1>
             request.script(stored);  // <2>
             //end::update-request-with-stored-script
             updateResponse = client.update(request);
@@ -864,31 +863,27 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testBulkProcessor() throws InterruptedException, IOException {
-        Settings settings = Settings.builder().put("node.name", "my-application").build();
         RestHighLevelClient client = highLevelClient();
         {
             // tag::bulk-processor-init
-            ThreadPool threadPool = new ThreadPool(settings); // <1>
-
-            BulkProcessor.Listener listener = new BulkProcessor.Listener() { // <2>
+            BulkProcessor.Listener listener = new BulkProcessor.Listener() { // <1>
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
-                    // <3>
+                    // <2>
                 }
 
                 @Override
                 public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                    // <4>
+                    // <3>
                 }
 
                 @Override
                 public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                    // <5>
+                    // <4>
                 }
             };
 
-            BulkProcessor bulkProcessor = new BulkProcessor.Builder(client::bulkAsync, listener, threadPool)
-                    .build(); // <6>
+            BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulkAsync, listener).build(); // <5>
             // end::bulk-processor-init
             assertNotNull(bulkProcessor);
 
@@ -913,7 +908,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::bulk-processor-close
             bulkProcessor.close();
             // end::bulk-processor-close
-            terminate(threadPool);
         }
         {
             // tag::bulk-processor-listener
@@ -940,19 +934,14 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             };
             // end::bulk-processor-listener
 
-            ThreadPool threadPool = new ThreadPool(settings);
-            try {
-                // tag::bulk-processor-options
-                BulkProcessor.Builder builder = new BulkProcessor.Builder(client::bulkAsync, listener, threadPool);
-                builder.setBulkActions(500); // <1>
-                builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
-                builder.setConcurrentRequests(0); // <3>
-                builder.setFlushInterval(TimeValue.timeValueSeconds(10L)); // <4>
-                builder.setBackoffPolicy(BackoffPolicy.constantBackoff(TimeValue.timeValueSeconds(1L), 3)); // <5>
-                // end::bulk-processor-options
-            } finally {
-                terminate(threadPool);
-            }
+            // tag::bulk-processor-options
+            BulkProcessor.Builder builder = BulkProcessor.builder(client::bulkAsync, listener);
+            builder.setBulkActions(500); // <1>
+            builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
+            builder.setConcurrentRequests(0); // <3>
+            builder.setFlushInterval(TimeValue.timeValueSeconds(10L)); // <4>
+            builder.setBackoffPolicy(BackoffPolicy.constantBackoff(TimeValue.timeValueSeconds(1L), 3)); // <5>
+            // end::bulk-processor-options
         }
     }
 }

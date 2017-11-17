@@ -39,6 +39,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -60,14 +61,47 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
+    // a parsing function that requires a non negative int and a timevalue as arguments split by a slash
+    // this allows you to easily define rates
+    static final Function<String, Tuple<Integer, TimeValue>> MAX_COMPILATION_RATE_FUNCTION =
+            (String value) -> {
+                if (value.contains("/") == false || value.startsWith("/") || value.endsWith("/")) {
+                    throw new IllegalArgumentException("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [" +
+                            value + "]");
+                }
+                int idx = value.indexOf("/");
+                String count = value.substring(0, idx);
+                String time = value.substring(idx + 1);
+                try {
+
+                    int rate = Integer.parseInt(count);
+                    if (rate < 0) {
+                        throw new IllegalArgumentException("rate [" + rate + "] must be positive");
+                    }
+                    TimeValue timeValue = TimeValue.parseTimeValue(time, "script.max_compilations_rate");
+                    if (timeValue.nanos() <= 0) {
+                        throw new IllegalArgumentException("time value [" + time + "] must be positive");
+                    }
+                    // protect against a too hard to check limit, like less than a minute
+                    if (timeValue.seconds() < 60) {
+                        throw new IllegalArgumentException("time value [" + time + "] must be at least on a one minute resolution");
+                    }
+                    return Tuple.tuple(rate, timeValue);
+                } catch (NumberFormatException e) {
+                    // the number format exception message is so confusing, that it makes more sense to wrap it with a useful one
+                    throw new IllegalArgumentException("could not parse [" + count + "] as integer in value [" + value + "]", e);
+                }
+            };
+
     public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING =
         Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope);
     public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
         Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
-    public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_PER_MINUTE =
-        Setting.intSetting("script.max_compilations_per_minute", 15, 0, Property.Dynamic, Property.NodeScope);
+    // public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
+    public static final Setting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE =
+            new Setting<>("script.max_compilations_rate", "75/5m", MAX_COMPILATION_RATE_FUNCTION, Property.Dynamic, Property.NodeScope);
 
     public static final String ALLOW_NONE = "none";
 
@@ -88,9 +122,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     private ClusterState clusterState;
 
-    private int totalCompilesPerMinute;
+    private Tuple<Integer, TimeValue> rate;
     private long lastInlineCompileTime;
-    private double scriptsPerMinCounter;
+    private double scriptsPerTimeWindow;
     private double compilesAllowedPerNano;
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
@@ -188,11 +222,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         this.lastInlineCompileTime = System.nanoTime();
-        this.setMaxCompilationsPerMinute(SCRIPT_MAX_COMPILATIONS_PER_MINUTE.get(settings));
+        this.setMaxCompilationRate(SCRIPT_MAX_COMPILATIONS_RATE.get(settings));
     }
 
     void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
-        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_PER_MINUTE, this::setMaxCompilationsPerMinute);
+        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE, this::setMaxCompilationRate);
     }
 
     @Override
@@ -208,11 +242,16 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return scriptEngine;
     }
 
-    void setMaxCompilationsPerMinute(Integer newMaxPerMinute) {
-        this.totalCompilesPerMinute = newMaxPerMinute;
+    /**
+     * This configures the maximum script compilations per five minute window.
+     *
+     * @param newRate the new expected maximum number of compilations per five minute window
+     */
+    void setMaxCompilationRate(Tuple<Integer, TimeValue> newRate) {
+        this.rate = newRate;
         // Reset the counter to allow new compilations
-        this.scriptsPerMinCounter = totalCompilesPerMinute;
-        this.compilesAllowedPerNano = ((double) totalCompilesPerMinute) / TimeValue.timeValueMinutes(1).nanos();
+        this.scriptsPerTimeWindow = rate.v1();
+        this.compilesAllowedPerNano = ((double) rate.v1()) / newRate.v2().nanos();
     }
 
     /**
@@ -231,30 +270,13 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         String id = idOrCode;
 
-        // lang may be null when looking up a stored script, so we must get the
-        // source to retrieve the lang before checking if the context is supported
         if (type == ScriptType.STORED) {
-            // search template requests can possibly pass in the entire path instead
-            // of just an id for looking up a stored script, so we parse the path and
-            // check for appropriate errors
-            String[] path = id.split("/");
-
-            if (path.length == 3) {
-                if (lang != null && lang.equals(path[1]) == false) {
-                    throw new IllegalStateException("conflicting script languages, found [" + path[1] + "] but expected [" + lang + "]");
-                }
-
-                id = path[2];
-
-                deprecationLogger.deprecated("use of </lang/id> [" + idOrCode + "] for looking up" +
-                    " stored scripts/templates has been deprecated, use only <id> [" + id + "] instead");
-            } else if (path.length != 1) {
-                throw new IllegalArgumentException("illegal stored script format [" + id + "] use only <id>");
-            }
-
-            // a stored script must be pulled from the cluster state every time in case
+            // * lang and options will both be null when looking up a stored script,
+            // so we must get the source to retrieve them before checking if the
+            // context is supported
+            // * a stored script must be pulled from the cluster state every time in case
             // the script has been updated since the last compilation
-            StoredScriptSource source = getScriptFromClusterState(id, lang);
+            StoredScriptSource source = getScriptFromClusterState(id);
             lang = source.getLang();
             idOrCode = source.getSource();
             options = source.getOptions();
@@ -262,7 +284,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         // TODO: fix this through some API or something, that's wrong
         // special exception to prevent expressions from compiling as update or mapping scripts
-        boolean expression = "expression".equals(script.getLang());
+        boolean expression = "expression".equals(lang);
         boolean notSupported = context.name.equals(ExecutableScript.UPDATE_CONTEXT.name);
         if (expression && notSupported) {
             throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
@@ -303,7 +325,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 try {
                     // Either an un-cached inline script or indexed script
                     // If the script type is inline the name will be the same as the code for identification in exceptions
-
                     // but give the script engine the chance to be better, give it separate name + source code
                     // for the inline case, then its anonymous: null.
                     if (logger.isTraceEnabled()) {
@@ -343,21 +364,22 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         long timePassed = now - lastInlineCompileTime;
         lastInlineCompileTime = now;
 
-        scriptsPerMinCounter += (timePassed) * compilesAllowedPerNano;
+        scriptsPerTimeWindow += (timePassed) * compilesAllowedPerNano;
 
         // It's been over the time limit anyway, readjust the bucket to be level
-        if (scriptsPerMinCounter > totalCompilesPerMinute) {
-            scriptsPerMinCounter = totalCompilesPerMinute;
+        if (scriptsPerTimeWindow > rate.v1()) {
+            scriptsPerTimeWindow = rate.v1();
         }
 
         // If there is enough tokens in the bucket, allow the request and decrease the tokens by 1
-        if (scriptsPerMinCounter >= 1) {
-            scriptsPerMinCounter -= 1.0;
+        if (scriptsPerTimeWindow >= 1) {
+            scriptsPerTimeWindow -= 1.0;
         } else {
+            scriptMetrics.onCompilationLimit();
             // Otherwise reject the request
-            throw new CircuitBreakingException("[script] Too many dynamic script compilations within one minute, max: [" +
-                            totalCompilesPerMinute + "/min]; please use on-disk, indexed, or scripts with parameters instead; " +
-                            "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey() + "] setting");
+            throw new CircuitBreakingException("[script] Too many dynamic script compilations within, max: [" +
+                    rate.v1() + "/" + rate.v2() +"]; please use indexed, or scripts with parameters instead; " +
+                            "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_RATE.getKey() + "] setting");
         }
     }
 
@@ -378,23 +400,17 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return contextsAllowed == null || contextsAllowed.isEmpty() == false;
     }
 
-    StoredScriptSource getScriptFromClusterState(String id, String lang) {
-        if (lang != null && isLangSupported(lang) == false) {
-            throw new IllegalArgumentException("unable to get stored script with unsupported lang [" + lang + "]");
-        }
-
+    StoredScriptSource getScriptFromClusterState(String id) {
         ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
 
         if (scriptMetadata == null) {
-            throw new ResourceNotFoundException("unable to find script [" + id + "]" +
-                (lang == null ? "" : " using lang [" + lang + "]") + " in cluster state");
+            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
         }
 
-        StoredScriptSource source = scriptMetadata.getStoredScript(id, lang);
+        StoredScriptSource source = scriptMetadata.getStoredScript(id);
 
         if (source == null) {
-            throw new ResourceNotFoundException("unable to find script [" + id + "]" +
-                (lang == null ? "" : " using lang [" + lang + "]") + " in cluster state");
+            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
         }
 
         return source;
@@ -409,7 +425,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 request.content().length() + "] for script [" + request.id() + "]");
         }
 
-        StoredScriptSource source = StoredScriptSource.parse(request.lang(), request.content(), request.xContentType());
+        StoredScriptSource source = request.source();
 
         if (isLangSupported(source.getLang()) == false) {
             throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.getLang() + "]");
@@ -458,10 +474,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
                                    ActionListener<DeleteStoredScriptResponse> listener) {
-        if (request.lang() != null && isLangSupported(request.lang()) == false) {
-            throw new IllegalArgumentException("unable to delete stored script with unsupported lang [" + request.lang() +"]");
-        }
-
         clusterService.submitStateUpdateTask("delete-script-" + request.id(),
             new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
 
@@ -473,7 +485,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
-                smd = ScriptMetaData.deleteStoredScript(smd, request.id(), request.lang());
+                smd = ScriptMetaData.deleteStoredScript(smd, request.id());
                 MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
 
                 return ClusterState.builder(currentState).metaData(mdb).build();
@@ -485,7 +497,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
 
         if (scriptMetadata != null) {
-            return scriptMetadata.getStoredScript(request.id(), request.lang());
+            return scriptMetadata.getStoredScript(request.id());
         } else {
             return null;
         }

@@ -19,7 +19,7 @@ boost.
 into a should clause in a boolean query, and keeps the scores as
 computed by the query. Note that typically such scores are meaningless
 to the user, and require non-trivial CPU to compute, so it's almost
-always better to use `constant_score_auto`. This rewrite method will hit
+always better to use `constant_score`. This rewrite method will hit
 too many clauses failure if it exceeds the boolean query limit (defaults
 to `1024`).
 * `constant_score_boolean`: Similar to `scoring_boolean` except scores

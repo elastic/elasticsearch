@@ -33,15 +33,19 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.Counter;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
@@ -50,8 +54,11 @@ import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.LinkedList;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.search.query.QueryCollectorContext.createCancellableCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlySortingTerminationCollectorContext;
@@ -59,8 +66,8 @@ import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTe
 import static org.elasticsearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createMultiCollectorContext;
-import static org.elasticsearch.search.query.QueryCollectorContext.createTimeoutCollectorContext;
 import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
+
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -98,8 +105,9 @@ public class QueryPhase implements SearchPhase {
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
         Sort indexSort = searchContext.mapperService().getIndexSettings().getIndexSortConfig()
-            .buildIndexSort(searchContext.mapperService()::fullName, searchContext.fieldData()::getForField);
-        boolean rescore = execute(searchContext, searchContext.searcher(), indexSort);
+            .buildIndexSort(searchContext.mapperService()::fullName, searchContext::getForField);
+        final ContextIndexSearcher searcher = searchContext.searcher();
+        boolean rescore = execute(searchContext, searchContext.searcher(), searcher::setCheckCancelled, indexSort);
 
         if (rescore) { // only if we do a regular search
             rescorePhase.execute(searchContext);
@@ -119,7 +127,8 @@ public class QueryPhase implements SearchPhase {
      * wire everything (mapperService, etc.)
      * @return whether the rescoring phase should be executed
      */
-    static boolean execute(SearchContext searchContext, final IndexSearcher searcher, @Nullable Sort indexSort) throws QueryPhaseExecutionException {
+    static boolean execute(SearchContext searchContext, final IndexSearcher searcher,
+            Consumer<Runnable> checkCancellationSetter, @Nullable Sort indexSort) throws QueryPhaseExecutionException {
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
 
@@ -188,13 +197,48 @@ public class QueryPhase implements SearchPhase {
 
             boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
                 searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
+
+            final Runnable timeoutRunnable;
             if (timeoutSet) {
-                // TODO: change to use our own counter that uses the scheduler in ThreadPool
-                // throws TimeLimitingCollector.TimeExceededException when timeout has reached
-                collectors.add(createTimeoutCollectorContext(searchContext.timeEstimateCounter(), searchContext.timeout().millis()));
+                final Counter counter = searchContext.timeEstimateCounter();
+                final long startTime = counter.get();
+                final long timeout = searchContext.timeout().millis();
+                final long maxTime = startTime + timeout;
+                timeoutRunnable = () -> {
+                    final long time = counter.get();
+                    if (time > maxTime) {
+                        throw new TimeExceededException();
+                    }
+                };
+            } else {
+                timeoutRunnable = null;
             }
+
+            final Runnable cancellationRunnable;
+            if (searchContext.lowLevelCancellation()) {
+                SearchTask task = searchContext.getTask();
+                cancellationRunnable = () -> { if (task.isCancelled()) throw new TaskCancelledException("cancelled"); };
+            } else {
+                cancellationRunnable = null;
+            }
+
+            final Runnable checkCancelled;
+            if (timeoutRunnable != null && cancellationRunnable != null) {
+                checkCancelled = () -> { timeoutRunnable.run(); cancellationRunnable.run(); };
+            } else if (timeoutRunnable != null) {
+                checkCancelled = timeoutRunnable;
+            } else if (cancellationRunnable != null) {
+                checkCancelled = cancellationRunnable;
+            } else {
+                checkCancelled = null;
+            }
+
+            checkCancellationSetter.accept(checkCancelled);
+
             // add cancellable
-            collectors.add(createCancellableCollectorContext(searchContext.getTask()::isCancelled, searchContext.lowLevelCancellation()));
+            // this only performs segment-level cancellation, which is cheap and checked regardless of
+            // searchContext.lowLevelCancellation()
+            collectors.add(createCancellableCollectorContext(searchContext.getTask()::isCancelled));
 
             final IndexReader reader = searcher.getIndexReader();
             final boolean doProfile = searchContext.getProfilers() != null;
@@ -227,7 +271,7 @@ public class QueryPhase implements SearchPhase {
                 if (shouldCollect) {
                     searcher.search(query, queryCollector);
                 }
-            } catch (TimeLimitingCollector.TimeExceededException e) {
+            } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
                 queryResult.searchTimedOut(true);
             } finally {
@@ -237,6 +281,13 @@ public class QueryPhase implements SearchPhase {
             final QuerySearchResult result = searchContext.queryResult();
             for (QueryCollectorContext ctx : collectors) {
                 ctx.postProcess(result, shouldCollect);
+            }
+            EsThreadPoolExecutor executor = (EsThreadPoolExecutor)
+                    searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+            if (executor instanceof QueueResizingEsThreadPoolExecutor) {
+                QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
+                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
             }
             if (searchContext.getProfilers() != null) {
                 ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(searchContext.getProfilers());
@@ -274,4 +325,6 @@ public class QueryPhase implements SearchPhase {
         final Sort sort = context.sort() == null ? Sort.RELEVANCE : context.sort().sort;
         return indexSort != null && EarlyTerminatingSortingCollector.canEarlyTerminate(sort, indexSort);
     }
+
+    private static class TimeExceededException extends RuntimeException {}
 }

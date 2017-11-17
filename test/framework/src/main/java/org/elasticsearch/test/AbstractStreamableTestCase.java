@@ -25,11 +25,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.io.IOException;
 import java.util.Collections;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractStreamableTestCase<T extends Streamable> extends ESTestCase {
     protected static final int NUMBER_OF_TEST_RUNS = 20;
@@ -49,35 +49,31 @@ public abstract class AbstractStreamableTestCase<T extends Streamable> extends E
     protected abstract T createBlankInstance();
 
     /**
+     * Returns a {@link CopyFunction} that can be used to make an exact copy of
+     * the given instance. This defaults to a function that uses
+     * {@link #copyInstance(Streamable, Version)} to create the copy.
+     */
+    protected CopyFunction<T> getCopyFunction() {
+        return (original) -> copyInstance(original, Version.CURRENT);
+    }
+
+    /**
+     * Returns a {@link MutateFunction} that can be used to make create a copy
+     * of the given instance that is different to this instance. This defaults
+     * to null.
+     */
+    // TODO: Make this abstract when all sub-classes implement this (https://github.com/elastic/elasticsearch/issues/25929)
+    protected MutateFunction<T> getMutateFunction() {
+        return null;
+    }
+
+    /**
      * Tests that the equals and hashcode methods are consistent and copied
      * versions of the instance have are equal.
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            T firstInstance = createTestInstance();
-            assertFalse("instance is equal to null", firstInstance.equals(null));
-            assertFalse("instance is equal to incompatible type", firstInstance.equals(""));
-            assertEquals("instance is not equal to self", firstInstance, firstInstance);
-            assertThat("same instance's hashcode returns different values if called multiple times", firstInstance.hashCode(),
-                    equalTo(firstInstance.hashCode()));
-
-            T secondInstance = copyInstance(firstInstance, Version.CURRENT);
-            assertEquals("instance is not equal to self", secondInstance, secondInstance);
-            assertEquals("instance is not equal to its copy", firstInstance, secondInstance);
-            assertEquals("equals is not symmetric", secondInstance, firstInstance);
-            assertThat("instance copy's hashcode is different from original hashcode", secondInstance.hashCode(),
-                    equalTo(firstInstance.hashCode()));
-
-            T thirdInstance = copyInstance(secondInstance, Version.CURRENT);
-            assertEquals("instance is not equal to self", thirdInstance, thirdInstance);
-            assertEquals("instance is not equal to its copy", secondInstance, thirdInstance);
-            assertThat("instance copy's hashcode is different from original hashcode", secondInstance.hashCode(),
-                    equalTo(thirdInstance.hashCode()));
-            assertEquals("equals is not transitive", firstInstance, thirdInstance);
-            assertThat("instance copy's hashcode is different from original hashcode", firstInstance.hashCode(),
-                    equalTo(thirdInstance.hashCode()));
-            assertEquals("equals is not symmetric", thirdInstance, secondInstance);
-            assertEquals("equals is not symmetric", thirdInstance, firstInstance);
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), getCopyFunction(), getMutateFunction());
         }
     }
 
@@ -105,7 +101,7 @@ public abstract class AbstractStreamableTestCase<T extends Streamable> extends E
     /**
      * Round trip {@code instance} through binary serialization, setting the wire compatibility version to {@code version}.
      */
-    protected T copyInstance(T instance, Version version) throws IOException {
+    private T copyInstance(T instance, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);
             instance.writeTo(output);

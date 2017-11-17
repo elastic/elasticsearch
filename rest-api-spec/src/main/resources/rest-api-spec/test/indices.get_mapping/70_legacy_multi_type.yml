@@ -1,5 +1,11 @@
 ---
 setup:
+
+  - skip:
+        # this will only run in a mixed cluster environment with at least 1 5.x node
+        version: "5.99.99 - " 
+        reason:  multiple types are not supported on 6.x indices onwards
+
   - do:
         indices.create:
           index: test_1
@@ -18,10 +24,6 @@ setup:
 ---
 "Get /_mapping":
 
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
-
  - do:
     indices.get_mapping: {}
 
@@ -32,10 +34,6 @@ setup:
 
 ---
 "Get /{index}/_mapping":
-
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -49,10 +47,6 @@ setup:
 ---
 "Get /{index}/_mapping/_all":
 
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
-
  - do:
     indices.get_mapping:
         index: test_1
@@ -64,10 +58,6 @@ setup:
 
 ---
 "Get /{index}/_mapping/*":
-
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -81,10 +71,6 @@ setup:
 ---
 "Get /{index}/_mapping/{type}":
 
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
-
  - do:
     indices.get_mapping:
         index: test_1
@@ -95,10 +81,6 @@ setup:
 
 ---
 "Get /{index}/_mapping/{type,type}":
-
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -112,10 +94,6 @@ setup:
 ---
 "Get /{index}/_mapping/{type*}":
 
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
-
  - do:
     indices.get_mapping:
         index: test_1
@@ -128,10 +106,6 @@ setup:
 ---
 "Get /_mapping/{type}":
 
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
-
  - do:
     indices.get_mapping:
         type: type_2
@@ -143,10 +117,6 @@ setup:
 
 ---
 "Get /_all/_mapping/{type}":
-
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
 
  - do:
     indices.get_mapping:
@@ -161,10 +131,6 @@ setup:
 ---
 "Get /*/_mapping/{type}":
 
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
-
  - do:
     indices.get_mapping:
         index: '*'
@@ -178,10 +144,6 @@ setup:
 ---
 "Get /index,index/_mapping/{type}":
 
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
-
  - do:
     indices.get_mapping:
         index: test_1,test_2
@@ -193,10 +155,6 @@ setup:
 
 ---
 "Get /index*/_mapping/{type}":
-
- - skip:
-    version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-    reason:  multiple types are not supported on 6.x indices onwards
 
  - do:
     indices.get_mapping:

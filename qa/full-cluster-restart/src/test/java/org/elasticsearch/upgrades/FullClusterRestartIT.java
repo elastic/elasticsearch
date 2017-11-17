@@ -25,6 +25,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,15 +34,19 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,7 +55,9 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -62,7 +69,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class FullClusterRestartIT extends ESRestTestCase {
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
+    private final boolean supportsLenientBooleans = oldClusterVersion.before(Version.V_6_0_0_alpha1);
     private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
 
     private String index;
@@ -149,11 +156,21 @@ public class FullClusterRestartIT extends ESRestTestCase {
         } else {
             count = countOfIndexedRandomDocuments();
         }
+
+        Map<String, String> params = new HashMap<>();
+        params.put("timeout", "2m");
+        params.put("wait_for_status", "green");
+        params.put("wait_for_no_relocating_shards", "true");
+        params.put("wait_for_events", "languid");
+        Map<String, Object> healthRsp = toMap(client().performRequest("GET", "/_cluster/health/" + index, params));
+        logger.info("health api response: {}", healthRsp);
+        assertEquals("green", healthRsp.get("status"));
+        assertFalse((Boolean) healthRsp.get("timed_out"));
+
         assertBasicSearchWorks(count);
         assertAllSearchWorks(count);
         assertBasicAggregationWorks();
         assertRealtimeGetWorks();
-        assertUpgradeWorks();
         assertStoredBinaryFields(count);
     }
 
@@ -214,17 +231,15 @@ public class FullClusterRestartIT extends ESRestTestCase {
             Map<String, Object> recoverRsp = toMap(client().performRequest("GET", "/" + index + "/_recovery"));
             logger.debug("--> recovery status:\n{}", recoverRsp);
 
-            Map<String, Object> responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
-                Collections.singletonMap("preference", "_primary")));
-            assertNoFailures(responseBody);
-            int foundHits1 = (int) XContentMapValues.extractValue("hits.total", responseBody);
-
-            responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
-                Collections.singletonMap("preference", "_replica")));
-            assertNoFailures(responseBody);
-            int foundHits2 = (int) XContentMapValues.extractValue("hits.total", responseBody);
-            assertEquals(foundHits1, foundHits2);
-            // TODO: do something more with the replicas! index?
+            Set<Integer> counts = new HashSet<>();
+            for (String node : dataNodes(index, client())) {
+                Map<String, Object> responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
+                    Collections.singletonMap("preference", "_only_nodes:" + node)));
+                assertNoFailures(responseBody);
+                int hits = (int) XContentMapValues.extractValue("hits.total", responseBody);
+                counts.add(hits);
+            }
+            assertEquals("All nodes should have a consistent number of documents", 1, counts.size());
         }
     }
 
@@ -337,6 +352,71 @@ public class FullClusterRestartIT extends ESRestTestCase {
             ".settings.index.version.created", clusterState)));
         assertEquals(oldClusterVersion, version);
 
+    }
+
+    public void testShrink() throws IOException {
+        String shrunkenIndex = index + "_shrunk";
+        int numDocs;
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("mappings");
+                mappingsAndSettings.startObject("doc");
+                mappingsAndSettings.startObject("properties");
+                {
+                    mappingsAndSettings.startObject("field");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.endObject();
+                }
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+
+            numDocs = randomIntBetween(512, 1024);
+            indexRandomDocuments(numDocs, true, true, i -> {
+                return JsonXContent.contentBuilder().startObject()
+                    .field("field", "value")
+                    .endObject();
+            });
+
+            String updateSettingsRequestBody = "{\"settings\": {\"index.blocks.write\": true}}";
+            Response rsp = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
+                new StringEntity(updateSettingsRequestBody, ContentType.APPLICATION_JSON));
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+
+            String shrinkIndexRequestBody = "{\"settings\": {\"index.number_of_shards\": 1}}";
+            rsp = client().performRequest("PUT", "/" + index + "/_shrink/" + shrunkenIndex, Collections.emptyMap(),
+                new StringEntity(shrinkIndexRequestBody, ContentType.APPLICATION_JSON));
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+
+            rsp = client().performRequest("POST", "/_refresh");
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+        } else {
+            numDocs = countOfIndexedRandomDocuments();
+        }
+
+        Map<?, ?> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
+        assertNoFailures(response);
+        int totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
+        assertThat(totalShards, greaterThan(1));
+        int successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
+        assertEquals(totalShards, successfulShards);
+        int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(numDocs, totalHits);
+
+        response = toMap(client().performRequest("GET", "/" + shrunkenIndex+ "/_search"));
+        assertNoFailures(response);
+        totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
+        assertEquals(1, totalShards);
+        successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
+        assertEquals(1, successfulShards);
+        totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(numDocs, totalHits);
     }
 
     void assertBasicSearchWorks(int count) throws IOException {
@@ -452,71 +532,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
         response = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
                 new StringEntity(requestBody, ContentType.APPLICATION_JSON));
         assertEquals(200, response.getStatusLine().getStatusCode());
-    }
-
-    void assertUpgradeWorks() throws Exception {
-        if (runningAgainstOldCluster) {
-            Map<String, Object> rsp = toMap(client().performRequest("GET", "/_upgrade"));
-            Map<?, ?> indexUpgradeStatus = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp);
-            int totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
-            assertThat(totalBytes, greaterThan(0));
-            int toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
-            assertEquals(0, toUpgradeBytes);
-        } else {
-            // Pre upgrade checks:
-            Map<String, Object> rsp = toMap(client().performRequest("GET", "/_upgrade"));
-            Map<?, ?> indexUpgradeStatus = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp);
-            int totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
-            assertThat(totalBytes, greaterThan(0));
-            int toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
-            assertThat(toUpgradeBytes, greaterThan(0));
-
-            Response r = client().performRequest("POST", "/" + index + "/_flush");
-            assertEquals(200, r.getStatusLine().getStatusCode());
-
-            // Upgrade segments:
-            r = client().performRequest("POST", "/" + index + "/_upgrade");
-            assertEquals(200, r.getStatusLine().getStatusCode());
-            rsp = toMap(r);
-            logger.info("upgrade api response: {}", rsp);
-            Map<?, ?>  versions = (Map<?, ?>) XContentMapValues.extractValue("upgraded_indices." + index, rsp);
-            assertNotNull(versions);
-            Version upgradeVersion = Version.fromString((String) versions.get("upgrade_version"));
-            assertEquals(Version.CURRENT, upgradeVersion);
-            org.apache.lucene.util.Version luceneVersion =
-                org.apache.lucene.util.Version.parse((String) versions.get("oldest_lucene_segment_version"));
-            assertEquals(Version.CURRENT.luceneVersion, luceneVersion);
-
-            r = client().performRequest("POST", "/" + index + "/_refresh");
-            assertEquals(200, r.getStatusLine().getStatusCode());
-
-            // Post upgrade checks:
-            rsp = toMap(client().performRequest("GET", "/_upgrade"));
-            logger.info("upgrade status api response: {}", rsp);
-            indexUpgradeStatus = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp);
-            assertNotNull(indexUpgradeStatus);
-            totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
-            assertThat(totalBytes, greaterThan(0));
-            toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
-            assertEquals(0, toUpgradeBytes);
-
-            rsp = toMap(client().performRequest("GET", "/" + index + "/_segments"));
-            Map<?, ?> shards = (Map<?, ?>) XContentMapValues.extractValue("indices." + index + ".shards", rsp);
-            for (Object shard : shards.values()) {
-                List<?> shardSegments = (List<?>) shard;
-                for (Object shardSegment : shardSegments) {
-                    Map<?, ?> shardSegmentRsp = (Map<?, ?>) shardSegment;
-                    Map<?, ?> segments = (Map<?, ?>) shardSegmentRsp.get("segments");
-                    for (Object segment : segments.values()) {
-                        Map<?, ?> segmentRsp = (Map<?, ?>) segment;
-                        luceneVersion = org.apache.lucene.util.Version.parse((String) segmentRsp.get("version"));
-                        assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.major, luceneVersion.major);
-                        assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.minor, luceneVersion.minor);
-                        assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.bugfix, luceneVersion.bugfix);
-                    }
-                }
-            }
-        }
     }
 
     void assertStoredBinaryFields(int count) throws Exception {
@@ -750,6 +765,39 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
+    public void testHistoryUUIDIsAdded() throws Exception {
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 1);
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+        } else {
+            Response response = client().performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
+            List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
+            String globalHistoryUUID = null;
+            for (Object shard : shardStats) {
+                final String nodeId = ObjectPath.evaluate(shard, "routing.node");
+                final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
+                logger.info("evaluating: {} , {}", ObjectPath.evaluate(shard, "routing"), ObjectPath.evaluate(shard, "commit"));
+                String historyUUID = ObjectPath.evaluate(shard, "commit.user_data.history_uuid");
+                assertThat("no history uuid found on " + nodeId + " (primary: " + primary + ")", historyUUID, notNullValue());
+                if (globalHistoryUUID == null) {
+                    globalHistoryUUID = historyUUID;
+                } else {
+                    assertThat("history uuid mismatch on " + nodeId + " (primary: " + primary + ")", historyUUID,
+                        equalTo(globalHistoryUUID));
+                }
+            }
+        }
+    }
+
     private void checkSnapshot(String snapshotName, int count, Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         String response = toStr(client().performRequest("GET", "/_snapshot/repo/" + snapshotName, listSnapshotVerboseParams()));
@@ -811,7 +859,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         // Check that the template was restored successfully
         map = toMap(client().performRequest("GET", "/_template/test_template"));
         expected = new HashMap<>();
-        if (runningAgainstOldCluster) {
+        if (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_0_0_beta1)) {
             expected.put("template", "evil_*");
         } else {
             expected.put("index_patterns", singletonList("evil_*"));
@@ -893,5 +941,16 @@ public class FullClusterRestartIT extends ESRestTestCase {
     private void refresh() throws IOException {
         logger.debug("Refreshing [{}]", index);
         client().performRequest("POST", "/" + index + "/_refresh");
+    }
+
+    private List<String> dataNodes(String index, RestClient client) throws IOException {
+        Response response = client.performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
+        List<String> nodes = new ArrayList<>();
+        List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
+        for (Object shard : shardStats) {
+            final String nodeId = ObjectPath.evaluate(shard, "routing.node");
+            nodes.add(nodeId);
+        }
+        return nodes;
     }
 }

@@ -47,7 +47,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterStateRequest::new);
+        super(settings, ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters, ClusterStateRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -126,7 +126,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             builder.metaData(mdBuilder);
         }
         if (request.customs()) {
-            builder.customs(currentState.customs());
+            for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
+                if (custom.value.isPrivate() == false) {
+                    builder.putCustom(custom.key, custom.value);
+                }
+            }
         }
         listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
                                                         serializeFullClusterState(currentState, Version.CURRENT).length()));

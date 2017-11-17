@@ -400,7 +400,6 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]aggregations[/\\]support[/\\]AggregationPath.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]dfs[/\\]AggregatedDfs.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]dfs[/\\]DfsSearchResult.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]fetch[/\\]FetchPhase.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]internal[/\\]ShardSearchTransportRequest.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]lookup[/\\]FieldLookup.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]search[/\\]lookup[/\\]LeafDocLookup.java" checks="LineLength" />
@@ -418,7 +417,7 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]snapshots[/\\]SnapshotShardsService.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]snapshots[/\\]SnapshotsService.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]threadpool[/\\]ThreadPool.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]tribe[/\\]TribeService.java" checks="LineLength" />
+  <suppress files="modules[/\\]tribe[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]tribe[/\\]TribeService.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]queries[/\\]BlendedTermQueryTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]VersionTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]RejectionActionIT.java" checks="LineLength" />
@@ -545,7 +544,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]deps[/\\]joda[/\\]SimpleJodaTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]BlockingClusterStatePublishResponseHandlerTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]zen[/\\]ZenDiscoveryUnitTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]document[/\\]DocumentActionsIT.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]env[/\\]EnvironmentTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]env[/\\]NodeEnvironmentTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]explain[/\\]ExplainActionIT.java" checks="LineLength" />
@@ -598,7 +596,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]PathMapperTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]RoutingFieldMapperTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]SourceFieldMapperTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]TokenCountFieldMapperIntegrationIT.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]UpdateMappingOnClusterIT.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]UpdateMappingTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]query[/\\]BoolQueryBuilderTests.java" checks="LineLength" />
@@ -742,11 +739,6 @@
   <suppress files="plugins[/\\]discovery-ec2[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]ec2[/\\]AmazonEC2Mock.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-gce[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]gce[/\\]GceNetworkTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]mapper-murmur3[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]murmur3[/\\]Murmur3FieldMapper.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-azure[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]azure[/\\]blobstore[/\\]AzureBlobContainer.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-azure[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]azure[/\\]blobstore[/\\]AzureBlobStore.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-azure[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]azure[/\\]storage[/\\]AzureStorageServiceImpl.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-azure[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]azure[/\\]storage[/\\]AzureStorageSettings.java" checks="LineLength" />
-  <suppress files="plugins[/\\]repository-azure[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]azure[/\\]storage[/\\]AzureStorageServiceMock.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-hdfs[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]hdfs[/\\]HdfsRepository.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-hdfs[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]hdfs[/\\]HdfsTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]repository-s3[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]repositories[/\\]s3[/\\]S3Repository.java" checks="LineLength" />

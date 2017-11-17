@@ -39,17 +39,21 @@ final class HdfsBlobStore implements BlobStore {
     private final FileContext fileContext;
     private final HdfsSecurityContext securityContext;
     private final int bufferSize;
+    private final boolean readOnly;
     private volatile boolean closed;
 
-    HdfsBlobStore(FileContext fileContext, String path, int bufferSize) throws IOException {
+    HdfsBlobStore(FileContext fileContext, String path, int bufferSize, boolean readOnly) throws IOException {
         this.fileContext = fileContext;
         this.securityContext = new HdfsSecurityContext(fileContext.getUgi());
         this.bufferSize = bufferSize;
         this.root = execute(fileContext1 -> fileContext1.makeQualified(new Path(path)));
-        try {
-            mkdirs(root);
-        } catch (FileAlreadyExistsException ok) {
-            // behaves like Files.createDirectories
+        this.readOnly = readOnly;
+        if (!readOnly) {
+            try {
+                mkdirs(root);
+            } catch (FileAlreadyExistsException ok) {
+                // behaves like Files.createDirectories
+            }
         }
     }
 
@@ -75,17 +79,19 @@ final class HdfsBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        return new HdfsBlobContainer(path, this, buildHdfsPath(path), bufferSize);
+        return new HdfsBlobContainer(path, this, buildHdfsPath(path), bufferSize, securityContext);
     }
 
     private Path buildHdfsPath(BlobPath blobPath) {
         final Path path = translateToHdfsPath(blobPath);
-        try {
-            mkdirs(path);
-        } catch (FileAlreadyExistsException ok) {
-            // behaves like Files.createDirectories
-        } catch (IOException ex) {
-            throw new ElasticsearchException("failed to create blob container", ex);
+        if (!readOnly) {
+            try {
+                mkdirs(path);
+            } catch (FileAlreadyExistsException ok) {
+                // behaves like Files.createDirectories
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to create blob container", ex);
+            }
         }
         return path;
     }

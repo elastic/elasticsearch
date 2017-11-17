@@ -25,12 +25,12 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConjunctionDISI;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -78,6 +78,9 @@ public final class InnerHitsContext {
         protected final SearchContext context;
         private InnerHitsContext childInnerHits;
 
+        // TODO: when types are complete removed just use String instead for the id:
+        private Uid uid;
+
         protected InnerHitSubContext(String name, SearchContext context) {
             super(context);
             this.name = name;
@@ -108,6 +111,13 @@ public final class InnerHitsContext {
             return context;
         }
 
+        public Uid getUid() {
+            return uid;
+        }
+
+        public void setUid(Uid uid) {
+            this.uid = uid;
+        }
     }
 
     public static void intersect(Weight weight, Weight innerHitQueryWeight, Collector collector, LeafReaderContext ctx) throws IOException {
@@ -115,15 +125,15 @@ public final class InnerHitsContext {
         if (scorerSupplier == null) {
             return;
         }
-        // use random access since this scorer will be consumed on a minority of documents
-        Scorer scorer = scorerSupplier.get(true);
+        // use low leadCost since this scorer will be consumed on a minority of documents
+        Scorer scorer = scorerSupplier.get(0);
 
         ScorerSupplier innerHitQueryScorerSupplier = innerHitQueryWeight.scorerSupplier(ctx);
         if (innerHitQueryScorerSupplier == null) {
             return;
         }
-        // use random access since this scorer will be consumed on a minority of documents
-        Scorer innerHitQueryScorer = innerHitQueryScorerSupplier.get(true);
+        // use low loadCost since this scorer will be consumed on a minority of documents
+        Scorer innerHitQueryScorer = innerHitQueryScorerSupplier.get(0);
 
         final LeafCollector leafCollector;
         try {

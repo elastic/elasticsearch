@@ -34,6 +34,7 @@ public class FastStringReader extends Reader implements CharSequence {
     private int length;
     private int next = 0;
     private int mark = 0;
+    private boolean closed = false;
 
     /**
      * Creates a new string reader.
@@ -49,8 +50,9 @@ public class FastStringReader extends Reader implements CharSequence {
      * Check to make sure that the stream has not been closed
      */
     private void ensureOpen() throws IOException {
-        if (length == -1)
+        if (closed) {
             throw new IOException("Stream closed");
+        }
     }
 
     @Override
@@ -196,7 +198,7 @@ public class FastStringReader extends Reader implements CharSequence {
      */
     @Override
     public void close() {
-        length = -1;
+        closed = true;
     }
 
     @Override

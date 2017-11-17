@@ -34,7 +34,6 @@ import org.objectweb.asm.Type;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.painless.Definition.VOID_TYPE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
@@ -64,7 +63,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     void analyze(Locals locals) {
         captured = locals.getVariable(location, variable);
         if (expected == null) {
-            if (captured.type.sort == Definition.Sort.DEF) {
+            if (captured.type.dynamic) {
                 // dynamic implementation
                 defPointer = "D" + variable + "." + call + ",1";
             } else {
@@ -75,7 +74,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
         } else {
             defPointer = null;
             // static case
-            if (captured.type.sort != Definition.Sort.DEF) {
+            if (captured.type.dynamic == false) {
                 try {
                     ref = new FunctionRef(locals.getDefinition(), expected, captured.type.name, call, 1);
 
@@ -83,11 +82,11 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                     for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {
                         Definition.Type from = ref.interfaceMethod.arguments.get(i);
                         Definition.Type to = ref.delegateMethod.arguments.get(i);
-                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
+                        locals.getDefinition().caster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (ref.interfaceMethod.rtn != VOID_TYPE) {
-                        AnalyzerCaster.getLegalCast(location, ref.delegateMethod.rtn, ref.interfaceMethod.rtn, false, true);
+                    if (ref.interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
+                        locals.getDefinition().caster.getLegalCast(location, ref.delegateMethod.rtn, ref.interfaceMethod.rtn, false, true);
                     }
                 } catch (IllegalArgumentException e) {
                     throw createError(e);

@@ -34,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -79,12 +80,12 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // Reuse the same location and attempt to lock again
         IllegalStateException ex =
-            expectThrows(IllegalStateException.class, () -> new NodeEnvironment(settings, new Environment(settings)));
+            expectThrows(IllegalStateException.class, () -> new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)));
         assertThat(ex.getMessage(), containsString("failed to obtain node lock"));
 
         // Close the environment that holds the lock and make sure we can get the lock after release
         env.close();
-        env = new NodeEnvironment(settings, new Environment(settings));
+        env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
         assertThat(env.nodeDataPaths(), arrayWithSize(dataPaths.size()));
 
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -119,7 +120,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         final Settings settings = buildEnvSettings(Settings.builder().put("node.max_local_storage_nodes", 2).build());
         final NodeEnvironment first = newNodeEnvironment(settings);
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
-        NodeEnvironment second = new NodeEnvironment(settings, new Environment(settings));
+        NodeEnvironment second = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
         assertEquals(first.nodeDataPaths().length, dataPaths.size());
         assertEquals(second.nodeDataPaths().length, dataPaths.size());
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -416,6 +417,39 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
+    public void testExistingTempFiles() throws IOException {
+        String[] paths = tmpPaths();
+        // simulate some previous left over temp files
+        for (String path : randomSubsetOf(randomIntBetween(1, paths.length), paths)) {
+            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
+            Files.createDirectories(nodePath);
+            Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
+            if (randomBoolean()) {
+                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".tmp"));
+            }
+            if (randomBoolean()) {
+                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".final"));
+            }
+        }
+        NodeEnvironment env = newNodeEnvironment(paths, Settings.EMPTY);
+        try {
+            env.ensureAtomicMoveSupported();
+        } catch (AtomicMoveNotSupportedException e) {
+            // that's OK :)
+        }
+        env.close();
+        // check we clean up
+        for (String path: paths) {
+            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
+            final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
+            assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
+            final Path srcTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
+            assertFalse(srcTempFile + " should have been cleaned", Files.exists(srcTempFile));
+            final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
+            assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
+        }
+    }
+
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */
     private Path[] stringsToPaths(String[] strings, String additional) {
         Path[] locations = new Path[strings.length];
@@ -443,13 +477,13 @@ public class NodeEnvironmentTests extends ESTestCase {
     @Override
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = buildEnvSettings(settings);
-        return new NodeEnvironment(build, new Environment(build));
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     public Settings buildEnvSettings(Settings settings) {
         return Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                    .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                    .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
                     .put(settings).build();
     }
 
@@ -457,8 +491,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         Settings build = Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
-        return new NodeEnvironment(build, new Environment(build));
+                .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, String sharedDataPath, Settings settings) throws IOException {
@@ -466,7 +500,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
-        return new NodeEnvironment(build, new Environment(build));
+                .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 }

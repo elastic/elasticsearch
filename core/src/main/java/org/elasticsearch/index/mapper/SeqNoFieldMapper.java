@@ -23,13 +23,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,7 +36,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,8 +79,8 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         public static SequenceIDFields emptySeqID() {
-            return new SequenceIDFields(new LongPoint(NAME, SequenceNumbersService.UNASSIGNED_SEQ_NO),
-                    new NumericDocValuesField(NAME, SequenceNumbersService.UNASSIGNED_SEQ_NO),
+            return new SequenceIDFields(new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                    new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
                     new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
         }
     }
@@ -129,7 +127,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class SeqNoFieldType extends MappedFieldType {
+    static final class SeqNoFieldType extends SimpleMappedFieldType {
 
         SeqNoFieldType() {
         }
@@ -163,6 +161,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 value = ((BytesRef) value).utf8ToString();
             }
             return Long.parseLong(value.toString());
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new DocValuesFieldExistsQuery(name());
         }
 
         @Override
@@ -207,23 +210,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder() {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
-        }
-
-        @Override
-        public FieldStats stats(IndexReader reader) throws IOException {
-            String fieldName = name();
-            long size = PointValues.size(reader, fieldName);
-            if (size == 0) {
-                return null;
-            }
-            int docCount = PointValues.getDocCount(reader, fieldName);
-            byte[] min = PointValues.getMinPackedValue(reader, fieldName);
-            byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-            return new FieldStats.Long(reader.maxDoc(),docCount, -1L, size, true, false,
-                    LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));
         }
 
     }

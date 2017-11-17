@@ -19,6 +19,7 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.Snippet;
@@ -26,11 +27,13 @@ import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.apache.lucene.search.uhighlight.CustomPassageFormatter;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter.OffsetSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -90,34 +93,35 @@ public class UnifiedHighlighter implements Highlighter {
                     return obj;
                 }
             }).collect(Collectors.toList());
-            IndexSearcher searcher = new IndexSearcher(hitContext.reader());
-            CustomUnifiedHighlighter highlighter;
+            final IndexSearcher searcher = new IndexSearcher(hitContext.reader());
+            final CustomUnifiedHighlighter highlighter;
+            final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
+            final OffsetSource offsetSource = getOffsetSource(fieldMapper.fieldType());
             if (field.fieldOptions().numberOfFragments() == 0) {
                 // we use a control char to separate values, which is the only char that the custom break iterator
                 // breaks the text on, so we don't lose the distinction between the different values of a field and we
                 // get back a snippet per value
-                String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
                 CustomSeparatorBreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-                highlighter =
-                    new CustomUnifiedHighlighter(searcher, analyzer, mapperHighlighterEntry.passageFormatter,
-                        field.fieldOptions().boundaryScannerLocale(), breakIterator, fieldValue,
-                        field.fieldOptions().noMatchSize());
+                highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource,
+                        mapperHighlighterEntry.passageFormatter, field.fieldOptions().boundaryScannerLocale(),
+                        breakIterator, fieldValue, field.fieldOptions().noMatchSize());
                 numberOfFragments = fieldValues.size(); // we are highlighting the whole content, one snippet per value
             } else {
                 //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
-                String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
                 BreakIterator bi = getBreakIterator(field);
-                highlighter = new CustomUnifiedHighlighter(searcher, analyzer,
+                highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource,
                     mapperHighlighterEntry.passageFormatter, field.fieldOptions().boundaryScannerLocale(), bi,
                     fieldValue, field.fieldOptions().noMatchSize());
                 numberOfFragments = field.fieldOptions().numberOfFragments();
             }
+
             if (field.fieldOptions().requireFieldMatch()) {
                 final String fieldName = highlighterContext.fieldName;
                 highlighter.setFieldMatcher((name) -> fieldName.equals(name));
             } else {
                 highlighter.setFieldMatcher((name) -> true);
             }
+
             Snippet[] fieldSnippets = highlighter.highlightField(highlighterContext.fieldName,
                 highlighterContext.query, hitContext.docId(), numberOfFragments);
             for (Snippet fieldSnippet : fieldSnippets) {
@@ -211,6 +215,16 @@ public class UnifiedHighlighter implements Highlighter {
         //loaded from stored fields, we merge all values using a proper separator
         String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));
         return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
+    }
+
+    private OffsetSource getOffsetSource(MappedFieldType fieldType) {
+        if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+            return fieldType.storeTermVectors() ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
+        }
+        if (fieldType.storeTermVectorOffsets()) {
+            return OffsetSource.TERM_VECTORS;
+        }
+        return OffsetSource.ANALYSIS;
     }
 
 

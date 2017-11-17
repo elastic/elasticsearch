@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
@@ -73,6 +74,7 @@ import org.elasticsearch.tasks.TaskResultsService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -108,6 +110,22 @@ public class ClusterModule extends AbstractModule {
         this.allocationService = new AllocationService(settings, allocationDeciders, shardsAllocator, clusterInfoService);
     }
 
+    public static Map<String, Supplier<ClusterState.Custom>> getClusterStateCustomSuppliers(List<ClusterPlugin> clusterPlugins) {
+        final Map<String, Supplier<ClusterState.Custom>> customSupplier = new HashMap<>();
+        customSupplier.put(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress::new);
+        customSupplier.put(RestoreInProgress.TYPE, RestoreInProgress::new);
+        customSupplier.put(SnapshotsInProgress.TYPE, SnapshotsInProgress::new);
+        for (ClusterPlugin plugin : clusterPlugins) {
+            Map<String, Supplier<ClusterState.Custom>> initialCustomSupplier = plugin.getInitialClusterStateCustomSupplier();
+            for (String key : initialCustomSupplier.keySet()) {
+                if (customSupplier.containsKey(key)) {
+                    throw new IllegalStateException("custom supplier key [" + key + "] is registered more than once");
+                }
+            }
+            customSupplier.putAll(initialCustomSupplier);
+        }
+        return Collections.unmodifiableMap(customSupplier);
+    }
 
     public static List<Entry> getNamedWriteables() {
         List<Entry> entries = new ArrayList<>();
@@ -165,6 +183,7 @@ public class ClusterModule extends AbstractModule {
         // collect deciders by class so that we can detect duplicates
         Map<Class, AllocationDecider> deciders = new LinkedHashMap<>();
         addAllocationDecider(deciders, new MaxRetryAllocationDecider(settings));
+        addAllocationDecider(deciders, new ResizeAllocationDecider(settings));
         addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider(settings));
         addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider(settings));
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(settings, clusterSettings));

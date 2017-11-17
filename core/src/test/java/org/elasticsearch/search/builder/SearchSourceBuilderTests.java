@@ -33,8 +33,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -47,6 +51,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -135,11 +140,73 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testParseAndRewrite() throws IOException {
+        String restContent = "{\n" +
+            "  \"query\": {\n" +
+            "    \"bool\": {\n" +
+            "      \"must\": {\n" +
+            "        \"match_none\": {}\n" +
+            "      }\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"rescore\": {\n" +
+            "    \"window_size\": 50,\n" +
+            "    \"query\": {\n" +
+            "      \"rescore_query\": {\n" +
+            "        \"bool\": {\n" +
+            "          \"must\": {\n" +
+            "            \"match_none\": {}\n" +
+            "          }\n" +
+            "        }\n" +
+            "      },\n" +
+            "      \"rescore_query_weight\": 10\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"highlight\": {\n" +
+            "    \"order\": \"score\",\n" +
+            "    \"fields\": {\n" +
+            "      \"content\": {\n" +
+            "        \"fragment_size\": 150,\n" +
+            "        \"number_of_fragments\": 3,\n" +
+            "        \"highlight_query\": {\n" +
+            "          \"bool\": {\n" +
+            "            \"must\": {\n" +
+            "              \"match_none\": {}\n" +
+            "            }\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            assertThat(searchSourceBuilder.query(), instanceOf(BoolQueryBuilder.class));
+            assertThat(searchSourceBuilder.rescores().get(0), instanceOf(QueryRescorerBuilder.class));
+            assertThat(((QueryRescorerBuilder)searchSourceBuilder.rescores().get(0)).getRescoreQuery(),
+                instanceOf(BoolQueryBuilder.class));
+            assertThat(searchSourceBuilder.highlighter().fields().get(0).highlightQuery(), instanceOf(BoolQueryBuilder.class));
+            searchSourceBuilder = rewrite(searchSourceBuilder);
+
+            assertThat(searchSourceBuilder.query(), instanceOf(MatchNoneQueryBuilder.class));
+            assertThat(searchSourceBuilder.rescores().get(0), instanceOf(QueryRescorerBuilder.class));
+            assertThat(((QueryRescorerBuilder)searchSourceBuilder.rescores().get(0)).getRescoreQuery(),
+                instanceOf(MatchNoneQueryBuilder.class));
+            assertThat(searchSourceBuilder.highlighter().fields().get(0).highlightQuery(), instanceOf(MatchNoneQueryBuilder.class));
+            assertEquals(searchSourceBuilder.highlighter().fields().get(0).fragmentSize().intValue(), 150);
+            assertEquals(searchSourceBuilder.highlighter().fields().get(0).numOfFragments().intValue(), 3);
+
+
+        }
+
+    }
+
     public void testParseSort() throws IOException {
         {
             String restContent = " { \"sort\": \"foo\"}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(1, searchSourceBuilder.sorts().size());
                 assertEquals(new FieldSortBuilder("foo"), searchSourceBuilder.sorts().get(0));
             }
@@ -155,6 +222,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                     "    ]}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(5, searchSourceBuilder.sorts().size());
                 assertEquals(new FieldSortBuilder("post_date"), searchSourceBuilder.sorts().get(0));
                 assertEquals(new FieldSortBuilder("user"), searchSourceBuilder.sorts().get(1));
@@ -178,6 +246,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                     "}\n";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(1, searchSourceBuilder.aggregations().count());
             }
         }
@@ -193,6 +262,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                     "}\n";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(1, searchSourceBuilder.aggregations().count());
             }
         }
@@ -218,6 +288,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 "}\n";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(1, searchSourceBuilder.rescores().size());
                 assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
                         searchSourceBuilder.rescores().get(0));
@@ -240,6 +311,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 "}\n";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                searchSourceBuilder = rewrite(searchSourceBuilder);
                 assertEquals(1, searchSourceBuilder.rescores().size());
                 assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
                         searchSourceBuilder.rescores().get(0));
@@ -373,5 +445,10 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertEquals(expectedErrorMessage, e.getMessage());
         }
+    }
+
+    private SearchSourceBuilder rewrite(SearchSourceBuilder searchSourceBuilder) throws IOException {
+        return Rewriteable.rewrite(searchSourceBuilder, new QueryRewriteContext(xContentRegistry(), writableRegistry(),
+                null, Long.valueOf(1)::longValue));
     }
 }

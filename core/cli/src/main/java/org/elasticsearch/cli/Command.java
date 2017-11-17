@@ -154,7 +154,7 @@ public abstract class Command implements Closeable {
     }
 
     /** Gets the shutdown hook thread if it exists **/
-    protected Thread getShutdownHookThread() {
+    Thread getShutdownHookThread() {
         return shutdownHookThread;
     }
 

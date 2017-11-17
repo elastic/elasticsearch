@@ -25,7 +25,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest> {
 
@@ -47,13 +49,33 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        operations = in.readList(Translog.Operation::readType);
+        final int size = in.readVInt();
+        operations = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            operations.add(Translog.Operation.readType(in));
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(operations);
+        out.writeVInt(operations.size());
+        for (int i = 0; i < operations.size(); i++) {
+            Translog.Operation.writeType(operations.get(i), out);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ResyncReplicationRequest that = (ResyncReplicationRequest) o;
+        return Objects.equals(getOperations(), that.getOperations());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getOperations());
     }
 
     @Override

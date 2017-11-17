@@ -52,7 +52,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         final int size = in.readVInt();
         operations = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            operations.add(Translog.Operation.readType(in));
+            operations.add(Translog.Operation.readOperation(in));
         }
     }
 
@@ -61,7 +61,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         super.writeTo(out);
         out.writeVInt(operations.size());
         for (int i = 0; i < operations.size(); i++) {
-            Translog.Operation.writeType(operations.get(i), out);
+            Translog.Operation.writeOperation(operations.get(i), out);
         }
     }
 

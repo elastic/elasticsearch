@@ -2343,9 +2343,9 @@ public class TranslogTests extends ESTestCase {
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
         BytesStreamOutput out = new BytesStreamOutput();
-        Translog.Operation.writeType(index, out);
+        Translog.Operation.writeOperation(index, out);
         StreamInput in = out.bytes().streamInput();
-        Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readType(in);
+        Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
         assertEquals(index, serializedIndex);
 
         Engine.Delete eDelete = new Engine.Delete(doc.type(), doc.id(), newUid(doc), randomSeqNum, randomPrimaryTerm,
@@ -2354,9 +2354,9 @@ public class TranslogTests extends ESTestCase {
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();
-        Translog.Operation.writeType(delete, out);
+        Translog.Operation.writeOperation(delete, out);
         in = out.bytes().streamInput();
-        Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readType(in);
+        Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);
 
         // simulate legacy delete serialization
@@ -2370,7 +2370,7 @@ public class TranslogTests extends ESTestCase {
         out.writeLong(2); // seq no
         out.writeLong(0); // primary term
         in = out.bytes().streamInput();
-        serializedDelete = (Translog.Delete) Translog.Operation.readType(in);
+        serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals("my_type", serializedDelete.type());
         assertEquals("my_id", serializedDelete.id());
     }

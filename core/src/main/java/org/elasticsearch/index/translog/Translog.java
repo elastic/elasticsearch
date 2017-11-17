@@ -892,9 +892,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         /**
          * Reads the type and the operation from the given stream. The operation must be written with
-         * {@link Operation#writeType(Operation, StreamOutput)}
+         * {@link Operation#writeOperation(Operation, StreamOutput)}
          */
-        static Operation readType(StreamInput input) throws IOException {
+        static Operation readOperation(StreamInput input) throws IOException {
             Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
             switch (type) {
                 case CREATE:
@@ -914,7 +914,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         /**
          * Writes the type and translog operation to the given stream
          */
-        static void writeType(Translog.Operation operation, StreamOutput output) throws IOException {
+        static void writeOperation(Translog.Operation operation, StreamOutput output) throws IOException {
             output.writeByte(operation.opType().id());
             switch(operation.opType()) {
                 case CREATE:
@@ -1449,7 +1449,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 verifyChecksum(in);
                 in.reset();
             }
-            operation = Translog.Operation.readType(in);
+            operation = Translog.Operation.readOperation(in);
             verifyChecksum(in);
         } catch (TranslogCorruptedException e) {
             throw e;
@@ -1492,7 +1492,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         // because closing it closes the underlying stream, which we don't
         // want to do here.
         out.resetDigest();
-        Translog.Operation.writeType(op, out);
+        Translog.Operation.writeOperation(op, out);
         long checksum = out.getChecksum();
         out.writeInt((int) checksum);
     }

@@ -258,7 +258,7 @@ public class SetupPasswordTool extends MultiCommand {
          *            where to write verbose info.
          */
         void checkElasticKeystorePasswordValid(Terminal terminal, Environment env) throws Exception {
-            URL route = new URL(url, (url.getPath() + "/_xpack/security/_authenticate").replaceAll("/+", "/") + "?pretty");
+            URL route = new URL(url, (url.toURI().getPath() + "/_xpack/security/_authenticate").replaceAll("/+", "/") + "?pretty");
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Testing if bootstrap password is valid for " + route.toString());
             try {
@@ -313,7 +313,8 @@ public class SetupPasswordTool extends MultiCommand {
          *            the new password of the user.
          */
         private void changeUserPassword(String user, SecureString password, Terminal terminal) throws Exception {
-            URL route = new URL(url, (url.getPath() + "/_xpack/security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
+            URL route = new URL(url, (url.toURI().getPath() + "/_xpack/security/user/" + user + "/_password").replaceAll("/+", "/") +
+                    "?pretty");
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Trying user password change call " + route.toString());
             try {

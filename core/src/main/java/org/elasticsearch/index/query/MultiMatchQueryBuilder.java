@@ -225,7 +225,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         fuzzyRewrite = in.readOptionalString();
         useDisMax = in.readOptionalBoolean();
         tieBreaker = in.readOptionalFloat();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             lenient = in.readOptionalBoolean();
         } else {
             lenient = in.readBoolean();
@@ -257,7 +257,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalBoolean(useDisMax);
         out.writeOptionalFloat(tieBreaker);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalBoolean(lenient);
         } else {
             out.writeBoolean(lenient == null ? MatchQuery.DEFAULT_LENIENCY : lenient);

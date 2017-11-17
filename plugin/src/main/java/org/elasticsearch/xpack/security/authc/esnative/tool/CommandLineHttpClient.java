@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
-import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;

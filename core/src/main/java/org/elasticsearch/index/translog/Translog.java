@@ -927,8 +927,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 case NO_OP:
                     ((NoOp) operation).write(output);
                     break;
-                    default:
-                throw new IOException("no type for [" + operation.opType() + "]");
+                default:
+                    throw new IOException("no type for [" + operation.opType() + "]");
             }
         }
 

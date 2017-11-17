@@ -171,7 +171,6 @@ public class SocketSelector extends ESSelector {
         try {
             if (newChannel.isOpen()) {
                 newChannel.register();
-                addRegisteredChannel(newChannel);
                 SelectionKey key = newChannel.getSelectionKey();
                 key.attach(newChannel);
                 eventHandler.handleRegistration(newChannel);

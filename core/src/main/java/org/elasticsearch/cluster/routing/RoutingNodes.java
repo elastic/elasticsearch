@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
@@ -1103,8 +1105,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * The iterator then resumes on the first node by returning the second shard and continues until all shards from
      * all the nodes have been returned.
      */
-    public Iterator<ShardRouting> nodeInterleavedShardIterator() {
-        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
+    public Iterator<ShardRouting> nodeInterleavedShardIterator(RoutingAllocation allocation, RoutingNodes routingNodes,  Logger logger) {
+            final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
         for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
             queue.add(entry.getValue().copyShards().iterator());
         }
@@ -1123,10 +1125,26 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
-                Iterator<ShardRouting> iter = queue.poll();
-                ShardRouting result = iter.next();
-                queue.offer(iter);
-                return result;
+                long startTime = System.currentTimeMillis();
+                while(hasNext()){
+                    logger.info("Queue size {}",queue.size());
+                    Iterator<ShardRouting> iter = queue.poll();
+                    ShardRouting result = iter.next();
+                    RoutingNode routingNode = nodesToShards.get(result.currentNodeId());
+                    Decision decision = allocation.deciders().decideOutgoingMovePerNode(routingNode, allocation, routingNodes);
+                    if (decision == Decision.NO){
+                        logger.info("Keeping node iterator " + routingNode.nodeId() +" "+decision.toString());
+                        queue.offer(iter);
+                        long endTime = System.currentTimeMillis();
+                        logger.info("Node level Allocation decision time {}" ,(endTime-startTime));
+                        return result;
+                    } else {
+                        logger.info("Removing node iterator " + routingNode.nodeId()+ " "+ decision.toString());
+                    }
+                }
+                long endTime = System.currentTimeMillis();
+                logger.info("Node level Allocation decision time {}" ,(endTime-startTime));
+                return null;
             }
 
             public void remove() {

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -375,6 +376,56 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
         return null;
     }
+    
+    @Override
+    public Decision decideOutgoingMovePerNode(RoutingNode node, RoutingAllocation allocation, RoutingNodes routingNodes){
+    	long startTime = System.nanoTime();
+	final ClusterInfo clusterInfo = allocation.clusterInfo();
+        final ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
+        final Decision decision = earlyTerminate(allocation, usages);
+        if (decision != null) {
+            return decision;
+        }
+
+        // subtractLeavingShards is passed as true here, since this is only for shards remaining, we will *eventually* have enough disk
+        // since shards are moving away. No new shards will be incoming since in canAllocate we pass false for this check.
+        final DiskUsage usage = getDiskUsage(node, allocation, usages, true);
+        // If this node is already above the high threshold, the shard cannot remain (get it off!)
+        final double freeDiskPercentage = usage.getFreeDiskAsPercentage();
+        final long freeBytes = usage.getFreeBytes();
+        logger.info("node [{}] has {}% free disk ({} bytes)", node.nodeId(), freeDiskPercentage, freeBytes);
+		if (freeBytes < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
+			logger.info(
+					"less than the required {} free bytes threshold ({} bytes free) on node {}, shard cannot remain",
+					diskThresholdSettings.getFreeBytesThresholdHigh(), freeBytes, node.nodeId());
+
+			long endTime = System.nanoTime();
+			long totalTime = endTime - startTime;
+			logger.info("Returning decision {} for node {} after {}", Decision.NO, node.nodeId(), totalTime);
+			return allocation.decision(Decision.NO, NAME,
+					"after allocating this shard this node would be above the high watermark "
+							+ "and there would be less than required [%s] free on node, free: [%s]",
+					diskThresholdSettings.getFreeBytesThresholdHigh(), new ByteSizeValue(freeBytes));
+		}
+		if (freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdHigh()) {
+			logger.info("less than the required {}% free disk threshold ({}% free) on node {}, shard cannot remain",
+					diskThresholdSettings.getFreeDiskThresholdHigh(), freeDiskPercentage, node.nodeId());
+
+			long endTime = System.nanoTime();
+			long totalTime = endTime - startTime;
+			logger.info("Returning decision {} for node {} after {}", Decision.NO, node.nodeId(), totalTime);
+			return allocation.decision(Decision.NO, NAME,
+					"after allocating this shard this node would be above the high watermark "
+							+ "and there would be less than required [%s%%] free disk on node, free: [%s%%]",
+					diskThresholdSettings.getFreeDiskThresholdHigh(), freeDiskPercentage);
+		}
+        long endTime = System.nanoTime();
+		long totalTime = endTime-startTime;
+		logger.info("Returning decision {} for node {} after {}", Decision.YES, node.nodeId() ,totalTime);
+		return allocation.decision(Decision.YES, NAME,
+            "there is enough disk on this node for the shard to remain, free: [%s]", new ByteSizeValue(freeBytes));
+    }
+
 
     /**
      * Returns the expected shard size for the given shard or the default value provided if not enough information are available

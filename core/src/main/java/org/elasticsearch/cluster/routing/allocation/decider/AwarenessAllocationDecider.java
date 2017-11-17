@@ -25,6 +25,7 @@ import java.util.Map;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
@@ -224,4 +225,26 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
         return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
     }
+    
+    @Override
+	public Decision decideOutgoingMovePerNode(RoutingNode node, RoutingAllocation allocation, RoutingNodes routingNode) {
+		long startTime = System.nanoTime();
+		for (ShardRouting shardRouting : node) {
+			if (shardRouting.primary()) {
+				Decision decision = underCapacity(shardRouting, node, allocation, false);
+				if (decision == Decision.NO) {
+					long endTime = System.nanoTime();
+					long totalTime = endTime-startTime;
+					logger.info("Returning decision {} for shard {} on node {} after time {}", decision.type(), shardRouting.getId(),
+							node.nodeId(), totalTime);
+					return decision;
+				}
+			}
+		}
+		long endTime = System.nanoTime();
+		long totalTime = endTime-startTime;
+		logger.info("Returning decision {} for node {} after {}", Decision.YES, node.nodeId() ,totalTime);
+		return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
+
+	}
 }

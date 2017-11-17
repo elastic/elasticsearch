@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -161,6 +162,36 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
                 indexShardLimit, clusterShardLimit);
     }
 
+    @Override
+    public Decision decideOutgoingMovePerNode(RoutingNode node, RoutingAllocation allocation, RoutingNodes routingNodes){
+		long startTime = System.nanoTime();
+		final int clusterShardLimit = this.clusterShardLimit;
+		if (clusterShardLimit <= 0) {
+			long endTime = System.nanoTime();
+			long totalTime = endTime - startTime;
+			logger.info("Returning decision {} for node {} after {}", Decision.YES, node.nodeId(), totalTime);
+			return allocation.decision(Decision.YES, NAME, "total shard limits are disabled: cluster: %d] <= 0",
+					clusterShardLimit);
+		}
+        int nodeShardCount = node.numberOfShardsWithState(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED,
+				ShardRoutingState.UNASSIGNED);
+
+		if (clusterShardLimit > 0 && nodeShardCount > clusterShardLimit) {
+			long endTime = System.nanoTime();
+			long totalTime = endTime - startTime;
+			logger.info("Returning decision {} for node {} after {}", Decision.NO, node.nodeId(), totalTime);
+			return allocation.decision(Decision.NO, NAME,
+					"too many shards for this node [%d], cluster-level limit per node: [%d]", nodeShardCount,
+					clusterShardLimit);
+		}
+		long endTime = System.nanoTime();
+		long totalTime = endTime - startTime;
+		logger.info("Returning decision {} for node {} after {}", Decision.YES, node.nodeId(), totalTime);
+		return allocation.decision(Decision.YES, NAME,
+				"the shard count is under index limit [%d] and cluster level node limit [%d] of total shards per node",
+				clusterShardLimit);
+    }
+    
     @Override
     public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         // Only checks the node-level limit, not the index-level

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -24,6 +25,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
@@ -59,6 +61,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
+import static org.elasticsearch.xpack.XPackPlugin.MONITORING;
 
 /**
  * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client or tribe client:
@@ -109,6 +112,10 @@ public class Monitoring implements ActionPlugin {
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.tribeNode = XPackPlugin.isTribeNode(settings);
+    }
+
+    public static Collection<? extends NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Arrays.asList(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, MONITORING, MonitoringFeatureSet.Usage::new));
     }
 
     boolean isEnabled() {

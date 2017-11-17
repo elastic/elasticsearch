@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.ForecastJobAction.Request;
+
+import java.time.Instant;
 
 public class ForecastJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
@@ -24,6 +27,13 @@ public class ForecastJobActionRequestTests extends AbstractStreamableXContentTes
     @Override
     protected Request createTestInstance() {
         Request request = new Request(randomAlphaOfLengthBetween(1, 20));
+        if (randomBoolean()) {
+            request.setEndTime(Instant.ofEpochMilli(randomNonNegativeLong()).toString());
+        }
+        if (randomBoolean()) {
+            request.setDuration(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)).getStringRep());
+        }
+
         return request;
     }
 
@@ -31,5 +41,4 @@ public class ForecastJobActionRequestTests extends AbstractStreamableXContentTes
     protected Request createBlankInstance() {
         return new Request();
     }
-
 }

@@ -11,13 +11,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
-import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.crypto.CryptoService;
+import org.elasticsearch.xpack.watcher.crypto.CryptoServiceTests;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -72,7 +73,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         if (encryptSensitiveData == null) {
             encryptSensitiveData = randomBoolean();
             if (encryptSensitiveData) {
-                encryptionKey = CryptoService.generateKey();
+                encryptionKey = CryptoServiceTests.generateKey();
             }
         }
         if (encryptSensitiveData) {

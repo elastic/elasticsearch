@@ -66,13 +66,10 @@ import org.elasticsearch.xpack.deprecation.Deprecation;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.graph.Graph;
-import org.elasticsearch.xpack.graph.GraphFeatureSet;
 import org.elasticsearch.xpack.logstash.Logstash;
 import org.elasticsearch.xpack.logstash.LogstashFeatureSet;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MachineLearningFeatureSet;
 import org.elasticsearch.xpack.monitoring.Monitoring;
-import org.elasticsearch.xpack.monitoring.MonitoringFeatureSet;
 import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.PersistentTasksClusterService;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
@@ -85,50 +82,23 @@ import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.SecurityFeatureSet;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.upgrade.Upgrade;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
-import org.elasticsearch.xpack.watcher.common.http.HttpClient;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.HttpSettings;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthFactory;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.notification.email.Account;
-import org.elasticsearch.xpack.watcher.notification.email.EmailService;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachmentParser;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
-import org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser;
-import org.elasticsearch.xpack.watcher.notification.email.support.BodyPartSource;
-import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
-import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
-import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
-import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 
 import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
 import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -138,8 +108,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.elasticsearch.xpack.watcher.Watcher.ENCRYPT_SENSITIVE_DATA_SETTING;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin {
 
@@ -200,9 +168,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                 throw bogus; // some other bug
             }
         }
-        // some classes need to have their own clinit blocks
-        BodyPartSource.init();
-        Account.init();
     }
 
     protected final Settings settings;
@@ -300,29 +265,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         }
         components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService, sslService));
 
-        final CryptoService cryptoService;
-        try {
-            cryptoService = ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? new CryptoService(settings) : null;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
-        // watcher http stuff
-        Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
-        httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(cryptoService));
-        // TODO: add more auth types, or remove this indirection
-        HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
-        HttpRequestTemplate.Parser httpTemplateParser = new HttpRequestTemplate.Parser(httpAuthRegistry);
-        components.add(httpTemplateParser);
-        final HttpClient httpClient = new HttpClient(settings, httpAuthRegistry, sslService);
-        components.add(httpClient);
-
-        Collection<Object> notificationComponents = createNotificationComponents(clusterService.getClusterSettings(), httpClient,
-                httpTemplateParser, scriptService, httpAuthRegistry, cryptoService);
-        components.addAll(notificationComponents);
-
-        components.addAll(watcher.createComponents(getClock(), scriptService, internalClient, licenseState,
-                httpClient, httpTemplateParser, threadPool, clusterService, cryptoService, xContentRegistry, components));
+        components.addAll(watcher.createComponents(getClock(), scriptService, internalClient, licenseState, threadPool, clusterService,
+                xContentRegistry, sslService));
 
         PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, internalClient);
 
@@ -344,28 +288,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);
-        return components;
-    }
-
-    private Collection<Object> createNotificationComponents(ClusterSettings clusterSettings, HttpClient httpClient,
-                                                            HttpRequestTemplate.Parser httpTemplateParser, ScriptService scriptService,
-                                                            HttpAuthRegistry httpAuthRegistry, CryptoService cryptoService) {
-        List<Object> components = new ArrayList<>();
-        components.add(new EmailService(settings, cryptoService, clusterSettings));
-        components.add(new HipChatService(settings, httpClient, clusterSettings));
-        components.add(new JiraService(settings, httpClient, clusterSettings));
-        components.add(new SlackService(settings, httpClient, clusterSettings));
-        components.add(new PagerDutyService(settings, httpClient, clusterSettings));
-
-        TextTemplateEngine textTemplateEngine = new TextTemplateEngine(settings, scriptService);
-        components.add(textTemplateEngine);
-        Map<String, EmailAttachmentParser> parsers = new HashMap<>();
-        parsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpTemplateParser, textTemplateEngine));
-        parsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
-        parsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, textTemplateEngine,
-                httpAuthRegistry));
-        components.add(new EmailAttachmentsParser(parsers));
-
         return components;
     }
 
@@ -395,7 +317,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     @Override
     public List<ScriptContext> getContexts() {
-        return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+        return watcher.getContexts();
     }
 
     @Override
@@ -413,30 +335,13 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         // we add the `xpack.version` setting to all internal indices
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
-        // notification services
-        settings.add(SlackService.SLACK_ACCOUNT_SETTING);
-        settings.add(EmailService.EMAIL_ACCOUNT_SETTING);
-        settings.add(HipChatService.HIPCHAT_ACCOUNT_SETTING);
-        settings.add(JiraService.JIRA_ACCOUNT_SETTING);
-        settings.add(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
-        settings.add(ReportingAttachmentParser.RETRIES_SETTING);
-        settings.add(ReportingAttachmentParser.INTERVAL_SETTING);
-
-        // http settings
-        settings.addAll(HttpSettings.getSettings());
         return settings;
     }
 
     @Override
     public List<String> getSettingsFilter() {
         List<String> filters = new ArrayList<>();
-        filters.add("xpack.notification.email.account.*.smtp.password");
-        filters.add("xpack.notification.jira.account.*.password");
-        filters.add("xpack.notification.slack.account.*.url");
-        filters.add("xpack.notification.pagerduty.account.*.url");
-        filters.add("xpack.notification.pagerduty." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        filters.add("xpack.notification.pagerduty.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        filters.add("xpack.notification.hipchat.account.*.auth_token");
+        filters.addAll(watcher.getSettingsFilter());
         filters.addAll(security.getSettingsFilter(extensionsService));
         filters.addAll(monitoring.getSettingsFilter());
         if (transportClientMode == false) {
@@ -522,16 +427,13 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, SECURITY, SecurityFeatureSet.Usage::new));
-        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, WATCHER, WatcherFeatureSet.Usage::new));
-        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, MONITORING, MonitoringFeatureSet.Usage::new));
-        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, GRAPH, GraphFeatureSet.Usage::new));
-        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, MACHINE_LEARNING, MachineLearningFeatureSet.Usage::new));
         entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, LOGSTASH, LogstashFeatureSet.Usage::new));
         entries.addAll(watcher.getNamedWriteables());
         entries.addAll(machineLearning.getNamedWriteables());
         entries.addAll(licensing.getNamedWriteables());
         entries.addAll(Security.getNamedWriteables());
+        entries.addAll(Monitoring.getNamedWriteables());
+        entries.addAll(Graph.getNamedWriteables());
         return entries;
     }
 

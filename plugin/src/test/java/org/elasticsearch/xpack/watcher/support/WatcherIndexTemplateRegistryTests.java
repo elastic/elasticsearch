@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -18,6 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +47,7 @@ import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
@@ -73,36 +77,18 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, internalClient);
     }
 
-    private ClusterChangedEvent createClusterChangedEvent(List<String> existingTemplateNames) {
-        ClusterChangedEvent event = mock(ClusterChangedEvent.class);
-        when(event.localNodeMaster()).thenReturn(true);
-        ClusterState cs = mock(ClusterState.class);
-        ClusterBlocks clusterBlocks = mock(ClusterBlocks.class);
-        when(clusterBlocks.hasGlobalBlock(eq(GatewayService.STATE_NOT_RECOVERED_BLOCK))).thenReturn(false);
-        when(cs.blocks()).thenReturn(clusterBlocks);
-        when(event.state()).thenReturn(cs);
-
-        MetaData metaData = mock(MetaData.class);
-        ImmutableOpenMap.Builder<String, IndexTemplateMetaData> indexTemplates = ImmutableOpenMap.builder();
-        for (String name : existingTemplateNames) {
-            indexTemplates.put(name, mock(IndexTemplateMetaData.class));
-        }
-
-        when(metaData.getTemplates()).thenReturn(indexTemplates.build());
-        when(cs.metaData()).thenReturn(metaData);
-
-        return event;
-    }
-
     public void testThatNonExistingTemplatesAreAddedImmediately() {
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList());
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), nodes);
         registry.clusterChanged(event);
         ArgumentCaptor<PutIndexTemplateRequest> argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
         verify(client, times(3)).execute(anyObject(), argumentCaptor.capture(), anyObject());
 
         // now delete one template from the cluster state and lets retry
         ClusterChangedEvent newEvent = createClusterChangedEvent(Arrays.asList(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME,
-                WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME));
+                WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME), nodes);
         registry.clusterChanged(newEvent);
         verify(client, times(4)).execute(anyObject(), argumentCaptor.capture(), anyObject());
     }
@@ -115,6 +101,57 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
                 ".triggered_watches", ".watches")), is(true));
         assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME,
                 ".triggered_watches", ".watches", "whatever", "else")), is(true));
+    }
+
+    // if a node is newer than the master node, the template needs to be applied as well
+    // otherwise a rolling upgrade would not work as expected, when the node has a .watches shard on it
+    public void testThatTemplatesAreAppliedOnNewerNodes() {
+        DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(), Version.V_6_0_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("master").add(localNode).add(masterNode).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(Arrays.asList(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME,
+                WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME, ".watch-history-6"), nodes);
+        registry.clusterChanged(event);
+
+        ArgumentCaptor<PutIndexTemplateRequest> argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
+        verify(client, times(1)).execute(anyObject(), argumentCaptor.capture(), anyObject());
+        assertThat(argumentCaptor.getValue().name(), is(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME));
+    }
+
+    public void testThatTemplatesAreNotAppliedOnSameVersionNodes() {
+        DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("master").add(localNode).add(masterNode).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(Arrays.asList(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME,
+                WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME, ".watch-history-6"), nodes);
+        registry.clusterChanged(event);
+
+        verifyZeroInteractions(client);
+    }
+
+    private ClusterChangedEvent createClusterChangedEvent(List<String> existingTemplateNames, DiscoveryNodes nodes) {
+        ClusterChangedEvent event = mock(ClusterChangedEvent.class);
+        when(event.localNodeMaster()).thenReturn(nodes.isLocalNodeElectedMaster());
+        ClusterState cs = mock(ClusterState.class);
+        ClusterBlocks clusterBlocks = mock(ClusterBlocks.class);
+        when(clusterBlocks.hasGlobalBlock(eq(GatewayService.STATE_NOT_RECOVERED_BLOCK))).thenReturn(false);
+        when(cs.blocks()).thenReturn(clusterBlocks);
+        when(event.state()).thenReturn(cs);
+
+        when(cs.getNodes()).thenReturn(nodes);
+
+        MetaData metaData = mock(MetaData.class);
+        ImmutableOpenMap.Builder<String, IndexTemplateMetaData> indexTemplates = ImmutableOpenMap.builder();
+        for (String name : existingTemplateNames) {
+            indexTemplates.put(name, mock(IndexTemplateMetaData.class));
+        }
+
+        when(metaData.getTemplates()).thenReturn(indexTemplates.build());
+        when(cs.metaData()).thenReturn(metaData);
+
+        return event;
     }
 
     private ClusterState createClusterState(String ... existingTemplates) {

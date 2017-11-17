@@ -6,6 +6,10 @@ setup:
 
 ---
 "Index monitoring data and search on the upgraded cluster":
+  - skip:
+      version:     "all"
+      reason:      "AwaitsFix'ing, see x-pack-elasticsearch #2948"
+
   - do:
       search:
         index: .monitoring-kibana-*

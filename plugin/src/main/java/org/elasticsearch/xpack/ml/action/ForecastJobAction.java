@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,12 +57,14 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
     public static class Request extends TransportJobTaskAction.JobTaskRequest<Request> implements ToXContentObject {
 
         public static final ParseField END_TIME = new ParseField("end");
+        public static final ParseField DURATION = new ParseField("duration");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareString(Request::setEndTime, END_TIME);
+            PARSER.declareString(Request::setDuration, DURATION);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -73,6 +76,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         }
 
         private String endTime;
+        private TimeValue duration;
 
         Request() {
         }
@@ -89,21 +93,31 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             this.endTime = endTime;
         }
 
+        public TimeValue getDuration() {
+            return duration;
+        }
+
+        public void setDuration(String duration) {
+            this.duration = TimeValue.parseTimeValue(duration, DURATION.getPreferredName());
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             this.endTime = in.readOptionalString();
+            this.duration = in.readOptionalWriteable(TimeValue::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(endTime);
+            out.writeOptionalWriteable(duration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, endTime);
+            return Objects.hash(jobId, endTime, duration);
         }
 
         @Override
@@ -115,7 +129,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(endTime, other.endTime);
+            return Objects.equals(jobId, other.jobId) && Objects.equals(endTime, other.endTime) && Objects.equals(duration, other.duration);
         }
 
         @Override
@@ -124,6 +138,9 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             builder.field(Job.ID.getPreferredName(), jobId);
             if (endTime != null) {
                 builder.field(END_TIME.getPreferredName(), endTime);
+            }
+            if (duration != null) {
+                builder.field(DURATION.getPreferredName(), duration.getStringRep());
             }
             builder.endObject();
             return builder;
@@ -218,6 +235,9 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             ForecastParams.Builder paramsBuilder = ForecastParams.builder();
             if (request.getEndTime() != null) {
                 paramsBuilder.endTime(request.getEndTime(), END_TIME);
+            }
+            if (request.getDuration() != null) {
+                paramsBuilder.duration(request.getDuration());
             }
 
             ForecastParams params = paramsBuilder.build();

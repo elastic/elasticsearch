@@ -27,9 +27,14 @@ import static java.util.Collections.emptyMap;
 public class RemoteFailure {
     /**
      * The maximum number of bytes before we no longer include the raw response if
-     * there is a catastrophic error parsing the remote failure.
+     * there is a catastrophic error parsing the remote failure. The actual value
+     * was chosen because it is ten times larger then a "normal" elasticsearch
+     * failure but not so big that we'll consume a ton of memory on huge errors.
+     * It <strong>will</strong> produce huge error messages but the user might
+     * want all that because it is <strong>probably</strong> being thrown by
+     * their proxy.
      */
-    private static final int MAX_RAW_RESPONSE = 50*1024;
+    static final int MAX_RAW_RESPONSE = 512 * 1024;
 
     private static final JsonFactory JSON_FACTORY = new JsonFactory();
     static {
@@ -247,7 +252,12 @@ public class RemoteFailure {
     private static String parseErrorMessage(String message, InputStream stream, JsonParser parser) {
         String responseMessage;
         try {
-            stream.reset();
+            try {
+                stream.reset();
+            } catch (IOException e) {
+                // So far as I know, this is always caused by the response being too large
+                throw new IOException("Response too large", e);
+            }
             try (Reader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
                 StringBuilder builder = new StringBuilder();
                 builder.append("Response:\n");
@@ -259,7 +269,6 @@ public class RemoteFailure {
                 responseMessage = builder.toString();
             }
         } catch (IOException replayException) {
-            // TODO check for failed reset and return different error
             responseMessage = "Attempted to include response but failed because [" + replayException.getMessage() + "].";
         }
         String parserLocation = "";

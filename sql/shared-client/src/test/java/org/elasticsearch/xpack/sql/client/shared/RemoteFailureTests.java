@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.sql.client.shared;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.StringBuilder;
 import java.nio.file.Files;
+import java.util.Locale;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
@@ -116,6 +118,29 @@ public class RemoteFailureTests extends ESTestCase {
         assertThat(e.getMessage(),
             startsWith("Can't parse error from Elasticearch [Unrecognized token 'ÿ': "
                 + "was expecting ('true', 'false' or 'null')] at [line 1 col 1]. Response:\n"));
+    }
+
+    public void testTooBig() throws IOException {
+        StringBuilder tooBig = new StringBuilder(RemoteFailure.MAX_RAW_RESPONSE);
+        tooBig.append("{\n");
+        tooBig.append("\"error\" : {\n");
+        tooBig.append("  \"type\" : \"illegal_argument_exception\",\n");
+        tooBig.append("  \"reason\" : \"something\",\n");
+        tooBig.append("  \"header\" : {\n");
+        int i = 0;
+        while (tooBig.length() < RemoteFailure.MAX_RAW_RESPONSE) {
+            tooBig.append("    \"").append(String.format(Locale.ROOT, "%04d", i++))
+                .append("\" : \"lots and lots and lots and lots and lots of words\",\n");
+        }
+        tooBig.append("    \"end\" : \"lots and lots and lots and lots and lots of words\"\n");
+        tooBig.append("  }\n");
+        tooBig.append("}\n");
+        IOException e = expectThrows(IOException.class, () ->
+            RemoteFailure.parseFromResponse(new BytesArray(tooBig.toString()).streamInput()));
+        assertEquals(
+            "Can't parse error from Elasticearch [expected [stack_trace] cannot but didn't see it] "
+                + "at [line 7951 col 1]. Attempted to include response but failed because [Response too large].",
+            e.getMessage());
     }
 
     private RemoteFailure parse(String fileName) throws IOException {

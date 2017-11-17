@@ -30,6 +30,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -66,6 +68,9 @@ import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBu
  * global options, but are only applicable for this suggestion.
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TermSuggestionBuilder.class));
+
     private static final String SUGGESTION_NAME = "term";
 
     private SuggestMode suggestMode = SuggestMode.MISSING;
@@ -215,7 +220,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * <li><code>damerau_levenshtein</code> - String distance algorithm based on
      * Damerau-Levenshtein algorithm.
      * <li><code>levenshtein</code> - String distance algorithm based on
-     * Levenstein edit distance algorithm.
+     * Levenshtein edit distance algorithm.
      * <li><code>jarowinkler</code> - String distance algorithm based on
      * Jaro-Winkler algorithm.
      * <li><code>ngram</code> - String distance algorithm based on character
@@ -543,7 +548,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 return new LuceneLevenshteinDistance();
             }
         },
-        /** String distance algorithm based on Levenstein edit distance algorithm. */
+        /** String distance algorithm based on Levenshtein edit distance algorithm. */
         LEVENSHTEIN {
             @Override
             public StringDistance toLucene() {
@@ -583,6 +588,9 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 case "damerau_levenshtein":
                 case "damerauLevenshtein":
                     return DAMERAU_LEVENSHTEIN;
+                case "levenstein":
+                    DEPRECATION_LOGGER.deprecated("Deprecated distance [levenstein] used, replaced by [levenshtein]");
+                    return LEVENSHTEIN;
                 case "levenshtein":
                     return LEVENSHTEIN;
                 case "ngram":

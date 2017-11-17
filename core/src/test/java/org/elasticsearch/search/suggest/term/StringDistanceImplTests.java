@@ -20,10 +20,10 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.common.io.stream.AbstractWriteableEnumTestCase;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -50,18 +50,17 @@ public class StringDistanceImplTests extends AbstractWriteableEnumTestCase {
         assertThat(StringDistanceImpl.resolve("levenshtein"), equalTo(StringDistanceImpl.LEVENSHTEIN));
         assertThat(StringDistanceImpl.resolve("jarowinkler"), equalTo(StringDistanceImpl.JAROWINKLER));
         assertThat(StringDistanceImpl.resolve("ngram"), equalTo(StringDistanceImpl.NGRAM));
+
         final String doesntExist = "doesnt_exist";
-        try {
-            StringDistanceImpl.resolve(doesntExist);
-            fail("StringDistanceImpl should not have an element " + doesntExist);
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            StringDistanceImpl.resolve(null);
-            fail("StringDistanceImpl.resolve on a null value should throw an exception.");
-        } catch (NullPointerException e) {
-            assertThat(e.getMessage(), equalTo("Input string is null"));
-        }
+        expectThrows(IllegalArgumentException.class, () -> StringDistanceImpl.resolve(doesntExist)); 
+        
+        NullPointerException e = expectThrows(NullPointerException.class, () -> StringDistanceImpl.resolve(null));
+        assertThat(e.getMessage(), equalTo("Input string is null"));
+    }
+
+    public void testLevensteinDeprecation() {
+        assertThat(StringDistanceImpl.resolve("levenstein"), equalTo(StringDistanceImpl.LEVENSHTEIN));
+        assertWarnings("Deprecated distance [levenstein] used, replaced by [levenshtein]");
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.lucene.search.spell.LevensteinDistance;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DirectCandidateGeneratorTests extends ESTestCase {
     private static final int NUMBER_OF_RUNS = 20;
@@ -63,6 +65,11 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
             final DirectCandidateGeneratorBuilder original = randomCandidateGenerator();
             checkEqualsAndHashCode(original, DirectCandidateGeneratorTests::copy, DirectCandidateGeneratorTests::mutate);
         }
+    }
+
+    public void testLevensteinDeprecation() {
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("levenstein"), equalTo(new LevensteinDistance()));
+        assertWarnings("Deprecated distance [levenstein] used, replaced by [levenshtein]");
     }
 
     private static DirectCandidateGeneratorBuilder mutate(DirectCandidateGeneratorBuilder original) throws IOException {

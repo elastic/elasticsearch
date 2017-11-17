@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
+import com.vividsolutions.jts.util.Assert;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.Term;
@@ -907,7 +908,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 case NO_OP:
                     return new NoOp(input);
                 default:
-                    throw new IOException("no type for [" + type + "]");
+                    throw new AssertionError("no case for [" + type + "]");
             }
         }
 
@@ -928,7 +929,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     ((NoOp) operation).write(output);
                     break;
                 default:
-                    throw new IOException("no type for [" + operation.opType() + "]");
+                    throw new AssertionError("no case for [" + operation.opType() + "]");
             }
         }
 

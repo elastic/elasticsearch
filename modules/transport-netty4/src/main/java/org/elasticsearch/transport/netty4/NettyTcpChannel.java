@@ -20,10 +20,15 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.TcpChannel;
 
+import java.net.InetSocketAddress;
 import java.util.concurrent.CompletableFuture;
 
 public class NettyTcpChannel implements TcpChannel {
@@ -48,10 +53,6 @@ public class NettyTcpChannel implements TcpChannel {
         });
     }
 
-    public Channel getLowLevelChannel() {
-        return channel;
-    }
-
     @Override
     public void close() {
         channel.close();
@@ -70,5 +71,29 @@ public class NettyTcpChannel implements TcpChannel {
     @Override
     public boolean isOpen() {
         return channel.isOpen();
+    }
+
+    @Override
+    public InetSocketAddress getLocalAddress() {
+        return (InetSocketAddress) channel.localAddress();
+    }
+
+    @Override
+    public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
+        final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
+        future.addListener(f -> {
+            if (f.isSuccess()) {
+                listener.onResponse(this);
+            } else {
+                final Throwable cause = f.cause();
+                Netty4Utils.maybeDie(cause);
+                assert cause instanceof Exception;
+                listener.onFailure((Exception) cause);
+            }
+        });
+    }
+
+    public Channel getLowLevelChannel() {
+        return channel;
     }
 }

@@ -19,19 +19,19 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -79,6 +79,22 @@ public interface TcpChannel extends Releasable {
      * @return boolean indicating if channel is open
      */
     boolean isOpen();
+
+    /**
+     * Returns the local address for this channel.
+     *
+     * @return the local address of this channel.
+     */
+    InetSocketAddress getLocalAddress();
+
+    /**
+     * Sends a tcp message to the channel. The listener will be executed once the send process has been
+     * completed.
+     *
+     * @param reference to send to channel
+     * @param listener to execute upon send completion
+     */
+    void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener);
 
     /**
      * Closes the channel.

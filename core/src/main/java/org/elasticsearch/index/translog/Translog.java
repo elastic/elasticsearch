@@ -899,12 +899,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
             switch (type) {
                 case CREATE:
-                    // the deserialization logic in Index was identical to that of Create when create was deprecated
+                    // the de-serialization logic in Index was identical to that of Create when create was deprecated
+                case INDEX:
                     return new Index(input);
                 case DELETE:
                     return new Delete(input);
-                case INDEX:
-                    return new Index(input);
                 case NO_OP:
                     return new NoOp(input);
                 default:
@@ -919,6 +918,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             output.writeByte(operation.opType().id());
             switch(operation.opType()) {
                 case CREATE:
+                    // the serialization logic in Index was identical to that of Create when create was deprecated
                 case INDEX:
                     ((Index) operation).write(output);
                     break;

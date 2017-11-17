@@ -1,0 +1,40 @@
+
+---
+"Deprecated parameters should produce warning in Multi Get query":
+
+   - skip:
+       version: " - 6.0.99"
+       reason:  some parameters are deprecated starting from 6.1, their equivalents without underscore are used instead
+       features: "warnings"
+
+   - do:
+       index:
+           index:  test_1
+           type:   test
+           id:     1
+           body:   { foo: bar }
+
+   - do:
+       index:
+           index:  test_1
+           type:   test
+           id:     2
+           body:   { foo: baz }
+
+   - do:
+       mget:
+           body:
+               docs:
+                   - { _index: test_1, _type: test, _id: 1, _routing : test1 }
+                   - { _index: test_1, _type: test, _id: 2, _routing : test1 }
+       warnings:
+           - "Deprecated field [_routing] used, expected [routing] instead"
+
+   - do:
+       mget:
+           body:
+               docs:
+                   - { _index: test_1, _type: test, _id: 1, _version : 1 }
+                   - { _index: test_1, _type: test, _id: 2, _version : 1 }
+       warnings:
+           - "Deprecated field [_version] used, expected [version] instead"

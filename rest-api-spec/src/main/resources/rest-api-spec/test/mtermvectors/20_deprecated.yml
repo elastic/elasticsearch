@@ -1,0 +1,55 @@
+
+---
+"Deprecated parameters should produce warning in Term Vectors query":
+
+   - skip:
+       version: " - 6.0.99"
+       reason:  versionType, _version_type are deprecated starting from 6.1, version_type is used instead
+       features: "warnings"
+
+   - do:
+       indices.create:
+           index: testidx
+           body:
+               mappings:
+                   testtype:
+                       properties:
+                           text:
+                               type :         "text"
+                               term_vector :  "with_positions_offsets"
+
+   - do:
+       index:
+           index: testidx
+           type:  testtype
+           id:    testing_document
+           body:  {"text" : "The quick brown fox is brown."}
+
+   - do:
+       mtermvectors:
+           "term_statistics" : true
+           "body" :
+               "docs":
+                   -
+                       "_index" : "testidx"
+                       "_type" : "testtype"
+                       "_id" : "testing_document"
+                       "version" : 1
+                       "versionType" : "external"
+       warnings:
+           - "Deprecated field [versionType] used, expected [version_type] instead"
+
+   - do:
+       mtermvectors:
+           "term_statistics" : true
+           "body" :
+               "docs":
+                   -
+                       "_index" : "testidx"
+                       "_type" : "testtype"
+                       "_id" : "testing_document"
+                       "version" : 1
+                       "_version_type" : "external"
+       warnings:
+           - "Deprecated field [_version_type] used, expected [version_type] instead"
+

@@ -52,22 +52,16 @@ public class IndexLifecycle extends Plugin {
     private Settings settings;
     private boolean enabled;
     private boolean transportClientMode;
-    private boolean tribeNode;
-    private boolean tribeNodeClient;
 
-    public static final Setting LIFECYCLE_TIMESERIES_SETTING = Setting.groupSetting("index.lifecycle.timeseries.", (settings) -> {
-        ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN").error("validating setting internally: " + settings);
-        if (settings.size() == 0) {
-            return;
-        }
-    }, Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting LIFECYCLE_TIMESERIES_NAME_SETTING = Setting.simpleString("index.lifecycle.name",
+        Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting LIFECYCLE_TIMESERIES_PHASE_SETTING = Setting.simpleString("index.lifecycle.phase",
+        Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        this.tribeNode = XPackPlugin.isTribeNode(settings);
-        this.tribeNodeClient = XPackPlugin.isTribeClientNode(settings);
     }
 
     public Collection<Module> nodeModules() {
@@ -83,18 +77,8 @@ public class IndexLifecycle extends Plugin {
     }
 
     @Override
-    public void onIndexModule(IndexModule indexModule) {
-        Index index = indexModule.getIndex();
-        ESLoggerFactory.getLogger("INDEX-LIFECYCLE-PLUGIN").error("onIndexModule: " + index.getName());
-        long creationDate = settings.getAsLong("index.creation_date", -1L);
-        indexModule.addSettingsUpdateConsumer(LIFECYCLE_TIMESERIES_SETTING,
-            (Settings s) -> indexLifecycleInitialisationService.get().setLifecycleSettings(index, creationDate, s));
-        indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
-    }
-
-    @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(LIFECYCLE_TIMESERIES_SETTING);
+        return Arrays.asList(LIFECYCLE_TIMESERIES_NAME_SETTING, LIFECYCLE_TIMESERIES_PHASE_SETTING);
     }
 
     public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, Clock clock) {

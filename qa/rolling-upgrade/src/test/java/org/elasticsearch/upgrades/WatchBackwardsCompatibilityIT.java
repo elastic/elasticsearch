@@ -178,7 +178,6 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2944")
     public void testWatcherRestart() throws Exception {
         executeUpgradeIfNeeded();
 
@@ -189,7 +188,6 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         ensureWatcherStarted();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2944")
     public void testWatchCrudApis() throws Exception {
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
 

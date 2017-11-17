@@ -9,7 +9,7 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.elasticsearch.xpack.watcher.common.http.auth.ApplicableHttpAuth;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.watcher.crypto.CryptoService;
 
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;

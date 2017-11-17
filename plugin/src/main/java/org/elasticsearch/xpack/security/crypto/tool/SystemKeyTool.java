@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.security.crypto.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
@@ -16,18 +17,23 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
 public class SystemKeyTool extends EnvironmentAwareCommand {
+
+    static final String KEY_ALGO = "HmacSHA512";
+    static final int KEY_SIZE = 1024;
 
     private final OptionSpec<String> arguments;
 
@@ -67,7 +73,7 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
 
         // write the key
         terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
-        byte[] key = CryptoService.generateKey();
+        byte[] key = generateKey();
         terminal.println(String.format(Locale.ROOT, "Storing generated key in [%s]...", keyPath.toAbsolutePath()));
         Files.write(keyPath, key, StandardOpenOption.CREATE_NEW);
 
@@ -79,6 +85,21 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
                     + "permissions are set to owner read/write only");
         }
     }
+
+    static byte[] generateKey() {
+        return generateSecretKey(KEY_SIZE).getEncoded();
+    }
+
+    static SecretKey generateSecretKey(int keyLength) {
+        try {
+            KeyGenerator generator = KeyGenerator.getInstance(KEY_ALGO);
+            generator.init(keyLength);
+            return generator.generateKey();
+        } catch (NoSuchAlgorithmException e) {
+            throw new ElasticsearchException("failed to generate key", e);
+        }
+    }
+
 
     @SuppressForbidden(reason = "Parsing command line path")
     private static Path parsePath(String path) {

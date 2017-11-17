@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.common.secret.Secret;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.watch.clock.HaltedClock;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;

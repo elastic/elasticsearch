@@ -3,12 +3,20 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.crypto;
+package org.elasticsearch.xpack.watcher.crypto;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.security.authc.support.CharArrays;
+import org.elasticsearch.xpack.watcher.Watcher;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -20,15 +28,6 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.authc.support.CharArrays;
-import org.elasticsearch.xpack.watcher.Watcher;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 
@@ -86,20 +85,6 @@ public class CryptoService extends AbstractComponent {
             throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
         }
         assert encryptionKey != null : "the encryption key should never be null";
-    }
-
-    public static byte[] generateKey() {
-        return generateSecretKey(KEY_SIZE).getEncoded();
-    }
-
-    static SecretKey generateSecretKey(int keyLength) {
-        try {
-            KeyGenerator generator = KeyGenerator.getInstance(KEY_ALGO);
-            generator.init(keyLength);
-            return generator.generateKey();
-        } catch (NoSuchAlgorithmException e) {
-            throw new ElasticsearchException("failed to generate key", e);
-        }
     }
 
     private static SecretKey readSystemKey(InputStream in) throws IOException {

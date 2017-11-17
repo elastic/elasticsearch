@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.common.secret;
 
-import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.watcher.crypto.CryptoService;
 
 import java.io.IOException;
 import java.util.Arrays;

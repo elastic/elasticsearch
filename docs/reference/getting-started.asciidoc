@@ -1034,7 +1034,7 @@ GET /bank/_search
   "query": {
     "bool": {
       "must": [
-        { "match": { "age": "40" } }
+        { "match": { "age": 40 } }
       ],
       "must_not": [
         { "match": { "state": "ID" } }

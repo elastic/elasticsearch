@@ -115,9 +115,6 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
             } catch (IOException e) {
                 closeContext.completeExceptionally(e);
                 throw e;
-            } finally {
-                // There is no problem with calling this multiple times
-                selector.removeRegisteredChannel(this);
             }
         }
     }

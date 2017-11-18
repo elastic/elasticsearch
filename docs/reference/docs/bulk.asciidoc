@@ -201,16 +201,16 @@ chunks, as this will slow things down.
 === Versioning
 
 Each bulk item can include the version value using the
-`_version`/`version` field. It automatically follows the behavior of the
+`version` field. It automatically follows the behavior of the
 index / delete operation based on the `_version` mapping. It also
-support the `version_type`/`_version_type` (see <<index-versioning, versioning>>)
+support the `version_type` (see <<index-versioning, versioning>>)
 
 [float]
 [[bulk-routing]]
 === Routing
 
 Each bulk item can include the routing value using the
-`_routing`/`routing` field. It automatically follows the behavior of the
+`routing` field. It automatically follows the behavior of the
 index / delete operation based on the `_routing` mapping.
 
 [float]
@@ -234,7 +234,7 @@ Control when the changes made by this request are visible to search. See
 [[bulk-update]]
 === Update
 
-When using `update` action `_retry_on_conflict` can be used as field in
+When using `update` action `retry_on_conflict` can be used as field in
 the action itself (not in the extra payload line), to specify how many
 times an update should be retried in the case of a version conflict.
 
@@ -246,11 +246,11 @@ the options. Example with update actions:
 [source,js]
 --------------------------------------------------
 POST _bulk
-{ "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
+{ "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
-{ "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
+{ "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1", "retry_on_conflict" : 3} }
 { "script" : { "source": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
-{ "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
+{ "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
 { "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "_source" : true} }
 { "doc" : {"field" : "value"} }

@@ -46,7 +46,7 @@ public class Build {
         final boolean isSnapshot;
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
-        final URL url = getElasticsearchCodebase();
+        final URL url = getElasticsearchCodeSourceLocation();
         final String urlStr = url == null ? "" : url.toString();
         if (urlStr.startsWith("file:/") && (urlStr.endsWith(esPrefix + ".jar") || urlStr.endsWith(esPrefix + "-SNAPSHOT.jar"))) {
             try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
@@ -93,7 +93,7 @@ public class Build {
      *
      * @return the location of the code source for Elasticsearch which may be null
      */
-    static URL getElasticsearchCodebase() {
+    static URL getElasticsearchCodeSourceLocation() {
         final CodeSource codeSource = Build.class.getProtectionDomain().getCodeSource();
         return codeSource == null ? null : codeSource.getLocation();
     }

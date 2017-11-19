@@ -56,6 +56,9 @@ configurations {
 }
 
 dependencies {
+  // CLI deps
+  compile project(path: ':core:cli', configuration: 'runtime')
+
   // Request and Response objects
   compile "org.elasticsearch:x-pack-client-api-objects:${version}"
 

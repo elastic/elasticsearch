@@ -55,6 +55,9 @@ configurations {
 }
 
 dependencies {
+  // CLI deps
+  compile project(path: ':core:cli', configuration: 'runtime')
+
   // security deps
   compile project(path: ':modules:transport-netty4', configuration: 'runtime')
   compile 'com.unboundid:unboundid-ldapsdk:3.2.0'

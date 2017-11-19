@@ -17,17 +17,20 @@
  * under the License.
  */
 
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
 apply plugin: 'elasticsearch.build'
 
+archivesBaseName = 'elasticsearch-cli'
+
 dependencies {
-  provided "org.elasticsearch:elasticsearch:${version}"
-  provided "org.elasticsearch:elasticsearch-cli:${version}"
-  testCompile "org.elasticsearch.test:framework:${version}"
-  testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:18.0'
+    compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
 }
 
-test {
-  // TODO: find a way to add permissions for the tests in this module
-  systemProperty 'tests.security.manager', 'false'
+test.enabled = false
+// Since CLI does not depend on :core, it cannot run the jarHell task
+jarHell.enabled = false
+
+forbiddenApisMain {
+    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }

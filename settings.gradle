@@ -5,6 +5,7 @@ List projects = [
   'build-tools',
   'rest-api-spec',
   'core',
+  'core:cli',
   'docs',
   'client:rest',
   'client:rest-high-level',

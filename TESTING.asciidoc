@@ -351,8 +351,8 @@ These are the linux flavors the Vagrantfile currently supports:
 * debian-9 aka stretch, the current debian stable distribution
 * centos-6
 * centos-7
-* fedora-25
 * fedora-26
+* fedora-27
 * oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
@@ -428,23 +428,23 @@ sudo -E bats $BATS_TESTS/*.bats
 You can also use Gradle to prepare the test environment and then starts a single VM:
 
 -------------------------------------------------
-gradle vagrantFedora25#up
+gradle vagrantFedora27#up
 -------------------------------------------------
 
 Or any of vagrantCentos6#up, vagrantCentos7#up, vagrantDebian8#up,
-vagrantFedora25#up, vagrantOel6#up, vagrantOel7#up, vagrantOpensuse13#up,
-vagrantSles12#up, vagrantUbuntu1404#up, vagrantUbuntu1604#up.
+vagrantDebian9#up, vagrantFedora26#up, vagrantFedora27#up, vagrantOel6#up, vagrantOel7#up,
+vagrantOpensuse42#up,vagrantSles12#up, vagrantUbuntu1404#up, vagrantUbuntu1604#up.
 
 Once up, you can then connect to the VM using SSH from the elasticsearch directory:
 
 -------------------------------------------------
-vagrant ssh fedora-25
+vagrant ssh fedora-27
 -------------------------------------------------
 
 Or from another directory:
 
 -------------------------------------------------
-VAGRANT_CWD=/path/to/elasticsearch vagrant ssh fedora-25
+VAGRANT_CWD=/path/to/elasticsearch vagrant ssh fedora-27
 -------------------------------------------------
 
 Note: Starting vagrant VM outside of the elasticsearch folder requires to

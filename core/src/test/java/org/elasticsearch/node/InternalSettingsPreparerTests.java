@@ -67,7 +67,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         int size = settings.names().size();
 
-        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null);
+        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings);
         settings = env.settings();
         assertNull(settings.get("node.name")); // a name was not set
         assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
@@ -84,57 +84,6 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertEquals("foobar", settings.get("cluster.name"));
     }
 
-    public void testReplacePromptPlaceholders() {
-        MockTerminal terminal = new MockTerminal();
-        terminal.addTextInput("text");
-        terminal.addSecretInput("replaced");
-
-        Settings.Builder builder = Settings.builder()
-                .put(baseEnvSettings)
-                .put("password.replace", InternalSettingsPreparer.SECRET_PROMPT_VALUE)
-                .put("dont.replace", "prompt:secret")
-                .put("dont.replace2", "_prompt:secret_")
-                .put("dont.replace3", "_prompt:text__")
-                .put("dont.replace4", "__prompt:text_")
-                .put("dont.replace5", "prompt:secret__")
-                .put("replace_me", InternalSettingsPreparer.TEXT_PROMPT_VALUE);
-        Settings settings = InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal).settings();
-
-        assertThat(settings.get("password.replace"), equalTo("replaced"));
-        assertThat(settings.get("replace_me"), equalTo("text"));
-
-        // verify other values unchanged
-        assertThat(settings.get("dont.replace"), equalTo("prompt:secret"));
-        assertThat(settings.get("dont.replace2"), equalTo("_prompt:secret_"));
-        assertThat(settings.get("dont.replace3"), equalTo("_prompt:text__"));
-        assertThat(settings.get("dont.replace4"), equalTo("__prompt:text_"));
-        assertThat(settings.get("dont.replace5"), equalTo("prompt:secret__"));
-    }
-
-    public void testReplaceSecretPromptPlaceholderWithNullTerminal() {
-        Settings.Builder builder = Settings.builder()
-                .put(baseEnvSettings)
-                .put("replace_me1", InternalSettingsPreparer.SECRET_PROMPT_VALUE);
-        try {
-            InternalSettingsPreparer.prepareEnvironment(builder.build(), null);
-            fail("an exception should have been thrown since no terminal was provided!");
-        } catch (UnsupportedOperationException e) {
-            assertThat(e.getMessage(), containsString("with value [" + InternalSettingsPreparer.SECRET_PROMPT_VALUE + "]"));
-        }
-    }
-
-    public void testReplaceTextPromptPlaceholderWithNullTerminal() {
-        Settings.Builder builder = Settings.builder()
-                .put(baseEnvSettings)
-                .put("replace_me1", InternalSettingsPreparer.TEXT_PROMPT_VALUE);
-        try {
-            InternalSettingsPreparer.prepareEnvironment(builder.build(), null);
-            fail("an exception should have been thrown since no terminal was provided!");
-        } catch (UnsupportedOperationException e) {
-            assertThat(e.getMessage(), containsString("with value [" + InternalSettingsPreparer.TEXT_PROMPT_VALUE + "]"));
-        }
-    }
-
     public void testGarbageIsNotSwallowed() throws IOException {
         try {
             InputStream garbage = getClass().getResourceAsStream("/config/garbage/garbage.yml");
@@ -144,7 +93,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
             Files.copy(garbage, config.resolve("elasticsearch.yml"));
             InternalSettingsPreparer.prepareEnvironment(Settings.builder()
                 .put(baseEnvSettings)
-                .build(), null);
+                .build());
         } catch (SettingsException e) {
             assertEquals("Failed to load settings from [elasticsearch.yml]", e.getMessage());
         }
@@ -156,7 +105,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         Files.createDirectory(config);
         Files.copy(yaml, config.resolve("elasticsearch.yaml"));
         SettingsException e = expectThrows(SettingsException.class, () ->
-            InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null));
+            InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build()));
         assertEquals("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml", e.getMessage());
     }
 
@@ -166,7 +115,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         Files.createDirectory(config);
         Files.copy(yaml, config.resolve("elasticsearch.json"));
         SettingsException e = expectThrows(SettingsException.class, () ->
-            InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build(), null));
+            InternalSettingsPreparer.prepareEnvironment(Settings.builder().put(baseEnvSettings).build()));
         assertEquals("elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yml", e.getMessage());
     }
 
@@ -174,14 +123,14 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("foo", "secret");
         Settings input = Settings.builder().put(baseEnvSettings).setSecureSettings(secureSettings).build();
-        Environment env = InternalSettingsPreparer.prepareEnvironment(input, null);
+        Environment env = InternalSettingsPreparer.prepareEnvironment(input);
         Setting<SecureString> fakeSetting = SecureSetting.secureString("foo", null);
         assertEquals("secret", fakeSetting.get(env.settings()).toString());
     }
 
     public void testDefaultPropertiesDoNothing() throws Exception {
         Map<String, String> props = Collections.singletonMap("default.setting", "foo");
-        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props, null);
+        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, props, null);
         assertEquals("foo", env.settings().get("default.setting"));
         assertNull(env.settings().get("setting"));
     }

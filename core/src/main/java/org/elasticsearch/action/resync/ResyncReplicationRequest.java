@@ -28,6 +28,9 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.Arrays;
 
+/**
+ * Represents a batch of operations sent from the primary to its replicas during the primary-replica resync.
+ */
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest> {
 
     private Translog.Operation[] operations;
@@ -36,7 +39,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         super();
     }
 
-    public ResyncReplicationRequest(ShardId shardId, Translog.Operation[] operations) {
+    public ResyncReplicationRequest(final ShardId shardId, final Translog.Operation[] operations) {
         super(shardId);
         this.operations = operations;
     }
@@ -46,7 +49,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public void readFrom(final StreamInput in) throws IOException {
         if (in.getVersion().equals(Version.V_6_0_0)) {
             /*
              * Resync replication request serialization was broken in 6.0.0 due to the elements of the stream not being prefixed with a
@@ -61,16 +64,16 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(Translog.Operation::writeOperation, operations);
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(final Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ResyncReplicationRequest that = (ResyncReplicationRequest) o;
+        final ResyncReplicationRequest that = (ResyncReplicationRequest) o;
         return Arrays.equals(operations, that.operations);
     }
 

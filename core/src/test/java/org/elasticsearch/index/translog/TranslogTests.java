@@ -116,6 +116,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
@@ -2532,6 +2533,32 @@ public class TranslogTests extends ESTestCase {
                 }
                 assertThat(deletionPolicy.getTranslogRefCount(minGen), equalTo(0L));
             }
+        }
+    }
+
+    public void testFilterSnapshot() throws Exception {
+        final int operations = scaledRandomIntBetween(100, 4096);
+        long seqNo = 0;
+        for (int i = 0; i < operations; i++) {
+            translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+            if (rarely()) {
+                translog.rollGeneration();
+            }
+        }
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            assertThat(snapshot, SnapshotMatchers.size((int) seqNo));
+        }
+
+        final long maxSeqNo = randomLongBetween(1, seqNo);
+        try (Translog.Snapshot snapshot = translog.newSnapshot().filter(op -> op.seqNo() < maxSeqNo)) {
+            assertThat(snapshot, SnapshotMatchers.size((int) maxSeqNo));
+        }
+
+        final long singleOp = randomLongBetween(1, seqNo);
+        try (Translog.Snapshot snapshot = translog.newSnapshot().filter(op -> op.seqNo() == singleOp)) {
+            final Translog.Operation op = snapshot.next();
+            assertThat(op.seqNo(), equalTo(singleOp));
+            assertThat(snapshot.next(), nullValue());
         }
     }
 }

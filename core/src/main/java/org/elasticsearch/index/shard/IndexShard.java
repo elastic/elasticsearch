@@ -58,7 +58,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -151,7 +150,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -1254,11 +1252,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogStats.totalOperations(0);
             translogStats.totalOperationsOnStart(0);
         }
-        internalPerformTranslogRecovery(false, indexExists);
+        internalPerformTranslogRecovery(false, indexExists, EngineConfig.RecoveryConfig.MOST_RECENT);
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
-    private void internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists) throws IOException {
+    private void internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists,
+                                                 EngineConfig.RecoveryConfig recoveryConfig) throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -1290,7 +1289,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         assert indexExists == false || assertMaxUnsafeAutoIdInCommit();
 
-        final EngineConfig config = newEngineConfig(openMode);
+        final EngineConfig config = newEngineConfig(openMode, recoveryConfig);
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
@@ -1329,7 +1328,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void skipTranslogRecovery() throws IOException {
         assert getEngineOrNull() == null : "engine was already created";
-        internalPerformTranslogRecovery(true, true);
+        internalPerformTranslogRecovery(true, true, EngineConfig.RecoveryConfig.MOST_RECENT);
         assert recoveryState.getTranslog().recoveredOperations() == 0;
     }
 
@@ -2129,7 +2128,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode) {
+    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode, EngineConfig.RecoveryConfig recoveryConfig) {
         Sort indexSort = indexSortSupplier.get();
         final boolean forceNewHistoryUUID;
         switch (shardRouting.recoverySource().getType()) {
@@ -2151,7 +2150,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort,
-            this::runTranslogRecovery);
+            this::runTranslogRecovery, recoveryConfig);
     }
 
     /**

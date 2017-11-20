@@ -65,6 +65,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -840,6 +841,34 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          */
         Translog.Operation next() throws IOException;
 
+        /**
+         * Returns a snapshot consisting of the elements of this snapshot that match the given predicate.
+         */
+        default Snapshot filter(final Predicate<Translog.Operation> predicate) {
+            final Snapshot originalSnapshot = this;
+            return new Snapshot() {
+                @Override
+                public int totalOperations() {
+                    return originalSnapshot.totalOperations();
+                }
+
+                @Override
+                public Operation next() throws IOException {
+                    Translog.Operation op;
+                    while ((op = originalSnapshot.next()) != null) {
+                        if (predicate.test(op)) {
+                            return op;
+                        }
+                    }
+                    return null;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    originalSnapshot.close();
+                }
+            };
+        }
     }
 
     /**

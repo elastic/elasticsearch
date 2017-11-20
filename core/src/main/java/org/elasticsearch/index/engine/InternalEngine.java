@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -187,11 +188,12 @@ public class InternalEngine extends Engine {
                     case OPEN_INDEX_AND_TRANSLOG:
                         writer = createWriter(false);
                         final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
-                        seqNoStats = store.loadSeqNoStats(globalCheckpoint);
+                        seqNoStats = store.loadSeqNoStatsFromCommit(globalCheckpoint, engineConfig.getRecoveryConfig().getStartingCommit());
                         break;
                     case OPEN_INDEX_CREATE_TRANSLOG:
                         writer = createWriter(false);
-                        seqNoStats = store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO);
+                        seqNoStats = store.loadSeqNoStatsFromCommit(SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            engineConfig.getRecoveryConfig().getStartingCommit());
                         break;
                     case CREATE_INDEX_AND_TRANSLOG:
                         writer = createWriter(true);
@@ -405,11 +407,22 @@ public class InternalEngine extends Engine {
         return this;
     }
 
+    private SegmentInfos recoveringSegmentInfo() {
+        try {
+            final IndexCommit recoveringCommit = config().getRecoveryConfig().getStartingCommit();
+            return store.readCommittedSegmentsInfo(recoveringCommit);
+        } catch (IOException ex) {
+            throw new EngineCreationFailureException(shardId, "Failed to read SegmentInfos for the recovering commit", ex);
+        }
+    }
+
     private void recoverFromTranslogInternal() throws IOException {
+        final SegmentInfos recoveringSegmentInfo = recoveringSegmentInfo();
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
-        final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGen)) {
+        final long translogGen = Long.parseLong(recoveringSegmentInfo.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        final long maxRecoveringSeqNo = config().getRecoveryConfig().getMaxRecoveringSeqNo();
+        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGen).filter(op -> op.seqNo() <= maxRecoveringSeqNo)) {
             opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
@@ -424,12 +437,12 @@ public class InternalEngine extends Engine {
             flush(true, true);
             refresh("translog_recovery");
         } else if (translog.isCurrent(translogGeneration) == false) {
-            commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
+            commitIndexWriter(indexWriter, translog, recoveringSegmentInfo.getUserData().get(Engine.SYNC_COMMIT_ID));
             refreshLastCommittedSegmentInfos();
-        } else if (lastCommittedSegmentInfos.getUserData().containsKey(HISTORY_UUID_KEY) == false)  {
+        } else if (recoveringSegmentInfo.getUserData().containsKey(HISTORY_UUID_KEY) == false)  {
             assert historyUUID != null;
             // put the history uuid into the index
-            commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
+            commitIndexWriter(indexWriter, translog, recoveringSegmentInfo.getUserData().get(Engine.SYNC_COMMIT_ID));
             refreshLastCommittedSegmentInfos();
         }
         // clean up what's not needed
@@ -1841,6 +1854,7 @@ public class InternalEngine extends Engine {
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());
         iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
+        iwc.setIndexCommit(engineConfig.getRecoveryConfig().getStartingCommit());
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
         }

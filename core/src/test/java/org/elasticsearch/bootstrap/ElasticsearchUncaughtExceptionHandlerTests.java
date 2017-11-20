@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -131,7 +130,6 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
     }
 
     public void testIsFatalCause() {
-        assertFatal(new MergePolicy.MergeException(new OutOfMemoryError(), null));
         assertFatal(new OutOfMemoryError());
         assertFatal(new StackOverflowError());
         assertFatal(new InternalError());

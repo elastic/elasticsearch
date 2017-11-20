@@ -235,7 +235,7 @@ public final class IndexSortConfig {
         SortField.Type.FLOAT
     );
 
-    static SortField.Type getSortFieldType(SortField sortField) {
+    public static SortField.Type getSortFieldType(SortField sortField) {
         if (sortField instanceof SortedSetSortField) {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {

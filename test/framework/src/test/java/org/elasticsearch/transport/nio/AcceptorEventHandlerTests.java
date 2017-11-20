@@ -53,15 +53,18 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     private ChannelFactory channelFactory;
     private OpenChannels openChannels;
     private NioServerSocketChannel channel;
+    private Consumer acceptedChannelCallback;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpHandler() throws IOException {
         channelFactory = mock(ChannelFactory.class);
         socketSelector = mock(SocketSelector.class);
+        acceptedChannelCallback = mock(Consumer.class);
         openChannels = new OpenChannels(logger);
         ArrayList<SocketSelector> selectors = new ArrayList<>();
         selectors.add(socketSelector);
-        handler = new AcceptorEventHandler(logger, openChannels, new RoundRobinSelectorSupplier(selectors));
+        handler = new AcceptorEventHandler(logger, openChannels, new RoundRobinSelectorSupplier(selectors), acceptedChannelCallback);
 
         AcceptingSelector selector = mock(AcceptingSelector.class);
         channel = new DoNotRegisterServerChannel("", mock(ServerSocketChannel.class), channelFactory, selector);
@@ -86,31 +89,26 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
     public void testHandleAcceptCallsChannelFactory() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel("", mock(SocketChannel.class), socketSelector);
-        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector), any())).thenReturn(childChannel);
+        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
 
-        verify(channelFactory).acceptNioChannel(same(channel), same(socketSelector), any());
+        verify(channelFactory).acceptNioChannel(same(channel), same(socketSelector));
 
     }
 
     @SuppressWarnings("unchecked")
-    public void testHandleAcceptAddsToOpenChannelsAndAddsCloseListenerToRemove() throws IOException {
+    public void testHandleAcceptAddsToOpenChannelsAndIsRemovedOnClose() throws IOException {
         SocketChannel rawChannel = SocketChannel.open();
         NioSocketChannel childChannel = new NioSocketChannel("", rawChannel, socketSelector);
         childChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
-        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector), any())).thenReturn(childChannel);
+        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
-        Class<Consumer<NioChannel>> clazz = (Class<Consumer<NioChannel>>)(Class)Consumer.class;
-        ArgumentCaptor<Consumer<NioChannel>> listener = ArgumentCaptor.forClass(clazz);
-        verify(channelFactory).acceptNioChannel(same(channel), same(socketSelector), listener.capture());
+
+        verify(acceptedChannelCallback).accept(childChannel);
 
         assertEquals(new HashSet<>(Collections.singletonList(childChannel)), openChannels.getAcceptedChannels());
-
-        listener.getValue().accept(childChannel);
-
-        assertEquals(new HashSet<>(), openChannels.getAcceptedChannels());
 
         IOUtils.closeWhileHandlingException(rawChannel);
     }

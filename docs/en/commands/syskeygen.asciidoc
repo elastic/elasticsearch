@@ -2,15 +2,7 @@
 [[syskeygen]]
 == syskeygen
 
-The `syskeygen` command creates a system key file in
-`CONFIG_DIR/x-pack/system_key`. You can then copy the generated system key to
-the rest of the nodes in the cluster.
-
-//TBD: Why?  What's its purpose?
-
-IMPORTANT: The system key is a symmetric key, so the same key must be on every
-node in the cluster. You must also ensure that the file permissions are set
-such that the key can be read by the user that {es} runs as.
+The `syskeygen` command creates a system key file in `CONFIG_DIR/x-pack`.
 
 [float]
 === Synopsis
@@ -25,21 +17,19 @@ bin/x-pack/syskeygen
 [float]
 === Description
 
-Encryption of sensitive data requires a key. For example, if you enable the
-<<notification-settings,`xpack.watcher.encrypt_sensitive_data` setting>>,
-//TBD: Can we clarify what type of sensitive data is encrypted when this is enabled?
-you must also create a system key file and place it in the secure setting store.
-After you run the `syskeygen` command, run the
-`elasticsearch-keystore add-file xpack.watcher.encryption_key <filepath>`
-command. Finally, remove the `system_key` file from the filesystem. Repeat these
-steps on every node in the cluster.
+The command generates a `system_key` file, which you can use to symmetrically
+encrypt sensitive data. For example, you can use this key to prevent {watcher}
+from returning and storing information that contains clear text credentials. See  {xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}]. 
 
-//TBD: Are there other scenarios where you could use this system file?
+IMPORTANT: The system key is a symmetric key, so the same key must be used on
+every node in the cluster.
 
 [float]
 === Parameters
 
-`-E <KeyValuePair>`:: Configures a setting.
+`-E <KeyValuePair>`:: Configures a setting. For example, if you have a custom
+installation of {es}, you can use this parameter to specify the `ES_PATH_CONF`
+environment variable.
 
 `-h, --help`:: Returns all of the command parameters.
 
@@ -47,14 +37,14 @@ steps on every node in the cluster.
 
 `-v, --verbose`:: Shows verbose output.
 
-////
+
 [float]
 === Examples
 
-//TBD: What's an example of a -E value that we might use in this command?
+The following command generates a `system_key` file in the
+default `$ES_HOME/config/x-pack` directory:
 
 [source, sh]
 --------------------------------------------------
 bin/x-pack/syskeygen
 --------------------------------------------------
-////

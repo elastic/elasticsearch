@@ -74,6 +74,8 @@ include::getting-started.asciidoc[]
 
 include::how-watcher-works.asciidoc[]
 
+include::encrypting-data.asciidoc[]
+
 include::input.asciidoc[]
 
 include::trigger.asciidoc[]

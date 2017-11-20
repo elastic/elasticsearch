@@ -57,7 +57,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         SocketSelector socketSelector = mock(SocketSelector.class);
         handler = new SocketEventHandler(logger, exceptionHandler, mock(OpenChannels.class));
         rawChannel = mock(SocketChannel.class);
-        channel = new DoNotRegisterChannel("", rawChannel, socketSelector);
+        channel = new DoNotRegisterChannel(rawChannel, socketSelector);
         readContext = mock(ReadContext.class);
         when(rawChannel.finishConnect()).thenReturn(true);
 

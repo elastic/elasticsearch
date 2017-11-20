@@ -438,6 +438,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertHitCount(result, 0);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27454")
     public void testPointsOnly() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")

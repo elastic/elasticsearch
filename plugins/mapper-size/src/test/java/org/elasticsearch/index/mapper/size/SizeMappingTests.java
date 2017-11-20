@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -60,7 +61,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
 
         boolean stored = false;
         boolean points = false;
@@ -81,7 +82,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
@@ -95,7 +96,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             .field("field", "value")
             .endObject()
             .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }

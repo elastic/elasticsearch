@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -32,16 +32,18 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.SimpleQueryParser.Settings;
+import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
+import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.TreeMap;
 
 /**
  * SimpleQuery is a query parser that acts similar to a query_string query, but
@@ -58,7 +60,7 @@ import java.util.TreeMap;
  * <li>'{@code ~}N' at the end of phrases specifies near/slop query: <tt>"term1 term2"~5</tt>
  * </ul>
  * <p>
- * See: {@link SimpleQueryParser} for more information.
+ * See: {@link SimpleQueryStringQueryParser} for more information.
  * <p>
  * This query supports these options:
  * <p>
@@ -88,6 +90,12 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     /** Default for search flags to use. */
     public static final int DEFAULT_FLAGS = SimpleQueryStringFlag.ALL.value;
+    /** Default for prefix length in fuzzy queries.*/
+    public static final int DEFAULT_FUZZY_PREFIX_LENGTH = FuzzyQuery.defaultPrefixLength;
+    /** Default number of terms fuzzy queries will expand to.*/
+    public static final int DEFAULT_FUZZY_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
+    /** Default for using transpositions in fuzzy queries.*/
+    public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
@@ -105,7 +113,12 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
-    private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields");
+    private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields")
+            .withAllDeprecated("Set [fields] to `*` instead");
+    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
+    private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
+    private static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
+    private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
 
     /** Query text to parse. */
     private final String queryText;
@@ -114,10 +127,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
      * currently _ALL. Uses a TreeMap to hold the fields so boolean clauses are
      * always sorted in same order for generated Lucene query for easier
      * testing.
-     *
-     * Can be changed back to HashMap once https://issues.apache.org/jira/browse/LUCENE-6305 is fixed.
      */
-    private final Map<String, Float> fieldsAndWeights = new TreeMap<>();
+    private Map<String, Float> fieldsAndWeights = new HashMap<>();
     /** If specified, analyzer to use to parse the query text, defaults to registered default in toQuery. */
     private String analyzer;
     /** Default operator to use for linking boolean clauses. Defaults to OR according to docs. */
@@ -126,8 +137,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private String minimumShouldMatch;
     /** Any search flags to be used, ALL by default. */
     private int flags = DEFAULT_FLAGS;
-    /** Flag specifying whether query should be forced to expand to all searchable fields */
-    private Boolean useAllFields;
     /** Whether or not the lenient flag has been set or not */
     private boolean lenientSet = false;
 
@@ -159,21 +168,32 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         flags = in.readInt();
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
-        if (in.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_1)) {
             in.readBoolean(); // lowercase_expanded_terms
         }
         settings.lenient(in.readBoolean());
-        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             this.lenientSet = in.readBoolean();
         }
         settings.analyzeWildcard(in.readBoolean());
-        if (in.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_1)) {
             in.readString(); // locale
         }
         minimumShouldMatch = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             settings.quoteFieldSuffix(in.readOptionalString());
-            useAllFields = in.readOptionalBoolean();
+            if (in.getVersion().before(Version.V_6_0_0_beta2)) {
+                Boolean useAllFields = in.readOptionalBoolean();
+                if (useAllFields != null && useAllFields) {
+                    useAllFields(true);
+                }
+            }
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            settings.autoGenerateSynonymsPhraseQuery(in.readBoolean());
+            settings.fuzzyPrefixLength(in.readVInt());
+            settings.fuzzyMaxExpansions(in.readVInt());
+            settings.fuzzyTranspositions(in.readBoolean());
         }
     }
 
@@ -188,21 +208,33 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
-        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_1)) {
             out.writeBoolean(true); // lowercase_expanded_terms
         }
         out.writeBoolean(settings.lenient());
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeBoolean(lenientSet);
         }
         out.writeBoolean(settings.analyzeWildcard());
-        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_1)) {
             out.writeString(Locale.ROOT.toLanguageTag()); // locale
         }
         out.writeOptionalString(minimumShouldMatch);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeOptionalString(settings.quoteFieldSuffix());
-            out.writeOptionalBoolean(useAllFields);
+            if (out.getVersion().before(Version.V_6_0_0_beta2)) {
+                if (useAllFields()) {
+                    out.writeOptionalBoolean(true);
+                } else {
+                    out.writeOptionalBoolean(null);
+                }
+            }
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(settings.autoGenerateSynonymsPhraseQuery());
+            out.writeVInt(settings.fuzzyPrefixLength());
+            out.writeVInt(settings.fuzzyMaxExpansions());
+            out.writeBoolean(settings.fuzzyTranspositions());
         }
     }
 
@@ -252,12 +284,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return this.analyzer;
     }
 
+    @Deprecated
     public Boolean useAllFields() {
-        return useAllFields;
+        return fieldsAndWeights.size() == 1 && fieldsAndWeights.keySet().stream().anyMatch(Regex::isMatchAllPattern);
     }
 
+    /**
+     * This setting is deprecated, set {@link #field(String)} to "*" instead.
+     */
+    @Deprecated
     public SimpleQueryStringBuilder useAllFields(Boolean useAllFields) {
-        this.useAllFields = useAllFields;
+        if (useAllFields != null && useAllFields) {
+            this.fieldsAndWeights = Collections.singletonMap("*", 1.0f);
+        }
         return this;
     }
 
@@ -359,77 +398,83 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         return minimumShouldMatch;
     }
 
+    public SimpleQueryStringBuilder autoGenerateSynonymsPhraseQuery(boolean value) {
+        this.settings.autoGenerateSynonymsPhraseQuery(value);
+        return this;
+    }
+
+    /**
+     * Whether phrase queries should be automatically generated for multi terms synonyms.
+     * Defaults to <tt>true</tt>.
+     */
+    public boolean autoGenerateSynonymsPhraseQuery() {
+        return settings.autoGenerateSynonymsPhraseQuery();
+    }
+
+    public SimpleQueryStringBuilder fuzzyPrefixLength(int fuzzyPrefixLength) {
+        this.settings.fuzzyPrefixLength(fuzzyPrefixLength);
+        return this;
+    }
+
+    public int fuzzyPrefixLength() {
+        return settings.fuzzyPrefixLength();
+    }
+
+    public SimpleQueryStringBuilder fuzzyMaxExpansions(int fuzzyMaxExpansions) {
+        this.settings.fuzzyMaxExpansions(fuzzyMaxExpansions);
+        return this;
+    }
+
+    public int fuzzyMaxExpansions() {
+        return settings.fuzzyMaxExpansions();
+    }
+
+    public boolean fuzzyTranspositions() {
+        return settings.fuzzyTranspositions();
+    }
+
+    /**
+     * Sets whether transpositions are supported in fuzzy queries.<p>
+     * The default metric used by fuzzy queries to determine a match is the Damerau-Levenshtein
+     * distance formula which supports transpositions. Setting transposition to false will
+     * switch to classic Levenshtein distance.<br>
+     * If not set, Damerau-Levenshtein distance metric will be used.
+     */
+    public SimpleQueryStringBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
+        this.settings.fuzzyTranspositions(fuzzyTranspositions);
+        return this;
+    }
+
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        // field names in builder can have wildcards etc, need to resolve them here
-        Map<String, Float> resolvedFieldsAndWeights = new TreeMap<>();
-
-        if ((useAllFields != null && useAllFields) && (fieldsAndWeights.size() != 0)) {
-            throw addValidationError("cannot use [all_fields] parameter in conjunction with [fields]", null);
-        }
-
-        // If explicitly required to use all fields, use all fields, OR:
-        // Automatically determine the fields (to replace the _all field) if all of the following are true:
-        // - The _all field is disabled,
-        // - and the default_field has not been changed in the settings
-        // - and no fields are specified in the request
         Settings newSettings = new Settings(settings);
-        if ((this.useAllFields != null && this.useAllFields) ||
-                (context.getMapperService().allEnabled() == false &&
-                        "_all".equals(context.defaultField()) &&
-                        this.fieldsAndWeights.isEmpty())) {
-            resolvedFieldsAndWeights = QueryStringQueryBuilder.allQueryableDefaultFields(context);
-            // Need to use lenient mode when using "all-mode" so exceptions aren't thrown due to mismatched types
-            newSettings.lenient(lenientSet ? settings.lenient() : true);
+        final Map<String, Float> resolvedFieldsAndWeights;
+        if (fieldsAndWeights.isEmpty() == false) {
+            resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
         } else {
-            // Use the default field if no fields specified
-            if (fieldsAndWeights.isEmpty()) {
-                resolvedFieldsAndWeights.put(resolveIndexName(context.defaultField(), context), AbstractQueryBuilder.DEFAULT_BOOST);
-            } else {
-                for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
-                    if (Regex.isSimpleMatchPattern(fieldEntry.getKey())) {
-                        for (String fieldName : context.getMapperService().simpleMatchToIndexNames(fieldEntry.getKey())) {
-                            resolvedFieldsAndWeights.put(fieldName, fieldEntry.getValue());
-                        }
-                    } else {
-                        resolvedFieldsAndWeights.put(resolveIndexName(fieldEntry.getKey(), context), fieldEntry.getValue());
-                    }
-                }
+            List<String> defaultFields = context.defaultFields();
+            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
+            if (isAllField) {
+                newSettings.lenient(lenientSet ? settings.lenient() : true);
             }
+            resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context,
+                QueryParserHelper.parseFieldsAndWeights(defaultFields));
         }
 
-        // Use standard analyzer by default if none specified
-        Analyzer luceneAnalyzer;
+        final SimpleQueryStringQueryParser sqp;
         if (analyzer == null) {
-            luceneAnalyzer = context.getMapperService().searchAnalyzer();
+            sqp = new SimpleQueryStringQueryParser(resolvedFieldsAndWeights, flags, newSettings, context);
         } else {
-            luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
+            Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {
                 throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
                         + "] not found");
             }
-
+            sqp = new SimpleQueryStringQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, newSettings, context);
         }
-
-        SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, newSettings, context);
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
-
         Query query = sqp.parse(queryText);
-        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
-        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
-        // and multiple variations of the same word in the query (synonyms for instance).
-        if (minimumShouldMatch != null && query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
-            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        }
-        return query;
-    }
-
-    private static String resolveIndexName(String fieldName, QueryShardContext context) {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            return fieldType.name();
-        }
-        return fieldName;
+        return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
 
     @Override
@@ -463,69 +508,57 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
-        if (useAllFields != null) {
-            builder.field(ALL_FIELDS_FIELD.getPreferredName(), useAllFields);
-        }
-
+        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), settings.autoGenerateSynonymsPhraseQuery());
+        builder.field(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), settings.fuzzyPrefixLength());
+        builder.field(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), settings.fuzzyMaxExpansions());
+        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), settings.fuzzyTranspositions());
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
-    public static Optional<SimpleQueryStringBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static SimpleQueryStringBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         String queryBody = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String minimumShouldMatch = null;
-        Map<String, Float> fieldsAndWeights = new HashMap<>();
+        Map<String, Float> fieldsAndWeights = null;
         Operator defaultOperator = null;
         String analyzerName = null;
         int flags = SimpleQueryStringFlag.ALL.value();
         Boolean lenient = null;
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
         String quoteFieldSuffix = null;
-        Boolean useAllFields = null;
+        boolean autoGenerateSynonymsPhraseQuery = true;
+        int fuzzyPrefixLenght = SimpleQueryStringBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;
+        int fuzzyMaxExpansions = SimpleQueryStringBuilder.DEFAULT_FUZZY_MAX_EXPANSIONS;
+        boolean fuzzyTranspositions = SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS;
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        String fField = null;
-                        float fBoost = 1;
-                        char[] text = parser.textCharacters();
-                        int end = parser.textOffset() + parser.textLength();
-                        for (int i = parser.textOffset(); i < end; i++) {
-                            if (text[i] == '^') {
-                                int relativeLocation = i - parser.textOffset();
-                                fField = new String(text, parser.textOffset(), relativeLocation);
-                                fBoost = Float.parseFloat(new String(text, i + 1, parser.textLength() - relativeLocation - 1));
-                                break;
-                            }
-                        }
-                        if (fField == null) {
-                            fField = parser.text();
-                        }
-                        fieldsAndWeights.put(fField, fBoost);
+                if (FIELDS_FIELD.match(currentFieldName)) {
+                    List<String> fields = new ArrayList<>();
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        fields.add(parser.text());
                     }
+                    fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
                             "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                if (QUERY_FIELD.match(currentFieldName)) {
                     queryBody = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
+                } else if (ANALYZER_FIELD.match(currentFieldName)) {
                     analyzerName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, DEFAULT_OPERATOR_FIELD)) {
+                } else if (DEFAULT_OPERATOR_FIELD.match(currentFieldName)) {
                     defaultOperator = Operator.fromString(parser.text());
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FLAGS_FIELD)) {
+                } else if (FLAGS_FIELD.match(currentFieldName)) {
                     if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
                         // Possible options are:
                         // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE, FUZZY, NEAR, SLOP
@@ -536,22 +569,30 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                             flags = SimpleQueryStringFlag.ALL.value();
                         }
                     }
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LOCALE_FIELD)) {
+                } else if (LOCALE_FIELD.match(currentFieldName)) {
                     // ignore, deprecated setting
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LOWERCASE_EXPANDED_TERMS_FIELD)) {
+                } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName)) {
                     // ignore, deprecated setting
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LENIENT_FIELD)) {
+                } else if (LENIENT_FIELD.match(currentFieldName)) {
                     lenient = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ANALYZE_WILDCARD_FIELD)) {
+                } else if (ANALYZE_WILDCARD_FIELD.match(currentFieldName)) {
                     analyzeWildcard = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
+                } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, QUOTE_FIELD_SUFFIX_FIELD)) {
+                } else if (QUOTE_FIELD_SUFFIX_FIELD.match(currentFieldName)) {
                     quoteFieldSuffix = parser.textOrNull();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ALL_FIELDS_FIELD)) {
-                    useAllFields = parser.booleanValue();
+                } else if (ALL_FIELDS_FIELD.match(currentFieldName)) {
+                    // Ignore deprecated option
+                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
+                    autoGenerateSynonymsPhraseQuery = parser.booleanValue();
+                } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName)) {
+                    fuzzyPrefixLenght = parser.intValue();
+                } else if (FUZZY_MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
+                    fuzzyMaxExpansions = parser.intValue();
+                } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName)) {
+                    fuzzyTranspositions = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
                             "] unsupported field [" + parser.currentName() + "]");
@@ -567,20 +608,21 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
         }
 
-        if ((useAllFields != null && useAllFields) && (fieldsAndWeights.size() != 0)) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "cannot use [all_fields] parameter in conjunction with [fields]");
-        }
-
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
-        qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
+        if (fieldsAndWeights != null) {
+            qb.fields(fieldsAndWeights);
+        }
+        qb.boost(boost).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
         qb.flags(flags).defaultOperator(defaultOperator);
         if (lenient != null) {
             qb.lenient(lenient);
         }
         qb.analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);
-        qb.useAllFields(useAllFields);
-        return Optional.of(qb);
+        qb.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
+        qb.fuzzyPrefixLength(fuzzyPrefixLenght);
+        qb.fuzzyMaxExpansions(fuzzyMaxExpansions);
+        qb.fuzzyTranspositions(fuzzyTranspositions);
+        return qb;
     }
 
     @Override
@@ -590,7 +632,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags, useAllFields);
+        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags);
     }
 
     @Override
@@ -599,8 +641,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 && Objects.equals(defaultOperator, other.defaultOperator) && Objects.equals(queryText, other.queryText)
                 && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
                 && Objects.equals(settings, other.settings)
-                && (flags == other.flags)
-                && (useAllFields == other.useAllFields);
+                && (flags == other.flags);
     }
-
 }

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import java.util.Arrays;
-import java.util.HashSet;
-
 import org.apache.commons.codec.Encoder;
 import org.apache.commons.codec.language.Caverphone1;
 import org.apache.commons.codec.language.Caverphone2;
@@ -45,12 +42,15 @@ import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
 import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
 import org.elasticsearch.index.analysis.phonetic.Nysiis;
 
+import java.util.HashSet;
+import java.util.List;
+
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Encoder encoder;
     private final boolean replace;
     private int maxcodelength;
-    private String[] languageset;
+    private List<String> languageset;
     private NameType nametype;
     private RuleType ruletype;
 
@@ -82,7 +82,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             this.maxcodelength = settings.getAsInt("max_code_len", 4);
         } else if ("bm".equalsIgnoreCase(encodername) || "beider_morse".equalsIgnoreCase(encodername) || "beidermorse".equalsIgnoreCase(encodername)) {
             this.encoder = null;
-            this.languageset = settings.getAsArray("languageset");
+            this.languageset = settings.getAsList("languageset");
             String ruleType = settings.get("rule_type", "approx");
             if ("approx".equalsIgnoreCase(ruleType)) {
                 ruletype = RuleType.APPROX;
@@ -116,11 +116,11 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         if (encoder == null) {
             if (ruletype != null && nametype != null) {
-                if (languageset != null) {
-                    final LanguageSet languages = LanguageSet.from(new HashSet<>(Arrays.asList(languageset)));
-                    return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true), languages);
+                LanguageSet langset = null;
+                if (languageset != null && languageset.size() > 0) {
+                    langset = LanguageSet.from(new HashSet<>(languageset));
                 }
-                return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true));
+                return new BeiderMorseFilter(tokenStream, new PhoneticEngine(nametype, ruletype, true), langset);
             }
             if (maxcodelength > 0) {
                 return new DoubleMetaphoneFilter(tokenStream, maxcodelength, !replace);

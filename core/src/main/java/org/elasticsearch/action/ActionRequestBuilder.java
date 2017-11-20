@@ -19,18 +19,16 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
 
-public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> {
+public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse,
+        RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> {
 
     protected final Action<Request, Response, RequestBuilder> action;
     protected final Request request;
-    private final ThreadPool threadPool;
     protected final ElasticsearchClient client;
 
     protected ActionRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
@@ -38,18 +36,14 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
         this.action = action;
         this.request = request;
         this.client = client;
-        threadPool = client.threadPool();
     }
-
 
     public Request request() {
         return this.request;
     }
 
-    public ListenableActionFuture<Response> execute() {
-        PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<>(threadPool);
-        execute(future);
-        return future;
+    public ActionFuture<Response> execute() {
+        return client.execute(action, request);
     }
 
     /**
@@ -74,13 +68,6 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     }
 
     public void execute(ActionListener<Response> listener) {
-        client.execute(action, beforeExecute(request), listener);
-    }
-
-    /**
-     * A callback to additionally process the request before its executed
-     */
-    protected Request beforeExecute(Request request) {
-        return request;
+        client.execute(action, request, listener);
     }
 }

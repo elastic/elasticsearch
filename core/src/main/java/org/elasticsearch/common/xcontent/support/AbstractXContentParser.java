@@ -22,6 +22,8 @@ package org.elasticsearch.common.xcontent.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -49,7 +51,11 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
+    private final NamedXContentRegistry xContentRegistry;
 
+    public AbstractXContentParser(NamedXContentRegistry xContentRegistry) {
+        this.xContentRegistry = xContentRegistry;
+    }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
     //   http://fasterxml.github.io/jackson-core/javadoc/2.3.0/com/fasterxml/jackson/core/JsonParser.html#getShortValue()
@@ -72,9 +78,6 @@ public abstract class AbstractXContentParser implements XContentParser {
         switch (currentToken()) {
             case VALUE_BOOLEAN:
                 return true;
-            case VALUE_NUMBER:
-                NumberType numberType = numberType();
-                return numberType == NumberType.LONG || numberType == NumberType.INT;
             case VALUE_STRING:
                 return Booleans.isBoolean(textCharacters(), textOffset(), textLength());
             default:
@@ -85,10 +88,36 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public boolean booleanValue() throws IOException {
         Token token = currentToken();
+        if (token == Token.VALUE_STRING) {
+            return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+        }
+        return doBooleanValue();
+    }
+
+    @Override
+    @Deprecated
+    public boolean isBooleanValueLenient() throws IOException {
+        switch (currentToken()) {
+            case VALUE_BOOLEAN:
+                return true;
+            case VALUE_NUMBER:
+                NumberType numberType = numberType();
+                return numberType == NumberType.LONG || numberType == NumberType.INT;
+            case VALUE_STRING:
+                return Booleans.isBooleanLenient(textCharacters(), textOffset(), textLength());
+            default:
+                return false;
+        }
+    }
+
+    @Override
+    @Deprecated
+    public boolean booleanValueLenient() throws IOException {
+        Token token = currentToken();
         if (token == Token.VALUE_NUMBER) {
             return intValue() != 0;
         } else if (token == Token.VALUE_STRING) {
-            return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+            return Booleans.parseBooleanLenient(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
         }
         return doBooleanValue();
     }
@@ -105,7 +134,14 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Short.class);
-            return Short.parseShort(text());
+
+            double doubleValue = Double.parseDouble(text());
+
+            if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
+                throw new IllegalArgumentException("Value [" + text() + "] is out of range for a short");
+            }
+
+            return (short) doubleValue;
         }
         short result = doShortValue();
         ensureNumberConversion(coerce, result, Short.class);
@@ -119,13 +155,18 @@ public abstract class AbstractXContentParser implements XContentParser {
         return intValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
-
     @Override
     public int intValue(boolean coerce) throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Integer.class);
-            return Integer.parseInt(text());
+            double doubleValue = Double.parseDouble(text());
+
+            if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("Value [" + text() + "] is out of range for an integer");
+            }
+
+            return (int) doubleValue;
         }
         int result = doIntValue();
         ensureNumberConversion(coerce, result, Integer.class);
@@ -144,7 +185,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            return Long.parseLong(text());
+            return Numbers.toLong(text(), coerce);
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);
@@ -354,6 +395,16 @@ public abstract class AbstractXContentParser implements XContentParser {
             return parser.binaryValue();
         }
         return null;
+    }
+
+    @Override
+    public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
+        return xContentRegistry.parseNamedObject(categoryClass, name, this, context);
+    }
+
+    @Override
+    public NamedXContentRegistry getXContentRegistry() {
+        return xContentRegistry;
     }
 
     @Override

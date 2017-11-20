@@ -24,9 +24,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -36,12 +38,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin {
 
     // force to parse our definition at startup (not on the user's first script)
     static {
-        Definition.VOID_TYPE.hashCode();
+        Definition.DEFINITION.hashCode();
     }
 
     @Override
-    public ScriptEngineService getScriptEngineService(Settings settings) {
-        return new PainlessScriptEngineService(settings);
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+        return new PainlessScriptEngine(settings, contexts);
     }
 
     @Override

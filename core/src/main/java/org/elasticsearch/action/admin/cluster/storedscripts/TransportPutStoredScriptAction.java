@@ -59,7 +59,7 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
     @Override
     protected void masterOperation(PutStoredScriptRequest request, ClusterState state,
                                    ActionListener<PutStoredScriptResponse> listener) throws Exception {
-        scriptService.storeScript(clusterService, request, listener);
+        scriptService.putStoredScript(clusterService, request, listener);
     }
 
     @Override

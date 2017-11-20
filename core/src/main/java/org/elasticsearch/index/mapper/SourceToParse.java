@@ -23,18 +23,14 @@ import java.util.Objects;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 
 public class SourceToParse {
 
-    public static SourceToParse source(String index, String type, String id, BytesReference source) {
-        return source(Origin.PRIMARY, index, type, id, source);
+    public static SourceToParse source(String index, String type, String id, BytesReference source,
+                                       XContentType contentType) {
+        return new SourceToParse(index, type, id, source, contentType);
     }
-
-    public static SourceToParse source(Origin origin, String index, String type, String id, BytesReference source) {
-        return new SourceToParse(origin, index, type, id, source);
-    }
-
-    private final Origin origin;
 
     private final BytesReference source;
 
@@ -48,18 +44,16 @@ public class SourceToParse {
 
     private String parentId;
 
-    private SourceToParse(Origin origin, String index, String type, String id, BytesReference source) {
-        this.origin = Objects.requireNonNull(origin);
+    private XContentType xContentType;
+
+    private SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
         this.index = Objects.requireNonNull(index);
         this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
-        this.source = new BytesArray(source.toBytesRef());
-    }
-
-    public Origin origin() {
-        return origin;
+        this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     public BytesReference source() {
@@ -89,6 +83,10 @@ public class SourceToParse {
 
     public String routing() {
         return this.routing;
+    }
+
+    public XContentType getXContentType() {
+        return this.xContentType;
     }
 
     public SourceToParse routing(String routing) {

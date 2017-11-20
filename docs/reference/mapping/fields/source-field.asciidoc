@@ -64,8 +64,6 @@ simple queries to filter the dataset by date or tags, and the results are
 returned as aggregations.
 
 In this case, disabling the `_source` field will save space and reduce I/O.
-It is also advisable to disable the <<mapping-all-field,`_all` field>> in the
-metrics case.
 
 **************************************************
 

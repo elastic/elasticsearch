@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
@@ -38,7 +39,7 @@ import static java.util.Collections.unmodifiableMap;
  * Wrapper around everything that defines a mapping, without references to
  * utility classes like MapperService, ...
  */
-public final class Mapping implements ToXContent {
+public final class Mapping implements ToXContentFragment {
 
     final Version indexCreated;
     final RootObjectMapper root;
@@ -104,12 +105,22 @@ public final class Mapping implements ToXContent {
      * Recursively update sub field types.
      */
     public Mapping updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        final MetadataFieldMapper[] updatedMeta = Arrays.copyOf(metadataMappers, metadataMappers.length);
-        for (int i = 0; i < updatedMeta.length; ++i) {
-            updatedMeta[i] = (MetadataFieldMapper) updatedMeta[i].updateFieldType(fullNameToFieldType);
+        MetadataFieldMapper[] updatedMeta = null;
+        for (int i = 0; i < metadataMappers.length; ++i) {
+            MetadataFieldMapper currentFieldMapper = metadataMappers[i];
+            MetadataFieldMapper updatedFieldMapper = (MetadataFieldMapper) currentFieldMapper.updateFieldType(fullNameToFieldType);
+            if (updatedFieldMapper != currentFieldMapper) {
+                if (updatedMeta == null) {
+                    updatedMeta = Arrays.copyOf(metadataMappers, metadataMappers.length);
+                }
+                updatedMeta[i] = updatedFieldMapper;
+            }
         }
         RootObjectMapper updatedRoot = root.updateFieldType(fullNameToFieldType);
-        return new Mapping(indexCreated, updatedRoot, updatedMeta, meta);
+        if (updatedMeta == null && updatedRoot == root) {
+            return this;
+        }
+        return new Mapping(indexCreated, updatedRoot, updatedMeta == null ? metadataMappers : updatedMeta, meta);
     }
 
     @Override

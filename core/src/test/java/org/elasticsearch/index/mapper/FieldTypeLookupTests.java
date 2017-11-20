@@ -19,6 +19,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -72,11 +77,12 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper f = new MockFieldMapper("foo");
         MockFieldMapper f2 = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type1", newList(f), randomBoolean());
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2), randomBoolean());
+        lookup = lookup.copyAndAddAll("type1", newList(f), true);
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2), true);
 
-        assertSame(f2.fieldType(), lookup2.get("foo"));
         assertEquals(1, size(lookup2.iterator()));
+        assertSame(f.fieldType(), lookup2.get("foo"));
+        assertEquals(f2.fieldType(), lookup2.get("foo"));
     }
 
     public void testAddExistingIndexName() {
@@ -206,7 +212,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     static class OtherFakeFieldType extends TermBasedFieldType {
-        public OtherFakeFieldType() {
+        OtherFakeFieldType() {
         }
 
         protected OtherFakeFieldType(OtherFakeFieldType ref) {
@@ -221,6 +227,15 @@ public class FieldTypeLookupTests extends ESTestCase {
         @Override
         public String typeName() {
             return "otherfaketype";
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
         }
     }
 }

@@ -53,7 +53,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     public TransportRestoreSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, RestoreService restoreService, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, RestoreSnapshotRequest::new);
+        super(settings, RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, RestoreSnapshotRequest::new,indexNameExpressionResolver);
         this.restoreService = restoreService;
     }
 
@@ -101,10 +101,10 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
                                 // When there is a master failure after a restore has been started, this listener might not be registered
                                 // on the current master and as such it might miss some intermediary cluster states due to batching.
                                 // Clean up listener in that case and acknowledge completion of restore operation to client.
-                                clusterService.remove(this);
+                                clusterService.removeListener(this);
                                 listener.onResponse(new RestoreSnapshotResponse(null));
                             } else if (newEntry == null) {
-                                clusterService.remove(this);
+                                clusterService.removeListener(this);
                                 ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
                                 assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
                                 assert RestoreService.completed(shards) : "expected all restore entries to be completed";
@@ -121,7 +121,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
                         }
                     };
 
-                    clusterService.addLast(clusterStateListener);
+                    clusterService.addListener(clusterStateListener);
                 } else {
                     listener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
                 }

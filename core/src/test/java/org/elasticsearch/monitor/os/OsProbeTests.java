@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 
@@ -41,7 +42,7 @@ public class OsProbeTests extends ESTestCase {
 
     public void testOsInfo() {
         int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
-        long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
+        long refreshInterval = randomBoolean() ? -1 : randomNonNegativeLong();
         OsInfo info = probe.osInfo(refreshInterval, allocatedProcessors);
         assertNotNull(info);
         assertEquals(refreshInterval, info.getRefreshInterval());
@@ -117,6 +118,12 @@ public class OsProbeTests extends ESTestCase {
                 assertThat(stats.getCgroup().getCpuStat().getNumberOfElapsedPeriods(), greaterThanOrEqualTo(0L));
                 assertThat(stats.getCgroup().getCpuStat().getNumberOfTimesThrottled(), greaterThanOrEqualTo(0L));
                 assertThat(stats.getCgroup().getCpuStat().getTimeThrottledNanos(), greaterThanOrEqualTo(0L));
+                // These could be null if transported from a node running an older version, but shouldn't be null on the current node
+                assertThat(stats.getCgroup().getMemoryControlGroup(), notNullValue());
+                assertThat(stats.getCgroup().getMemoryLimitInBytes(), notNullValue());
+                assertThat(new BigInteger(stats.getCgroup().getMemoryLimitInBytes()), greaterThan(BigInteger.ZERO));
+                assertThat(stats.getCgroup().getMemoryUsageInBytes(), notNullValue());
+                assertThat(new BigInteger(stats.getCgroup().getMemoryUsageInBytes()), greaterThan(BigInteger.ZERO));
             }
         } else {
             assertNull(stats.getCgroup());
@@ -148,24 +155,24 @@ public class OsProbeTests extends ESTestCase {
         assumeTrue("test runs on Linux only", Constants.LINUX);
 
         final boolean areCgroupStatsAvailable = randomBoolean();
-        final String hierarchy = randomAsciiOfLength(16);
+        final String hierarchy = randomAlphaOfLength(16);
 
         final OsProbe probe = new OsProbe() {
 
             @Override
             List<String> readProcSelfCgroup() {
                 return Arrays.asList(
-                    "11:freezer:/",
-                    "10:net_cls,net_prio:/",
-                    "9:pids:/",
-                    "8:cpuset:/",
-                    "7:blkio:/",
-                    "6:memory:/",
-                    "5:devices:/user.slice",
-                    "4:hugetlb:/",
-                    "3:perf_event:/",
-                    "2:cpu,cpuacct:/" + hierarchy,
-                    "1:name=systemd:/user.slice/user-1000.slice/session-2359.scope");
+                        "10:freezer:/",
+                        "9:net_cls,net_prio:/",
+                        "8:pids:/",
+                        "7:blkio:/",
+                        "6:memory:/" + hierarchy,
+                        "5:devices:/user.slice",
+                        "4:hugetlb:/",
+                        "3:perf_event:/",
+                        "2:cpu,cpuacct,cpuset:/" + hierarchy,
+                        "1:name=systemd:/user.slice/user-1000.slice/session-2359.scope",
+                        "0::/cgroup2");
             }
 
             @Override
@@ -195,7 +202,20 @@ public class OsProbeTests extends ESTestCase {
             }
 
             @Override
-            protected boolean areCgroupStatsAvailable() {
+            String readSysFsCgroupMemoryLimitInBytes(String controlGroup) {
+                assertThat(controlGroup, equalTo("/" + hierarchy));
+                // This is the highest value that can be stored in an unsigned 64 bit number, hence too big for long
+                return "18446744073709551615";
+            }
+
+            @Override
+            String readSysFsCgroupMemoryUsageInBytes(String controlGroup) {
+                assertThat(controlGroup, equalTo("/" + hierarchy));
+                return "4796416";
+            }
+
+            @Override
+            boolean areCgroupStatsAvailable() {
                 return areCgroupStatsAvailable;
             }
 
@@ -213,6 +233,8 @@ public class OsProbeTests extends ESTestCase {
             assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
             assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
             assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
+            assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
+            assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
         } else {
             assertNull(cgroup);
         }

@@ -54,6 +54,21 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
         this.snapshots = snapshots;
     }
 
+    public SnapshotsStatusRequest(StreamInput in) throws IOException {
+        super(in);
+        repository = in.readString();
+        snapshots = in.readStringArray();
+        ignoreUnavailable = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(repository);
+        out.writeStringArray(snapshots);
+        out.writeBoolean(ignoreUnavailable);
+    }
+
     /**
      * Constructs a new get snapshots request with given repository name
      *
@@ -137,17 +152,6 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        repository = in.readString();
-        snapshots = in.readStringArray();
-        ignoreUnavailable = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(repository);
-        out.writeStringArray(snapshots);
-        out.writeBoolean(ignoreUnavailable);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

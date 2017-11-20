@@ -25,8 +25,10 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.CustomTypeSafeMatcher;
@@ -273,7 +275,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                 }
             } else {
                 IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline(pipelineId);
-                indexRequest.source("field1", "value1");
+                indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
                 request = indexRequest;
                 numIndexRequests++;
             }
@@ -303,7 +305,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
             IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline(pipelineId);
-            indexRequest.source("field1", "value1");
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
             bulkRequest.add(indexRequest);
         }
 
@@ -331,8 +333,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(store.get("_id2")).thenReturn(new Pipeline("_id2", null, null, new CompoundProcessor(mock(Processor.class))));
 
         Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
-        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}")));
-        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}")));
+        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}"), XContentType.JSON));
+        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}"), XContentType.JSON));
         executionService.updatePipelineStats(new IngestMetadata(configurationMap));
 
         @SuppressWarnings("unchecked")
@@ -361,14 +363,14 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     // issue: https://github.com/elastic/elasticsearch/issues/18126
     public void testUpdatingStatsWhenRemovingPipelineWorks() throws Exception {
         Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
-        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}")));
-        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}")));
+        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}"), XContentType.JSON));
+        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}"), XContentType.JSON));
         executionService.updatePipelineStats(new IngestMetadata(configurationMap));
         assertThat(executionService.stats().getStatsPerPipeline(), hasKey("_id1"));
         assertThat(executionService.stats().getStatsPerPipeline(), hasKey("_id2"));
 
         configurationMap = new HashMap<>();
-        configurationMap.put("_id3", new PipelineConfiguration("_id3", new BytesArray("{}")));
+        configurationMap.put("_id3", new PipelineConfiguration("_id3", new BytesArray("{}"), XContentType.JSON));
         executionService.updatePipelineStats(new IngestMetadata(configurationMap));
         assertThat(executionService.stats().getStatsPerPipeline(), not(hasKey("_id1")));
         assertThat(executionService.stats().getStatsPerPipeline(), not(hasKey("_id2")));
@@ -382,7 +384,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
         private final IngestDocument ingestDocument;
 
-        public IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
+        IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
             this.ingestDocument = new IngestDocument(index, type, id, null, null, source);
         }
 

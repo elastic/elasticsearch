@@ -21,8 +21,9 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -38,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-public class PipelineExecutionService implements ClusterStateListener {
+public class PipelineExecutionService implements ClusterStateApplier {
 
     private final PipelineStore store;
     private final ThreadPool threadPool;
@@ -81,17 +82,21 @@ public class PipelineExecutionService implements ClusterStateListener {
             @Override
             protected void doRun() throws Exception {
                 for (DocWriteRequest actionRequest : actionRequests) {
-                    if ((actionRequest instanceof IndexRequest)) {
-                        IndexRequest indexRequest = (IndexRequest) actionRequest;
-                        if (Strings.hasText(indexRequest.getPipeline())) {
-                            try {
-                                innerExecute(indexRequest, getPipeline(indexRequest.getPipeline()));
-                                //this shouldn't be needed here but we do it for consistency with index api
-                                // which requires it to prevent double execution
-                                indexRequest.setPipeline(null);
-                            } catch (Exception e) {
-                                itemFailureHandler.accept(indexRequest, e);
-                            }
+                    IndexRequest indexRequest = null;
+                    if (actionRequest instanceof IndexRequest) {
+                        indexRequest = (IndexRequest) actionRequest;
+                    } else if (actionRequest instanceof UpdateRequest) {
+                        UpdateRequest updateRequest = (UpdateRequest) actionRequest;
+                        indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
+                    }
+                    if (indexRequest != null && Strings.hasText(indexRequest.getPipeline())) {
+                        try {
+                            innerExecute(indexRequest, getPipeline(indexRequest.getPipeline()));
+                            //this shouldn't be needed here but we do it for consistency with index api
+                            // which requires it to prevent double execution
+                            indexRequest.setPipeline(null);
+                        } catch (Exception e) {
+                            itemFailureHandler.accept(indexRequest, e);
                         }
                     }
                 }
@@ -112,7 +117,7 @@ public class PipelineExecutionService implements ClusterStateListener {
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
         IngestMetadata ingestMetadata = event.state().getMetaData().custom(IngestMetadata.TYPE);
         if (ingestMetadata != null) {
             updatePipelineStats(ingestMetadata);

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
@@ -78,14 +79,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     public static final String NAME = "awareness";
 
     public static final Setting<String[]> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING =
-        new Setting<>("cluster.routing.allocation.awareness.attributes", "", Strings::splitStringByCommaToArray , Property.Dynamic,
+        new Setting<>("cluster.routing.allocation.awareness.attributes", "", s -> Strings.tokenizeToStringArray(s, ","), Property.Dynamic,
             Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING =
         Setting.groupSetting("cluster.routing.allocation.awareness.force.", Property.Dynamic, Property.NodeScope);
 
-    private String[] awarenessAttributes;
+    private volatile String[] awarenessAttributes;
 
-    private volatile Map<String, String[]> forcedAwarenessAttributes;
+    private volatile Map<String, List<String>> forcedAwarenessAttributes;
 
     public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
@@ -97,11 +98,11 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     private void setForcedAwarenessAttributes(Settings forceSettings) {
-        Map<String, String[]> forcedAwarenessAttributes = new HashMap<>();
+        Map<String, List<String>> forcedAwarenessAttributes = new HashMap<>();
         Map<String, Settings> forceGroups = forceSettings.getAsGroups();
         for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
-            String[] aValues = entry.getValue().getAsArray("values");
-            if (aValues.length > 0) {
+            List<String> aValues = entry.getValue().getAsList("values");
+            if (aValues.size() > 0) {
                 forcedAwarenessAttributes.put(entry.getKey(), aValues);
             }
         }
@@ -125,7 +126,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
         if (awarenessAttributes.length == 0) {
             return allocation.decision(Decision.YES, NAME,
-                "allocation awareness is not enabled, set [%s] to enable it",
+                "allocation awareness is not enabled, set cluster setting [%s] to enable it",
                 CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey());
         }
 
@@ -135,7 +136,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             // the node the shard exists on must be associated with an awareness attribute
             if (!node.node().getAttributes().containsKey(awarenessAttribute)) {
                 return allocation.decision(Decision.NO, NAME,
-                    "node does not contain the awareness attribute [%s]; required attributes [%s=%s]",
+                    "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
                     awarenessAttribute, CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
                     allocation.debugDecision() ? Strings.arrayToCommaDelimitedString(awarenessAttributes) : null);
             }
@@ -169,7 +170,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
 
             int numberOfAttributes = nodesPerAttribute.size();
-            String[] fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
+            List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
             if (fullValues != null) {
                 for (String fullValue : fullValues) {
                     if (!shardPerAttribute.containsKey(fullValue)) {

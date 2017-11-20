@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -82,9 +81,8 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
             if (aggregation.getName().equals(bucketsPath.get(0))) {
                 bucketsPath = bucketsPath.subList(1, bucketsPath.size());
                 InternalMultiBucketAggregation<?, ?> multiBucketsAgg = (InternalMultiBucketAggregation<?, ?>) aggregation;
-                List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
-                for (int i = 0; i < buckets.size(); i++) {
-                    Bucket bucket = buckets.get(i);
+                List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = multiBucketsAgg.getBuckets();
+                for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
                     Double bucketValue = BucketHelpers.resolveBucketValue(multiBucketsAgg, bucket, bucketsPath, gapPolicy);
                     if (bucketValue != null && !Double.isNaN(bucketValue)) {
                         collectBucketValue(bucket.getKeyAsString(), bucketValue);

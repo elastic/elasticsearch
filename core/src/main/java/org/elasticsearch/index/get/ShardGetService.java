@@ -24,7 +24,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.set.Sets;
@@ -42,14 +43,13 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ParentFieldSubFetchPhase;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -139,11 +139,18 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     private GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
+        final Collection<String> types;
+        if (type == null || type.equals("_all")) {
+            types = mapperService.types();
+        } else {
+            types = Collections.singleton(type);
+        }
 
         Engine.GetResult get = null;
-        if (type == null || type.equals("_all")) {
-            for (String typeX : mapperService.types()) {
-                get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(typeX, id)))
+        for (String typeX : types) {
+            Term uidTerm = mapperService.createUidTerm(typeX, id);
+            if (uidTerm != null) {
+                get = indexShard.get(new Engine.Get(realtime, typeX, id, uidTerm)
                         .version(version).versionType(versionType));
                 if (get.exists()) {
                     type = typeX;
@@ -152,20 +159,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     get.release();
                 }
             }
-            if (get == null) {
-                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
-            }
-            if (!get.exists()) {
-                // no need to release here as well..., we release in the for loop for non exists
-                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
-            }
-        } else {
-            get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id)))
-                    .version(version).versionType(versionType));
-            if (!get.exists()) {
-                get.release();
-                return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
-            }
+        }
+
+        if (get == null || get.exists() == false) {
+            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
         }
 
         try {
@@ -177,9 +174,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, MapperService mapperService) {
-        Map<String, GetField> fields = null;
+        Map<String, DocumentField> fields = null;
         BytesReference source = null;
-        Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
+        DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields, fetchSourceContext);
         if (fieldVisitor != null) {
             try {
@@ -193,7 +190,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 fieldVisitor.postProcess(mapperService);
                 fields = new HashMap<>(fieldVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
-                    fields.put(entry.getKey(), new GetField(entry.getKey(), entry.getValue()));
+                    fields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
                 }
             }
         }
@@ -204,7 +201,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             if (fields == null) {
                 fields = new HashMap<>(1);
             }
-            fields.put(ParentFieldMapper.NAME, new GetField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
+            fields.put(ParentFieldMapper.NAME, new DocumentField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
         }
 
         if (gFields != null && gFields.length > 0) {

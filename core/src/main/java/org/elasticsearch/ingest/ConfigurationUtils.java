@@ -22,12 +22,19 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
 public final class ConfigurationUtils {
 
@@ -84,6 +91,52 @@ public final class ConfigurationUtils {
         }
         throw newConfigurationException(processorType, processorTag, propertyName, "property isn't a string, but of type [" +
             value.getClass().getName() + "]");
+    }
+
+    /**
+     * Returns and removes the specified property from the specified configuration map.
+     *
+     * If the property value isn't of type string or int a {@link ElasticsearchParseException} is thrown.
+     * If the property is missing and no default value has been specified a {@link ElasticsearchParseException} is thrown
+     */
+     public static String readStringOrIntProperty(String processorType, String processorTag,
+            Map<String, Object> configuration, String propertyName, String defaultValue) {
+        Object value = configuration.remove(propertyName);
+        if (value == null && defaultValue != null) {
+            return defaultValue;
+        } else if (value == null) {
+            throw newConfigurationException(processorType, processorTag, propertyName,
+                "required property is missing");
+        }
+        return readStringOrInt(processorType, processorTag, propertyName, value);
+    }
+
+    private static String readStringOrInt(String processorType, String processorTag,
+            String propertyName, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String) {
+            return (String) value;
+        } else if (value instanceof Integer) {
+            return String.valueOf(value);
+        }
+        throw newConfigurationException(processorType, processorTag, propertyName,
+            "property isn't a string or int, but of type [" + value.getClass().getName() + "]");
+    }
+
+    /**
+     * Returns and removes the specified property from the specified configuration map.
+     *
+     * If the property value isn't of type string or int a {@link ElasticsearchParseException} is thrown.
+     */
+    public static String readOptionalStringOrIntProperty(String processorType, String processorTag,
+            Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return null;
+        }
+        return readStringOrInt(processorType, processorTag, propertyName, value);
     }
 
     public static Boolean readBooleanProperty(String processorType, String processorTag, Map<String, Object> configuration,
@@ -242,24 +295,47 @@ public final class ConfigurationUtils {
         return exception;
     }
 
-    public static List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs,
+    public static List<Processor> readProcessorConfigs(List<Map<String, Object>> processorConfigs,
                                                        Map<String, Processor.Factory> processorFactories) throws Exception {
+        Exception exception = null;
         List<Processor> processors = new ArrayList<>();
         if (processorConfigs != null) {
-            for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
-                for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
-                    processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
+            for (Map<String, Object> processorConfigWithKey : processorConfigs) {
+                for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
+                    try {
+                        processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
+                    } catch (Exception e) {
+                        exception = ExceptionsHelper.useOrSuppress(exception, e);
+                    }
                 }
             }
+        }
+
+        if (exception != null) {
+            throw exception;
         }
 
         return processors;
     }
 
-    public static TemplateService.Template compileTemplate(String processorType, String processorTag, String propertyName,
-                                                           String propertyValue, TemplateService templateService) {
+    public static TemplateScript.Factory compileTemplate(String processorType, String processorTag, String propertyName,
+                                                           String propertyValue, ScriptService scriptService) {
         try {
-            return templateService.compile(propertyValue);
+            // This check is here because the DEFAULT_TEMPLATE_LANG(mustache) is not
+            // installed for use by REST tests. `propertyValue` will not be
+            // modified if templating is not available so a script that simply returns an unmodified `propertyValue`
+            // is returned.
+            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG)) {
+                Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, propertyValue, Collections.emptyMap());
+                return scriptService.compile(script, TemplateScript.CONTEXT);
+            } else {
+                return (params) -> new TemplateScript(params) {
+                    @Override
+                    public String execute() {
+                        return propertyValue;
+                    }
+                };
+            }
         } catch (Exception e) {
             throw ConfigurationUtils.newConfigurationException(processorType, processorTag, propertyName, e);
         }
@@ -278,16 +354,31 @@ public final class ConfigurationUtils {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
+                                          String type, Object config) throws Exception {
+        if (config instanceof Map) {
+            return readProcessor(processorFactories, type, (Map<String, Object>) config);
+        } else if (config instanceof String && "script".equals(type)) {
+            Map<String, Object> normalizedScript = new HashMap<>(1);
+            normalizedScript.put(ScriptType.INLINE.getName(), config);
+            return readProcessor(processorFactories, type, normalizedScript);
+        } else {
+            throw newConfigurationException(type, null, null,
+                "property isn't a map, but of type [" + config.getClass().getName() + "]");
+        }
+    }
+
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
                                            String type, Map<String, Object> config) throws Exception {
+        String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
             boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
-            List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
+            List<Map<String, Object>> onFailureProcessorConfigs =
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
             List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
-            String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
 
             if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
                 throw newConfigurationException(type, tag, Pipeline.ON_FAILURE_KEY,
@@ -309,6 +400,6 @@ public final class ConfigurationUtils {
                 throw newConfigurationException(type, tag, null, e);
             }
         }
-        throw new ElasticsearchParseException("No processor type exists with name [" + type + "]");
+        throw newConfigurationException(type, tag, null, "No processor type exists with name [" + type + "]");
     }
 }

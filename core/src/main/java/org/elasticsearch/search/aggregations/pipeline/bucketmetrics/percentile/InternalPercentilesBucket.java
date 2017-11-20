@@ -26,27 +26,40 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
     private double[] percents;
+    private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
     public InternalPercentilesBucket(String name, double[] percents, double[] percentiles,
                                      DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
                                      Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
+        if ((percentiles.length == percents.length) == false) {
+            throw new IllegalArgumentException("The number of provided percents and percentiles didn't match. percents: "
+                    + Arrays.toString(percents) + ", percentiles: " + Arrays.toString(percentiles));
+        }
         this.format = formatter;
         this.percentiles = percentiles;
         this.percents = percents;
+        computeLookup();
+    }
+
+    private void computeLookup() {
+        for (int i = 0; i < percents.length; i++) {
+            percentileLookups.put(percents[i], percentiles[i]);
+        }
     }
 
     /**
@@ -57,6 +70,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
+        computeLookup();
     }
 
     @Override
@@ -73,17 +87,21 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public double percentile(double percent) throws IllegalArgumentException {
-        int index = Arrays.binarySearch(percents, percent);
-        if (index < 0) {
+        Double percentile = percentileLookups.get(percent);
+        if (percentile == null) {
             throw new IllegalArgumentException("Percent requested [" + String.valueOf(percent) + "] was not" +
                     " one of the computed percentiles.  Available keys are: " + Arrays.toString(percents));
         }
-        return percentiles[index];
+        return percentile;
     }
 
     @Override
     public String percentileAsString(double percent) {
         return format.format(percentile(percent));
+    }
+
+    DocValueFormat formatter() {
+        return format;
     }
 
     @Override
@@ -117,6 +135,17 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         return builder;
     }
 
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalPercentilesBucket that = (InternalPercentilesBucket) obj;
+        return Arrays.equals(percents, that.percents) && Arrays.equals(percentiles, that.percentiles);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(Arrays.hashCode(percents), Arrays.hashCode(percentiles));
+    }
+
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] percents;
@@ -136,7 +165,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
         @Override
         public Percentile next() {
-            final Percentile next = new InternalPercentile(percents[i], percentiles[i]);
+            final Percentile next = new Percentile(percents[i], percentiles[i]);
             ++i;
             return next;
         }

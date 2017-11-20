@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -73,12 +73,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
         NodesStatsRequest request = nodeStatsRequest.request;
         return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(),
                 request.fs(), request.transport(), request.http(), request.breaker(), request.script(), request.discovery(),
-                request.ingest());
-    }
-
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
+                request.ingest(), request.adaptiveSelection());
     }
 
     public static class NodeStatsRequest extends BaseNodeRequest {

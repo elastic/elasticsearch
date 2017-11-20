@@ -42,6 +42,17 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
         this.ids = Strings.EMPTY_ARRAY;
     }
 
+    public GetPipelineRequest(StreamInput in) throws IOException {
+        super(in);
+        ids = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(ids);
+    }
+
     public String[] getIds() {
         return ids;
     }
@@ -53,13 +64,6 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        ids = in.readStringArray();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(ids);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

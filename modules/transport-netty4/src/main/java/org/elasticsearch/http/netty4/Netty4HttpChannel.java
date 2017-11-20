@@ -29,7 +29,6 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
-import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -85,7 +84,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
     }
 
     @Override
-    public BytesStreamOutput newBytesOutput() {
+    protected BytesStreamOutput newBytesOutput() {
         return new ReleasableBytesStreamOutput(transport.bigArrays);
     }
 
@@ -114,7 +113,8 @@ final class Netty4HttpChannel extends AbstractRestChannel {
         addCustomHeaders(resp, threadContext.getResponseHeaders());
 
         BytesReference content = response.content();
-        boolean release = content instanceof Releasable;
+        boolean releaseContent = content instanceof Releasable;
+        boolean releaseBytesStreamOutput = bytesOutputOrNull() instanceof ReleasableBytesStreamOutput;
         try {
             // If our response doesn't specify a content-type header, set one
             setHeaderField(resp, HttpHeaderNames.CONTENT_TYPE.toString(), response.contentType(), false);
@@ -125,24 +125,33 @@ final class Netty4HttpChannel extends AbstractRestChannel {
 
             final ChannelPromise promise = channel.newPromise();
 
-            if (release) {
+            if (releaseContent) {
                 promise.addListener(f -> ((Releasable)content).close());
-                release = false;
+            }
+
+            if (releaseBytesStreamOutput) {
+                promise.addListener(f -> bytesOutputOrNull().close());
             }
 
             if (isCloseConnection()) {
                 promise.addListener(ChannelFutureListener.CLOSE);
             }
 
+            final Object msg;
             if (pipelinedRequest != null) {
-                channel.writeAndFlush(pipelinedRequest.createHttpResponse(resp, promise));
+                msg = pipelinedRequest.createHttpResponse(resp, promise);
             } else {
-                channel.writeAndFlush(resp, promise);
+                msg = resp;
             }
-
+            channel.writeAndFlush(msg, promise);
+            releaseContent = false;
+            releaseBytesStreamOutput = false;
         } finally {
-            if (release) {
+            if (releaseContent) {
                 ((Releasable) content).close();
+            }
+            if (releaseBytesStreamOutput) {
+                bytesOutputOrNull().close();
             }
             if (pipelinedRequest != null) {
                 pipelinedRequest.release();
@@ -162,7 +171,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
 
     private void addCookies(HttpResponse resp) {
         if (transport.resetCookies) {
-            String cookieString = nettyRequest.headers().get(HttpHeaders.Names.COOKIE);
+            String cookieString = nettyRequest.headers().get(HttpHeaderNames.COOKIE);
             if (cookieString != null) {
                 Set<io.netty.handler.codec.http.cookie.Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);
                 if (!cookies.isEmpty()) {

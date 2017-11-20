@@ -18,7 +18,6 @@
  */
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.JavaVersion
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'ru.vyarus.animalsniffer'
@@ -29,11 +28,20 @@ targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
 
 group = 'org.elasticsearch.client'
+archivesBaseName = 'elasticsearch-rest-client'
+
+publishing {
+  publications {
+    nebula {
+      artifactId = archivesBaseName
+    }
+  }
+}
 
 dependencies {
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "org.apache.httpcomponents:httpasyncclient:4.1.2"
+  compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
   compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
@@ -43,13 +51,15 @@ dependencies {
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
   testCompile "org.elasticsearch:securemock:${versions.securemock}"
+  testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
   signature "org.codehaus.mojo.signature:java17:1.0@signature"
 }
 
 forbiddenApisMain {
-  //client does not depend on core, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  //client does not depend on core, so only jdk and http signatures should be checked
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
+                    PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }
 
 forbiddenApisTest {
@@ -57,12 +67,8 @@ forbiddenApisTest {
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
   //client does not depend on core, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
-}
-
-dependencyLicenses {
-  mapping from: /http.*/, to: 'httpclient'
-  mapping from: /commons-.*/, to: 'commons'
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
+                    PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }
 
 //JarHell is part of es core, which we don't want to pull in

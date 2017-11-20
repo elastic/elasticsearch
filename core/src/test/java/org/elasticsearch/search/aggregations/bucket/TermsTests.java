@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
@@ -47,32 +47,18 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
 
     @Override
     protected TermsAggregationBuilder createTestAggregatorBuilder() {
-        String name = randomAsciiOfLengthBetween(3, 20);
+        String name = randomAlphaOfLengthBetween(3, 20);
         TermsAggregationBuilder factory = new TermsAggregationBuilder(name, null);
-        String field = randomAsciiOfLengthBetween(3, 20);
-        int randomFieldBranch = randomInt(2);
-        switch (randomFieldBranch) {
-        case 0:
-            factory.field(field);
-            break;
-        case 1:
-            factory.field(field);
-            factory.script(new Script("_value + 1"));
-            break;
-        case 2:
-            factory.script(new Script("doc[" + field + "] + 1"));
-            break;
-        default:
-            fail();
-        }
+        String field = randomAlphaOfLengthBetween(3, 20);
+        randomFieldOrScript(factory, field);
         if (randomBoolean()) {
             factory.missing("MISSING");
         }
         if (randomBoolean()) {
-            factory.bucketCountThresholds().setRequiredSize(randomIntBetween(1, Integer.MAX_VALUE));
+            factory.size(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            factory.bucketCountThresholds().setShardSize(randomIntBetween(1, Integer.MAX_VALUE));
+            factory.shardSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             int minDocCount = randomInt(4);
@@ -83,12 +69,12 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             case 2:
             case 3:
             case 4:
-                minDocCount = randomInt();
+                minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             default:
                 fail();
             }
-            factory.bucketCountThresholds().setMinDocCount(minDocCount);
+            factory.minDocCount(minDocCount);
         }
         if (randomBoolean()) {
             int shardMinDocCount = randomInt(4);
@@ -99,12 +85,12 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             case 2:
             case 3:
             case 4:
-                shardMinDocCount = randomInt();
+                shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             default:
                 fail();
             }
-            factory.bucketCountThresholds().setShardMinDocCount(shardMinDocCount);
+            factory.shardMinDocCount(shardMinDocCount);
         }
         if (randomBoolean()) {
             factory.collectMode(randomFrom(SubAggCollectionMode.values()));
@@ -117,7 +103,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         }
         if (randomBoolean()) {
             IncludeExclude incExc = null;
-            switch (randomInt(5)) {
+            switch (randomInt(6)) {
             case 0:
                 incExc = new IncludeExclude(new RegExp("foobar"), null);
                 break;
@@ -131,7 +117,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
                 SortedSet<BytesRef> includeValues = new TreeSet<>();
                 int numIncs = randomIntBetween(1, 20);
                 for (int i = 0; i < numIncs; i++) {
-                    includeValues.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    includeValues.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 SortedSet<BytesRef> excludeValues = null;
                 incExc = new IncludeExclude(includeValues, excludeValues);
@@ -141,7 +127,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
                 SortedSet<BytesRef> excludeValues2 = new TreeSet<>();
                 int numExcs2 = randomIntBetween(1, 20);
                 for (int i = 0; i < numExcs2; i++) {
-                    excludeValues2.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    excludeValues2.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 incExc = new IncludeExclude(includeValues2, excludeValues2);
                 break;
@@ -149,14 +135,19 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
                 SortedSet<BytesRef> includeValues3 = new TreeSet<>();
                 int numIncs3 = randomIntBetween(1, 20);
                 for (int i = 0; i < numIncs3; i++) {
-                    includeValues3.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    includeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 SortedSet<BytesRef> excludeValues3 = new TreeSet<>();
                 int numExcs3 = randomIntBetween(1, 20);
                 for (int i = 0; i < numExcs3; i++) {
-                    excludeValues3.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
+                    excludeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 incExc = new IncludeExclude(includeValues3, excludeValues3);
+                break;
+            case 6:
+                final int numPartitions = randomIntBetween(1, 100);
+                final int partition = randomIntBetween(0, numPartitions - 1);
+                incExc = new IncludeExclude(partition, numPartitions);
                 break;
             default:
                 fail();
@@ -164,8 +155,12 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.includeExclude(incExc);
         }
         if (randomBoolean()) {
-            List<Terms.Order> order = randomOrder();
-            factory.order(order);
+            List<BucketOrder> order = randomOrder();
+            if(order.size() == 1 && randomBoolean()) {
+                factory.order(order.get(0));
+            } else {
+                factory.order(order);
+            }
         }
         if (randomBoolean()) {
             factory.showTermDocCountError(randomBoolean());
@@ -173,20 +168,20 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         return factory;
     }
 
-    private List<Terms.Order> randomOrder() {
-        List<Terms.Order> orders = new ArrayList<>();
+    private List<BucketOrder> randomOrder() {
+        List<BucketOrder> orders = new ArrayList<>();
         switch (randomInt(4)) {
         case 0:
-            orders.add(Terms.Order.term(randomBoolean()));
+            orders.add(BucketOrder.key(randomBoolean()));
             break;
         case 1:
-            orders.add(Terms.Order.count(randomBoolean()));
+            orders.add(BucketOrder.count(randomBoolean()));
             break;
         case 2:
-            orders.add(Terms.Order.aggregation(randomAsciiOfLengthBetween(3, 20), randomBoolean()));
+            orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
             break;
         case 3:
-            orders.add(Terms.Order.aggregation(randomAsciiOfLengthBetween(3, 20), randomAsciiOfLengthBetween(3, 20), randomBoolean()));
+            orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean()));
             break;
         case 4:
             int numOrders = randomIntBetween(1, 3);

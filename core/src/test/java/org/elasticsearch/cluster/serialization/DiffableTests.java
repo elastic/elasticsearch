@@ -65,7 +65,7 @@ public class DiffableTests extends ESTestCase {
             @Override
             protected MapDiff readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                        ? DiffableUtils.readJdkMapDiff(in, keySerializer, TestDiffable.PROTO)
+                        ? DiffableUtils.readJdkMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
                         : DiffableUtils.readJdkMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();
@@ -113,7 +113,7 @@ public class DiffableTests extends ESTestCase {
             @Override
             protected MapDiff readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                        ? DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, TestDiffable.PROTO)
+                        ? DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
                         : DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();
@@ -161,7 +161,7 @@ public class DiffableTests extends ESTestCase {
             @Override
             protected MapDiff readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                        ? DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, TestDiffable.PROTO)
+                        ? DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
                         : DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();
@@ -398,7 +398,7 @@ public class DiffableTests extends ESTestCase {
 
             @Override
             public Diff<TestDiffable> readDiff(StreamInput in, K key) throws IOException {
-                return AbstractDiffable.readDiffFrom(TestDiffable.PROTO, in);
+                return AbstractDiffable.readDiffFrom(TestDiffable::readFrom, in);
             }
         };
     }
@@ -419,8 +419,6 @@ public class DiffableTests extends ESTestCase {
 
     public static class TestDiffable extends AbstractDiffable<TestDiffable> {
 
-        public static final TestDiffable PROTO = new TestDiffable("");
-
         private final String value;
 
         public TestDiffable(String value) {
@@ -431,9 +429,12 @@ public class DiffableTests extends ESTestCase {
             return value;
         }
 
-        @Override
-        public TestDiffable readFrom(StreamInput in) throws IOException {
+        public static TestDiffable readFrom(StreamInput in) throws IOException {
             return new TestDiffable(in.readString());
+        }
+
+        public static Diff<TestDiffable> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(TestDiffable::readFrom, in);
         }
 
         @Override

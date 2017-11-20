@@ -112,7 +112,7 @@ public class ShardCoreKeyMapTests extends ESTestCase {
         assertEquals(3, map.size());
 
         for (LeafReaderContext ctx : reader2.leaves()) {
-            assertEquals(shardId2, map.getShardId(ctx.reader().getCoreCacheKey()));
+            assertEquals(shardId2, map.getShardId(ctx.reader().getCoreCacheHelper().getKey()));
         }
 
         w1.addDocument(new Document());
@@ -136,7 +136,7 @@ public class ShardCoreKeyMapTests extends ESTestCase {
         final Set<Object> index1Keys = new HashSet<>();
         for (DirectoryReader reader : Arrays.asList(reader1, reader2)) {
             for (LeafReaderContext ctx : reader.leaves()) {
-                index1Keys.add(ctx.reader().getCoreCacheKey());
+                index1Keys.add(ctx.reader().getCoreCacheHelper().getKey());
             }
         }
         index1Keys.removeAll(map.getCoreKeysForIndex("index1"));

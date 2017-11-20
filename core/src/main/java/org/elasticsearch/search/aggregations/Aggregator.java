@@ -21,14 +21,13 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -51,11 +50,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * aggregation should be skipped (e.g. when trying to aggregate on unmapped fields).
          *
          * @param aggregationName   The name of the aggregation
-         * @param context           The parse context
+         * @param parser            The parser
          * @return                  The resolved aggregator factory or {@code null} in case the aggregation should be skipped
          * @throws java.io.IOException      When parsing fails
          */
-        AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException;
+        AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException;
     }
 
     /**
@@ -77,9 +76,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract String name();
 
     /**
-     * Return the {@link AggregationContext} attached with this {@link Aggregator}.
+     * Return the {@link SearchContext} attached with this {@link Aggregator}.
      */
-    public abstract AggregationContext context();
+    public abstract SearchContext context();
 
     /**
      * Return the parent aggregator.
@@ -129,10 +128,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             return parseField;
         }
 
-        public static SubAggCollectionMode parse(String value, ParseFieldMatcher parseFieldMatcher) {
+        public static SubAggCollectionMode parse(String value) {
             SubAggCollectionMode[] modes = SubAggCollectionMode.values();
             for (SubAggCollectionMode mode : modes) {
-                if (parseFieldMatcher.match(value, mode.parseField)) {
+                if (mode.parseField.match(value)) {
                     return mode;
                 }
             }
@@ -140,16 +139,12 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         }
 
         public static SubAggCollectionMode readFromStream(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown SubAggCollectionMode ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(SubAggCollectionMode.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
     }
 }

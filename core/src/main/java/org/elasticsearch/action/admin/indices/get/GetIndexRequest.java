@@ -34,7 +34,7 @@ import java.util.List;
  */
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
-    public static enum Feature {
+    public enum Feature {
         ALIASES((byte) 0, "_aliases", "_alias"),
         MAPPINGS((byte) 1, "_mappings", "_mapping"),
         SETTINGS((byte) 2, "_settings");
@@ -52,7 +52,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         private final String preferredName;
         private final byte id;
 
-        private Feature(byte id, String... validNames) {
+        Feature(byte id, String... validNames) {
             assert validNames != null && validNames.length > 0;
             this.id = id;
             this.validNames = Arrays.asList(validNames);
@@ -100,6 +100,20 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private Feature[] features = DEFAULT_FEATURES;
     private boolean humanReadable = false;
 
+    public GetIndexRequest() {
+
+    }
+
+    public GetIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        features = new Feature[size];
+        for (int i = 0; i < size; i++) {
+            features[i] = Feature.fromId(in.readByte());
+        }
+        humanReadable = in.readBoolean();
+    }
+
     public GetIndexRequest features(Feature... features) {
         if (features == null) {
             throw new IllegalArgumentException("features cannot be null");
@@ -137,13 +151,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        features = new Feature[size];
-        for (int i = 0; i < size; i++) {
-            features[i] = Feature.fromId(in.readByte());
-        }
-        humanReadable = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

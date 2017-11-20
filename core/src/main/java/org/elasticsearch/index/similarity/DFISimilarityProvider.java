@@ -55,7 +55,7 @@ public class DFISimilarityProvider extends AbstractSimilarityProvider {
 
     private final DFISimilarity similarity;
 
-    public DFISimilarityProvider(String name, Settings settings) {
+    public DFISimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
         boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
         Independence measure = parseIndependence(settings);

@@ -28,15 +28,13 @@ import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -47,8 +45,20 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest {
+
+    private static final ParseField INDEX = new ParseField("_index");
+    private static final ParseField TYPE = new ParseField("_type");
+    private static final ParseField ID = new ParseField("_id");
+    private static final ParseField ROUTING = new ParseField("routing");
+    private static final ParseField PARENT = new ParseField("parent");
+    private static final ParseField VERSION = new ParseField("version");
+    private static final ParseField VERSION_TYPE = new ParseField("version_type");
+    private static final ParseField FIELDS = new ParseField("fields");
+    private static final ParseField STORED_FIELDS = new ParseField("stored_fields");
+    private static final ParseField SOURCE = new ParseField("_source");
 
     /**
      * A single get item.
@@ -286,8 +296,8 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
+     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * will be used across different requests.
      */
     public MultiGetRequest preference(String preference) {
         this.preference = preference;
@@ -317,33 +327,43 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
         return this;
     }
 
-
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, byte[] data, int from, int length) throws Exception {
-        return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, new BytesArray(data, from, length), true);
-    }
-
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, BytesReference data) throws Exception {
-        return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, data, true);
-    }
-
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, BytesReference data, boolean allowExplicitIndex) throws Exception {
-        return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, null, data, allowExplicitIndex);
-    }
-
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, BytesReference data, boolean allowExplicitIndex) throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("docs".equals(currentFieldName)) {
-                        parseDocuments(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
-                    } else if ("ids".equals(currentFieldName)) {
-                        parseIds(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting);
-                    }
+    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields,
+            @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, XContentParser parser,
+            boolean allowExplicitIndex) throws IOException {
+        XContentParser.Token token;
+        String currentFieldName = null;
+        if ((token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "unexpected token [%s], expected [%s]",
+                    token,
+                    XContentParser.Token.START_OBJECT);
+            throw new ParsingException(parser.getTokenLocation(), message);
+        }
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("docs".equals(currentFieldName)) {
+                    parseDocuments(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
+                } else if ("ids".equals(currentFieldName)) {
+                    parseIds(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting);
+                } else {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "unknown key [%s] for a %s, expected [docs] or [ids]",
+                            currentFieldName,
+                            token);
+                    throw new ParsingException(parser.getTokenLocation(), message);
                 }
+            } else {
+                final String message = String.format(
+                        Locale.ROOT,
+                        "unexpected token [%s], expected [%s] or [%s]",
+                        token,
+                        XContentParser.Token.FIELD_NAME,
+                        XContentParser.Token.START_ARRAY);
+                throw new ParsingException(parser.getTokenLocation(), message);
             }
         }
         return this;
@@ -371,31 +391,32 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if ("_index".equals(currentFieldName)) {
+                    if (INDEX.match(currentFieldName)) {
                         if (!allowExplicitIndex) {
                             throw new IllegalArgumentException("explicit index in multi get is not allowed");
                         }
                         index = parser.text();
-                    } else if ("_type".equals(currentFieldName)) {
+                    } else if (TYPE.match(currentFieldName)) {
                         type = parser.text();
-                    } else if ("_id".equals(currentFieldName)) {
+                    } else if (ID.match(currentFieldName)) {
                         id = parser.text();
-                    } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
+                    } else if (ROUTING.match(currentFieldName)) {
                         routing = parser.text();
-                    } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
+                    } else if (PARENT.match(currentFieldName)) {
                         parent = parser.text();
-                    } else if ("fields".equals(currentFieldName)) {
+                    } else if (FIELDS.match(currentFieldName)) {
                         throw new ParsingException(parser.getTokenLocation(),
                             "Unsupported field [fields] used, expected [stored_fields] instead");
-                    } else if ("stored_fields".equals(currentFieldName)) {
+                    } else if (STORED_FIELDS.match(currentFieldName)) {
                         storedFields = new ArrayList<>();
                         storedFields.add(parser.text());
-                    } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
+                    } else if (VERSION.match(currentFieldName)) {
                         version = parser.longValue();
-                    } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
+                    } else if (VERSION_TYPE.match(currentFieldName)) {
                         versionType = VersionType.fromString(parser.text());
-                    } else if ("_source".equals(currentFieldName)) {
-                        if (parser.isBooleanValue()) {
+                    } else if (SOURCE.match(currentFieldName)) {
+                        // check lenient to avoid interpreting the value as string but parse strict in order to provoke an error early on.
+                        if (parser.isBooleanValueLenient()) {
                             fetchSourceContext = new FetchSourceContext(parser.booleanValue(), fetchSourceContext.includes(),
                                 fetchSourceContext.excludes());
                         } else if (token == XContentParser.Token.VALUE_STRING) {
@@ -404,17 +425,19 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                         } else {
                             throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
                         }
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse multi get request. unknown field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("fields".equals(currentFieldName)) {
+                    if (FIELDS.match(currentFieldName)) {
                         throw new ParsingException(parser.getTokenLocation(),
                             "Unsupported field [fields] used, expected [stored_fields] instead");
-                    } else if ("stored_fields".equals(currentFieldName)) {
+                    } else if (STORED_FIELDS.match(currentFieldName)) {
                         storedFields = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             storedFields.add(parser.text());
                         }
-                    } else if ("_source".equals(currentFieldName)) {
+                    } else if (SOURCE.match(currentFieldName)) {
                         ArrayList<String> includes = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             includes.add(parser.text());
@@ -424,7 +447,7 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                     }
 
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("_source".equals(currentFieldName)) {
+                    if (SOURCE.match(currentFieldName)) {
                         List<String> currentList = null, includes = null, excludes = null;
 
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

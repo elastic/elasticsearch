@@ -20,12 +20,12 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -39,7 +39,7 @@ import java.util.Objects;
  * A simple {@link AllocationCommand} composite managing several
  * {@link AllocationCommand} implementations
  */
-public class AllocationCommands extends ToXContentToBytes {
+public class AllocationCommands implements ToXContentFragment {
     private final List<AllocationCommand> commands = new ArrayList<>();
 
     /**
@@ -126,12 +126,10 @@ public class AllocationCommands extends ToXContentToBytes {
      *     }
      * </pre>
      * @param parser {@link XContentParser} to read the commands from
-     * @param registry of allocation command parsers
      * @return {@link AllocationCommands} read
      * @throws IOException if something bad happens while reading the stream
      */
-    public static AllocationCommands fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher,
-            AllocationCommandRegistry registry) throws IOException {
+    public static AllocationCommands fromXContent(XContentParser parser) throws IOException {
         AllocationCommands commands = new AllocationCommands();
 
         XContentParser.Token token = parser.currentToken();
@@ -160,7 +158,7 @@ public class AllocationCommands extends ToXContentToBytes {
                 token = parser.nextToken();
                 String commandName = parser.currentName();
                 token = parser.nextToken();
-                commands.add(registry.lookup(commandName, parseFieldMatcher, parser.getTokenLocation()).fromXContent(parser));
+                commands.add(parser.namedObject(AllocationCommand.class, commandName, null));
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     throw new ElasticsearchParseException("allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got [{}] instead", token);
@@ -198,5 +196,10 @@ public class AllocationCommands extends ToXContentToBytes {
     public int hashCode() {
         // Override equals and hashCode for testing
         return Objects.hashCode(commands);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

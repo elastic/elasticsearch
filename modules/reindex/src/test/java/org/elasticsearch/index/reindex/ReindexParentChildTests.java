@@ -19,27 +19,66 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
+import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Index-by-search tests for parent/child.
+ * Reindex tests for legacy parent/child. Tests for the new {@code join}
+ * field are in a qa project.
  */
 public class ReindexParentChildTests extends ReindexTestCase {
     QueryBuilder findsCountry;
     QueryBuilder findsCity;
     QueryBuilder findsNeighborhood;
 
+    @Override
+    protected boolean ignoreExternalCluster() {
+        return true;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(ParentJoinPlugin.class);
+        plugins.add(InternalSettingsPlugin.class);
+        plugins.add(CustomScriptPlugin.class);
+        return Collections.unmodifiableList(plugins);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
+    }
+
     public void testParentChild() throws Exception {
         createParentChildIndex("source");
         createParentChildIndex("dest");
-        createParentChildDocs("source");
+        createParentChildDocs("source", true);
 
         // Copy parent to the new index
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").filter(findsCountry).refresh(true);
@@ -70,17 +109,39 @@ public class ReindexParentChildTests extends ReindexTestCase {
                 "make-believe");
     }
 
+    /**
+     * Tests for adding the {@code _parent} via script and adding *both* {@code _parent} and {@code _routing} values via scripts.
+     */
+    public void testScriptAddsParent() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("source")
+            .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))); // allows for multiple types
+
+        createParentChildIndex("dest");
+        createParentChildDocs("source", false);
+
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").filter(typeQuery("country")).refresh(true);
+        assertThat(copy.get(), matcher().created(1));
+        copy = reindex().source("source").destination("dest").filter(typeQuery("city"))
+                .script(mockScript("ctx._parent='united states'")).refresh(true);
+        assertThat(copy.get(), matcher().created(1));
+        assertSearchHits(client().prepareSearch("dest").setQuery(findsCity).get(), "pittsburgh");
+
+        copy = reindex().source("source").destination("dest").filter(typeQuery("neighborhood"))
+                .script(mockScript("ctx._parent='pittsburgh';ctx._routing='united states'")).refresh(true);
+        assertThat(copy.get(), matcher().created(1));
+        assertSearchHits(client().prepareSearch("dest").setQuery(findsNeighborhood).get(), "make-believe");
+    }
+
     public void testErrorMessageWhenBadParentChild() throws Exception {
         createParentChildIndex("source");
-        createParentChildDocs("source");
+        createParentChildDocs("source", true);
 
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").filter(findsCity);
-        try {
-            copy.get();
-            fail("Expected exception");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
-        }
+        final BulkByScrollResponse response = copy.get();
+        assertThat(response.getBulkFailures().size(), equalTo(1));
+        final Exception cause = response.getBulkFailures().get(0).getCause();
+        assertThat(cause, instanceOf(IllegalArgumentException.class));
+        assertThat(cause, hasToString(containsString("can't specify parent if no parent field has been configured")));
     }
 
     /**
@@ -89,24 +150,55 @@ public class ReindexParentChildTests extends ReindexTestCase {
      */
     private void createParentChildIndex(String indexName) throws Exception {
         CreateIndexRequestBuilder create = client().admin().indices().prepareCreate(indexName);
-        create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}");
-        create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}");
+        create.setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
+        create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}", XContentType.JSON);
+        create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}", XContentType.JSON);
         assertAcked(create);
         ensureGreen();
     }
 
-    private void createParentChildDocs(String indexName) throws Exception {
-        indexRandom(true, client().prepareIndex(indexName, "country", "united states").setSource("foo", "bar"),
-                client().prepareIndex(indexName, "city", "pittsburgh").setParent("united states").setSource("foo", "bar"),
-                client().prepareIndex(indexName, "neighborhood", "make-believe").setParent("pittsburgh")
-                        .setSource("foo", "bar").setRouting("united states"));
+    private void createParentChildDocs(String indexName, boolean addParents) throws Exception {
+        indexRandom(true,
+                client().prepareIndex(indexName, "country", "united states")
+                        .setSource("foo", "bar"),
+                client().prepareIndex(indexName, "city", "pittsburgh")
+                        .setParent(addParents ? "united states" : null)
+                        .setSource("foo", "bar"),
+                client().prepareIndex(indexName, "neighborhood", "make-believe")
+                        .setParent(addParents ? "pittsburgh" : null)
+                        .setRouting(addParents ? "united states" : null)
+                        .setSource("foo", "bar"));
 
         findsCountry = idsQuery("country").addIds("united states");
         findsCity = hasParentQuery("country", findsCountry, false);
         findsNeighborhood = hasParentQuery("city", findsCity, false);
 
-        // Make sure we built the parent/child relationship
-        assertSearchHits(client().prepareSearch(indexName).setQuery(findsCity).get(), "pittsburgh");
-        assertSearchHits(client().prepareSearch(indexName).setQuery(findsNeighborhood).get(), "make-believe");
+        if (addParents) {
+            // Make sure we built the parent/child relationship
+            assertSearchHits(client().prepareSearch(indexName).setQuery(findsCity).get(), "pittsburgh");
+            assertSearchHits(client().prepareSearch(indexName).setQuery(findsNeighborhood).get(), "make-believe");
+        }
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+        @Override
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("ctx._parent='united states'", vars -> {
+                Map<String, String> ctx = (Map<String, String>) vars.get("ctx");
+                ctx.put("_parent", "united states");
+                return null;
+            });
+            scripts.put("ctx._parent='pittsburgh';ctx._routing='united states'", vars -> {
+                Map<String, String> ctx = (Map<String, String>) vars.get("ctx");
+                ctx.put("_parent", "pittsburgh");
+                ctx.put("_routing", "united states");
+                return null;
+            });
+
+            return scripts;
+        }
     }
 }

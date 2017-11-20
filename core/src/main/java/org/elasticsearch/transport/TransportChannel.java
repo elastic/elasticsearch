@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
+
 import java.io.IOException;
 
 /**
@@ -26,11 +28,7 @@ import java.io.IOException;
  */
 public interface TransportChannel {
 
-    String action();
-
     String getProfileName();
-
-    long getRequestId();
 
     String getChannelType();
 
@@ -39,4 +37,11 @@ public interface TransportChannel {
     void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException;
 
     void sendResponse(Exception exception) throws IOException;
+
+    /**
+     * Returns the version of the other party that this channel will send a response to.
+     */
+    default Version getVersion() {
+        return Version.CURRENT;
+    }
 }

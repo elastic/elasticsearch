@@ -21,43 +21,54 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, TermsAggregatorFactory> {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TermsAggregatorFactory.class));
 
-    private final Terms.Order order;
+    private final BucketOrder order;
     private final IncludeExclude includeExclude;
     private final String executionHint;
     private final SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
-    private boolean showTermDocCountError;
+    private final boolean showTermDocCountError;
 
-    public TermsAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, Terms.Order order,
-            IncludeExclude includeExclude, String executionHint, SubAggCollectionMode collectMode,
-            TermsAggregator.BucketCountThresholds bucketCountThresholds, boolean showTermDocCountError, AggregationContext context,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
+    TermsAggregatorFactory(String name,
+                                  ValuesSourceConfig<ValuesSource> config,
+                                  BucketOrder order,
+                                  IncludeExclude includeExclude,
+                                  String executionHint,
+                                  SubAggCollectionMode collectMode,
+                                  TermsAggregator.BucketCountThresholds bucketCountThresholds,
+                                  boolean showTermDocCountError,
+                                  SearchContext context,
+                                  AggregatorFactory<?> parent,
+                                  AggregatorFactories.Builder subFactoriesBuilder,
+                                  Map<String, Object> metaData) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.order = order;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
@@ -85,6 +96,17 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         };
     }
 
+    private static boolean isAggregationSort(BucketOrder order) {
+        if (order instanceof InternalOrder.Aggregation) {
+            return true;
+        } else if (order instanceof InternalOrder.CompoundOrder) {
+            InternalOrder.CompoundOrder compoundOrder = (CompoundOrder) order;
+            return compoundOrder.orderElements().stream().anyMatch(TermsAggregatorFactory::isAggregationSort);
+        } else {
+            return false;
+        }
+    }
+
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
@@ -92,66 +114,27 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             return asMultiBucketAggregator(this, context, parent);
         }
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
-        if (!(order == InternalOrder.TERM_ASC || order == InternalOrder.TERM_DESC)
+        if (InternalOrder.isKeyOrder(order) == false
                 && bucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.searchContext().numberOfShards()));
+                    context.numberOfShards()));
         }
         bucketCountThresholds.ensureValidity();
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, context.searchContext().parseFieldMatcher());
+                execution = ExecutionMode.fromString(executionHint, DEPRECATION_LOGGER);
             }
-
             // In some cases, using ordinals is just not supported: override it
-            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
+            if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
                 execution = ExecutionMode.MAP;
             }
-
-            final long maxOrd;
-            final double ratio;
-            if (execution == null || execution.needsGlobalOrdinals()) {
-                ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-                IndexSearcher indexSearcher = context.searchContext().searcher();
-                maxOrd = valueSourceWithOrdinals.globalMaxOrd(indexSearcher);
-                ratio = maxOrd / ((double) indexSearcher.getIndexReader().numDocs());
-            } else {
-                maxOrd = -1;
-                ratio = -1;
-            }
-
-            // Let's try to use a good default
+            final long maxOrd = getMaxOrd(valuesSource, context.searcher());
             if (execution == null) {
-                // if there is a parent bucket aggregator the number of
-                // instances of this aggregator is going
-                // to be unbounded and most instances may only aggregate few
-                // documents, so use hashed based
-                // global ordinals to keep the bucket ords dense.
-                // Additionally, if using partitioned terms the regular global 
-                // ordinals would be sparse so we opt for hash
-                if (Aggregator.descendsFromBucketAggregator(parent) ||
-                        (includeExclude != null && includeExclude.isPartitionBased())) {
-                    execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
-                } else {
-                    if (factories == AggregatorFactories.EMPTY) {
-                        if (ratio <= 0.5 && maxOrd <= 2048) {
-                            // 0.5: At least we need reduce the number of global
-                            // ordinals look-ups by half
-                            // 2048: GLOBAL_ORDINALS_LOW_CARDINALITY has
-                            // additional memory usage, which directly linked to
-                            // maxOrd, so we need to limit.
-                            execution = ExecutionMode.GLOBAL_ORDINALS_LOW_CARDINALITY;
-                        } else {
-                            execution = ExecutionMode.GLOBAL_ORDINALS;
-                        }
-                    } else {
-                        execution = ExecutionMode.GLOBAL_ORDINALS;
-                    }
-                }
+                execution = ExecutionMode.GLOBAL_ORDINALS;
             }
             SubAggCollectionMode cm = collectMode;
             if (cm == null) {
@@ -220,99 +203,107 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         return SubAggCollectionMode.DEPTH_FIRST;
     }
 
+    /**
+     * Get the maximum global ordinal value for the provided {@link ValuesSource} or -1
+     * if the values source is not an instance of {@link ValuesSource.Bytes.WithOrdinals}.
+     */
+    static long getMaxOrd(ValuesSource source, IndexSearcher searcher) throws IOException {
+        if (source instanceof ValuesSource.Bytes.WithOrdinals) {
+            ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) source;
+            return valueSourceWithOrdinals.globalMaxOrd(searcher);
+        } else {
+            return -1;
+        }
+    }
+
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, Terms.Order order,
-                    DocValueFormat format, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                    AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode,
-                    boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                            throws IOException {
+            Aggregator create(String name,
+                              AggregatorFactories factories,
+                              ValuesSource valuesSource,
+                              BucketOrder order,
+                              DocValueFormat format,
+                              TermsAggregator.BucketCountThresholds bucketCountThresholds,
+                              IncludeExclude includeExclude,
+                              SearchContext context,
+                              Aggregator parent,
+                              SubAggCollectionMode subAggCollectMode,
+                              boolean showTermDocCountError,
+                              List<PipelineAggregator> pipelineAggregators,
+                              Map<String, Object> metaData) throws IOException {
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
                 return new StringTermsAggregator(name, factories, valuesSource, order, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
+                        context, parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
             }
-
-            @Override
-            boolean needsGlobalOrdinals() {
-                return false;
-            }
-
         },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, Terms.Order order,
-                    DocValueFormat format, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                    AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode,
-                    boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                            throws IOException {
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
-                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, order,
-                        format, bucketCountThresholds, filter, aggregationContext, parent, subAggCollectMode, showTermDocCountError,
+            Aggregator create(String name,
+                              AggregatorFactories factories,
+                              ValuesSource valuesSource,
+                              BucketOrder order,
+                              DocValueFormat format,
+                              TermsAggregator.BucketCountThresholds bucketCountThresholds,
+                              IncludeExclude includeExclude,
+                              SearchContext context, Aggregator parent,
+                              SubAggCollectionMode subAggCollectMode,
+                              boolean showTermDocCountError,
+                              List<PipelineAggregator> pipelineAggregators,
+                              Map<String, Object> metaData) throws IOException {
+
+                final long maxOrd = getMaxOrd(valuesSource, context.searcher());
+                assert maxOrd != -1;
+                final double ratio = maxOrd / ((double) context.searcher().getIndexReader().numDocs());
+                if (factories == AggregatorFactories.EMPTY &&
+                        includeExclude == null &&
+                        Aggregator.descendsFromBucketAggregator(parent) == false &&
+                        ratio <= 0.5 && maxOrd <= 2048) {
+                    /**
+                     * We can use the low cardinality execution mode iff this aggregator:
+                     *  - has no sub-aggregator AND
+                     *  - is not a child of a bucket aggregator AND
+                     *  - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
+                     *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
+                     *  which directly linked to maxOrd, so we need to limit).
+                     */
+                    return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, order,
+                        format, bucketCountThresholds, context, parent, false, subAggCollectMode, showTermDocCountError,
                         pipelineAggregators, metaData);
-            }
 
-            @Override
-            boolean needsGlobalOrdinals() {
-                return true;
-            }
-
-        },
-        GLOBAL_ORDINALS_HASH(new ParseField("global_ordinals_hash")) {
-
-            @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, Terms.Order order,
-                    DocValueFormat format, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                    AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode,
-                    boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                            throws IOException {
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
-                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource,
-                        order, format, bucketCountThresholds, filter, aggregationContext, parent, subAggCollectMode, showTermDocCountError,
-                        pipelineAggregators, metaData);
-            }
-
-            @Override
-            boolean needsGlobalOrdinals() {
-                return true;
-            }
-        },
-        GLOBAL_ORDINALS_LOW_CARDINALITY(new ParseField("global_ordinals_low_cardinality")) {
-
-            @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, Terms.Order order,
-                    DocValueFormat format, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                    AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode,
-                    boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                            throws IOException {
-                if (includeExclude != null || factories.countAggregators() > 0
-                // we need the FieldData impl to be able to extract the
-                // segment to global ord mapping
-                        || valuesSource.getClass() != ValuesSource.Bytes.FieldData.class) {
-                    return GLOBAL_ORDINALS.create(name, factories, valuesSource, order, format, bucketCountThresholds, includeExclude,
-                            aggregationContext, parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
                 }
-                return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories,
-                        (ValuesSource.Bytes.WithOrdinals) valuesSource, order, format, bucketCountThresholds, aggregationContext, parent,
-                        subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
-            }
-
-            @Override
-            boolean needsGlobalOrdinals() {
-                return true;
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
+                boolean remapGlobalOrds = true;
+                if (includeExclude == null &&
+                        Aggregator.descendsFromBucketAggregator(parent) == false &&
+                        (factories == AggregatorFactories.EMPTY ||
+                            (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
+                    /**
+                     * We don't need to remap global ords iff this aggregator:
+                     *    - has no include/exclude rules AND
+                     *    - is not a child of a bucket aggregator AND
+                     *    - has no sub-aggregator or only sub-aggregator that can be deferred ({@link SubAggCollectionMode#BREADTH_FIRST}).
+                     **/
+                     remapGlobalOrds = false;
+                }
+                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, order,
+                        format, bucketCountThresholds, filter, context, parent, remapGlobalOrds, subAggCollectMode, showTermDocCountError,
+                        pipelineAggregators, metaData);
             }
         };
 
-        public static ExecutionMode fromString(String value, ParseFieldMatcher parseFieldMatcher) {
-            for (ExecutionMode mode : values()) {
-                if (parseFieldMatcher.match(value, mode.parseField)) {
-                    return mode;
-                }
+        public static ExecutionMode fromString(String value, final DeprecationLogger deprecationLogger) {
+            switch (value) {
+                case "global_ordinals":
+                    return GLOBAL_ORDINALS;
+                case "map":
+                    return MAP;
+                default:
+                    throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
             }
-            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
         }
 
         private final ParseField parseField;
@@ -321,13 +312,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             this.parseField = parseField;
         }
 
-        abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, Terms.Order order,
-                DocValueFormat format, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode,
-                boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                        throws IOException;
-
-        abstract boolean needsGlobalOrdinals();
+        abstract Aggregator create(String name,
+                                   AggregatorFactories factories,
+                                   ValuesSource valuesSource,
+                                   BucketOrder order,
+                                   DocValueFormat format,
+                                   TermsAggregator.BucketCountThresholds bucketCountThresholds,
+                                   IncludeExclude includeExclude,
+                                   SearchContext context,
+                                   Aggregator parent,
+                                   SubAggCollectionMode subAggCollectMode,
+                                   boolean showTermDocCountError,
+                                   List<PipelineAggregator> pipelineAggregators,
+                                   Map<String, Object> metaData) throws IOException;
 
         @Override
         public String toString() {

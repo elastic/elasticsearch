@@ -21,13 +21,11 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -37,12 +35,12 @@ import java.util.Objects;
 /**
  * A value class representing the basic required properties of an Elasticsearch index.
  */
-public class Index implements Writeable, ToXContent {
+public class Index implements Writeable, ToXContentObject {
 
     public static final Index[] EMPTY_ARRAY = new Index[0];
     private static final String INDEX_UUID_KEY = "index_uuid";
     private static final String INDEX_NAME_KEY = "index_name";
-    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> INDEX_PARSER = new ObjectParser<>("index", Builder::new);
+    private static final ObjectParser<Builder, Void> INDEX_PARSER = new ObjectParser<>("index", Builder::new);
     static {
         INDEX_PARSER.declareString(Builder::name, new ParseField(INDEX_NAME_KEY));
         INDEX_PARSER.declareString(Builder::uuid, new ParseField(INDEX_UUID_KEY));
@@ -118,11 +116,7 @@ public class Index implements Writeable, ToXContent {
     }
 
     public static Index fromXContent(final XContentParser parser) throws IOException {
-        return INDEX_PARSER.parse(parser, () -> ParseFieldMatcher.STRICT).build();
-    }
-
-    public static final Index parseIndex(final XContentParser parser, final ParseFieldMatcherSupplier supplier) {
-        return INDEX_PARSER.apply(parser, supplier).build();
+        return INDEX_PARSER.parse(parser, null).build();
     }
 
     /**

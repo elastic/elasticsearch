@@ -23,10 +23,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Path;
 
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Simple unit-tests for Environment.java
@@ -40,15 +42,15 @@ public class EnvironmentTests extends ESTestCase {
         Settings build = Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
-        return new Environment(build);
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
+        return new Environment(build, null);
     }
 
     public void testRepositoryResolution() throws IOException {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
-        environment = newEnvironment(Settings.builder().putArray(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
+        environment = newEnvironment(Settings.builder().putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());
@@ -69,6 +71,48 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.resolveRepoURL(new URL("jar:file:///test/repos/repo1!/repo/")).toString(), endsWith("repo1!/repo/"));
         assertThat(environment.resolveRepoURL(new URL("jar:file:///test/repos/../repo1!/repo/")), nullValue());
         assertThat(environment.resolveRepoURL(new URL("jar:http://localhost/test/../repo1?blah!/repo/")), nullValue());
+    }
+
+    public void testPathDataWhenNotSet() {
+        final Path pathHome = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder().put("path.home", pathHome).build();
+        final Environment environment = new Environment(settings, null);
+        assertThat(environment.dataFiles(), equalTo(new Path[]{pathHome.resolve("data")}));
+    }
+
+    public void testPathDataNotSetInEnvironmentIfNotSet() {
+        final Settings settings = Settings.builder().put("path.home", createTempDir().toAbsolutePath()).build();
+        assertFalse(Environment.PATH_DATA_SETTING.exists(settings));
+        final Environment environment = new Environment(settings, null);
+        assertFalse(Environment.PATH_DATA_SETTING.exists(environment.settings()));
+    }
+
+    public void testPathLogsWhenNotSet() {
+        final Path pathHome = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder().put("path.home", pathHome).build();
+        final Environment environment = new Environment(settings, null);
+        assertThat(environment.logsFile(), equalTo(pathHome.resolve("logs")));
+    }
+
+    public void testDefaultConfigPath() {
+        final Path path = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder().put("path.home", path).build();
+        final Environment environment = new Environment(settings, null);
+        assertThat(environment.configFile(), equalTo(path.resolve("config")));
+    }
+
+    public void testConfigPath() {
+        final Path configPath = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder().put("path.home", createTempDir().toAbsolutePath()).build();
+        final Environment environment = new Environment(settings, configPath);
+        assertThat(environment.configFile(), equalTo(configPath));
+    }
+
+    public void testConfigPathWhenNotSet() {
+        final Path pathHome = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder().put("path.home", pathHome).build();
+        final Environment environment = new Environment(settings, null);
+        assertThat(environment.configFile(), equalTo(pathHome.resolve("config")));
     }
 
 }

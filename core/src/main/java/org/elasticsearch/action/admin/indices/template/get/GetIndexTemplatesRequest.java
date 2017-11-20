@@ -42,6 +42,17 @@ public class GetIndexTemplatesRequest extends MasterNodeReadRequest<GetIndexTemp
         this.names = names;
     }
 
+    public GetIndexTemplatesRequest(StreamInput in) throws IOException {
+        super(in);
+        names = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(names);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -74,13 +85,6 @@ public class GetIndexTemplatesRequest extends MasterNodeReadRequest<GetIndexTemp
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        names = in.readStringArray();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(names);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

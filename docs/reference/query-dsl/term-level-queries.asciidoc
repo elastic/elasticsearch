@@ -21,6 +21,12 @@ The queries in this group are:
     Find documents which contain any of the exact terms specified in the field
     specified.
 
+<<query-dsl-terms-set-query,`terms_set` query>>::
+
+    Find documents which match with one or more of the specified terms. The
+    number of terms that must match depend on the specified minimum should
+    match field or script.
+
 <<query-dsl-range-query,`range` query>>::
 
     Find documents where the field specified contains values (dates, numbers,
@@ -65,6 +71,8 @@ The queries in this group are:
 include::term-query.asciidoc[]
 
 include::terms-query.asciidoc[]
+
+include::terms-set-query.asciidoc[]
 
 include::range-query.asciidoc[]
 

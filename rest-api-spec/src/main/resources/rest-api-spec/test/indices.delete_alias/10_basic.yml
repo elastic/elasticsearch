@@ -1,0 +1,37 @@
+---
+"Basic test for delete alias":
+  - skip:
+      version: " - 5.4.99"
+      reason: Previous versions did not 404 on missing aliases
+
+  - do:
+      indices.create:
+        index: testind
+
+  - do:
+      indices.put_alias:
+        index: testind
+        name:  testali
+        body:
+          routing: "routing value"
+
+  - do:
+      indices.get_alias:
+        name: testali
+
+  - match: {testind.aliases.testali.search_routing: "routing value"}
+  - match: {testind.aliases.testali.index_routing: "routing value"}
+
+  - do:
+      indices.delete_alias:
+        index: testind
+        name: testali
+
+  - do:
+      catch: missing
+      indices.get_alias:
+        index: testind
+        name:  testali
+  
+  - match: { 'status': 404 }
+  - match: { 'error': 'alias [testali] missing' }

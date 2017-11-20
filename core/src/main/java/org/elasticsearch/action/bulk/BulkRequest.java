@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -31,6 +30,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,17 +40,19 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -67,12 +69,26 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     private static final int REQUEST_OVERHEAD = 50;
 
+    private static final ParseField INDEX = new ParseField("_index");
+    private static final ParseField TYPE = new ParseField("_type");
+    private static final ParseField ID = new ParseField("_id");
+    private static final ParseField ROUTING = new ParseField("routing");
+    private static final ParseField PARENT = new ParseField("parent");
+    private static final ParseField OP_TYPE = new ParseField("op_type");
+    private static final ParseField VERSION = new ParseField("version");
+    private static final ParseField VERSION_TYPE = new ParseField("version_type");
+    private static final ParseField RETRY_ON_CONFLICT = new ParseField("retry_on_conflict");
+    private static final ParseField PIPELINE = new ParseField("pipeline");
+    private static final ParseField FIELDS = new ParseField("fields");
+    private static final ParseField SOURCE = new ParseField("_source");
+
     /**
      * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
      * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
      * the one with the least casts.
      */
     final List<DocWriteRequest> requests = new ArrayList<>();
+    private final Set<String> indices = new HashSet<>();
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
@@ -114,6 +130,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         } else {
             throw new IllegalArgumentException("No support for request [" + request + "]");
         }
+        indices.add(request.index());
         return this;
     }
 
@@ -145,6 +162,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         addPayload(payload);
         // lack of source is validated in validate() method
         sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
+        indices.add(request.index());
         return this;
     }
 
@@ -172,6 +190,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         if (request.script() != null) {
             sizeInBytes += request.script().getIdOrCode().length() * 2;
         }
+        indices.add(request.index());
         return this;
     }
 
@@ -187,6 +206,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         requests.add(request);
         addPayload(payload);
         sizeInBytes += REQUEST_OVERHEAD;
+        indices.add(request.index());
         return this;
     }
 
@@ -239,33 +259,38 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(byte[] data, int from, int length) throws IOException {
-        return add(data, from, length, null, null);
+    public BulkRequest add(byte[] data, int from, int length, XContentType xContentType) throws IOException {
+        return add(data, from, length, null, null, xContentType);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws IOException {
-        return add(new BytesArray(data, from, length), defaultIndex, defaultType);
+    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType,
+                           XContentType xContentType) throws IOException {
+        return add(new BytesArray(data, from, length), defaultIndex, defaultType, xContentType);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, null, null, true);
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
+                           XContentType xContentType) throws IOException {
+        return add(data, defaultIndex, defaultType, null, null, null, null, null, true, xContentType);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, null, null, allowExplicitIndex);
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex,
+                           XContentType xContentType) throws IOException {
+        return add(data, defaultIndex, defaultType, null, null, null, null, null, allowExplicitIndex, xContentType);
     }
 
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSourceContext, @Nullable String defaultPipeline, @Nullable Object payload, boolean allowExplicitIndex) throws IOException {
-        XContent xContent = XContentFactory.xContent(data);
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String
+        defaultRouting, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSourceContext, @Nullable String
+        defaultPipeline, @Nullable Object payload, boolean allowExplicitIndex, XContentType xContentType) throws IOException {
+        XContent xContent = xContentType.xContent();
         int line = 0;
         int from = 0;
         int length = data.length();
@@ -278,7 +303,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             line++;
 
             // now parse the action
-            try (XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from))) {
+            // EMPTY is safe here because we never call namedObject
+            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, data.slice(from, nextMarker - from))) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -287,10 +313,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 if (token == null) {
                     continue;
                 }
-                assert token == XContentParser.Token.START_OBJECT;
+                if (token != XContentParser.Token.START_OBJECT) {
+                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
+                        + XContentParser.Token.START_OBJECT + " but found [" + token + "]");
+                }
                 // Move to FIELD_NAME, that's the action
                 token = parser.nextToken();
-                assert token == XContentParser.Token.FIELD_NAME;
+                if (token != XContentParser.Token.FIELD_NAME) {
+                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
+                        + XContentParser.Token.FIELD_NAME + " but found [" + token + "]");
+                }
                 String action = parser.currentName();
 
                 String index = defaultIndex;
@@ -316,46 +348,46 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if ("_index".equals(currentFieldName)) {
+                            if (INDEX.match(currentFieldName)){
                                 if (!allowExplicitIndex) {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
                                 index = parser.text();
-                            } else if ("_type".equals(currentFieldName)) {
+                            } else if (TYPE.match(currentFieldName)) {
                                 type = parser.text();
-                            } else if ("_id".equals(currentFieldName)) {
+                            } else if (ID.match(currentFieldName)) {
                                 id = parser.text();
-                            } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
+                            } else if (ROUTING.match(currentFieldName)) {
                                 routing = parser.text();
-                            } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
+                            } else if (PARENT.match(currentFieldName)) {
                                 parent = parser.text();
-                            } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
+                            } else if (OP_TYPE.match(currentFieldName)) {
                                 opType = parser.text();
-                            } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
+                            } else if (VERSION.match(currentFieldName)) {
                                 version = parser.longValue();
-                            } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
+                            } else if (VERSION_TYPE.match(currentFieldName)) {
                                 versionType = VersionType.fromString(parser.text());
-                            } else if ("_retry_on_conflict".equals(currentFieldName) || "_retryOnConflict".equals(currentFieldName)) {
+                            } else if (RETRY_ON_CONFLICT.match(currentFieldName)) {
                                 retryOnConflict = parser.intValue();
-                            } else if ("pipeline".equals(currentFieldName)) {
+                            } else if (PIPELINE.match(currentFieldName)) {
                                 pipeline = parser.text();
-                            } else if ("fields".equals(currentFieldName)) {
+                            } else if (FIELDS.match(currentFieldName)) {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains a simple value for parameter [fields] while a list is expected");
-                            } else if ("_source".equals(currentFieldName)) {
-                                fetchSourceContext = FetchSourceContext.parse(parser);
+                            } else if (SOURCE.match(currentFieldName)) {
+                                fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]");
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
-                            if ("fields".equals(currentFieldName)) {
+                            if (FIELDS.match(currentFieldName)) {
                                 DEPRECATION_LOGGER.deprecated("Deprecated field [fields] used, expected [_source] instead");
                                 List<Object> values = parser.list();
                                 fields = values.toArray(new String[values.size()]);
                             } else {
                                 throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                             }
-                        } else if (token == XContentParser.Token.START_OBJECT && "_source".equals(currentFieldName)) {
-                            fetchSourceContext = FetchSourceContext.parse(parser);
+                        } else if (token == XContentParser.Token.START_OBJECT && SOURCE.match(currentFieldName)) {
+                            fetchSourceContext = FetchSourceContext.fromXContent(parser);
                         } else if (token != XContentParser.Token.VALUE_NULL) {
                             throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                         }
@@ -374,28 +406,32 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     }
                     line++;
 
-                    // order is important, we set parent after routing, so routing will be set to parent if not set explicitly
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request.
                     if ("index".equals(action)) {
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
-                                    .setPipeline(pipeline).source(data.slice(from, nextMarker - from)), payload);
+                                    .setPipeline(pipeline)
+                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType), payload);
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
                                     .create("create".equals(opType)).setPipeline(pipeline)
-                                    .source(data.slice(from, nextMarker - from)), payload);
+                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline)
-                                .source(data.slice(from, nextMarker - from)), payload);
+                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                     } else if ("update".equals(action)) {
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
                                 .version(version).versionType(versionType)
                                 .routing(routing)
-                                .parent(parent)
-                                .fromXContent(data.slice(from, nextMarker - from));
+                                .parent(parent);
+                        // EMPTY is safe here because we never call namedObject
+                        try (XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                                                        sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType))) {
+                            updateRequest.fromXContent(sliceParser);
+                        }
                         if (fetchSourceContext != null) {
                             updateRequest.fetchSource(fetchSourceContext);
                         }
@@ -407,6 +443,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                         if (upsertRequest != null) {
                             upsertRequest.version(version);
                             upsertRequest.versionType(versionType);
+                            upsertRequest.setPipeline(defaultPipeline);
                         }
                         IndexRequest doc = updateRequest.doc();
                         if (doc != null) {
@@ -422,6 +459,20 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             }
         }
         return this;
+    }
+
+    /**
+     * Returns the sliced {@link BytesReference}. If the {@link XContentType} is JSON, the byte preceding the marker is checked to see
+     * if it is a carriage return and if so, the BytesReference is sliced so that the carriage return is ignored
+     */
+    private BytesReference sliceTrimmingCarriageReturn(BytesReference bytesReference, int from, int nextMarker, XContentType xContentType) {
+        final int length;
+        if (XContentType.JSON == xContentType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
+            length = nextMarker - from - 1;
+        } else {
+            length = nextMarker - from;
+        }
+        return bytesReference.slice(from, length);
     }
 
     /**
@@ -481,6 +532,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             if (data.get(i) == marker) {
                 return i;
             }
+        }
+        if (from != length) {
+            throw new IllegalArgumentException("The bulk request must be terminated by a newline [\n]");
         }
         return -1;
     }
@@ -548,4 +602,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         refreshPolicy.writeTo(out);
         timeout.writeTo(out);
     }
+
+    @Override
+    public String getDescription() {
+        return "requests[" + requests.size() + "], indices[" + Strings.collectionToDelimitedString(indices, ", ") + "]";
+    }
+
 }

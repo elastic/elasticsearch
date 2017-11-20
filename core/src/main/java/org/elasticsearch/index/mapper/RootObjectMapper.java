@@ -75,10 +75,42 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
+        public RootObjectMapper build(BuilderContext context) {
+            fixRedundantIncludes(this, true);
+            return super.build(context);
+        }
+
+        /**
+         * Removes redundant root includes in {@link ObjectMapper.Nested} trees to avoid duplicate
+         * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
+         * itself included into a parent node, for which either {@code isIncludeInRoot} is
+         * {@code true} or which is transitively included in root by a chain of nodes with
+         * {@code isIncludeInParent} returning {@code true}.
+         * @param omb Builder whose children to check.
+         * @param parentIncluded True iff node is a child of root or a node that is included in
+         * root
+         */
+        private static void fixRedundantIncludes(ObjectMapper.Builder omb, boolean parentIncluded) {
+            for (Object mapper : omb.mappersBuilders) {
+                if (mapper instanceof ObjectMapper.Builder) {
+                    ObjectMapper.Builder child = (ObjectMapper.Builder) mapper;
+                    Nested nested = child.nested;
+                    boolean isNested = nested.isNested();
+                    boolean includeInRootViaParent = parentIncluded && isNested && nested.isIncludeInParent();
+                    boolean includedInRoot = isNested && nested.isIncludeInRoot();
+                    if (includeInRootViaParent && includedInRoot) {
+                        child.nested = Nested.newNested(true, false);
+                    }
+                    fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
+                }
+            }
+        }
+
+        @Override
         protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
-                Boolean includeInAll, Map<String, Mapper> mappers, @Nullable Settings settings) {
+                Map<String, Mapper> mappers, @Nullable Settings settings) {
             assert !nested.isNested();
-            return new RootObjectMapper(name, enabled, dynamic, includeInAll, mappers,
+            return new RootObjectMapper(name, enabled, dynamic, mappers,
                     dynamicDateTimeFormatters,
                     dynamicTemplates,
                     dateDetection, numericDetection, settings);
@@ -150,10 +182,10 @@ public class RootObjectMapper extends ObjectMapper {
                 builder.dynamicTemplates(templates);
                 return true;
             } else if (fieldName.equals("date_detection")) {
-                ((Builder) builder).dateDetection = new Explicit<>(nodeBooleanValue(fieldNode), true);
+                builder.dateDetection = new Explicit<>(nodeBooleanValue(fieldNode, "date_detection"), true);
                 return true;
             } else if (fieldName.equals("numeric_detection")) {
-                ((Builder) builder).numericDetection = new Explicit<>(nodeBooleanValue(fieldNode), true);
+                builder.numericDetection = new Explicit<>(nodeBooleanValue(fieldNode, "numeric_detection"), true);
                 return true;
             }
             return false;
@@ -165,10 +197,10 @@ public class RootObjectMapper extends ObjectMapper {
     private Explicit<Boolean> numericDetection;
     private Explicit<DynamicTemplate[]> dynamicTemplates;
 
-    RootObjectMapper(String name, boolean enabled, Dynamic dynamic, Boolean includeInAll, Map<String, Mapper> mappers,
+    RootObjectMapper(String name, boolean enabled, Dynamic dynamic, Map<String, Mapper> mappers,
                      Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters, Explicit<DynamicTemplate[]> dynamicTemplates,
                      Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection, Settings settings) {
-        super(name, name, enabled, Nested.NO, dynamic, includeInAll, mappers, settings);
+        super(name, name, enabled, Nested.NO, dynamic, mappers, settings);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;

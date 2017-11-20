@@ -30,29 +30,19 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public interface ZenPing extends Releasable {
 
-    void start(PingContextProvider contextProvider);
+    void start();
 
-    void ping(PingListener listener, TimeValue timeout);
-
-    interface PingListener {
-
-        /**
-         * called when pinging is done.
-         *
-         * @param pings ping result *must
-         */
-        void onPing(Collection<PingResponse> pings);
-    }
+    void ping(Consumer<PingCollection> resultsConsumer, TimeValue timeout);
 
     class PingResponse implements Streamable {
 
@@ -82,7 +72,7 @@ public interface ZenPing extends Releasable {
          * @param clusterStateVersion the current cluster state version of that node
          *                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
          */
-        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
+        PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
             this.id = idGenerator.incrementAndGet();
             this.node = node;
             this.master = master;
@@ -189,13 +179,6 @@ public interface ZenPing extends Releasable {
                 return true;
             }
             return false;
-        }
-
-        /** adds multiple pings if newer than previous pings from the same node */
-        public synchronized void addPings(Iterable<PingResponse> pings) {
-            for (PingResponse ping : pings) {
-                addPing(ping);
-            }
         }
 
         /** serialize current pings to a list. It is guaranteed that the list contains one ping response per node */

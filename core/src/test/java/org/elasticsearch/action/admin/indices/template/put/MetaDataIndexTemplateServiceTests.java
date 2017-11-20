@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutReques
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndicesService;
@@ -53,12 +54,11 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("test", "test_shards");
         request.patterns(Collections.singletonList("test_shards*"));
 
-        Map<String, Object> map = new HashMap<>();
-        map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
-        map.put("index.shard.check_on_startup", "blargh");
-        request.settings(Settings.builder().put(map).build());
+        request.settings(Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0")
+            .put("index.shard.check_on_startup", "blargh").build());
 
-        List<Throwable> throwables = putTemplate(request);
+        List<Throwable> throwables = putTemplate(xContentRegistry(), request);
         assertEquals(throwables.size(), 1);
         assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
         assertThat(throwables.get(0).getMessage(),
@@ -71,12 +71,9 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
         request.patterns(Collections.singletonList("_test_shards*"));
+        request.settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0").build());
 
-        Map<String, Object> map = new HashMap<>();
-        map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
-        request.settings(Settings.builder().put(map).build());
-
-        List<Throwable> throwables = putTemplate(request);
+        List<Throwable> throwables = putTemplate(xContentRegistry(), request);
         assertEquals(throwables.size(), 1);
         assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
         assertThat(throwables.get(0).getMessage(), containsString("name must not contain a space"));
@@ -90,7 +87,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         request.patterns(Arrays.asList("foo", "foobar"));
         request.aliases(Collections.singleton(new Alias("foobar")));
 
-        List<Throwable> errors = putTemplate(request);
+        List<Throwable> errors = putTemplate(xContentRegistry(), request);
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0), instanceOf(IllegalArgumentException.class));
         assertThat(errors.get(0).getMessage(), equalTo("Alias [foobar] cannot be the same as any pattern in [foo, foobar]"));
@@ -158,17 +155,17 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
 
-    private static List<Throwable> putTemplate(PutRequest request) {
+    private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
                 Settings.EMPTY,
                 null,
                 null,
                 null,
                 null,
-                null, null, null);
+                null, null, null, xContentRegistry);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService,
                 new AliasValidator(Settings.EMPTY), null,
-                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS));
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry);
 
         final List<Throwable> throwables = new ArrayList<>();
         service.putTemplate(request, new MetaDataIndexTemplateService.PutListener() {
@@ -196,10 +193,11 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            null);
+            null,
+            xContentRegistry());
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
                 Settings.EMPTY, clusterService, createIndexService, new AliasValidator(Settings.EMPTY), indicesService,
-                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS));
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);

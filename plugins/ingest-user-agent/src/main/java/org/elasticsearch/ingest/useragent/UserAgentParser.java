@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -39,11 +40,11 @@ final class UserAgentParser {
     private final List<UserAgentSubpattern> osPatterns = new ArrayList<>();
     private final List<UserAgentSubpattern> devicePatterns = new ArrayList<>();
     private final String name;
-    
-    public UserAgentParser(String name, InputStream regexStream, UserAgentCache cache) {
+
+    UserAgentParser(String name, InputStream regexStream, UserAgentCache cache) {
         this.name = name;
         this.cache = cache;
-        
+
         try {
             init(regexStream);
         } catch (IOException e) {
@@ -52,17 +53,18 @@ final class UserAgentParser {
     }
 
     private void init(InputStream regexStream) throws IOException {
-        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML).createParser(regexStream);
-        
+        // EMPTY is safe here because we don't use namedObject
+        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML).createParser(NamedXContentRegistry.EMPTY, regexStream);
+
         XContentParser.Token token = yamlParser.nextToken();
-        
+
         if (token == XContentParser.Token.START_OBJECT) {
             token = yamlParser.nextToken();
-            
+
             for (; token != null; token = yamlParser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME && yamlParser.currentName().equals("user_agent_parsers")) {
                     List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
-                    
+
                     for (Map<String, String> map : parserConfigurations) {
                         uaPatterns.add(new UserAgentSubpattern(compilePattern(map.get("regex"), map.get("regex_flag")),
                                 map.get("family_replacement"), map.get("v1_replacement"), map.get("v2_replacement"),
@@ -71,7 +73,7 @@ final class UserAgentParser {
                 }
                 else if (token == XContentParser.Token.FIELD_NAME && yamlParser.currentName().equals("os_parsers")) {
                     List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
-                    
+
                     for (Map<String, String> map : parserConfigurations) {
                         osPatterns.add(new UserAgentSubpattern(compilePattern(map.get("regex"), map.get("regex_flag")),
                                 map.get("os_replacement"), map.get("os_v1_replacement"), map.get("os_v2_replacement"),
@@ -80,7 +82,7 @@ final class UserAgentParser {
                 }
                 else if (token == XContentParser.Token.FIELD_NAME && yamlParser.currentName().equals("device_parsers")) {
                     List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
-                    
+
                     for (Map<String, String> map : parserConfigurations) {
                         devicePatterns.add(new UserAgentSubpattern(compilePattern(map.get("regex"), map.get("regex_flag")),
                                 map.get("device_replacement"), null, null, null, null));
@@ -88,7 +90,7 @@ final class UserAgentParser {
                 }
             }
         }
-        
+
         if (uaPatterns.isEmpty() && osPatterns.isEmpty() && devicePatterns.isEmpty()) {
             throw new ElasticsearchParseException("not a valid regular expression file");
         }
@@ -105,38 +107,38 @@ final class UserAgentParser {
 
     private List<Map<String, String>> readParserConfigurations(XContentParser yamlParser) throws IOException {
         List <Map<String, String>> patternList = new ArrayList<>();
-        
+
         XContentParser.Token token = yamlParser.nextToken();
         if (token != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException("malformed regular expression file, should continue with 'array' after 'object'");
         }
-        
+
         token = yamlParser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("malformed regular expression file, expecting 'object'");
         }
-        
+
         while (token == XContentParser.Token.START_OBJECT) {
             token = yamlParser.nextToken();
-            
+
             if (token != XContentParser.Token.FIELD_NAME) {
                 throw new ElasticsearchParseException("malformed regular expression file, should continue with 'field_name' after 'array'");
             }
-            
+
             Map<String, String> regexMap = new HashMap<>();
             for (; token == XContentParser.Token.FIELD_NAME; token = yamlParser.nextToken()) {
                 String fieldName = yamlParser.currentName();
-                
+
                 token = yamlParser.nextToken();
                 String fieldValue = yamlParser.text();
                 regexMap.put(fieldName, fieldValue);
             }
 
             patternList.add(regexMap);
-            
+
             token = yamlParser.nextToken();
         }
-        
+
         return patternList;
     }
 
@@ -151,21 +153,21 @@ final class UserAgentParser {
     List<UserAgentSubpattern> getDevicePatterns() {
         return devicePatterns;
     }
-    
+
     String getName() {
         return name;
     }
 
     public Details parse(String agentString) {
         Details details = cache.get(name, agentString);;
-        
+
         if (details == null) {
             VersionedName userAgent = findMatch(uaPatterns, agentString);
             VersionedName operatingSystem = findMatch(osPatterns, agentString);
             VersionedName device = findMatch(devicePatterns, agentString);
-            
+
             details = new Details(userAgent, operatingSystem, device);
-            
+
             cache.put(name, agentString, details);
         }
 
@@ -181,7 +183,7 @@ final class UserAgentParser {
                 return name;
             }
         }
-        
+
         return null;
     }
 
@@ -189,22 +191,22 @@ final class UserAgentParser {
         public final VersionedName userAgent;
         public final VersionedName operatingSystem;
         public final VersionedName device;
-        
-        public Details(VersionedName userAgent, VersionedName operatingSystem, VersionedName device) {
+
+        Details(VersionedName userAgent, VersionedName operatingSystem, VersionedName device) {
             this.userAgent = userAgent;
             this.operatingSystem = operatingSystem;
             this.device = device;
         }
     }
-    
+
     static final class VersionedName {
         public final String name;
         public final String major;
         public final String minor;
         public final String patch;
         public final String build;
-        
-        public VersionedName(String name, String major, String minor, String patch, String build) {
+
+        VersionedName(String name, String major, String minor, String patch, String build) {
             this.name = name;
             this.major = major;
             this.minor = minor;
@@ -212,7 +214,7 @@ final class UserAgentParser {
             this.build = build;
         }
     }
-    
+
     /**
      * One of: user agent, operating system, device
      */
@@ -220,7 +222,7 @@ final class UserAgentParser {
         private final Pattern pattern;
         private final String nameReplacement, v1Replacement, v2Replacement, v3Replacement, v4Replacement;
 
-        public UserAgentSubpattern(Pattern pattern, String nameReplacement,
+        UserAgentSubpattern(Pattern pattern, String nameReplacement,
                 String v1Replacement, String v2Replacement, String v3Replacement, String v4Replacement) {
           this.pattern = pattern;
           this.nameReplacement = nameReplacement;
@@ -261,19 +263,19 @@ final class UserAgentParser {
           } else if (groupCount >= 3) {
             minor = matcher.group(3);
           }
-          
+
           if (v3Replacement != null) {
               patch = v3Replacement;
           } else if (groupCount >= 4) {
               patch = matcher.group(4);
           }
-          
+
           if (v4Replacement != null) {
               build = v4Replacement;
           } else if (groupCount >= 5) {
               build = matcher.group(5);
           }
-          
+
           return name == null ? null : new VersionedName(name, major, minor, patch, build);
         }
       }

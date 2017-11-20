@@ -19,64 +19,58 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> {
 
     private String id;
-    private String scriptLang;
-    private BytesReference script;
+    private String context;
+    private BytesReference content;
+    private XContentType xContentType;
+    private StoredScriptSource source;
 
     public PutStoredScriptRequest() {
         super();
     }
 
-    public PutStoredScriptRequest(String scriptLang) {
+    public PutStoredScriptRequest(String id, String context, BytesReference content, XContentType xContentType, StoredScriptSource source) {
         super();
-        this.scriptLang = scriptLang;
-    }
-
-    public PutStoredScriptRequest(String scriptLang, String id) {
-        super();
-        this.scriptLang = scriptLang;
         this.id = id;
+        this.context = context;
+        this.content = content;
+        this.xContentType = Objects.requireNonNull(xContentType);
+        this.source = source;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (id == null) {
-            validationException = addValidationError("id is missing", validationException);
+
+        if (id == null || id.isEmpty()) {
+            validationException = addValidationError("must specify id for stored script", validationException);
         } else if (id.contains("#")) {
-            validationException = addValidationError("id can't contain: '#'", validationException);
+            validationException = addValidationError("id cannot contain '#' for stored script", validationException);
         }
-        if (scriptLang == null) {
-            validationException = addValidationError("lang is missing", validationException);
-        } else if (scriptLang.contains("#")) {
-            validationException = addValidationError("lang can't contain: '#'", validationException);
+
+        if (content == null) {
+            validationException = addValidationError("must specify code for stored script", validationException);
         }
-        if (script == null) {
-            validationException = addValidationError("script is missing", validationException);
-        }
+
         return validationException;
-    }
-
-    public String scriptLang() {
-        return scriptLang;
-    }
-
-    public PutStoredScriptRequest scriptLang(String scriptLang) {
-        this.scriptLang = scriptLang;
-        return this;
     }
 
     public String id() {
@@ -88,39 +82,89 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return this;
     }
 
-    public BytesReference script() {
-        return script;
+    public String context() {
+        return context;
     }
 
-    public PutStoredScriptRequest script(BytesReference source) {
-        this.script = source;
+    public PutStoredScriptRequest context(String context) {
+        this.context = context;
+        return this;
+    }
+
+    public BytesReference content() {
+        return content;
+    }
+
+    public XContentType xContentType() {
+        return xContentType;
+    }
+
+    public StoredScriptSource source() {
+        return source;
+    }
+
+    /**
+     * Set the script source and the content type of the bytes.
+     */
+    public PutStoredScriptRequest content(BytesReference content, XContentType xContentType) {
+        this.content = content;
+        this.xContentType = Objects.requireNonNull(xContentType);
+        this.source = StoredScriptSource.parse(content, xContentType);
         return this;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        scriptLang = in.readString();
+
+        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
+            in.readString(); // read lang from previous versions
+        }
         id = in.readOptionalString();
-        script = in.readBytesReference();
+        content = in.readBytesReference();
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
+            xContentType = XContentType.readFrom(in);
+        } else {
+            xContentType = XContentFactory.xContentType(content);
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+            context = in.readOptionalString();
+            source = new StoredScriptSource(in);
+        } else {
+            source = StoredScriptSource.parse(content, xContentType == null ? XContentType.JSON : xContentType);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(scriptLang);
+
+        if (out.getVersion().before(Version.V_6_0_0_alpha2)) {
+            out.writeString(source == null ? "" : source.getLang());
+        }
         out.writeOptionalString(id);
-        out.writeBytesReference(script);
+        out.writeBytesReference(content);
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
+            xContentType.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+            out.writeOptionalString(context);
+            source.writeTo(out);
+        }
     }
 
     @Override
     public String toString() {
-        String sSource = "_na_";
+        String source = "_na_";
+
         try {
-            sSource = XContentHelper.convertToJson(script, false);
+            source = XContentHelper.convertToJson(content, false, xContentType);
         } catch (Exception e) {
             // ignore
         }
-        return "put script {[" + id + "][" + scriptLang + "], script[" + sSource + "]}";
+
+        return "put stored script {id [" + id + "]" +
+            (context != null ? ", context [" + context + "]" : "") +
+            ", content [" + source + "]}";
     }
 }

@@ -130,7 +130,7 @@ PUT music/song/1?refresh
 // TEST[continued]
 
 You can use the following shorthand form. Note that you can not specify
-a weight with suggestion(s).
+a weight with suggestion(s) in the shorthand form.
 
 [source,js]
 --------------------------------------------------
@@ -152,18 +152,24 @@ documents once deleted are never shown. This request:
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "prefix" : "nir",
-        "completion" : {
-            "field" : "suggest"
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nir", <1>
+            "completion" : { <2>
+                "field" : "suggest" <3>
+            }
         }
     }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+<1> Prefix used to search for suggestions
+<2> Type of suggestions
+<3> Name of the field to search for suggestions in
 
 returns this response:
 
@@ -173,26 +179,33 @@ returns this response:
   "_shards" : {
     "total" : 5,
     "successful" : 5,
+    "skipped" : 0,
     "failed" : 0
   },
-  "song-suggest" : [ {
-    "text" : "nir",
-    "offset" : 0,
-    "length" : 3,
-    "options" : [ {
-      "text" : "Nirvana",
-      "_index": "music",
-      "_type": "song",
-      "_id": "1",
-      "_score": 1.0,
-      "_source": {
-        "suggest": ["Nevermind", "Nirvana"]
-      }
+  "hits": ...
+  "took": 2,
+  "timed_out": false,
+  "suggest": {
+    "song-suggest" : [ {
+      "text" : "nir",
+      "offset" : 0,
+      "length" : 3,
+      "options" : [ {
+        "text" : "Nirvana",
+        "_index": "music",
+        "_type": "song",
+        "_id": "1",
+        "_score": 1.0,
+        "_source": {
+          "suggest": ["Nevermind", "Nirvana"]
+        }
+      } ]
     } ]
-  } ]
+  }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"hits": .../"hits": "$body.hits",/]
+// TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
 
 IMPORTANT: `_source` meta-field must be enabled, which is the default
@@ -209,14 +222,15 @@ filtering but using suggest on the `_search` endpoint does:
 
 [source,js]
 --------------------------------------------------
-POST music/_search?size=0
+POST music/_search
 {
-    "_source": "suggest",
+    "_source": "suggest", <1>
     "suggest": {
         "song-suggest" : {
             "prefix" : "nir",
             "completion" : {
-                "field" : "suggest"
+                "field" : "suggest", <2>
+                "size" : 5 <3>
             }
         }
     }
@@ -224,6 +238,10 @@ POST music/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+<1> Filter the source to return only the `suggest` field
+<2> Name of the field to search for suggestions in
+<3> Number of suggestions to return
 
 Which should look like:
 
@@ -235,6 +253,7 @@ Which should look like:
     "_shards" : {
         "total" : 5,
         "successful" : 5,
+        "skipped" : 0,
         "failed" : 0
     },
     "hits": {
@@ -267,6 +286,7 @@ The basic completion suggester query supports the following parameters:
 
 `field`:: The name of the field on which to run the query (required).
 `size`::  The number of suggestions to return (defaults to `5`).
+`skip_duplicates`:: Whether duplicate suggestions should be filtered out (defaults to `false`).
 
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
@@ -281,6 +301,33 @@ index completions into a single shard index. In case of high heap usage due to
 shard size, it is still recommended to break index into multiple shards instead
 of optimizing for completion performance.
 
+[[skip_duplicates]]
+==== Skip duplicate suggestions
+
+Queries can return duplicate suggestions coming from different documents.
+It is possible to modify this behavior by setting `skip_duplicates` to true.
+When set, this option filters out documents with duplicate suggestions from the result.
+
+[source,js]
+--------------------------------------------------
+POST music/_search?pretty
+{
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nor",
+            "completion" : {
+                "field" : "suggest",
+                "skip_duplicates": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+WARNING: when set to true this option can slow down search because more suggestions
+need to be visited to find the top N.
+
 [[fuzzy]]
 ==== Fuzzy queries
 
@@ -289,14 +336,16 @@ you can have a typo in your search and still get results back.
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "prefix" : "nor",
-        "completion" : {
-            "field" : "suggest",
-            "fuzzy" : {
-                "fuzziness" : 2
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nor",
+            "completion" : {
+                "field" : "suggest",
+                "fuzzy" : {
+                    "fuzziness" : 2
+                }
             }
         }
     }
@@ -346,12 +395,14 @@ you can express a prefix as a regular expression
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "regex" : "n[ever|i]r",
-        "completion" : {
-            "field" : "suggest"
+    "suggest": {
+        "song-suggest" : {
+            "regex" : "n[ever|i]r",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }

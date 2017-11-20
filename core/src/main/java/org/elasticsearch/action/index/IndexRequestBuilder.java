@@ -83,8 +83,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the source.
      */
-    public IndexRequestBuilder setSource(BytesReference source) {
-        request.source(source);
+    public IndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -112,10 +112,10 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the document source to index.
      * <p>
      * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
-     * or using the {@link #setSource(byte[])}.
+     * or using the {@link #setSource(byte[], XContentType)}.
      */
-    public IndexRequestBuilder setSource(String source) {
-        request.source(source);
+    public IndexRequestBuilder setSource(String source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -130,8 +130,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the document to index in bytes form.
      */
-    public IndexRequestBuilder setSource(byte[] source) {
-        request.source(source);
+    public IndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -142,47 +142,20 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param source The source to index
      * @param offset The offset in the byte array
      * @param length The length of the data
+     * @param xContentType The type/format of the source
      */
-    public IndexRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.source(source, offset, length);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and a value.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1) {
-        request.source(field1, value1);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and value pairs.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2) {
-        request.source(field1, value1, field2, value2);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and value pairs.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
-        request.source(field1, value1, field2, value2, field3, value3);
-        return this;
-    }
-
-    /**
-     * Constructs a simple document with a field and value pairs.
-     */
-    public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
-        request.source(field1, value1, field2, value2, field3, value3, field4, value4);
+    public IndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
+        request.source(source, offset, length, xContentType);
         return this;
     }
 
     /**
      * Constructs a simple document with a field name and value pairs.
-     * <b>Note: the number of objects passed to this method must be an even number.</b>
+     * <p>
+     * <b>Note: the number of objects passed to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
      */
     public IndexRequestBuilder setSource(Object... source) {
         request.source(source);
@@ -190,10 +163,15 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * The content type that will be used to generate a document from user provided objects (like Map).
+     * Constructs a simple document with a field name and value pairs.
+     * <p>
+     * <b>Note: the number of objects passed as varargs to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
      */
-    public IndexRequestBuilder setContentType(XContentType contentType) {
-        request.contentType(contentType);
+    public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
+        request.source(xContentType, source);
         return this;
     }
 

@@ -39,7 +39,7 @@ public class BroadcastActionsIT extends ESIntegTestCase {
     }
 
     public void testBroadcastOperations() throws IOException {
-        assertAcked(prepareCreate("test", 1).execute().actionGet(5000));
+        assertAcked(prepareCreate("test", 1));
 
         NumShards numShards = getNumShards("test");
 
@@ -56,7 +56,7 @@ public class BroadcastActionsIT extends ESIntegTestCase {
             SearchResponse countResponse = client().prepareSearch("test").setSize(0)
                     .setQuery(termQuery("_type", "type1"))
                     .get();
-            assertThat(countResponse.getHits().totalHits(), equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits(), equalTo(2L));
             assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));

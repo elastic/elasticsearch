@@ -21,7 +21,9 @@ package org.elasticsearch.test;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldFilterLeafReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.IndexReader.CacheHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,7 +34,24 @@ public class FieldMaskingReader extends FilterDirectoryReader {
         super(in, new FilterDirectoryReader.SubReaderWrapper() {
             @Override
             public LeafReader wrap(LeafReader reader) {
-                return new FieldFilterLeafReader(reader, Collections.singleton(field), true);
+                return new FilterLeafReader(new FieldFilterLeafReader(reader, Collections.singleton(field), true)) {
+
+                    // FieldFilterLeafReader does not forward cache helpers
+                    // since it considers it is illegal because of the fact
+                    // that it changes the content of the index. However we
+                    // want this behavior for tests, and security plugins
+                    // are careful to only use the cache when it's valid
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return reader.getReaderCacheHelper();
+                    }
+
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return reader.getCoreCacheHelper();
+                    }
+                };
             }
         });
         this.field = field;
@@ -45,7 +64,7 @@ public class FieldMaskingReader extends FilterDirectoryReader {
     }
 
     @Override
-    public Object getCoreCacheKey() {
-        return in.getCoreCacheKey();
+    public CacheHelper getReaderCacheHelper() {
+        return in.getReaderCacheHelper();
     }
 }

@@ -25,7 +25,7 @@ public class NestedTests extends BaseAggregationTestCase<NestedAggregationBuilde
 
     @Override
     protected NestedAggregationBuilder createTestAggregatorBuilder() {
-        return new NestedAggregationBuilder(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(3, 40));
+        return new NestedAggregationBuilder(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(3, 40));
     }
 
 }

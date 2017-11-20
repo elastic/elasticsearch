@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -106,7 +105,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
 
         @Override
         public Percentile next() {
-            final Percentile next = new InternalPercentile(percentileRank(state, values[i]), values[i]);
+            final Percentile next = new Percentile(percentileRank(state, values[i]), values[i]);
             ++i;
             return next;
         }

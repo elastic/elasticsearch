@@ -38,7 +38,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
     /**
      * Note: Headers should only use US ASCII (and this inevitably becomes one!).
      */
-    private final String deprecationMessage = randomAsciiOfLengthBetween(1, 30);
+    private final String deprecationMessage = randomAlphaOfLengthBetween(1, 30);
     private final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
 
     public void testNullHandler() {
@@ -138,7 +138,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         /**
          * Create a generator for characters [32, 126].
          */
-        public ASCIIHeaderGenerator() {
+        ASCIIHeaderGenerator() {
             super(asciiFromTo(32, 126));
         }
     }

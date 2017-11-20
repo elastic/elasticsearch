@@ -95,4 +95,4 @@ Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in soul    480b
 // TESTRESPONSE[s/544b|480b/\\d+(\\.\\d+)?[tgmk]?b/]
 // TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body/\\w+/ _cat]
 
-The output shows the individual fielddata for the`body` and `text` fields, one row per field per node.
+The output shows the individual fielddata for the `body` and `soul` fields, one row per field per node.

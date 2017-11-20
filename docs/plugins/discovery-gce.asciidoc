@@ -3,35 +3,8 @@
 
 The Google Compute Engine Discovery plugin uses the GCE API for unicast discovery.
 
-[[discovery-gce-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install discovery-gce
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/discovery-gce/discovery-gce-{version}.zip.
-
-[[discovery-gce-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove discovery-gce
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: discovery-gce
+include::install_remove.asciidoc[]
 
 [[discovery-gce-usage]]
 ==== GCE Virtual Machine Discovery
@@ -460,8 +433,7 @@ gcloud config set project es-cloud
 [[discovery-gce-usage-tips-permissions]]
 ===== Machine Permissions
 
-If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. The only
-way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
+If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. To change machine permission on an existing instance, first stop the instance then Edit. Scroll down to `Access Scopes` to change permission.  The other way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
 
 Creating machines with gcloud::
 +

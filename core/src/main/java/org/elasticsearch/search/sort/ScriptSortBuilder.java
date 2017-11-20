@@ -25,13 +25,18 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -41,12 +46,10 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -56,11 +59,13 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.
  */
 public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ScriptSortBuilder.class));
 
     public static final String NAME = "_script";
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -76,6 +81,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     private QueryBuilder nestedFilter;
 
     private String nestedPath;
+
+    private NestedSortBuilder nestedSort;
 
     /**
      * Constructs a script sort builder with the given script.
@@ -100,6 +107,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         this.sortMode = original.sortMode;
         this.nestedFilter = original.nestedFilter;
         this.nestedPath = original.nestedPath;
+        this.nestedSort = original.nestedSort;
     }
 
     /**
@@ -112,6 +120,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         nestedPath = in.readOptionalString();
         nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
+        }
     }
 
     @Override
@@ -122,6 +133,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(nestedPath);
         out.writeOptionalNamedWriteable(nestedFilter);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeOptionalWriteable(nestedSort);
+        }
     }
 
     /**
@@ -162,15 +176,24 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public ScriptSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedFilter = nestedFilter;
         return this;
     }
 
     /**
      * Gets the nested filter.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
@@ -178,17 +201,47 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Sets the nested path if sorting occurs on a field that is inside a nested object. For sorting by script this
      * needs to be specified.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public ScriptSortBuilder setNestedPath(String nestedPath) {
+        if (this.nestedSort != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
         this.nestedPath = nestedPath;
         return this;
     }
 
     /**
      * Gets the nested path.
+     *
+     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
      */
+    @Deprecated
     public String getNestedPath() {
         return this.nestedPath;
+    }
+
+    /**
+     * Returns the {@link NestedSortBuilder}
+     */
+    public NestedSortBuilder getNestedSort() {
+        return this.nestedSort;
+    }
+
+    /**
+     * Sets the {@link NestedSortBuilder} to be used for fields that are inside a nested
+     * object. The {@link NestedSortBuilder} takes a `path` argument and an optional
+     * nested filter that the nested objects should match with in
+     * order to be taken into account for sorting.
+     */
+    public ScriptSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
+        if (this.nestedFilter != null || this.nestedPath != null) {
+            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
+        }
+        this.nestedSort = nestedSort;
+        return this;
     }
 
     @Override
@@ -207,40 +260,52 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (nestedFilter != null) {
             builder.field(NESTED_FILTER_FIELD.getPreferredName(), nestedFilter, builderParams);
         }
+        if (nestedSort != null) {
+            builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
+        }
         builder.endObject();
         builder.endObject();
         return builder;
     }
 
-    private static ConstructingObjectParser<ScriptSortBuilder, QueryParseContext> PARSER = new ConstructingObjectParser<>(NAME,
+    private static ConstructingObjectParser<ScriptSortBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
             a -> new ScriptSortBuilder((Script) a[0], (ScriptSortType) a[1]));
 
     static {
-        PARSER.declareField(constructorArg(), Script::parse, Script.SCRIPT_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(constructorArg(), (parser, context) -> Script.parse(parser),
+                Script.SCRIPT_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
         PARSER.declareField(constructorArg(), p -> ScriptSortType.fromString(p.text()), TYPE_FIELD, ValueType.STRING);
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
-        PARSER.declareString(ScriptSortBuilder::setNestedPath , NESTED_PATH_FIELD);
-        PARSER.declareObject(ScriptSortBuilder::setNestedFilter, SortBuilder::parseNestedFilter, NESTED_FILTER_FIELD);
+        PARSER.declareString((fieldSortBuilder, nestedPath) -> {
+            DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
+            fieldSortBuilder.setNestedPath(nestedPath);
+        }, NESTED_PATH_FIELD);
+        PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p, c) -> {
+            DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
+            return SortBuilder.parseNestedFilter(p);
+        }, NESTED_FILTER_FIELD);
+        PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
     }
 
     /**
-     * Creates a new {@link ScriptSortBuilder} from the query held by the {@link QueryParseContext} in
+     * Creates a new {@link ScriptSortBuilder} from the query held by the {@link XContentParser} in
      * {@link org.elasticsearch.common.xcontent.XContent} format.
      *
-     * @param context the input parse context. The state on the parser contained in this context will be changed as a side effect of this
+     * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
      *        method call
      * @param elementName in some sort syntax variations the field name precedes the xContent object that specifies further parameters, e.g.
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
-    public static ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
-        return PARSER.apply(context.parser(), context);
+    public static ScriptSortBuilder fromXContent(XContentParser parser, String elementName) {
+        return PARSER.apply(parser, null);
     }
 
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH);
+        final SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
+        final SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {
@@ -251,25 +316,36 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             valueMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
         }
 
-        final Nested nested = resolveNested(context, nestedPath, nestedFilter);
+        final Nested nested;
+        if (nestedSort != null) {
+            // new nested sorts takes priority
+            nested = resolveNested(context, nestedSort);
+        } else {
+            nested = resolveNested(context, nestedPath, nestedFilter);
+        }
+
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
             case STRING:
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    LeafSearchScript leafScript;
+                    SearchScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.getLeafSearchScript(context);
-                        final BinaryDocValues values = new BinaryDocValues() {
+                        leafScript = searchScript.newInstance(context);
+                        final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
                             @Override
-                            public BytesRef get(int docID) {
-                                leafScript.setDocument(docID);
+                            public boolean advanceExact(int doc) throws IOException {
+                                leafScript.setDocument(doc);
+                                return true;
+                            }
+                            @Override
+                            public BytesRef binaryValue() {
                                 spare.copyChars(leafScript.run().toString());
                                 return spare.get();
                             }
                         };
-                        return FieldData.singleton(values, null);
+                        return FieldData.singleton(values);
                     }
                     @Override
                     protected void setScorer(Scorer scorer) {
@@ -279,18 +355,22 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 break;
             case NUMBER:
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    LeafSearchScript leafScript;
+                    SearchScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.getLeafSearchScript(context);
+                        leafScript = searchScript.newInstance(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
-                            public double get(int docID) {
-                                leafScript.setDocument(docID);
+                            public boolean advanceExact(int doc) throws IOException {
+                                leafScript.setDocument(doc);
+                                return true;
+                            }
+                            @Override
+                            public double doubleValue() {
                                 return leafScript.runAsDouble();
                             }
                         };
-                        return FieldData.singleton(values, null);
+                        return FieldData.singleton(values);
                     }
                     @Override
                     protected void setScorer(Scorer scorer) {
@@ -319,12 +399,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 Objects.equals(order, other.order) &&
                 Objects.equals(sortMode, other.sortMode) &&
                 Objects.equals(nestedFilter, other.nestedFilter) &&
-                Objects.equals(nestedPath, other.nestedPath);
+                Objects.equals(nestedPath, other.nestedPath) &&
+                Objects.equals(nestedSort, other.nestedSort);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(script, type, order, sortMode, nestedFilter, nestedPath);
+        return Objects.hash(script, type, order, sortMode, nestedFilter, nestedPath, nestedSort);
     }
 
     @Override
@@ -340,18 +421,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
 
         /**
          * Read from a stream.
          */
         static ScriptSortType readFromStream(final StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown ScriptSortType ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(ScriptSortType.class);
         }
 
         public static ScriptSortType fromString(final String str) {
@@ -369,6 +446,26 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    @Override
+    public ScriptSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        if (nestedFilter == null && nestedSort == null) {
+            return this;
+        }
+        if (nestedFilter != null) {
+            QueryBuilder rewrite = nestedFilter.rewrite(ctx);
+            if (nestedFilter == rewrite) {
+                return this;
+            }
+            return new ScriptSortBuilder(this).setNestedFilter(rewrite);
+        } else {
+            NestedSortBuilder rewrite = nestedSort.rewrite(ctx);
+            if (nestedSort == rewrite) {
+                return this;
+            }
+            return new ScriptSortBuilder(this).setNestedSort(rewrite);
         }
     }
 }

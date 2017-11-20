@@ -30,14 +30,17 @@ import java.util.HashMap;
 import org.elasticsearch.test.ESTestCase;
 
 public class DefBootstrapTests extends ESTestCase {
-    
+    private final Definition definition = Definition.DEFINITION;
+
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {
-        CallSite site = DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
-                                                  "toString", 
-                                                  MethodType.methodType(String.class, Object.class), 
-                                                  0,
-                                                  DefBootstrap.METHOD_CALL, "");
+        CallSite site = DefBootstrap.bootstrap(definition,
+                                               MethodHandles.publicLookup(),
+                                               "toString",
+                                               MethodType.methodType(String.class, Object.class),
+                                               0,
+                                               DefBootstrap.METHOD_CALL,
+                                               "");
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -49,13 +52,15 @@ public class DefBootstrapTests extends ESTestCase {
         assertEquals("6", (String)handle.invokeExact((Object)6));
         assertDepthEquals(site, 1);
     }
-    
+
     public void testTwoTypes() throws Throwable {
-        CallSite site = DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
-                                                  "toString", 
-                                                  MethodType.methodType(String.class, Object.class), 
-                                                  0,
-                                                  DefBootstrap.METHOD_CALL, "");
+        CallSite site = DefBootstrap.bootstrap(definition,
+                                               MethodHandles.publicLookup(),
+                                               "toString",
+                                               MethodType.methodType(String.class, Object.class),
+                                               0,
+                                               DefBootstrap.METHOD_CALL,
+                                               "");
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -70,15 +75,17 @@ public class DefBootstrapTests extends ESTestCase {
         assertEquals("2.5", (String)handle.invokeExact((Object)2.5f));
         assertDepthEquals(site, 2);
     }
-    
+
     public void testTooManyTypes() throws Throwable {
         // if this changes, test must be rewritten
         assertEquals(5, DefBootstrap.PIC.MAX_DEPTH);
-        CallSite site = DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
-                                                  "toString", 
-                                                  MethodType.methodType(String.class, Object.class), 
-                                                  0,
-                                                  DefBootstrap.METHOD_CALL, "");
+        CallSite site = DefBootstrap.bootstrap(definition,
+                                               MethodHandles.publicLookup(),
+                                               "toString",
+                                               MethodType.methodType(String.class, Object.class),
+                                               0,
+                                               DefBootstrap.METHOD_CALL,
+                                               "");
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -95,26 +102,28 @@ public class DefBootstrapTests extends ESTestCase {
         assertEquals("c", (String)handle.invokeExact((Object)'c'));
         assertDepthEquals(site, 5);
     }
-    
+
     /** test that we revert to the megamorphic classvalue cache and that it works as expected */
     public void testMegamorphic() throws Throwable {
-        DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
-                                                                          "size", 
-                                                                          MethodType.methodType(int.class, Object.class), 
+        DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(definition,
+                                                                          MethodHandles.publicLookup(),
+                                                                          "size",
+                                                                          MethodType.methodType(int.class, Object.class),
                                                                           0,
-                                                                          DefBootstrap.METHOD_CALL, "");
+                                                                          DefBootstrap.METHOD_CALL,
+                                                                          "");
         site.depth = DefBootstrap.PIC.MAX_DEPTH; // mark megamorphic
         MethodHandle handle = site.dynamicInvoker();
         assertEquals(2, (int)handle.invokeExact((Object) Arrays.asList("1", "2")));
         assertEquals(1, (int)handle.invokeExact((Object) Collections.singletonMap("a", "b")));
         assertEquals(3, (int)handle.invokeExact((Object) Arrays.asList("x", "y", "z")));
         assertEquals(2, (int)handle.invokeExact((Object) Arrays.asList("u", "v")));
-        
-        final HashMap<String,String> map = new HashMap<String,String>();
+
+        final HashMap<String,String> map = new HashMap<>();
         map.put("x", "y");
         map.put("a", "b");
         assertEquals(2, (int)handle.invokeExact((Object) map));
-        
+
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
             Integer.toString((int)handle.invokeExact(new Object()));
         });
@@ -124,82 +133,94 @@ public class DefBootstrapTests extends ESTestCase {
                    e.getClassName().startsWith("org.elasticsearch.painless.DefBootstrap$PIC$");
         }));
     }
-    
+
     // test operators with null guards
 
     public void testNullGuardAdd() throws Throwable {
-        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
-                                                               "add", 
-                                                               MethodType.methodType(Object.class, Object.class, Object.class),
-                                                               0,
-                                                               DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(definition,
+                                                                          MethodHandles.publicLookup(),
+                                                                          "add",
+                                                                          MethodType.methodType(Object.class, Object.class, Object.class),
+                                                                          0,
+                                                                          DefBootstrap.BINARY_OPERATOR,
+                                                                          DefBootstrap.OPERATOR_ALLOWS_NULL);
         MethodHandle handle = site.dynamicInvoker();
         assertEquals("nulltest", (Object)handle.invokeExact((Object)null, (Object)"test"));
     }
-    
+
     public void testNullGuardAddWhenCached() throws Throwable {
-        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
-                                                               "add", 
-                                                               MethodType.methodType(Object.class, Object.class, Object.class),
-                                                               0,
-                                                               DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(definition,
+                                                                          MethodHandles.publicLookup(),
+                                                                          "add",
+                                                                          MethodType.methodType(Object.class, Object.class, Object.class),
+                                                                          0,
+                                                                          DefBootstrap.BINARY_OPERATOR,
+                                                                          DefBootstrap.OPERATOR_ALLOWS_NULL);
         MethodHandle handle = site.dynamicInvoker();
         assertEquals(2, (Object)handle.invokeExact((Object)1, (Object)1));
         assertEquals("nulltest", (Object)handle.invokeExact((Object)null, (Object)"test"));
     }
-    
+
     public void testNullGuardEq() throws Throwable {
-        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
-                                                               "eq", 
-                                                               MethodType.methodType(boolean.class, Object.class, Object.class),
-                                                               0,
-                                                               DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(definition,
+                                                                          MethodHandles.publicLookup(),
+                                                                          "eq",
+                                                                          MethodType.methodType(boolean.class, Object.class, Object.class),
+                                                                          0,
+                                                                          DefBootstrap.BINARY_OPERATOR,
+                                                                          DefBootstrap.OPERATOR_ALLOWS_NULL);
         MethodHandle handle = site.dynamicInvoker();
         assertFalse((boolean) handle.invokeExact((Object)null, (Object)"test"));
         assertTrue((boolean) handle.invokeExact((Object)null, (Object)null));
     }
-    
+
     public void testNullGuardEqWhenCached() throws Throwable {
-        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
-                                                               "eq", 
-                                                               MethodType.methodType(boolean.class, Object.class, Object.class),
-                                                               0,
-                                                               DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(definition,
+                                                                          MethodHandles.publicLookup(),
+                                                                          "eq",
+                                                                          MethodType.methodType(boolean.class, Object.class, Object.class),
+                                                                          0,
+                                                                          DefBootstrap.BINARY_OPERATOR,
+                                                                          DefBootstrap.OPERATOR_ALLOWS_NULL);
         MethodHandle handle = site.dynamicInvoker();
         assertTrue((boolean) handle.invokeExact((Object)1, (Object)1));
         assertFalse((boolean) handle.invokeExact((Object)null, (Object)"test"));
         assertTrue((boolean) handle.invokeExact((Object)null, (Object)null));
     }
-    
+
     // make sure these operators work without null guards too
     // for example, nulls are only legal for + if the other parameter is a String,
     // and can be disabled in some circumstances.
-    
+
     public void testNoNullGuardAdd() throws Throwable {
-        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
-                                                               "add", 
-                                                               MethodType.methodType(Object.class, int.class, Object.class),
-                                                               0,
-                                                               DefBootstrap.BINARY_OPERATOR, 0);
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(definition,
+                                                                          MethodHandles.publicLookup(),
+                                                                          "add",
+                                                                          MethodType.methodType(Object.class, int.class, Object.class),
+                                                                          0,
+                                                                          DefBootstrap.BINARY_OPERATOR,
+                                                                          0);
         MethodHandle handle = site.dynamicInvoker();
         expectThrows(NullPointerException.class, () -> {
             assertNotNull((Object)handle.invokeExact(5, (Object)null));
         });
     }
-    
+
     public void testNoNullGuardAddWhenCached() throws Throwable {
-        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
-                                                               "add", 
-                                                               MethodType.methodType(Object.class, int.class, Object.class),
-                                                               0,
-                                                               DefBootstrap.BINARY_OPERATOR, 0);
+        DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(definition,
+                                                                          MethodHandles.publicLookup(),
+                                                                          "add",
+                                                                          MethodType.methodType(Object.class, int.class, Object.class),
+                                                                          0,
+                                                                          DefBootstrap.BINARY_OPERATOR,
+                                                                          0);
         MethodHandle handle = site.dynamicInvoker();
         assertEquals(2, (Object)handle.invokeExact(1, (Object)1));
         expectThrows(NullPointerException.class, () -> {
             assertNotNull((Object)handle.invokeExact(5, (Object)null));
         });
     }
-    
+
     static void assertDepthEquals(CallSite site, int expected) {
         DefBootstrap.PIC dsite = (DefBootstrap.PIC) site;
         assertEquals(expected, dsite.depth);

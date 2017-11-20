@@ -1,0 +1,172 @@
+---
+setup:
+
+  - do:
+      index:
+          index: test1
+          type:  bar
+          id:    1
+          body:  { "foo": "bar" }
+
+  - do:
+      index:
+          index: test2
+          type:  baz
+          id:    1
+          body:  { "foo": "baz" }
+
+---
+"Metric - blank":
+  - do:
+      indices.stats: {}
+
+  - is_true:  _all.total.docs
+  - is_true:  _all.total.store
+  - is_true:  _all.total.indexing
+  - is_true:  _all.total.get
+  - is_true:  _all.total.search
+  - is_true:  _all.total.merges
+  - is_true:  _all.total.refresh
+  - is_true:  _all.total.flush
+  - is_true:  _all.total.warmer
+  - is_true:  _all.total.query_cache
+  - is_true:  _all.total.fielddata
+  - is_true:  _all.total.completion
+  - is_true:  _all.total.segments
+  - is_true:  _all.total.translog
+  - is_true:  _all.total.recovery
+
+---
+"Metric - _all":
+  - do:
+      indices.stats: { metric: _all }
+
+  - is_true:  _all.total.docs
+  - is_true:  _all.total.store
+  - is_true:  _all.total.indexing
+  - is_true:  _all.total.get
+  - is_true:  _all.total.search
+  - is_true:  _all.total.merges
+  - is_true:  _all.total.refresh
+  - is_true:  _all.total.flush
+  - is_true:  _all.total.warmer
+  - is_true:  _all.total.query_cache
+  - is_true:  _all.total.fielddata
+  - is_true:  _all.total.completion
+  - is_true:  _all.total.segments
+  - is_true:  _all.total.translog
+  - is_true:  _all.total.recovery
+
+---
+"Metric - one":
+  - do:
+      indices.stats: { metric: docs }
+
+  - is_true:   _all.total.docs
+  - is_false:  _all.total.store
+  - is_false:  _all.total.indexing
+  - is_false:  _all.total.get
+  - is_false:  _all.total.search
+  - is_false:  _all.total.merges
+  - is_false:  _all.total.refresh
+  - is_false:  _all.total.flush
+  - is_false:  _all.total.warmer
+  - is_false:  _all.total.query_cache
+  - is_false:  _all.total.fielddata
+  - is_false:  _all.total.completion
+  - is_false:  _all.total.segments
+  - is_false:  _all.total.translog
+  - is_false:  _all.total.recovery
+
+---
+"Metric - multi":
+  - do:
+      indices.stats: { metric: [ store, get, merge ] }
+
+  - is_false:  _all.total.docs
+  - is_true:   _all.total.store
+  - is_false:  _all.total.indexing
+  - is_true:   _all.total.get
+  - is_false:  _all.total.search
+  - is_true:   _all.total.merges
+  - is_false:  _all.total.refresh
+  - is_false:  _all.total.flush
+  - is_false:  _all.total.warmer
+  - is_false:  _all.total.query_cache
+  - is_false:  _all.total.fielddata
+  - is_false:  _all.total.completion
+  - is_false:  _all.total.segments
+  - is_false:  _all.total.translog
+  - is_false:  _all.total.recovery
+
+
+---
+"Metric - recovery":
+  - do:
+      indices.stats: { metric: [ recovery ] }
+
+  - is_false:  _all.total.docs
+  - is_false:  _all.total.store
+  - is_false:  _all.total.indexing
+  - is_false:  _all.total.get
+  - is_false:  _all.total.search
+  - is_false:  _all.total.merges
+  - is_false:  _all.total.refresh
+  - is_false:  _all.total.flush
+  - is_false:  _all.total.warmer
+  - is_false:  _all.total.query_cache
+  - is_false:  _all.total.fielddata
+  - is_false:  _all.total.completion
+  - is_false:  _all.total.segments
+  - is_false:  _all.total.translog
+  - is_true:   _all.total.recovery
+
+---
+"Metric - _all include_segment_file_sizes":
+  - skip:
+        version: " - 5.1.1"
+        reason: including segment file sizes triggered an unrecognized parameter in <= 5.1.1
+  - do:
+      indices.stats: { metric: _all, include_segment_file_sizes: true }
+
+  - is_true:   _all.total.docs
+  - is_true:   _all.total.store
+  - is_true:   _all.total.indexing
+  - is_true:   _all.total.get
+  - is_true:   _all.total.search
+  - is_true:   _all.total.merges
+  - is_true:   _all.total.refresh
+  - is_true:   _all.total.flush
+  - is_true:   _all.total.warmer
+  - is_true:   _all.total.query_cache
+  - is_true:   _all.total.fielddata
+  - is_true:   _all.total.completion
+  - is_true:   _all.total.segments
+  - is_true:   _all.total.translog
+  - is_true:   _all.total.recovery
+  - is_true:   _all.total.segments.file_sizes
+
+---
+"Metric - segments include_segment_file_sizes":
+  - skip:
+      version: " - 5.1.1"
+      reason: including segment file sizes triggered an unrecognized parameter in <= 5.1.1
+  - do:
+      indices.stats: { metric: segments, include_segment_file_sizes: true }
+
+  - is_false:  _all.total.docs
+  - is_false:  _all.total.store
+  - is_false:  _all.total.indexing
+  - is_false:  _all.total.get
+  - is_false:  _all.total.search
+  - is_false:  _all.total.merges
+  - is_false:  _all.total.refresh
+  - is_false:  _all.total.flush
+  - is_false:  _all.total.warmer
+  - is_false:  _all.total.query_cache
+  - is_false:  _all.total.fielddata
+  - is_false:  _all.total.completion
+  - is_true:   _all.total.segments
+  - is_false:  _all.total.translog
+  - is_false:  _all.total.recovery
+  - is_true:   _all.total.segments.file_sizes

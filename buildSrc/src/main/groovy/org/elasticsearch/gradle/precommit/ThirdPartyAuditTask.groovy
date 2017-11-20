@@ -209,9 +209,11 @@ public class ThirdPartyAuditTask extends AntTask {
         try {
             ant.thirdPartyAudit(failOnUnsupportedJava: false,
                             failOnMissingClasses: false,
-                            signaturesFile: new File(getClass().getResource('/forbidden/third-party-audit.txt').toURI()),
                             classpath: classpath.asPath) {
                 fileset(dir: tmpDir)
+                signatures {
+                    string(value: getClass().getResourceAsStream('/forbidden/third-party-audit.txt').getText('UTF-8'))
+                }
             }
         } catch (BuildException ignore) {}
 

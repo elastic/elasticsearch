@@ -19,22 +19,22 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class IndexingStats implements Streamable, ToXContent {
+public class IndexingStats implements Streamable, ToXContentFragment {
 
-    public static class Stats implements Streamable, ToXContent {
+    public static class Stats implements Streamable, ToXContentFragment {
 
         private long indexCount;
         private long indexTimeInMillis;
@@ -143,11 +143,7 @@ public class IndexingStats implements Streamable, ToXContent {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
-
-            if(in.getVersion().onOrAfter(Version.V_2_1_0)){
-                indexFailedCount = in.readVLong();
-            }
-
+            indexFailedCount = in.readVLong();
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
@@ -161,11 +157,7 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
-
-            if(out.getVersion().onOrAfter(Version.V_2_1_0)) {
-                out.writeVLong(indexFailedCount);
-            }
-
+            out.writeVLong(indexFailedCount);
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
@@ -283,21 +275,11 @@ public class IndexingStats implements Streamable, ToXContent {
         static final String THROTTLED_TIME = "throttle_time";
     }
 
-    public static IndexingStats readIndexingStats(StreamInput in) throws IOException {
-        IndexingStats indexingStats = new IndexingStats();
-        indexingStats.readFrom(in);
-        return indexingStats;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         totalStats = Stats.readStats(in);
         if (in.readBoolean()) {
-            int size = in.readVInt();
-            typeStats = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                typeStats.put(in.readString(), Stats.readStats(in));
-            }
+            typeStats = in.readMap(StreamInput::readString, Stats::readStats);
         }
     }
 
@@ -308,11 +290,7 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(typeStats.size());
-            for (Map.Entry<String, Stats> entry : typeStats.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
+            out.writeMap(typeStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
         }
     }
 }

@@ -64,4 +64,12 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
         request.rewrite(rewrite);
         return this;
     }
+
+    /**
+     * Indicates whether the query should be validated on all shards
+     */
+    public ValidateQueryRequestBuilder setAllShards(boolean rewrite) {
+        request.allShards(rewrite);
+        return this;
+    }
 }

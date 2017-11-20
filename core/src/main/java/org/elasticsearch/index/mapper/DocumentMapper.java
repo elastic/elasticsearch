@@ -24,16 +24,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 
-public class DocumentMapper implements ToXContent {
+public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {
 
@@ -74,7 +75,8 @@ public class DocumentMapper implements ToXContent {
                 final MetadataFieldMapper metadataMapper;
                 if (existingMetadataMapper == null) {
                     final TypeParser parser = entry.getValue();
-                    metadataMapper = parser.getDefault(indexSettings, mapperService.fullName(name), builder.name());
+                    metadataMapper = parser.getDefault(mapperService.fullName(name),
+                            mapperService.documentMapperParser().parserContext(builder.name()));
                 } else {
                     metadataMapper = existingMetadataMapper;
                 }
@@ -219,10 +221,6 @@ public class DocumentMapper implements ToXContent {
         return metadataMapper(SourceFieldMapper.class);
     }
 
-    public AllFieldMapper allFieldMapper() {
-        return metadataMapper(AllFieldMapper.class);
-    }
-
     public IdFieldMapper idFieldMapper() {
         return metadataMapper(IdFieldMapper.class);
     }
@@ -239,8 +237,8 @@ public class DocumentMapper implements ToXContent {
         return metadataMapper(IndexFieldMapper.class);
     }
 
-    public Query typeFilter() {
-        return typeMapper().fieldType().termQuery(type, null);
+    public Query typeFilter(QueryShardContext context) {
+        return typeMapper().fieldType().termQuery(type, context);
     }
 
     public boolean hasNestedObjects() {
@@ -253,10 +251,6 @@ public class DocumentMapper implements ToXContent {
 
     public Map<String, ObjectMapper> objectMappers() {
         return this.objectMappers;
-    }
-
-    public ParsedDocument parse(String index, String type, String id, BytesReference source) throws MapperParsingException {
-        return parse(SourceToParse.source(index, type, id, source));
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
@@ -279,7 +273,7 @@ public class DocumentMapper implements ToXContent {
             }
             // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
             // therefor is guaranteed to be a live doc.
-            final Weight nestedWeight = filter.createWeight(sc.searcher(), false);
+            final Weight nestedWeight = filter.createWeight(sc.searcher(), false, 1f);
             Scorer scorer = nestedWeight.scorer(context);
             if (scorer == null) {
                 continue;
@@ -298,21 +292,6 @@ public class DocumentMapper implements ToXContent {
         return nestedObjectMapper;
     }
 
-    /**
-     * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
-     * isn't any.
-     */
-    // TODO: We should add: ObjectMapper#getParentObjectMapper()
-    public ObjectMapper findParentObjectMapper(ObjectMapper objectMapper) {
-        int indexOfLastDot = objectMapper.fullPath().lastIndexOf('.');
-        if (indexOfLastDot != -1) {
-            String parentNestObjectPath = objectMapper.fullPath().substring(0, indexOfLastDot);
-            return objectMappers().get(parentNestObjectPath);
-        } else {
-            return null;
-        }
-    }
-
     public boolean isParent(String type) {
         return mapperService.getParentTypes().contains(type);
     }
@@ -327,6 +306,11 @@ public class DocumentMapper implements ToXContent {
      */
     public DocumentMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         Mapping updated = this.mapping.updateFieldType(fullNameToFieldType);
+        if (updated == this.mapping) {
+            // no change
+            return this;
+        }
+        assert updated == updated.updateFieldType(fullNameToFieldType) : "updateFieldType operation is not idempotent";
         return new DocumentMapper(mapperService, updated);
     }
 

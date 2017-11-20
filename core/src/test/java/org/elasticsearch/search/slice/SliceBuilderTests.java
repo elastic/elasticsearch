@@ -29,25 +29,21 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,27 +63,11 @@ import static org.mockito.Mockito.when;
 
 public class SliceBuilderTests extends ESTestCase {
     private static final int MAX_SLICE = 20;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
-
-    /**
-     * setup for the whole base test class
-     */
-    @BeforeClass
-    public static void init() {
-        indicesQueriesRegistry = new IndicesQueriesRegistry();
-        QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.NAME);
-    }
-
-    @AfterClass
-    public static void afterClass() throws Exception {
-        indicesQueriesRegistry = null;
-    }
 
     private static SliceBuilder randomSliceBuilder() throws IOException {
         int max = randomIntBetween(2, MAX_SLICE);
         int id = randomIntBetween(1, max - 1);
-        String field = randomAsciiOfLengthBetween(5, 20);
+        String field = randomAlphaOfLengthBetween(5, 20);
         return new SliceBuilder(field, id, max);
     }
 
@@ -125,10 +105,8 @@ public class SliceBuilderTests extends ESTestCase {
         builder.startObject();
         sliceBuilder.innerToXContent(builder);
         builder.endObject();
-        XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser,
-            ParseFieldMatcher.STRICT);
-        SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(context);
+        XContentParser parser = createParser(shuffleXContent(builder));
+        SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(parser);
         assertNotSame(sliceBuilder, secondSliceBuilder);
         assertEquals(sliceBuilder, secondSliceBuilder);
         assertEquals(sliceBuilder.hashCode(), secondSliceBuilder.hashCode());
@@ -136,21 +114,21 @@ public class SliceBuilderTests extends ESTestCase {
 
     public void testInvalidArguments() throws Exception {
         Exception e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", -1, 10));
-        assertEquals(e.getMessage(), "id must be greater than or equal to 0");
+        assertEquals("id must be greater than or equal to 0", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 10, -1));
-        assertEquals(e.getMessage(), "max must be greater than 1");
+        assertEquals("max must be greater than 1", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 10, 0));
-        assertEquals(e.getMessage(), "max must be greater than 1");
+        assertEquals("max must be greater than 1", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 10, 5));
-        assertEquals(e.getMessage(), "max must be greater than id");
+        assertEquals("max must be greater than id", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 1000, 1000));
-        assertEquals(e.getMessage(), "max must be greater than id");
+        assertEquals("max must be greater than id", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> new SliceBuilder("field", 1001, 1000));
-        assertEquals(e.getMessage(), "max must be greater than id");
+        assertEquals("max must be greater than id", e.getMessage());
     }
 
     public void testToFilter() throws IOException {
@@ -175,11 +153,23 @@ public class SliceBuilderTests extends ESTestCase {
                 public Query termQuery(Object value, @Nullable QueryShardContext context) {
                     return null;
                 }
+
+                public Query existsQuery(QueryShardContext context) {
+                    return null;
+                }
             };
             fieldType.setName(UidFieldMapper.NAME);
             fieldType.setHasDocValues(false);
             when(context.fieldMapper(UidFieldMapper.NAME)).thenReturn(fieldType);
             when(context.getIndexReader()).thenReturn(reader);
+            Settings settings = Settings.builder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build();
+            IndexMetaData indexState = IndexMetaData.builder("index").settings(settings).build();
+            IndexSettings indexSettings = new IndexSettings(indexState, Settings.EMPTY);
+            when(context.getIndexSettings()).thenReturn(indexSettings);
             SliceBuilder builder = new SliceBuilder(5, 10);
             Query query = builder.toFilter(context, 0, 1);
             assertThat(query, instanceOf(TermsSliceQuery.class));
@@ -205,6 +195,10 @@ public class SliceBuilderTests extends ESTestCase {
 
                 @Override
                 public Query termQuery(Object value, @Nullable QueryShardContext context) {
+                    return null;
+                }
+
+                public Query existsQuery(QueryShardContext context) {
                     return null;
                 }
             };
@@ -301,6 +295,10 @@ public class SliceBuilderTests extends ESTestCase {
 
                 @Override
                 public Query termQuery(Object value, @Nullable QueryShardContext context) {
+                    return null;
+                }
+
+                public Query existsQuery(QueryShardContext context) {
                     return null;
                 }
             };

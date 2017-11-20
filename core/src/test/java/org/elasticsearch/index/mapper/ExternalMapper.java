@@ -20,13 +20,17 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.locationtech.spatial4j.shape.Point;
-import org.apache.lucene.document.Field;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -57,7 +61,7 @@ public class ExternalMapper extends FieldMapper {
 
         private BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
-        private LatLonPointFieldMapper.Builder latLonPointBuilder = new LatLonPointFieldMapper.Builder(Names.FIELD_POINT);
+        private GeoPointFieldMapper.Builder latLonPointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
         private GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
         private Mapper.Builder stringBuilder;
         private String generatedValue;
@@ -81,7 +85,7 @@ public class ExternalMapper extends FieldMapper {
             context.path().add(name);
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
-            BaseGeoPointFieldMapper pointMapper = latLonPointBuilder.build(context);
+            GeoPointFieldMapper pointMapper = latLonPointBuilder.build(context);
             GeoShapeFieldMapper shapeMapper = shapeBuilder.build(context);
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();
@@ -114,7 +118,7 @@ public class ExternalMapper extends FieldMapper {
 
     static class ExternalFieldType extends TermBasedFieldType {
 
-        public ExternalFieldType() {}
+        ExternalFieldType() {}
 
         protected ExternalFieldType(ExternalFieldType ref) {
             super(ref);
@@ -129,6 +133,15 @@ public class ExternalMapper extends FieldMapper {
         public String typeName() {
             return "faketype";
         }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
     }
 
     private final String generatedValue;
@@ -136,13 +149,13 @@ public class ExternalMapper extends FieldMapper {
 
     private BinaryFieldMapper binMapper;
     private BooleanFieldMapper boolMapper;
-    private BaseGeoPointFieldMapper pointMapper;
+    private GeoPointFieldMapper pointMapper;
     private GeoShapeFieldMapper shapeMapper;
     private FieldMapper stringMapper;
 
     public ExternalMapper(String simpleName, MappedFieldType fieldType,
                           String generatedValue, String mapperName,
-                          BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, BaseGeoPointFieldMapper pointMapper,
+                          BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
                           GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo);
         this.generatedValue = generatedValue;
@@ -168,7 +181,7 @@ public class ExternalMapper extends FieldMapper {
         pointMapper.parse(context.createExternalValueContext(point));
 
         // Let's add a Dummy Shape
-        Point shape = ShapeBuilders.newPoint(-100, 45).build();
+        Point shape = new PointBuilder(-100, 45).build();
         shapeMapper.parse(context.createExternalValueContext(shape));
 
         context = context.createExternalValueContext(generatedValue);
@@ -196,7 +209,7 @@ public class ExternalMapper extends FieldMapper {
         MultiFields multiFieldsUpdate = multiFields.updateFieldType(fullNameToFieldType);
         BinaryFieldMapper binMapperUpdate = (BinaryFieldMapper) binMapper.updateFieldType(fullNameToFieldType);
         BooleanFieldMapper boolMapperUpdate = (BooleanFieldMapper) boolMapper.updateFieldType(fullNameToFieldType);
-        BaseGeoPointFieldMapper pointMapperUpdate = (BaseGeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
+        GeoPointFieldMapper pointMapperUpdate = (GeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
         GeoShapeFieldMapper shapeMapperUpdate = (GeoShapeFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
         TextFieldMapper stringMapperUpdate = (TextFieldMapper) stringMapper.updateFieldType(fullNameToFieldType);
         if (update == this

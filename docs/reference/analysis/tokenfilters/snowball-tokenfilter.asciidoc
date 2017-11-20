@@ -12,8 +12,9 @@ For example:
 
 [source,js]
 --------------------------------------------------
+PUT /my_index
 {
-    "index" : {
+    "settings": {
         "analysis" : {
             "analyzer" : {
                 "my_analyzer" : {
@@ -31,3 +32,4 @@ For example:
     }
 }
 --------------------------------------------------
+// CONSOLE

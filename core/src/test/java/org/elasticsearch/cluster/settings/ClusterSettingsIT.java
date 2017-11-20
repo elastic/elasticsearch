@@ -29,11 +29,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.junit.After;
 
-import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import java.util.Arrays;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.containsString;
@@ -41,8 +43,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = TEST)
 public class ClusterSettingsIT extends ESIntegTestCase {
+
+    @After
+    public void cleanup() throws Exception {
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("*"))
+            .setTransientSettings(Settings.builder().putNull("*")));
+    }
+
     public void testClusterNonExistingSettingsUpdate() {
         String key1 = "no_idea_what_you_are_talking_about";
         int value1 = 10;
@@ -53,7 +62,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                     .get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "transient setting [no_idea_what_you_are_talking_about], not dynamically updateable");
+            assertEquals("transient setting [no_idea_what_you_are_talking_about], not recognized", ex.getMessage());
         }
     }
 
@@ -71,7 +80,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             .get();
 
         assertAcked(response);
-        assertEquals(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), "1s");
+        assertEquals(response.getTransientSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), "1s");
         assertTrue(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY));
         assertFalse(response.getTransientSettings().getAsBoolean(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), null));
 
@@ -79,7 +88,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().putNull((randomBoolean() ? "discovery.zen.*" : "*")).put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "2s"))
             .get();
-        assertEquals(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), "2s");
+        assertEquals(response.getTransientSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), "2s");
         assertNull(response.getTransientSettings().getAsBoolean(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), null));
     }
 
@@ -95,7 +104,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(response);
-        assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
+        assertThat(response.getTransientSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
 
@@ -106,7 +115,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(response);
-        assertNull(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()));
+        assertNull(response.getTransientSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()));
         assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY)));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
 
@@ -118,7 +127,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(response);
-        assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
+        assertThat(response.getTransientSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertFalse(discoverySettings.getPublishDiff());
         response = client().admin().cluster()
@@ -126,8 +135,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .setTransientSettings(Settings.builder().putNull((randomBoolean() ? "discovery.zen.*" : "*")))
                 .get();
 
-        assertNull(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()));
-        assertNull(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey()));
+        assertNull(response.getTransientSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()));
+        assertNull(response.getTransientSettings().get(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey()));
         assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY)));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
 
@@ -138,7 +147,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(response);
-        assertThat(response.getPersistentSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
+        assertThat(response.getPersistentSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
 
@@ -149,7 +158,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(response);
-        assertNull(response.getPersistentSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()));
+        assertNull(response.getPersistentSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()));
         assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY)));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
 
@@ -162,7 +171,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(response);
-        assertThat(response.getPersistentSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
+        assertThat(response.getPersistentSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
         assertFalse(discoverySettings.getPublishDiff());
         response = client().admin().cluster()
@@ -170,8 +179,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .setPersistentSettings(Settings.builder().putNull((randomBoolean() ? "discovery.zen.*" : "*")))
                 .get();
 
-        assertNull(response.getPersistentSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()));
-        assertNull(response.getPersistentSettings().getAsMap().get(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey()));
+        assertNull(response.getPersistentSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()));
+        assertNull(response.getPersistentSettings().get(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey()));
         assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY)));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
     }
@@ -235,11 +244,11 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     public void testCanUpdateTracerSettings() {
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putArray("transport.tracer.include", "internal:index/shard/recovery/*",
+            .setTransientSettings(Settings.builder().putList("transport.tracer.include", "internal:index/shard/recovery/*",
                 "internal:gateway/local*"))
             .get();
-        assertArrayEquals(clusterUpdateSettingsResponse.getTransientSettings().getAsArray("transport.tracer.include"), new String[] {"internal:index/shard/recovery/*",
-            "internal:gateway/local*"});
+        assertEquals(clusterUpdateSettingsResponse.getTransientSettings().getAsList("transport.tracer.include"),
+            Arrays.asList("internal:index/shard/recovery/*", "internal:gateway/local*"));
     }
 
     public void testUpdateDiscoveryPublishTimeout() {
@@ -254,7 +263,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(response);
-        assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
+        assertThat(response.getTransientSettings().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), equalTo("1s"));
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
 
         try {
@@ -282,7 +291,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
     }
 
-    private DiscoverySettings getDiscoverySettings() {return internalCluster().getInstance(Discovery.class).getDiscoverySettings();}
+    private DiscoverySettings getDiscoverySettings() {return ((ZenDiscovery) internalCluster().getInstance(Discovery.class)).getDiscoverySettings();}
 
     public void testClusterUpdateSettingsWithBlocks() {
         String key1 = "cluster.routing.allocation.enable";
@@ -301,11 +310,23 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             assertBlocked(request, MetaData.CLUSTER_READ_ONLY_BLOCK);
 
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
-            Settings settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), false).build();
+            Settings settings = Settings.builder().putNull(MetaData.SETTING_READ_ONLY_SETTING.getKey()).build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
 
         } finally {
             setClusterReadOnly(false);
+        }
+
+        // Cluster settings updates are blocked when the cluster is read only
+        try {
+            // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
+            Settings settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+            assertBlocked(request, MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+        } finally {
+            // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
+            Settings s = Settings.builder().putNull(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(s).get());
         }
 
         // It should work now

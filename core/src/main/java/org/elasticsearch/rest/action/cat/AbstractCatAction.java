@@ -20,8 +20,9 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.UTF8StreamWriter;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -43,11 +44,11 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         super(settings);
     }
 
-    protected abstract RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client);
+    protected abstract RestChannelConsumer doCatRequest(RestRequest request, NodeClient client);
 
     protected abstract void documentation(StringBuilder sb);
 
-    protected abstract Table getTableWithHeader(final RestRequest request);
+    protected abstract Table getTableWithHeader(RestRequest request);
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
@@ -56,7 +57,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
             return channel -> {
                 Table table = getTableWithHeader(request);
                 int[] width = buildHelpWidths(table, request);
-                BytesStreamOutput bytesOutput = channel.bytesOutput();
+                BytesStream bytesOutput = Streams.flushOnCloseStream(channel.bytesOutput());
                 UTF8StreamWriter out = new UTF8StreamWriter().setOutput(bytesOutput);
                 for (Table.Cell cell : table.getHeaders()) {
                     // need to do left-align always, so create new cells

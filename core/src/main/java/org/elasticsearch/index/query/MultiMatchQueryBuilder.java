@@ -22,8 +22,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,17 +33,18 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MultiMatchQuery;
+import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.index.search.QueryStringQueryParser;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -57,10 +58,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     public static final int DEFAULT_PHRASE_SLOP = MatchQuery.DEFAULT_PHRASE_SLOP;
     public static final int DEFAULT_PREFIX_LENGTH = FuzzyQuery.defaultPrefixLength;
     public static final int DEFAULT_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
-    public static final boolean DEFAULT_LENIENCY = MatchQuery.DEFAULT_LENIENCY;
     public static final MatchQuery.ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
+    public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
-    private static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
+    private static final ParseField SLOP_FIELD = new ParseField("slop");
     private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
     private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");
@@ -75,6 +76,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
+    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
+    private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
+
 
     private final Object value;
     private final Map<String, Float> fieldsBoosts;
@@ -89,9 +93,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private String fuzzyRewrite = null;
     private Boolean useDisMax;
     private Float tieBreaker;
-    private boolean lenient = DEFAULT_LENIENCY;
+    private Boolean lenient;
     private Float cutoffFrequency = null;
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
+    private boolean autoGenerateSynonymsPhraseQuery = true;
+    private boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;
 
     public enum Type implements Writeable {
 
@@ -148,11 +154,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             return parseField;
         }
 
-        public static Type parse(String value, ParseFieldMatcher parseFieldMatcher) {
+        public static Type parse(String value) {
             MultiMatchQueryBuilder.Type[] values = MultiMatchQueryBuilder.Type.values();
             Type type = null;
             for (MultiMatchQueryBuilder.Type t : values) {
-                if (parseFieldMatcher.match(value, t.parseField())) {
+                if (t.parseField().match(value)) {
                     type = t;
                     break;
                 }
@@ -219,9 +225,17 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         fuzzyRewrite = in.readOptionalString();
         useDisMax = in.readOptionalBoolean();
         tieBreaker = in.readOptionalFloat();
-        lenient = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            lenient = in.readOptionalBoolean();
+        } else {
+            lenient = in.readBoolean();
+        }
         cutoffFrequency = in.readOptionalFloat();
         zeroTermsQuery = MatchQuery.ZeroTermsQuery.readFromStream(in);
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            autoGenerateSynonymsPhraseQuery = in.readBoolean();
+            fuzzyTranspositions = in.readBoolean();
+        }
     }
 
     @Override
@@ -243,9 +257,17 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalBoolean(useDisMax);
         out.writeOptionalFloat(tieBreaker);
-        out.writeBoolean(lenient);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeOptionalBoolean(lenient);
+        } else {
+            out.writeBoolean(lenient == null ? MatchQuery.DEFAULT_LENIENCY : lenient);
+        }
         out.writeOptionalFloat(cutoffFrequency);
         zeroTermsQuery.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(autoGenerateSynonymsPhraseQuery);
+            out.writeBoolean(fuzzyTranspositions);
+        }
     }
 
     public Object value() {
@@ -304,7 +326,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (type == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires type to be non-null");
         }
-        this.type = Type.parse(type.toString().toLowerCase(Locale.ROOT), ParseFieldMatcher.EMPTY);
+        this.type = Type.parse(type.toString().toLowerCase(Locale.ROOT));
         return this;
     }
 
@@ -476,7 +498,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
     public boolean lenient() {
-        return lenient;
+        return lenient == null ? MatchQuery.DEFAULT_LENIENCY : lenient;
     }
 
     /**
@@ -515,6 +537,35 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return zeroTermsQuery;
     }
 
+    public MultiMatchQueryBuilder autoGenerateSynonymsPhraseQuery(boolean enable) {
+        this.autoGenerateSynonymsPhraseQuery = enable;
+        return this;
+    }
+
+    /**
+     * Whether phrase queries should be automatically generated for multi terms synonyms.
+     * Defaults to <tt>true</tt>.
+     */
+    public boolean autoGenerateSynonymsPhraseQuery() {
+        return autoGenerateSynonymsPhraseQuery;
+    }
+
+    public boolean fuzzyTranspositions() {
+        return fuzzyTranspositions;
+    }
+
+    /**
+     * Sets whether transpositions are supported in fuzzy queries.<p>
+     * The default metric used by fuzzy queries to determine a match is the Damerau-Levenshtein
+     * distance formula which supports transpositions. Setting transposition to false will
+     * switch to classic Levenshtein distance.<br>
+     * If not set, Damerau-Levenshtein distance metric will be used.
+     */
+    public MultiMatchQueryBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
+        this.fuzzyTranspositions = fuzzyTranspositions;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -547,18 +598,20 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (tieBreaker != null) {
             builder.field(TIE_BREAKER_FIELD.getPreferredName(), tieBreaker);
         }
-        builder.field(LENIENT_FIELD.getPreferredName(), lenient);
+        if (lenient != null) {
+            builder.field(LENIENT_FIELD.getPreferredName(), lenient);
+        }
         if (cutoffFrequency != null) {
             builder.field(CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);
         }
         builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
+        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
+        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
-    public static Optional<MultiMatchQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static MultiMatchQueryBuilder fromXContent(XContentParser parser) throws IOException {
         Object value = null;
         Map<String, Float> fieldsBoosts = new HashMap<>();
         MultiMatchQueryBuilder.Type type = DEFAULT_TYPE;
@@ -573,8 +626,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         Boolean useDisMax = null;
         Float tieBreaker = null;
         Float cutoffFrequency = null;
-        boolean lenient = DEFAULT_LENIENCY;
+        Boolean lenient = null;
         MatchQuery.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
+        boolean autoGenerateSynonymsPhraseQuery = true;
+        boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
@@ -584,7 +639,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
+            } else if (FIELDS_FIELD.match(currentFieldName)) {
                 if (token == XContentParser.Token.START_ARRAY) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         parseFieldAndBoost(parser, fieldsBoosts);
@@ -596,37 +651,37 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                             "[" + NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                if (QUERY_FIELD.match(currentFieldName)) {
                     value = parser.objectText();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
-                    type = MultiMatchQueryBuilder.Type.parse(parser.text(), parseContext.getParseFieldMatcher());
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
+                } else if (TYPE_FIELD.match(currentFieldName)) {
+                    type = MultiMatchQueryBuilder.Type.parse(parser.text());
+                } else if (ANALYZER_FIELD.match(currentFieldName)) {
                     analyzer = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SLOP_FIELD)) {
+                } else if (SLOP_FIELD.match(currentFieldName)) {
                     slop = parser.intValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
+                } else if (Fuzziness.FIELD.match(currentFieldName)) {
                     fuzziness = Fuzziness.parse(parser);
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, PREFIX_LENGTH_FIELD)) {
+                } else if (PREFIX_LENGTH_FIELD.match(currentFieldName)) {
                     prefixLength = parser.intValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_EXPANSIONS_FIELD)) {
+                } else if (MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
                     maxExpansions = parser.intValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, OPERATOR_FIELD)) {
+                } else if (OPERATOR_FIELD.match(currentFieldName)) {
                     operator = Operator.fromString(parser.text());
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
+                } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FUZZY_REWRITE_FIELD)) {
+                } else if (FUZZY_REWRITE_FIELD.match(currentFieldName)) {
                     fuzzyRewrite = parser.textOrNull();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, USE_DIS_MAX_FIELD)) {
+                } else if (USE_DIS_MAX_FIELD.match(currentFieldName)) {
                     useDisMax = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TIE_BREAKER_FIELD)) {
+                } else if (TIE_BREAKER_FIELD.match(currentFieldName)) {
                     tieBreaker = parser.floatValue();
-                }  else if (parseContext.getParseFieldMatcher().match(currentFieldName, CUTOFF_FREQUENCY_FIELD)) {
+                }  else if (CUTOFF_FREQUENCY_FIELD.match(currentFieldName)) {
                     cutoffFrequency = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LENIENT_FIELD)) {
+                } else if (LENIENT_FIELD.match(currentFieldName)) {
                     lenient = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ZERO_TERMS_QUERY_FIELD)) {
+                } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName)) {
                     String zeroTermsDocs = parser.text();
                     if ("none".equalsIgnoreCase(zeroTermsDocs)) {
                         zeroTermsQuery = MatchQuery.ZeroTermsQuery.NONE;
@@ -635,8 +690,12 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                     }
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
+                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
+                    autoGenerateSynonymsPhraseQuery = parser.booleanValue();
+                } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName)) {
+                    fuzzyTranspositions = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "[" + NAME + "] query does not support [" + currentFieldName + "]");
@@ -651,16 +710,12 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             throw new ParsingException(parser.getTokenLocation(), "No text specified for multi_match query");
         }
 
-        if (fieldsBoosts.isEmpty()) {
-            throw new ParsingException(parser.getTokenLocation(), "No fields specified for multi_match query");
-        }
-
         if (fuzziness != null && (type == Type.CROSS_FIELDS || type == Type.PHRASE || type == Type.PHRASE_PREFIX)) {
             throw new ParsingException(parser.getTokenLocation(),
-                    "Fuziness not allowed for type [" + type.parseField.getPreferredName() + "]");
+                    "Fuzziness not allowed for type [" + type.parseField.getPreferredName() + "]");
         }
 
-        return Optional.of(new MultiMatchQueryBuilder(value)
+        MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder(value)
                 .fields(fieldsBoosts)
                 .type(type)
                 .analyzer(analyzer)
@@ -668,7 +723,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 .fuzziness(fuzziness)
                 .fuzzyRewrite(fuzzyRewrite)
                 .useDisMax(useDisMax)
-                .lenient(lenient)
                 .maxExpansions(maxExpansions)
                 .minimumShouldMatch(minimumShouldMatch)
                 .operator(operator)
@@ -676,8 +730,14 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 .slop(slop)
                 .tieBreaker(tieBreaker)
                 .zeroTermsQuery(zeroTermsQuery)
+                .autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName)
+                .fuzzyTranspositions(fuzzyTranspositions);
+        if (lenient != null) {
+            builder.lenient(lenient);
+        }
+        return builder;
     }
 
     private static void parseFieldAndBoost(XContentParser parser, Map<String, Float> fieldsBoosts) throws IOException {
@@ -721,7 +781,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         multiMatchQuery.setMaxExpansions(maxExpansions);
         multiMatchQuery.setOccur(operator.toBooleanClauseOccur());
         if (fuzzyRewrite != null) {
-            multiMatchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), fuzzyRewrite, null));
+            multiMatchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(fuzzyRewrite, null));
         }
         if (tieBreaker != null) {
             multiMatchQuery.setTieBreaker(tieBreaker);
@@ -729,8 +789,12 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (cutoffFrequency != null) {
             multiMatchQuery.setCommonTermsCutoff(cutoffFrequency);
         }
-        multiMatchQuery.setLenient(lenient);
+        if (lenient != null) {
+            multiMatchQuery.setLenient(lenient);
+        }
         multiMatchQuery.setZeroTermsQuery(zeroTermsQuery);
+        multiMatchQuery.setAutoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
+        multiMatchQuery.setTranspositions(fuzzyTranspositions);
 
         if (useDisMax != null) { // backwards foobar
             boolean typeUsesDismax = type.tieBreaker() != 1.0f;
@@ -742,33 +806,28 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 }
             }
         }
-
-        Map<String, Float> newFieldsBoosts = handleFieldsMatchPattern(context.getMapperService(), fieldsBoosts);
-
-        return multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
-    }
-
-    private static Map<String, Float> handleFieldsMatchPattern(MapperService mapperService, Map<String, Float> fieldsBoosts) {
-        Map<String, Float> newFieldsBoosts = new TreeMap<>();
-        for (Map.Entry<String, Float> fieldBoost : fieldsBoosts.entrySet()) {
-            String fField = fieldBoost.getKey();
-            Float fBoost = fieldBoost.getValue();
-            if (Regex.isSimpleMatchPattern(fField)) {
-                for (String field : mapperService.simpleMatchToIndexNames(fField)) {
-                    newFieldsBoosts.put(field, fBoost);
-                }
-            } else {
-                newFieldsBoosts.put(fField, fBoost);
+        Map<String, Float> newFieldsBoosts;
+        if (fieldsBoosts.isEmpty()) {
+            // no fields provided, defaults to index.query.default_field
+            List<String> defaultFields = context.defaultFields();
+            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
+            if (isAllField && lenient == null) {
+                // Sets leniency to true if not explicitly
+                // set in the request
+                multiMatchQuery.setLenient(true);
             }
+            newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, QueryParserHelper.parseFieldsAndWeights(defaultFields));
+        } else {
+            newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, fieldsBoosts);
         }
-        return newFieldsBoosts;
+        return multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
     }
 
     @Override
     protected int doHashCode() {
         return Objects.hash(value, fieldsBoosts, type, operator, analyzer, slop, fuzziness,
                 prefixLength, maxExpansions, minimumShouldMatch, fuzzyRewrite, useDisMax, tieBreaker, lenient,
-                cutoffFrequency, zeroTermsQuery);
+                cutoffFrequency, zeroTermsQuery, autoGenerateSynonymsPhraseQuery, fuzzyTranspositions);
     }
 
     @Override
@@ -788,6 +847,8 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 Objects.equals(tieBreaker, other.tieBreaker) &&
                 Objects.equals(lenient, other.lenient) &&
                 Objects.equals(cutoffFrequency, other.cutoffFrequency) &&
-                Objects.equals(zeroTermsQuery, other.zeroTermsQuery);
+                Objects.equals(zeroTermsQuery, other.zeroTermsQuery) &&
+                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&
+                Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
     }
 }

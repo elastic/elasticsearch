@@ -25,11 +25,15 @@ import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.MockTransportClient;
@@ -53,12 +57,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BulkProcessorIT extends ESIntegTestCase {
-    public void testThatBulkProcessorCountIsCorrect() throws InterruptedException {
+    public void testThatBulkProcessorCountIsCorrect() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
 
         int numDocs = randomIntBetween(10, 100);
-        try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setName("foo")
+        try (BulkProcessor processor = BulkProcessor.builder(client(), listener)
                 //let's make sure that the bulk action limit trips, one single execution will index all the documents
                 .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
@@ -76,13 +80,13 @@ public class BulkProcessorIT extends ESIntegTestCase {
         }
     }
 
-    public void testBulkProcessorFlush() throws InterruptedException {
+    public void testBulkProcessorFlush() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
 
         int numDocs = randomIntBetween(10, 100);
 
-        try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setName("foo")
+        try (BulkProcessor processor = BulkProcessor.builder(client(), listener)
                 //let's make sure that this bulk won't be automatically flushed
                 .setConcurrentRequests(randomIntBetween(0, 10)).setBulkActions(numDocs + randomIntBetween(1, 100))
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
@@ -199,7 +203,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
         BulkProcessorTestListener listener = new BulkProcessorTestListener();
 
         int numDocs = randomIntBetween(10, 100);
-        BulkProcessor processor = BulkProcessor.builder(client(), listener).setName("foo")
+        BulkProcessor processor = BulkProcessor.builder(client(), listener)
                 //let's make sure that the bulk action limit trips, one single execution will index all the documents
                 .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(randomIntBetween(1, 10),
@@ -254,11 +258,13 @@ public class BulkProcessorIT extends ESIntegTestCase {
             for (int i = 1; i <= numDocs; i++) {
                 if (randomBoolean()) {
                     testDocs++;
-                    processor.add(new IndexRequest("test", "test", Integer.toString(testDocs)).source("field", "value"));
+                    processor.add(new IndexRequest("test", "test", Integer.toString(testDocs))
+                        .source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
                     multiGetRequestBuilder.add("test", "test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
-                    processor.add(new IndexRequest("test-ro", "test", Integer.toString(testReadOnlyDocs)).source("field", "value"));
+                    processor.add(new IndexRequest("test-ro", "test", Integer.toString(testReadOnlyDocs))
+                        .source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
                 }
             }
         }
@@ -293,10 +299,18 @@ public class BulkProcessorIT extends ESIntegTestCase {
         assertMultiGetResponse(multiGetRequestBuilder.get(), testDocs);
     }
 
-    private static MultiGetRequestBuilder indexDocs(Client client, BulkProcessor processor, int numDocs) {
+    private static MultiGetRequestBuilder indexDocs(Client client, BulkProcessor processor, int numDocs) throws Exception {
         MultiGetRequestBuilder multiGetRequestBuilder = client.prepareMultiGet();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(new IndexRequest("test", "test", Integer.toString(i)).source("field", randomRealisticUnicodeOfLengthBetween(1, 30)));
+            if (randomBoolean()) {
+                processor.add(new IndexRequest("test", "test", Integer.toString(i))
+                    .source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30)));
+            } else {
+                final String source = "{ \"index\":{\"_index\":\"test\",\"_type\":\"test\",\"_id\":\"" + Integer.toString(i) + "\"} }\n"
+                    + JsonXContent.contentBuilder()
+                        .startObject().field("field", randomRealisticUnicodeOfLengthBetween(1, 30)).endObject().string() + "\n";
+                processor.add(new BytesArray(source), null, null, XContentType.JSON);
+            }
             multiGetRequestBuilder.add("test", "test", Integer.toString(i));
         }
         return multiGetRequestBuilder;
@@ -309,7 +323,8 @@ public class BulkProcessorIT extends ESIntegTestCase {
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
             assertThat(bulkItemResponse.getType(), equalTo("test"));
             assertThat(bulkItemResponse.getId(), equalTo(Integer.toString(i++)));
-            assertThat(bulkItemResponse.isFailed(), equalTo(false));
+            assertThat("item " + i + " failed with cause: " + bulkItemResponse.getFailureMessage(),
+                bulkItemResponse.isFailed(), equalTo(false));
         }
     }
 

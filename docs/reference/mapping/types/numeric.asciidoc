@@ -39,6 +39,12 @@ PUT my_index
 --------------------------------------------------
 // CONSOLE
 
+NOTE: The `double`, `float` and `half_float` types consider that `-0.0` and
+`+0.0` are different values. As a consequence, doing a `term` query on
+`-0.0` will not match `+0.0` and vice-versa. Same is true for range queries:
+if the upper bound is `-0.0` then `+0.0` will not match, and if the lower
+bound is `+0.0` then `-0.0` will not match.
+
 ==== Which type should I use?
 
 As far as integer types (`byte`, `short`, `integer` and `long`) are concerned,
@@ -101,14 +107,6 @@ The following parameters are accepted by numeric types:
 
     If `true`, malformed numbers are ignored. If `false` (default), malformed
     numbers throw an exception and reject the whole document.
-
-<<include-in-all,`include_in_all`>>::
-
-    Whether or not the field value should be included in the
-    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false` if <<mapping-index,`index`>> is set to `false`, or if a parent
-    <<object,`object`>> field sets `include_in_all` to `false`.
-    Otherwise defaults to `true`.
 
 <<mapping-index,`index`>>::
 

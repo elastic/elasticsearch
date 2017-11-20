@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -34,13 +34,13 @@ import java.util.function.Function;
 
 public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsFieldData {
 
-    public static final Function<RandomAccessOrds, ScriptDocValues<?>> DEFAULT_SCRIPT_FUNCTION =
-            ((Function<RandomAccessOrds, SortedBinaryDocValues>) FieldData::toString)
+    public static final Function<SortedSetDocValues, ScriptDocValues<?>> DEFAULT_SCRIPT_FUNCTION =
+            ((Function<SortedSetDocValues, SortedBinaryDocValues>) FieldData::toString)
             .andThen(ScriptDocValues.Strings::new);
 
-    private final Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction;
+    private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
-    protected AbstractAtomicOrdinalsFieldData(Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction) {
+    protected AbstractAtomicOrdinalsFieldData(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
         this.scriptFunction = scriptFunction;
     }
 
@@ -72,7 +72,7 @@ public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsF
             }
 
             @Override
-            public RandomAccessOrds getOrdinalsValues() {
+            public SortedSetDocValues getOrdinalsValues() {
                 return DocValues.emptySortedSet();
             }
         };

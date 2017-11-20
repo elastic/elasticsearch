@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -52,7 +52,9 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     public abstract long sizeInBytes();
 
-    public abstract  int totalOperations();
+    public abstract int totalOperations();
+
+    abstract Checkpoint getCheckpoint();
 
     public final long getFirstOperationOffset() {
         return firstOperationOffset;
@@ -75,8 +77,8 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         return size;
     }
 
-    public Translog.Snapshot newSnapshot() {
-        return new TranslogSnapshot(generation, channel, path, firstOperationOffset, sizeInBytes(), totalOperations());
+    public TranslogSnapshot newSnapshot() {
+        return new TranslogSnapshot(this, sizeInBytes());
     }
 
     /**
@@ -119,5 +121,9 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     public Path path() {
         return path;
+    }
+
+    public long getLastModifiedTime() throws IOException {
+        return Files.getLastModifiedTime(path).toMillis();
     }
 }

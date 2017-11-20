@@ -22,7 +22,6 @@ package org.elasticsearch.http;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -52,7 +51,7 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
-            assertThat(response.getHeader("Content-Type"), containsString("application/json"));
+            assertThat(response.getHeader("Content-Type"), containsString("application/json; charset=UTF-8"));
             assertThat(EntityUtils.toString(response.getEntity()),
                     not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; "
                     + "nested: ActionRequestValidationException[Validation Failed: 1:")));

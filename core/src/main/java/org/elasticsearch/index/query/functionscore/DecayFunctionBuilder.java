@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,8 +43,9 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -145,10 +147,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        builder.field(fieldName);
-        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(functionBytes)) {
-            builder.copyCurrentStructure(parser);
-        }
+        builder.rawField(fieldName, functionBytes);
         builder.field(DecayFunctionParser.MULTI_VALUE_MODE.getPreferredName(), multiValueMode.name());
         builder.endObject();
     }
@@ -181,7 +180,8 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
         AbstractDistanceScoreFunction scoreFunction;
-        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(functionBytes)) {
+        // EMPTY is safe because parseVariable doesn't use namedObject
+        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(NamedXContentRegistry.EMPTY, functionBytes)) {
             scoreFunction = parseVariable(fieldName, parser, context, multiValueMode);
         }
         return scoreFunction;
@@ -204,7 +204,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         parser.nextToken();
         if (fieldType instanceof DateFieldMapper.DateFieldType) {
             return parseDateVariable(parser, context, fieldType, mode);
-        } else if (fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType) {
+        } else if (fieldType instanceof GeoPointFieldType) {
             return parseGeoVariable(parser, context, fieldType, mode);
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(parser, context, fieldType, mode);
@@ -330,9 +330,9 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         private final GeoPoint origin;
         private final IndexGeoPointFieldData fieldData;
 
-        private static final GeoDistance distFunction = GeoDistance.DEFAULT;
+        private static final GeoDistance distFunction = GeoDistance.ARC;
 
-        public GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
+        GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
                                          IndexGeoPointFieldData fieldData, MultiValueMode mode) {
             super(scale, decay, offset, func, mode);
             this.origin = origin;
@@ -347,36 +347,36 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
-            return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
+            return mode.select(new SortingNumericDoubleValues() {
                 @Override
-                public int count() {
-                    return geoPointValues.count();
-                }
-
-                @Override
-                public void setDocument(int docId) {
-                    geoPointValues.setDocument(docId);
-                }
-
-                @Override
-                public double valueAt(int index) {
-                    GeoPoint other = geoPointValues.valueAt(index);
-                    return Math.max(0.0d,
-                            distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS) - offset);
+                public boolean advanceExact(int docId) throws IOException {
+                    if (geoPointValues.advanceExact(docId)) {
+                        int n = geoPointValues.docValueCount();
+                        resize(n);
+                        for (int i = 0; i < n; i++) {
+                            GeoPoint other = geoPointValues.nextValue();
+                            double distance = distFunction.calculate(
+                                origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS);
+                            values[i] = Math.max(0.0d, distance - offset);
+                        }
+                        sort();
+                        return true;
+                    } else {
+                        return false;
+                    }
                 }
             }, 0.0);
         }
 
         @Override
-        protected String getDistanceString(LeafReaderContext ctx, int docId) {
+        protected String getDistanceString(LeafReaderContext ctx, int docId) throws IOException {
             StringBuilder values = new StringBuilder(mode.name());
             values.append(" of: [");
             final MultiGeoPointValues geoPointValues = fieldData.load(ctx).getGeoPointValues();
-            geoPointValues.setDocument(docId);
-            final int num = geoPointValues.count();
-            if (num > 0) {
+            if (geoPointValues.advanceExact(docId)) {
+                final int num = geoPointValues.docValueCount();
                 for (int i = 0; i < num; i++) {
-                    GeoPoint value = geoPointValues.valueAt(i);
+                    GeoPoint value = geoPointValues.nextValue();
                     values.append("Math.max(arcDistance(");
                     values.append(value).append("(=doc value),");
                     values.append(origin).append("(=origin)) - ").append(offset).append("(=offset), 0)");
@@ -414,7 +414,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         private final IndexNumericFieldData fieldData;
         private final double origin;
 
-        public NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
+        NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
                                              IndexNumericFieldData fieldData, MultiValueMode mode) {
             super(scale, decay, offset, func, mode);
             this.fieldData = fieldData;
@@ -429,35 +429,34 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
-            return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
+            return mode.select(new SortingNumericDoubleValues() {
                 @Override
-                public int count() {
-                    return doubleValues.count();
-                }
-
-                @Override
-                public void setDocument(int docId) {
-                    doubleValues.setDocument(docId);
-                }
-
-                @Override
-                public double valueAt(int index) {
-                    return Math.max(0.0d, Math.abs(doubleValues.valueAt(index) - origin) - offset);
+                public boolean advanceExact(int docId) throws IOException {
+                    if (doubleValues.advanceExact(docId)) {
+                        int n = doubleValues.docValueCount();
+                        resize(n);
+                        for (int i = 0; i < n; i++) {
+                            values[i] = Math.max(0.0d, Math.abs(doubleValues.nextValue() - origin) - offset);
+                        }
+                        sort();
+                        return true;
+                    } else {
+                        return false;
+                    }
                 }
             }, 0.0);
         }
 
         @Override
-        protected String getDistanceString(LeafReaderContext ctx, int docId) {
+        protected String getDistanceString(LeafReaderContext ctx, int docId) throws IOException {
 
             StringBuilder values = new StringBuilder(mode.name());
             values.append("[");
             final SortedNumericDoubleValues doubleValues = fieldData.load(ctx).getDoubleValues();
-            doubleValues.setDocument(docId);
-            final int num = doubleValues.count();
-            if (num > 0) {
+            if (doubleValues.advanceExact(docId)) {
+                final int num = doubleValues.docValueCount();
                 for (int i = 0; i < num; i++) {
-                    double value = doubleValues.valueAt(i);
+                    double value = doubleValues.nextValue();
                     values.append("Math.max(Math.abs(");
                     values.append(value).append("(=doc value) - ");
                     values.append(origin).append("(=origin))) - ");
@@ -532,21 +531,29 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             return new LeafScoreFunction() {
 
                 @Override
-                public double score(int docId, float subQueryScore) {
-                    return func.evaluate(distance.get(docId), scale);
+                public double score(int docId, float subQueryScore) throws IOException {
+                    if (distance.advanceExact(docId)) {
+                        return func.evaluate(distance.doubleValue(), scale);
+                    } else {
+                        return 0;
+                    }
                 }
 
                 @Override
                 public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
+                    if (distance.advanceExact(docId) == false) {
+                        return Explanation.noMatch("No value for the distance");
+                    }
+                    double value = distance.doubleValue();
                     return Explanation.match(
-                            CombineFunction.toFloat(score(docId, subQueryScore.getValue())),
+                            (float) score(docId, subQueryScore.getValue()),
                             "Function for field " + getFieldName() + ":",
-                            func.explainFunction(getDistanceString(ctx, docId), distance.get(docId), scale));
+                            func.explainFunction(getDistanceString(ctx, docId), value, scale));
                 }
             };
         }
 
-        protected abstract String getDistanceString(LeafReaderContext ctx, int docId);
+        protected abstract String getDistanceString(LeafReaderContext ctx, int docId) throws IOException;
 
         protected abstract String getFieldName();
 

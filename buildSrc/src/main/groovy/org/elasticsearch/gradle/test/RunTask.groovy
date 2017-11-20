@@ -18,7 +18,7 @@ public class RunTask extends DefaultTask {
         clusterConfig.daemonize = false
         clusterConfig.distribution = 'zip'
         project.afterEvaluate {
-            ClusterFormationTasks.setup(project, this, clusterConfig)
+            ClusterFormationTasks.setup(project, name, this, clusterConfig)
         }
     }
 

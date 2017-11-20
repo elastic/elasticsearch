@@ -27,6 +27,7 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -63,7 +64,7 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
 
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("field1", 1)
                     .field("field2", 1)
@@ -76,7 +77,8 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
                     .field("field9", "2016-04-05")
                     .field("field10", true)
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         writer.addDocument(doc.rootDoc());
 

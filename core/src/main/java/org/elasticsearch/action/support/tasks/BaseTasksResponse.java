@@ -44,9 +44,6 @@ public class BaseTasksResponse extends ActionResponse {
     private List<TaskOperationFailure> taskFailures;
     private List<FailedNodeException> nodeFailures;
 
-    public BaseTasksResponse() {
-    }
-
     public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures) {
         this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(taskFailures));
         this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(nodeFailures));
@@ -81,13 +78,13 @@ public class BaseTasksResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        List<TaskOperationFailure> taskFailures = new ArrayList<>();
+        List<TaskOperationFailure> taskFailures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             taskFailures.add(new TaskOperationFailure(in));
         }
         size = in.readVInt();
         this.taskFailures = Collections.unmodifiableList(taskFailures);
-        List<FailedNodeException> nodeFailures = new ArrayList<>();
+        List<FailedNodeException> nodeFailures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             nodeFailures.add(new FailedNodeException(in));
         }

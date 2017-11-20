@@ -19,24 +19,40 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.settings.Settings;
 
 public class UpdateByQueryMetadataTests
-        extends AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+        extends AbstractAsyncBulkByScrollActionMetadataTestCase<UpdateByQueryRequest, BulkByScrollResponse> {
     public void testRoutingIsCopied() throws Exception {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
+        action().copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
     }
 
     @Override
-    protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action() {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request(), listener(), null, null);
+    protected TestAction action() {
+        return new TestAction();
     }
 
     @Override
     protected UpdateByQueryRequest request() {
         return new UpdateByQueryRequest(new SearchRequest());
+    }
+
+    private class TestAction extends TransportUpdateByQueryAction.AsyncIndexBySearchAction {
+        TestAction() {
+            super(UpdateByQueryMetadataTests.this.task, UpdateByQueryMetadataTests.this.logger, null,
+                    UpdateByQueryMetadataTests.this.threadPool, request(), null, null, listener(),
+                Settings.EMPTY);
+        }
+
+        @Override
+        public AbstractAsyncBulkByScrollAction.RequestWrapper<?> copyMetadata(AbstractAsyncBulkByScrollAction.RequestWrapper<?> request,
+                Hit doc) {
+            return super.copyMetadata(request, doc);
+        }
     }
 }

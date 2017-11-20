@@ -23,7 +23,7 @@ class NamedImpl implements Named {
 
     private final String value;
 
-    public NamedImpl(String value) {
+    NamedImpl(String value) {
         this.value = Objects.requireNonNull(value, "name");
     }
 

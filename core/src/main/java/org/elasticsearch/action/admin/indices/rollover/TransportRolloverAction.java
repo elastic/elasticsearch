@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -119,7 +120,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 @Override
                 public void onResponse(IndicesStatsResponse statsResponse) {
                     final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
-                        statsResponse.getTotal().getDocs(), metaData.index(sourceIndexName));
+                        metaData.index(sourceIndexName), statsResponse);
 
                     if (rolloverRequest.isDryRun()) {
                         listener.onResponse(
@@ -136,7 +137,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     rolloverRequest),
                                 ActionListener.wrap(aliasClusterStateUpdateResponse -> {
                                     if (aliasClusterStateUpdateResponse.isAcknowledged()) {
-                                        activeShardsObserver.waitForActiveShards(rolloverIndexName,
+                                        activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
                                             rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                                             rolloverRequest.masterNodeTimeout(),
                                             isShardsAcked -> listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName,
@@ -195,10 +196,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     static Set<Condition.Result> evaluateConditions(final Set<Condition> conditions,
                                                     final DocsStats docsStats, final IndexMetaData metaData) {
         final long numDocs = docsStats == null ? 0 : docsStats.getCount();
-        final Condition.Stats stats = new Condition.Stats(numDocs, metaData.getCreationDate());
+        final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
+        final Condition.Stats stats = new Condition.Stats(numDocs, metaData.getCreationDate(), new ByteSizeValue(indexSize));
         return conditions.stream()
             .map(condition -> condition.evaluate(stats))
             .collect(Collectors.toSet());
+    }
+
+    static Set<Condition.Result> evaluateConditions(final Set<Condition> conditions, final IndexMetaData metaData,
+                                                    final IndicesStatsResponse statsResponse) {
+        return evaluateConditions(conditions, statsResponse.getPrimaries().getDocs(), metaData);
     }
 
     static void validate(MetaData metaData, RolloverRequest request) {

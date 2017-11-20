@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -98,7 +97,7 @@ public class ExistsIT extends ESIntegTestCase {
                 // empty doc
                 emptyMap()
         };
-        List<IndexRequestBuilder> reqs = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (Map<String, Object> source : sources) {
             reqs.add(client().prepareIndex("idx", "type").setSource(source));
         }
@@ -107,7 +106,7 @@ public class ExistsIT extends ESIntegTestCase {
         // confuse the exists/missing parser at query time
         indexRandom(true, false, reqs);
 
-        final Map<String, Integer> expected = new LinkedHashMap<String, Integer>();
+        final Map<String, Integer> expected = new LinkedHashMap<>();
         expected.put("foo", 1);
         expected.put("f*", 1);
         expected.put("bar", 2);
@@ -128,7 +127,7 @@ public class ExistsIT extends ESIntegTestCase {
             SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).execute().actionGet();
             assertSearchResponse(resp);
             try {
-                assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, mapping.string(), resp), count, resp.getHits().totalHits());
+                assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, mapping.string(), resp), count, resp.getHits().getTotalHits());
             } catch (AssertionError e) {
                 for (SearchHit searchHit : allDocs.getHits()) {
                     final String index = searchHit.getIndex();

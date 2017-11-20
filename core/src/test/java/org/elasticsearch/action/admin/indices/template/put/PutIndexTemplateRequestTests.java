@@ -19,15 +19,24 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 
 public class PutIndexTemplateRequestTests extends ESTestCase {
 
@@ -64,6 +73,61 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
             multiPatternRequest.writeTo(output);
             assertEquals(bytes.toBytesRef(), output.bytes().toBytesRef());
         }
+    }
+
+    public void testPutIndexTemplateRequestSerializationXContent() throws IOException {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest("foo");
+        String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+        request.patterns(Collections.singletonList("foo"));
+        request.mapping("bar", mapping, XContentType.YAML);
+        assertNotEquals(mapping, request.mappings().get("bar"));
+        assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.mappings().get("bar"));
+
+        final Version version = randomFrom(Version.CURRENT, Version.V_5_3_0, Version.V_5_3_1, Version.V_5_3_2, Version.V_5_4_0);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(version);
+            request.writeTo(out);
+
+            try (StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes)) {
+                in.setVersion(version);
+                PutIndexTemplateRequest serialized = new PutIndexTemplateRequest();
+                serialized.readFrom(in);
+                assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML),
+                    serialized.mappings().get("bar"));
+            }
+        }
+    }
+
+    public void testPutIndexTemplateRequestSerializationXContentBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("ADwDAANmb28IdGVtcGxhdGUAAAAAAAABA2Jhcg8tLS0KZm9vOiAiYmFyIgoAAAAAAAAAAAAAAAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+            request.readFrom(in);
+            String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+            assertNotEquals(mapping, request.mappings().get("bar"));
+            assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.mappings().get("bar"));
+            assertEquals("foo", request.name());
+            assertEquals("template", request.patterns().get(0));
+        }
+    }
+
+    public void testValidateErrorMessage() throws Exception {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        ActionRequestValidationException withoutNameAndPattern = request.validate();
+        assertThat(withoutNameAndPattern.getMessage(), containsString("name is missing"));
+        assertThat(withoutNameAndPattern.getMessage(), containsString("index patterns are missing"));
+
+        request.name("foo");
+        ActionRequestValidationException withoutIndexPatterns = request.validate();
+        assertThat(withoutIndexPatterns.validationErrors(), hasSize(1));
+        assertThat(withoutIndexPatterns.getMessage(), containsString("index patterns are missing"));
+
+        request.patterns(Collections.singletonList("test-*"));
+        ActionRequestValidationException noError = request.validate();
+        assertThat(noError, is(nullValue()));
     }
 
 }

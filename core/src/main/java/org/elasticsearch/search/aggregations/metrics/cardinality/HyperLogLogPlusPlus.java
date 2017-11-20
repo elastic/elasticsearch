@@ -34,6 +34,11 @@ import org.elasticsearch.common.util.IntArray;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Hyperloglog++ counter, implemented based on pseudo code from
@@ -420,6 +425,40 @@ public final class HyperLogLogPlusPlus implements Releasable {
         Releasables.close(runLens, hashSet.sizes);
     }
 
+    private Object getComparableData(long bucket) {
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
+            Set<Integer> values = new HashSet<>();
+            try (IntArray hashSetValues = hashSet.values(bucket)) {
+                for (long i = 0; i < hashSetValues.size(); i++) {
+                    values.add(hashSetValues.get(i));
+                }
+            }
+            return values;
+        } else {
+            Map<Byte, Integer> values = new HashMap<>();
+            for (long i = 0; i < runLens.size(); i++) {
+                byte runLength = runLens.get((bucket << p) + i);
+                Integer numOccurances = values.get(runLength);
+                if (numOccurances == null) {
+                    values.put(runLength, 1);
+                } else {
+                    values.put(runLength, numOccurances + 1);
+                }
+            }
+            return values;
+        }
+    }
+
+    public int hashCode(long bucket) {
+        return Objects.hash(p, algorithm.get(bucket), getComparableData(bucket));
+    }
+
+    public boolean equals(long bucket, HyperLogLogPlusPlus other) {
+        return Objects.equals(p, other.p) &&
+                Objects.equals(algorithm.get(bucket), other.algorithm.get(bucket)) &&
+                Objects.equals(getComparableData(bucket), other.getComparableData(bucket));
+    }
+
     /**
      * We are actually using HyperLogLog's runLens array but interpreting it as a hash set
      * for linear counting.
@@ -433,7 +472,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
         private final BytesRef readSpare;
         private final ByteBuffer writeSpare;
 
-        public Hashset(long initialBucketCount) {
+        Hashset(long initialBucketCount) {
             capacity = m / 4; // because ints take 4 bytes
             threshold = (int) (capacity * MAX_LOAD_FACTOR);
             mask = capacity - 1;

@@ -21,7 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -33,6 +33,7 @@ import org.joda.time.DateTimeZone;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -338,8 +339,8 @@ public class BytesStreamsTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
                     new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)));
-            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10),
-                    randomAsciiOfLengthBetween(1, 10));
+            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10));
             out.writeNamedWriteable(namedWriteableIn);
             byte[] bytes = BytesReference.toBytes(out.bytes());
 
@@ -359,7 +360,7 @@ public class BytesStreamsTests extends ESTestCase {
         int size = between(0, 100);
         List<BaseNamedWriteable> expected = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            expected.add(new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+            expected.add(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -385,8 +386,8 @@ public class BytesStreamsTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
                     new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> null)));
-            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10),
-                    randomAsciiOfLengthBetween(1, 10));
+            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10));
             out.writeNamedWriteable(namedWriteableIn);
             byte[] bytes = BytesReference.toBytes(out.bytes());
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
@@ -399,7 +400,7 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testOptionalWriteableReaderReturnsNull() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeOptionalWriteable(new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+            out.writeOptionalWriteable(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
             IOException e = expectThrows(IOException.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
             assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
@@ -416,8 +417,8 @@ public class BytesStreamsTests extends ESTestCase {
                                     return "intentionally-broken";
                                 }
                             })));
-            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10),
-                    randomAsciiOfLengthBetween(1, 10));
+            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10));
             out.writeNamedWriteable(namedWriteableIn);
             byte[] bytes = BytesReference.toBytes(out.bytes());
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
@@ -456,6 +457,22 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
+    public void testWriteMap() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final Map<String, String> expected = new HashMap<>(randomIntBetween(0, 100));
+        for (int i = 0; i < size; ++i) {
+            expected.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
+        }
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final Map<String, String> loaded = in.readMap(StreamInput::readString, StreamInput::readString);
+
+        assertThat(loaded.size(), equalTo(expected.size()));
+        assertThat(expected, equalTo(loaded));
+    }
+
     public void testWriteMapOfLists() throws IOException {
         final int size = randomIntBetween(0, 5);
         final Map<String, List<String>> expected = new HashMap<>(size);
@@ -465,10 +482,10 @@ public class BytesStreamsTests extends ESTestCase {
             List<String> list = new ArrayList<>(listSize);
 
             for (int j = 0; j < listSize; ++j) {
-                list.add(randomAsciiOfLength(5));
+                list.add(randomAlphaOfLength(5));
             }
 
-            expected.put(randomAsciiOfLength(2), list);
+            expected.put(randomAlphaOfLength(2), list);
         }
 
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -514,7 +531,7 @@ public class BytesStreamsTests extends ESTestCase {
             this.field2 = field2;
         }
 
-        public TestNamedWriteable(StreamInput in) throws IOException {
+        TestNamedWriteable(StreamInput in) throws IOException {
             field1 = in.readString();
             field2 = in.readString();
         }
@@ -543,28 +560,6 @@ public class BytesStreamsTests extends ESTestCase {
         public int hashCode() {
             return Objects.hash(field1, field2);
         }
-    }
-
-    // we ignore this test for now since all existing callers of BytesStreamOutput happily
-    // call bytes() after close().
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12620")
-    public void testAccessAfterClose() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
-
-        // immediately close
-        out.close();
-
-        assertEquals(-1, out.size());
-        assertEquals(-1, out.position());
-
-        // writing a single byte must fail
-        expectThrows(IllegalArgumentException.class, () -> out.writeByte((byte)0));
-
-        // writing in bulk must fail
-        expectThrows(IllegalArgumentException.class, () -> out.writeBytes(new byte[0], 0, 0));
-
-        // toByteArray() must fail
-        expectThrows(IllegalArgumentException.class, () -> BytesReference.toBytes(out.bytes()));
     }
 
     // create & fill byte[] with randomized data
@@ -596,9 +591,9 @@ public class BytesStreamsTests extends ESTestCase {
 
         private boolean value;
 
-        public TestStreamable() { }
+        TestStreamable() { }
 
-        public TestStreamable(boolean value) {
+        TestStreamable(boolean value) {
             this.value = value;
         }
 
@@ -616,8 +611,8 @@ public class BytesStreamsTests extends ESTestCase {
     public void testWriteMapWithConsistentOrder() throws IOException {
         Map<String, String> map =
             randomMap(new TreeMap<>(), randomIntBetween(2, 20),
-                () -> randomAsciiOfLength(5),
-                () -> randomAsciiOfLength(5));
+                () -> randomAlphaOfLength(5),
+                () -> randomAlphaOfLength(5));
 
         Map<String, Object> reverseMap = new TreeMap<>(Collections.reverseOrder());
         reverseMap.putAll(map);
@@ -638,8 +633,8 @@ public class BytesStreamsTests extends ESTestCase {
     public void testReadMapByUsingWriteMapWithConsistentOrder() throws IOException {
         Map<String, String> streamOutMap =
             randomMap(new HashMap<>(), randomIntBetween(2, 20),
-                () -> randomAsciiOfLength(5),
-                () -> randomAsciiOfLength(5));
+                () -> randomAlphaOfLength(5),
+                () -> randomAlphaOfLength(5));
         try (BytesStreamOutput streamOut = new BytesStreamOutput()) {
             streamOut.writeMapWithConsistentOrder(streamOutMap);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(streamOut.bytes()));
@@ -761,5 +756,60 @@ public class BytesStreamsTests extends ESTestCase {
                 assertEquals("array size must be positive but was: -2147483648", exception.getMessage());
             }
         }
+    }
+
+    public void testVInt() throws IOException {
+        final int value = randomInt();
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.writeVInt(value);
+        StreamInput input = output.bytes().streamInput();
+        assertEquals(value, input.readVInt());
+    }
+
+    public void testVLong() throws IOException {
+        final long value = randomLong();
+        {
+            // Read works for positive and negative numbers
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.writeVLongNoCheck(value); // Use NoCheck variant so we can write negative numbers
+            StreamInput input = output.bytes().streamInput();
+            assertEquals(value, input.readVLong());
+        }
+        if (value < 0) {
+            // Write doesn't work for negative numbers
+            BytesStreamOutput output = new BytesStreamOutput();
+            Exception e = expectThrows(IllegalStateException.class, () -> output.writeVLong(value));
+            assertEquals("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());
+        }
+    }
+
+    public enum TestEnum {
+        ONE,
+        TWO,
+        THREE
+    }
+
+    public void testEnum() throws IOException {
+        TestEnum value = randomFrom(TestEnum.values());
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.writeEnum(value);
+        StreamInput input = output.bytes().streamInput();
+        assertEquals(value, input.readEnum(TestEnum.class));
+        assertEquals(0, input.available());
+    }
+
+    public void testInvalidEnum() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        int randomNumber = randomInt();
+        boolean validEnum = randomNumber >= 0 && randomNumber < TestEnum.values().length;
+        output.writeVInt(randomNumber);
+        StreamInput input = output.bytes().streamInput();
+        if (validEnum) {
+            assertEquals(TestEnum.values()[randomNumber], input.readEnum(TestEnum.class));
+        } else {
+            IOException ex = expectThrows(IOException.class, () -> input.readEnum(TestEnum.class));
+            assertEquals("Unknown TestEnum ordinal [" + randomNumber + "]", ex.getMessage());
+        }
+        assertEquals(0, input.available());
     }
 }

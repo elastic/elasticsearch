@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 
@@ -387,7 +386,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         }
     }
 
-    private static ConstructingObjectParser<DirectCandidateGeneratorBuilder, QueryParseContext> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DirectCandidateGeneratorBuilder, Void> PARSER = new ConstructingObjectParser<>(
             TYPE, args -> new DirectCandidateGeneratorBuilder((String) args[0]));
 
     static {
@@ -407,23 +406,19 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         PARSER.declareInt(DirectCandidateGeneratorBuilder::prefixLength, PREFIX_LENGTH_FIELD);
     }
 
-    public static DirectCandidateGeneratorBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        return PARSER.apply(parseContext.parser(), parseContext);
-    }
-
     @Override
     public PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException {
         PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
         generator.setField(this.field);
         transferIfNotNull(this.size, generator::size);
         if (this.preFilter != null) {
-            generator.preFilter(mapperService.getIndexAnalyzers().get(this.preFilter));
+            generator.preFilter(mapperService.getNamedAnalyzer(this.preFilter));
             if (generator.preFilter() == null) {
                 throw new IllegalArgumentException("Analyzer [" + this.preFilter + "] doesn't exists");
             }
         }
         if (this.postFilter != null) {
-            generator.postFilter(mapperService.getIndexAnalyzers().get(this.postFilter));
+            generator.postFilter(mapperService.getNamedAnalyzer(this.postFilter));
             if (generator.postFilter() == null) {
                 throw new IllegalArgumentException("Analyzer [" + this.postFilter + "] doesn't exists");
             }

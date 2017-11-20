@@ -23,14 +23,18 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -43,7 +47,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
         private final String output;
 
-        public FakeAnalyzer(String output) {
+        FakeAnalyzer(String output) {
             this.output = output;
         }
 
@@ -70,7 +74,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
     static class FakeFieldType extends TermBasedFieldType {
 
-        public FakeFieldType() {
+        FakeFieldType() {
             super();
         }
 
@@ -88,14 +92,23 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             return "fake";
         }
 
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
+
     }
 
     static class FakeFieldMapper extends FieldMapper {
 
         private static final Settings SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
-        public FakeFieldMapper(String simpleName, MappedFieldType fieldType) {
-            super(simpleName, fieldType.clone(), fieldType.clone(), SETTINGS, null, null);
+        FakeFieldMapper(String simpleName, MappedFieldType fieldType) {
+            super(simpleName, fieldType.clone(), fieldType.clone(), SETTINGS, MultiFields.empty(), CopyTo.empty());
         }
 
         @Override

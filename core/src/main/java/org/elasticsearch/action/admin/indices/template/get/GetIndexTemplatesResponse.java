@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonMap;
 
-public class GetIndexTemplatesResponse extends ActionResponse implements ToXContent {
+public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
 
     private List<IndexTemplateMetaData> indexTemplates;
 
@@ -52,7 +53,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         int size = in.readVInt();
         indexTemplates = new ArrayList<>(size);
         for (int i = 0 ; i < size ; i++) {
-            indexTemplates.add(0, IndexTemplateMetaData.Builder.readFrom(in));
+            indexTemplates.add(0, IndexTemplateMetaData.readFrom(in));
         }
     }
 
@@ -68,10 +69,11 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         params = new ToXContent.DelegatingMapParams(singletonMap("reduce_mappings", "true"), params);
-
+        builder.startObject();
         for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplates()) {
             IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
         }
+        builder.endObject();
         return builder;
     }
 }

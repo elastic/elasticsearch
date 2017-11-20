@@ -157,12 +157,7 @@ public class RecoveryTargetTests extends ESTestCase {
         Timer lastRead = streamer.serializeDeserialize();
         final long time = lastRead.time();
         assertThat(time, lessThanOrEqualTo(timer.time()));
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat("timer timer should progress compared to captured one ", time, lessThan(timer.time()));
-            }
-        });
+        assertBusy(() -> assertThat("timer timer should progress compared to captured one ", time, lessThan(timer.time())));
         assertThat("captured time shouldn't change", lastRead.time(), equalTo(time));
 
         if (randomBoolean()) {
@@ -521,7 +516,7 @@ public class RecoveryTargetTests extends ESTestCase {
             @Override
             public void run() {
                 for (int i = 0; i < 1000; i++) {
-                    index.addFileDetail(randomAsciiOfLength(10), 100, true);
+                    index.addFileDetail(randomAlphaOfLength(10), 100, true);
                 }
                 stop.set(true);
             }

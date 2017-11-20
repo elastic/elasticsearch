@@ -1,0 +1,114 @@
+---
+"Create index with mappings":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            type_1: {}
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - is_true: test_index.mappings.type_1
+
+---
+"Create index with settings":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: "0"
+
+  - do:
+      indices.get_settings:
+        index: test_index
+
+  - match: { test_index.settings.index.number_of_replicas: "0"}
+
+---
+"Create index":
+  - skip:
+      version: " - 5.5.99"
+      reason: create index response contains index name since 5.6.0
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - match: { acknowledged: true }
+  - match: { index: "test_index"}
+
+---
+"Create index with wait_for_active_shards set to all":
+
+  - do:
+      indices.create:
+        index: test_index
+        wait_for_active_shards: all
+        body:
+          settings:
+            number_of_replicas: "0"
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+
+---
+"Create index with aliases":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            type_1:
+              properties:
+                field:
+                  type: text
+          aliases:
+            test_alias: {}
+            test_blias:
+              routing: b
+            test_clias:
+              filter:
+                term:
+                  field : value
+
+  - do:
+      indices.get_alias:
+        index: test_index
+
+  - match: {test_index.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_blias.search_routing: b}
+  - match: {test_index.aliases.test_blias.index_routing: b}
+  - is_false: test_index.aliases.test_blias.filter
+  - match: {test_index.aliases.test_clias.filter.term.field: value}
+  - is_false: test_index.aliases.test_clias.index_routing
+  - is_false: test_index.aliases.test_clias.search_routing
+
+---
+"Create index with no type mappings":
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+           "" : {}
+
+---
+"Create index with invalid mappings":
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            test_type:
+              properties:
+                "":
+                  type:     keyword

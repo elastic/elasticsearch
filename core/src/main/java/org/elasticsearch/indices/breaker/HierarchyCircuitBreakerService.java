@@ -177,7 +177,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     @Override
     public AllCircuitBreakerStats stats() {
         long parentEstimated = 0;
-        List<CircuitBreakerStats> allStats = new ArrayList<>();
+        List<CircuitBreakerStats> allStats = new ArrayList<>(this.breakers.size());
         // Gather the "estimated" count for the parent breaker by adding the
         // estimations for each individual breaker
         for (CircuitBreaker breaker : this.breakers.values()) {
@@ -208,10 +208,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long parentLimit = this.parentSettings.getLimit();
         if (totalUsed > parentLimit) {
             this.parentTripCount.incrementAndGet();
-            throw new CircuitBreakingException("[parent] Data too large, data for [" +
-                            label + "] would be larger than limit of [" +
-                            parentLimit + "/" + new ByteSizeValue(parentLimit) + "]",
-                    totalUsed, parentLimit);
+            final String message = "[parent] Data too large, data for [" + label + "]" +
+                    " would be [" + totalUsed + "/" + new ByteSizeValue(totalUsed) + "]" +
+                    ", which is larger than the limit of [" +
+                    parentLimit + "/" + new ByteSizeValue(parentLimit) + "]";
+            throw new CircuitBreakingException(message, totalUsed, parentLimit);
         }
     }
 

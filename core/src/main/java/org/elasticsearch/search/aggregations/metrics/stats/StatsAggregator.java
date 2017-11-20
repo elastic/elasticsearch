@@ -31,8 +31,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,7 +50,7 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
 
     public StatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat format,
-                           AggregationContext context,
+            SearchContext context,
                            Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                            Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
@@ -94,21 +94,22 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                     maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
                 }
 
-                values.setDocument(doc);
-                final int valuesCount = values.count();
-                counts.increment(bucket, valuesCount);
-                double sum = 0;
-                double min = mins.get(bucket);
-                double max = maxes.get(bucket);
-                for (int i = 0; i < valuesCount; i++) {
-                    double value = values.valueAt(i);
-                    sum += value;
-                    min = Math.min(min, value);
-                    max = Math.max(max, value);
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
+                    counts.increment(bucket, valuesCount);
+                    double sum = 0;
+                    double min = mins.get(bucket);
+                    double max = maxes.get(bucket);
+                    for (int i = 0; i < valuesCount; i++) {
+                        double value = values.nextValue();
+                        sum += value;
+                        min = Math.min(min, value);
+                        max = Math.max(max, value);
+                    }
+                    sums.increment(bucket, sum);
+                    mins.set(bucket, min);
+                    maxes.set(bucket, max);
                 }
-                sums.increment(bucket, sum);
-                mins.set(bucket, min);
-                maxes.set(bucket, max);
             }
         };
     }

@@ -88,24 +88,28 @@ by settings the level of the `org.elasticsearch.transport.TransportService.trace
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_cluster/settings -d '{
-    "transient" : {
-        "logger.org.elasticsearch.transport.TransportService.tracer" : "TRACE"
-    }
-}'
+PUT _cluster/settings
+{
+   "transient" : {
+      "logger.org.elasticsearch.transport.TransportService.tracer" : "TRACE"
+   }
+}
 --------------------------------------------------
+// CONSOLE
 
 You can also control which actions will be traced, using a set of include and exclude wildcard patterns. By default every request will be traced
 except for fault detection pings:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_cluster/settings -d '{
-    "transient" : {
-        "transport.tracer.include" : "*"
-        "transport.tracer.exclude" : "internal:discovery/zen/fd*"
-    }
-}'
+PUT _cluster/settings
+{
+   "transient" : {
+      "transport.tracer.include" : "*",
+      "transport.tracer.exclude" : "internal:discovery/zen/fd*"
+   }
+}
 --------------------------------------------------
+// CONSOLE
 
 

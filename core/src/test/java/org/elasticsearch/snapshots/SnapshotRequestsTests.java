@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class SnapshotRequestsTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder().startObject();
 
-        if(randomBoolean()) {
+        if (randomBoolean()) {
             builder.field("indices", "foo,bar,baz");
         } else {
             builder.startArray("indices");
@@ -75,11 +76,14 @@ public class SnapshotRequestsTests extends ESTestCase {
             builder.value("set3");
             builder.endArray();
         }
+        boolean includeIgnoreUnavailable = randomBoolean();
+        if (includeIgnoreUnavailable) {
+            builder.field("ignore_unavailable", indicesOptions.ignoreUnavailable());
+        }
 
-        byte[] bytes = BytesReference.toBytes(builder.endObject().bytes());
+        BytesReference bytes = builder.endObject().bytes();
 
-
-        request.source(bytes);
+        request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());
@@ -89,7 +93,10 @@ public class SnapshotRequestsTests extends ESTestCase {
         assertEquals(partial, request.partial());
         assertEquals("val1", request.settings().get("set1"));
         assertArrayEquals(request.ignoreIndexSettings(), new String[]{"set2", "set3"});
-
+        boolean expectedIgnoreAvailable = includeIgnoreUnavailable
+            ? indicesOptions.ignoreUnavailable()
+            : IndicesOptions.strictExpandOpen().ignoreUnavailable();
+        assertEquals(expectedIgnoreAvailable, request.indicesOptions().ignoreUnavailable());
     }
 
     public void testCreateSnapshotRequestParsing() throws IOException {
@@ -97,7 +104,7 @@ public class SnapshotRequestsTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder().startObject();
 
-        if(randomBoolean()) {
+        if (randomBoolean()) {
             builder.field("indices", "foo,bar,baz");
         } else {
             builder.startArray("indices");
@@ -134,17 +141,24 @@ public class SnapshotRequestsTests extends ESTestCase {
             builder.value("set3");
             builder.endArray();
         }
+        boolean includeIgnoreUnavailable = randomBoolean();
+        if (includeIgnoreUnavailable) {
+            builder.field("ignore_unavailable", indicesOptions.ignoreUnavailable());
+        }
 
-        byte[] bytes = BytesReference.toBytes(builder.endObject().bytes());
+        BytesReference bytes = builder.endObject().bytes();
 
-
-        request.source(bytes);
+        request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());
         assertArrayEquals(request.indices(), new String[]{"foo", "bar", "baz"});
         assertEquals(partial, request.partial());
         assertEquals("val1", request.settings().get("set1"));
+        boolean expectedIgnoreAvailable = includeIgnoreUnavailable
+            ? indicesOptions.ignoreUnavailable()
+            : IndicesOptions.strictExpandOpen().ignoreUnavailable();
+        assertEquals(expectedIgnoreAvailable, request.indicesOptions().ignoreUnavailable());
     }
 
 }

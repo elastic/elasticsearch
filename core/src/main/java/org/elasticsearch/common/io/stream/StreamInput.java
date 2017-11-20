@@ -53,12 +53,16 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -201,7 +205,9 @@ public abstract class StreamInput extends InputStream {
             return i;
         }
         b = readByte();
-        assert (b & 0x80) == 0;
+        if ((b & 0x80) != 0) {
+            throw new IOException("Invalid vInt ((" + Integer.toHexString(b) + " & 0x7f) << 28) | " + Integer.toHexString(i));
+        }
         return i | ((b & 0x7F) << 28);
     }
 
@@ -213,9 +219,8 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a long stored in variable-length format.  Reads between one and
-     * nine bytes.  Smaller values take fewer bytes.  Negative numbers are not
-     * supported.
+     * Reads a long stored in variable-length format. Reads between one and ten bytes. Smaller values take fewer bytes. Negative numbers
+     * are encoded in ten bytes so prefer {@link #readLong()} or {@link #readZLong()} for negative numbers.
      */
     public long readVLong() throws IOException {
         byte b = readByte();
@@ -259,8 +264,16 @@ public abstract class StreamInput extends InputStream {
             return i;
         }
         b = readByte();
-        assert (b & 0x80) == 0;
-        return i | ((b & 0x7FL) << 56);
+        i |= ((b & 0x7FL) << 56);
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = readByte();
+        if (b != 0 && b != 1) {
+            throw new IOException("Invalid vlong (" + Integer.toHexString(b) + " << 63) | " + Long.toHexString(i));
+        }
+        i |= ((long) b) << 63;
+        return i;
     }
 
     public long readZLong() throws IOException {
@@ -359,7 +372,7 @@ public abstract class StreamInput extends InputStream {
                     buffer[i] = ((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
                     break;
                 default:
-                    new AssertionError("unexpected character: " + c + " hex: " + Integer.toHexString(c));
+                    throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
             }
         }
         return spare.toString();
@@ -386,19 +399,28 @@ public abstract class StreamInput extends InputStream {
      * Reads a boolean.
      */
     public final boolean readBoolean() throws IOException {
-        return readByte() != 0;
+        return readBoolean(readByte());
+    }
+
+    private boolean readBoolean(final byte value) {
+        if (value == 0) {
+            return false;
+        } else if (value == 1) {
+            return true;
+        } else {
+            final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", value);
+            throw new IllegalStateException(message);
+        }
     }
 
     @Nullable
     public final Boolean readOptionalBoolean() throws IOException {
-        byte val = readByte();
-        if (val == 2) {
+        final byte value = readByte();
+        if (value == 2) {
             return null;
+        } else {
+            return readBoolean(value);
         }
-        if (val == 1) {
-            return true;
-        }
-        return false;
     }
 
     /**
@@ -523,6 +545,8 @@ public abstract class StreamInput extends InputStream {
                 return readBytesRef();
             case 22:
                 return readGeoPoint();
+            case 23:
+                return readZonedDateTime();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -541,6 +565,11 @@ public abstract class StreamInput extends InputStream {
     private DateTime readDateTime() throws IOException {
         final String timeZoneId = readString();
         return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
+    }
+
+    private ZonedDateTime readZonedDateTime() throws IOException {
+        final String timeZoneId = readString();
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
     }
 
     private Object[] readArray() throws IOException {
@@ -791,7 +820,7 @@ public abstract class StreamInput extends InputStream {
                 case 17:
                     return (T) readStackTrace(new IOException(readOptionalString(), readException()), this);
                 default:
-                    assert false : "no such exception for id: " + key;
+                    throw new IOException("no such exception for id: " + key);
             }
         }
         return null;
@@ -805,6 +834,22 @@ public abstract class StreamInput extends InputStream {
      */
     @Nullable
     public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
+     * Reads a {@link NamedWriteable} from the current stream with the given name. It is assumed that the caller obtained the name
+     * from other source, so it's not read from the stream. The name is used for looking for
+     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+     * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
+     * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
+     *
+     * Prefer {@link StreamInput#readNamedWriteable(Class)} and {@link StreamOutput#writeNamedWriteable(NamedWriteable)} unless you
+     * have a compelling reason to use this method instead.
+     */
+    @Nullable
+    public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass,
+                                                           @SuppressWarnings("unused") String name) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
@@ -866,12 +911,24 @@ public abstract class StreamInput extends InputStream {
         return builder;
     }
 
+    /**
+     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     */
+    public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
+        int ordinal = readVInt();
+        E[] values = enumClass.getEnumConstants();
+        if (ordinal < 0 || ordinal >= values.length) {
+            throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
+        }
+        return values[ordinal];
+    }
+
     public static StreamInput wrap(byte[] bytes) {
         return wrap(bytes, 0, bytes.length);
     }
 
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
-        return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
+        return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length), length);
     }
 
     /**
@@ -898,5 +955,4 @@ public abstract class StreamInput extends InputStream {
      * be a no-op depending on the underlying implementation if the information of the remaining bytes is not present.
      */
     protected abstract void ensureCanReadBytes(int length) throws EOFException;
-
 }

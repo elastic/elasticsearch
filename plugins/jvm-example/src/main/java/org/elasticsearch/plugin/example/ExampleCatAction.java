@@ -20,7 +20,6 @@ package org.elasticsearch.plugin.example;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -36,11 +35,15 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class ExampleCatAction extends AbstractCatAction {
     private final ExamplePluginConfiguration config;
 
-    @Inject
     public ExampleCatAction(Settings settings, RestController controller, ExamplePluginConfiguration config) {
         super(settings);
         this.config = config;
         controller.registerHandler(GET, "/_cat/configured_example", this);
+    }
+
+    @Override
+    public String getName() {
+        return "example_cat_action";
     }
 
     @Override

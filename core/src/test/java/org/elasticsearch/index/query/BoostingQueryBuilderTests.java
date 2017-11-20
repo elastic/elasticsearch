@@ -21,18 +21,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.BoostingQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.Optional;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.nullValue;;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQueryBuilder> {
 
@@ -92,45 +87,6 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         assertEquals(query, 23, queryBuilder.negativeBoost(), 0.00001);
         assertEquals(query, 8, queryBuilder.negativeQuery().boost(), 0.00001);
         assertEquals(query, 5, queryBuilder.positiveQuery().boost(), 0.00001);
-    }
-
-    /**
-     * we bubble up empty inner clauses as an empty optional
-     */
-    public void testFromJsonEmptyQueryBody() throws IOException {
-        String query =
-                "{ \"boosting\" : {" +
-                "    \"positive\" : { }, " +
-                "    \"negative\" : { \"match_all\" : {} }, " +
-                "    \"negative_boost\" : 23.0" +
-                "  }" +
-                "}";
-        XContentParser parser = XContentFactory.xContent(query).createParser(query);
-        QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
-        Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
-        assertTrue(innerQueryBuilder.isPresent() == false);
-
-        checkWarningHeaders("query malformed, empty clause found at [1:36]");
-
-        query =
-                "{ \"boosting\" : {\n" +
-                "    \"positive\" : { \"match_all\" : {} },\n" +
-                "    \"negative\" : { },\n" +
-                "    \"negative_boost\" : 23.0\n" +
-                "  }\n" +
-                "}";
-        parser = XContentFactory.xContent(query).createParser(query);
-        context = createParseContext(parser, ParseFieldMatcher.EMPTY);
-        innerQueryBuilder = context.parseInnerQueryBuilder();
-        assertTrue(innerQueryBuilder.isPresent() == false);
-
-        checkWarningHeaders("query malformed, empty clause found at [3:20]");
-
-        parser = XContentFactory.xContent(query).createParser(query);
-        QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
-        assertThat(ex.getMessage(), equalTo("query malformed, empty clause found at [3:20]"));
-        checkWarningHeaders("query malformed, empty clause found at [3:20]");
     }
 
     public void testRewrite() throws IOException {

@@ -9,13 +9,7 @@
 #JAVA_HOME=
 
 # Elasticsearch configuration directory
-#CONF_DIR=${path.conf}
-
-# Elasticsearch data directory
-#DATA_DIR=/var/lib/elasticsearch
-
-# Elasticsearch logs directory
-#LOG_DIR=/var/log/elasticsearch
+ES_PATH_CONF=${path.conf}
 
 # Elasticsearch PID directory
 #PID_DIR=/var/run/elasticsearch
@@ -32,14 +26,6 @@
 
 # SysV init.d
 #
-# When executing the init script, this user will be used to run the elasticsearch service.
-# The default value is 'elasticsearch' and is declared in the init.d file.
-# Note that this setting is only used by the init script. If changed, make sure that
-# the configured user can read and write into the data, work, plugins and log directories.
-# For systemd service, the user is usually configured in file /usr/lib/systemd/system/elasticsearch.service
-#ES_USER=elasticsearch
-#ES_GROUP=elasticsearch
-
 # The number of seconds to wait before checking if Elasticsearch started successfully as a daemon process
 ES_STARTUP_SLEEP_TIME=5
 

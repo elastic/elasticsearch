@@ -3,13 +3,9 @@
 
 See {ref}/query-dsl-dis-max-query.html[Dis Max Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = disMaxQuery()
-    .add(termQuery("name", "kimchy"))        <1>
-    .add(termQuery("name", "elasticsearch")) <2>
-    .boost(1.2f)                             <3>
-    .tieBreaker(0.7f);                       <4>
+include-tagged::{query-dsl-test}[dis_max]
 --------------------------------------------------
 <1> add your queries
 <2> add your queries

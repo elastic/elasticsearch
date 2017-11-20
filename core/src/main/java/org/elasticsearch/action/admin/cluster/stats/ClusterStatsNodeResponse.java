@@ -86,8 +86,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeStats = NodeStats.readNodeStats(in);
         int size = in.readVInt();
         shardsStats = new ShardStats[size];
-        for (size--; size >= 0; size--) {
-            shardsStats[size] = ShardStats.readShardStats(in);
+        for (int i = 0; i < size; i++) {
+            shardsStats[i] = ShardStats.readShardStats(in);
         }
     }
 

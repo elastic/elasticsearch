@@ -27,37 +27,33 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NamedDiffable;
+import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.ScriptMetaData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,6 +62,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -73,14 +70,12 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
-public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, FromXContentBuilder<MetaData>, ToXContent {
+public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, ToXContentFragment {
 
-    public static final MetaData PROTO = builder().build();
+    private static final Logger logger = Loggers.getLogger(MetaData.class);
 
     public static final String ALL = "_all";
 
@@ -118,52 +113,22 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
-    public interface Custom extends Diffable<Custom>, ToXContent {
-
-        String type();
-
-        Custom fromXContent(XContentParser parser) throws IOException;
+    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
 
         EnumSet<XContentContext> context();
     }
 
-    public static Map<String, Custom> customPrototypes = new HashMap<>();
-
-    static {
-        // register non plugin custom metadata
-        registerPrototype(RepositoriesMetaData.TYPE, RepositoriesMetaData.PROTO);
-        registerPrototype(IngestMetadata.TYPE, IngestMetadata.PROTO);
-        registerPrototype(ScriptMetaData.TYPE, ScriptMetaData.PROTO);
-        registerPrototype(IndexGraveyard.TYPE, IndexGraveyard.PROTO);
-    }
-
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerPrototype(String type, Custom proto) {
-        customPrototypes.put(type, proto);
-    }
-
-    @Nullable
-    public static <T extends Custom> T lookupPrototype(String type) {
-        //noinspection unchecked
-        return (T) customPrototypes.get(type);
-    }
-
-    public static <T extends Custom> T lookupPrototypeSafe(String type) {
-        //noinspection unchecked
-        T proto = (T) customPrototypes.get(type);
-        if (proto == null) {
-            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "], node likely missing plugins");
-        }
-        return proto;
-    }
-
-
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING =
         Setting.boolSetting("cluster.blocks.read_only", false, Property.Dynamic, Property.NodeScope);
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false,
+        false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+
+    public static final Setting<Boolean> SETTING_READ_ONLY_ALLOW_DELETE_SETTING =
+        Setting.boolSetting("cluster.blocks.read_only_allow_delete", false, Property.Dynamic, Property.NodeScope);
+
+    public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(13, "cluster read-only / allow delete (api)",
+        false, false, true, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
@@ -174,6 +139,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
 
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
+
+    private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
 
     private final String clusterUUID;
     private final long version;
@@ -279,7 +246,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
      *
      * @param aliases         The names of the index aliases to find
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
-     * @return the found index aliases grouped by index
+     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
+     * present for that index
      */
     public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
         assert aliases != null;
@@ -309,8 +277,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                         return o1.alias().compareTo(o2.alias());
                     }
                 });
-                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
+            mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
         }
         return mapBuilder.build();
     }
@@ -596,14 +564,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData1.customs) {
-            if (customPrototypes.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
+            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
                 if (!cursor.value.equals(metaData2.custom(cursor.key))) return false;
                 customCount1++;
             }
         }
         int customCount2 = 0;
-        for (ObjectObjectCursor<String, Custom> cursor : metaData2.customs) {
-            if (customPrototypes.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
+        for (ObjectCursor<Custom> cursor : metaData2.customs.values()) {
+            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
@@ -616,13 +584,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return new MetaDataDiff(previousState, this);
     }
 
-    @Override
-    public Diff<MetaData> readDiffFrom(StreamInput in) throws IOException {
+    public static Diff<MetaData> readDiffFrom(StreamInput in) throws IOException {
         return new MetaDataDiff(in);
     }
 
-    @Override
-    public MetaData fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static MetaData fromXContent(XContentParser parser) throws IOException {
         return Builder.fromXContent(parser);
     }
 
@@ -644,35 +610,26 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         private Diff<ImmutableOpenMap<String, IndexTemplateMetaData>> templates;
         private Diff<ImmutableOpenMap<String, Custom>> customs;
 
-        public MetaDataDiff(MetaData before, MetaData after) {
+        MetaDataDiff(MetaData before, MetaData after) {
             clusterUUID = after.clusterUUID;
             version = after.version;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
             indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
             templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
-            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
+            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
-        public MetaDataDiff(StreamInput in) throws IOException {
+        MetaDataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
             version = in.readLong();
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexMetaData.PROTO);
-            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexTemplateMetaData.PROTO);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                    new DiffableUtils.DiffableValueSerializer<String, Custom>() {
-                @Override
-                public Custom read(StreamInput in, String key) throws IOException {
-                    return lookupPrototypeSafe(key).readFrom(in);
-                }
-
-                @Override
-                public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                    return lookupPrototypeSafe(key).readDiffFrom(in);
-                }
-            });
+            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexMetaData::readFrom,
+                IndexMetaData::readDiffFrom);
+            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexTemplateMetaData::readFrom,
+                IndexTemplateMetaData::readDiffFrom);
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
         @Override
@@ -700,8 +657,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
     }
 
-    @Override
-    public MetaData readFrom(StreamInput in) throws IOException {
+    public static MetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
         builder.version = in.readLong();
         builder.clusterUUID = in.readString();
@@ -709,17 +665,16 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         builder.persistentSettings(readSettingsFromStream(in));
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            builder.put(IndexMetaData.Builder.readFrom(in), false);
+            builder.put(IndexMetaData.readFrom(in), false);
         }
         size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            builder.put(IndexTemplateMetaData.Builder.readFrom(in));
+            builder.put(IndexTemplateMetaData.readFrom(in));
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
+            Custom customIndexMetaData = in.readNamedWriteable(Custom.class);
+            builder.putCustom(customIndexMetaData.getWriteableName(), customIndexMetaData);
         }
         return builder.build();
     }
@@ -738,10 +693,18 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         for (ObjectCursor<IndexTemplateMetaData> cursor : templates.values()) {
             cursor.value.writeTo(out);
         }
-        out.writeVInt(customs.size());
-        for (ObjectObjectCursor<String, Custom> cursor : customs) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+        // filter out custom states not supported by the other node
+        int numberOfCustoms = 0;
+        for (ObjectCursor<Custom> cursor : customs.values()) {
+            if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
+                numberOfCustoms++;
+            }
+        }
+        out.writeVInt(numberOfCustoms);
+        for (ObjectCursor<Custom> cursor : customs.values()) {
+            if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
+                out.writeNamedWriteable(cursor.value);
+            }
         }
     }
 
@@ -751,80 +714,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     public static Builder builder(MetaData metaData) {
         return new Builder(metaData);
-    }
-
-    /** All known byte-sized cluster settings. */
-    public static final Set<String> CLUSTER_BYTES_SIZE_SETTINGS = unmodifiableSet(newHashSet(
-        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
-
-
-    /** All known time cluster settings. */
-    public static final Set<String> CLUSTER_TIME_SETTINGS = unmodifiableSet(newHashSet(
-                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(),
-                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(),
-                                    RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(),
-                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(),
-                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(),
-                                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(),
-                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(),
-                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(),
-                                    DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(),
-            ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.getKey()));
-
-    /** As of 2.0 we require units for time and byte-sized settings.  This methods adds default units to any cluster settings that don't
-     *  specify a unit. */
-    public static MetaData addDefaultUnitsIfNeeded(Logger logger, MetaData metaData) {
-        Settings.Builder newPersistentSettings = null;
-        for(Map.Entry<String,String> ent : metaData.persistentSettings().getAsMap().entrySet()) {
-            String settingName = ent.getKey();
-            String settingValue = ent.getValue();
-            if (CLUSTER_BYTES_SIZE_SETTINGS.contains(settingName)) {
-                try {
-                    Long.parseLong(settingValue);
-                } catch (NumberFormatException nfe) {
-                    continue;
-                }
-                // It's a naked number that previously would be interpreted as default unit (bytes); now we add it:
-                logger.warn("byte-sized cluster setting [{}] with value [{}] is missing units; assuming default units (b) but in future versions this will be a hard error", settingName, settingValue);
-                if (newPersistentSettings == null) {
-                    newPersistentSettings = Settings.builder();
-                    newPersistentSettings.put(metaData.persistentSettings());
-                }
-                newPersistentSettings.put(settingName, settingValue + "b");
-            }
-            if (CLUSTER_TIME_SETTINGS.contains(settingName)) {
-                try {
-                    Long.parseLong(settingValue);
-                } catch (NumberFormatException nfe) {
-                    continue;
-                }
-                // It's a naked number that previously would be interpreted as default unit (ms); now we add it:
-                logger.warn("time cluster setting [{}] with value [{}] is missing units; assuming default units (ms) but in future versions this will be a hard error", settingName, settingValue);
-                if (newPersistentSettings == null) {
-                    newPersistentSettings = Settings.builder();
-                    newPersistentSettings.put(metaData.persistentSettings());
-                }
-                newPersistentSettings.put(settingName, settingValue + "ms");
-            }
-        }
-
-        if (newPersistentSettings != null) {
-            return new MetaData(
-                    metaData.clusterUUID(),
-                    metaData.version(),
-                    metaData.transientSettings(),
-                    newPersistentSettings.build(),
-                    metaData.getIndices(),
-                    metaData.getTemplates(),
-                    metaData.getCustoms(),
-                    metaData.getConcreteAllIndices(),
-                    metaData.getConcreteAllOpenIndices(),
-                    metaData.getConcreteAllClosedIndices(),
-                    metaData.getAliasAndIndexLookup());
-        } else {
-            // No changes:
-            return metaData;
-        }
     }
 
     public static class Builder {
@@ -1027,55 +916,70 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             //    while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
-            // build all concrete indices arrays:
-            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
-            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
-            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            List<String> allIndicesLst = new ArrayList<>();
+            final Set<String> allIndices = new HashSet<>(indices.size());
+            final List<String> allOpenIndices = new ArrayList<>();
+            final List<String> allClosedIndices = new ArrayList<>();
+            final Set<String> duplicateAliasesIndices = new HashSet<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                allIndicesLst.add(cursor.value.getIndex().getName());
-            }
-            String[] allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
-
-            List<String> allOpenIndicesLst = new ArrayList<>();
-            List<String> allClosedIndicesLst = new ArrayList<>();
-            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                IndexMetaData indexMetaData = cursor.value;
+                final IndexMetaData indexMetaData = cursor.value;
+                final String name = indexMetaData.getIndex().getName();
+                boolean added = allIndices.add(name);
+                assert added : "double index named [" + name + "]";
                 if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
-                    allOpenIndicesLst.add(indexMetaData.getIndex().getName());
+                    allOpenIndices.add(indexMetaData.getIndex().getName());
                 } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                    allClosedIndicesLst.add(indexMetaData.getIndex().getName());
+                    allClosedIndices.add(indexMetaData.getIndex().getName());
                 }
+                indexMetaData.getAliases().keysIt().forEachRemaining(duplicateAliasesIndices::add);
             }
-            String[] allOpenIndices = allOpenIndicesLst.toArray(new String[allOpenIndicesLst.size()]);
-            String[] allClosedIndices = allClosedIndicesLst.toArray(new String[allClosedIndicesLst.size()]);
+            duplicateAliasesIndices.retainAll(allIndices);
+            if (duplicateAliasesIndices.isEmpty() == false) {
+                // iterate again and constructs a helpful message
+                ArrayList<String> duplicates = new ArrayList<>();
+                for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+                    for (String alias: duplicateAliasesIndices) {
+                        if (cursor.value.getAliases().containsKey(alias)) {
+                            duplicates.add(alias + " (alias of " + cursor.value.getIndex() + ")");
+                        }
+                    }
+                }
+                assert duplicates.size() > 0;
+                throw new IllegalStateException("index and alias names need to be unique, but the following duplicates were found ["
+                    + Strings.collectionToCommaDelimitedString(duplicates)+ "]");
+
+            }
 
             // build all indices map
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
+                AliasOrIndex existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
+                assert existing == null : "duplicate for " + indexMetaData.getIndex();
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
-                    AliasOrIndex aliasOrIndex = aliasAndIndexLookup.get(aliasMetaData.getAlias());
-                    if (aliasOrIndex == null) {
-                        aliasOrIndex = new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
-                        aliasAndIndexLookup.put(aliasMetaData.getAlias(), aliasOrIndex);
-                    } else if (aliasOrIndex instanceof AliasOrIndex.Alias) {
-                        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
-                        alias.addIndex(indexMetaData);
-                    } else if (aliasOrIndex instanceof AliasOrIndex.Index) {
-                        AliasOrIndex.Index index = (AliasOrIndex.Index) aliasOrIndex;
-                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index " + index.getIndex().getIndex() + " have the same name");
-                    } else {
-                        throw new IllegalStateException("unexpected alias [" + aliasMetaData.getAlias() + "][" + aliasOrIndex + "]");
-                    }
+                    aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
+                        if (alias == null) {
+                            return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
+                        } else {
+                            assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
+                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
+                            return alias;
+                        }
+                    });
                 }
             }
             aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);
+            // build all concrete indices arrays:
+            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
+            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
+            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
+            String[] allIndicesArray = allIndices.toArray(new String[allIndices.size()]);
+            String[] allOpenIndicesArray = allOpenIndices.toArray(new String[allOpenIndices.size()]);
+            String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
+
             return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
-                                customs.build(), allIndices, allOpenIndices, allClosedIndices, aliasAndIndexLookup);
+                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
@@ -1094,19 +998,15 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             builder.field("version", metaData.version());
             builder.field("cluster_uuid", metaData.clusterUUID);
 
-            if (!metaData.persistentSettings().getAsMap().isEmpty()) {
+            if (!metaData.persistentSettings().isEmpty()) {
                 builder.startObject("settings");
-                for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                metaData.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();
             }
 
-            if (context == XContentContext.API && !metaData.transientSettings().getAsMap().isEmpty()) {
+            if (context == XContentContext.API && !metaData.transientSettings().isEmpty()) {
                 builder.startObject("transient_settings");
-                for (Map.Entry<String, String> entry : metaData.transientSettings().getAsMap().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
+                metaData.transientSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();
             }
 
@@ -1125,8 +1025,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             }
 
             for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
-                Custom proto = lookupPrototypeSafe(cursor.key);
-                if (proto.context().contains(context)) {
+                if (cursor.value.context().contains(context)) {
                     builder.startObject(cursor.key);
                     cursor.value.toXContent(builder, params);
                     builder.endObject();
@@ -1167,7 +1066,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        builder.persistentSettings(Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build());
+                        builder.persistentSettings(Settings.fromXContent(parser));
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexMetaData.Builder.fromXContent(parser), false);
@@ -1177,14 +1076,12 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                             builder.put(IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName()));
                         }
                     } else {
-                        // check if its a custom index metadata
-                        Custom proto = lookupPrototype(currentFieldName);
-                        if (proto == null) {
-                            //TODO warn
+                        try {
+                            Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
+                            builder.putCustom(custom.getWriteableName(), custom);
+                        } catch (UnknownNamedObjectException ex) {
+                            logger.warn("Skipping unknown custom object with type {}", currentFieldName);
                             parser.skipChildren();
-                        } else {
-                            Custom custom = proto.fromXContent(parser);
-                            builder.putCustom(custom.type(), custom);
                         }
                     }
                 } else if (token.isValue()) {
@@ -1200,10 +1097,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                 }
             }
             return builder.build();
-        }
-
-        public static MetaData readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
         }
     }
 

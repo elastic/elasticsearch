@@ -22,12 +22,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Result of the {@link TermsAggregator} when the field is some kind of decimal number like a float, double, or distance.
@@ -38,7 +42,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     static class Bucket extends InternalTerms.Bucket<Bucket> {
         private final double term;
 
-        public Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
+        Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
                 DocValueFormat format) {
             super(docCount, aggregations, showDocCountError, docCountError, format);
             this.term = term;
@@ -47,7 +51,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         /**
          * Read from a stream.
          */
-        public Bucket(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException {
+        Bucket(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException {
             super(in, format, showDocCountError);
             term = in.readDouble();
         }
@@ -73,8 +77,8 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
-            return Double.compare(term, ((Number) other.getKey()).doubleValue());
+        public int compareKey(Bucket other) {
+            return Double.compare(term, other.term);
         }
 
         @Override
@@ -83,23 +87,26 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CommonFields.KEY, term);
+        protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, format.format(term));
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term));
             }
-            builder.field(CommonFields.DOC_COUNT, getDocCount());
-            if (showDocCountError) {
-                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
-            }
-            aggregations.toXContentInternal(builder, params);
-            builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj) && Objects.equals(term, ((Bucket) obj).term);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), term);
         }
     }
 
-    public DoubleTerms(String name, Terms.Order order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+    public DoubleTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
         super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format, shardSize, showTermDocCountError,
@@ -137,19 +144,35 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
-        builder.field(SUM_OF_OTHER_DOC_COUNTS, otherDocCount);
-        builder.startArray(CommonFields.BUCKETS);
-        for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
+    protected Bucket[] createBucketsArray(int size) {
+        return new Bucket[size];
     }
 
     @Override
-    protected Bucket[] createBucketsArray(int size) {
-        return new Bucket[size];
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        boolean promoteToDouble = false;
+        for (InternalAggregation agg : aggregations) {
+            if (agg instanceof LongTerms && ((LongTerms) agg).format == DocValueFormat.RAW) {
+                /*
+                 * this terms agg mixes longs and doubles, we must promote longs to doubles to make the internal aggs
+                 * compatible
+                 */
+                promoteToDouble = true;
+                break;
+            }
+        }
+        if (promoteToDouble == false) {
+            return super.doReduce(aggregations, reduceContext);
+        }
+        List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
+        for (InternalAggregation agg : aggregations) {
+            if (agg instanceof LongTerms) {
+                DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);
+                newAggs.add(dTerms);
+            } else {
+                newAggs.add(agg);
+            }
+        }
+        return newAggs.get(0).doReduce(newAggs, reduceContext);
     }
 }

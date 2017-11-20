@@ -1,0 +1,32 @@
+"Ingest common installed":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.modules.0.name: ingest-common  }
+    - match:  { nodes.$master.ingest.processors.0.type: append }
+    - match:  { nodes.$master.ingest.processors.1.type: convert }
+    - match:  { nodes.$master.ingest.processors.2.type: date }
+    - match:  { nodes.$master.ingest.processors.3.type: date_index_name }
+    - match:  { nodes.$master.ingest.processors.4.type: dot_expander }
+    - match:  { nodes.$master.ingest.processors.5.type: fail }
+    - match:  { nodes.$master.ingest.processors.6.type: foreach }
+    - match:  { nodes.$master.ingest.processors.7.type: grok }
+    - match:  { nodes.$master.ingest.processors.8.type: gsub }
+    - match:  { nodes.$master.ingest.processors.9.type: join }
+    - match:  { nodes.$master.ingest.processors.10.type: json }
+    - match:  { nodes.$master.ingest.processors.11.type: kv }
+    - match:  { nodes.$master.ingest.processors.12.type: lowercase }
+    - match:  { nodes.$master.ingest.processors.13.type: remove }
+    - match:  { nodes.$master.ingest.processors.14.type: rename }
+    - match:  { nodes.$master.ingest.processors.15.type: script }
+    - match:  { nodes.$master.ingest.processors.16.type: set }
+    - match:  { nodes.$master.ingest.processors.17.type: sort }
+    - match:  { nodes.$master.ingest.processors.18.type: split }
+    - match:  { nodes.$master.ingest.processors.19.type: trim }
+    - match:  { nodes.$master.ingest.processors.20.type: uppercase }

@@ -39,7 +39,7 @@ import java.io.OutputStream;
  */
 public class XContentFactory {
 
-    private static int GUESS_HEADER_LENGTH = 20;
+    private static final int GUESS_HEADER_LENGTH = 20;
 
     /**
      * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}.
@@ -141,7 +141,12 @@ public class XContentFactory {
 
     /**
      * Guesses the content type based on the provided char sequence.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContentType xContentType(CharSequence content) {
         int length = content.length() < GUESS_HEADER_LENGTH ? content.length() : GUESS_HEADER_LENGTH;
         if (length == 0) {
@@ -174,8 +179,13 @@ public class XContentFactory {
     }
 
     /**
-     * Guesses the content (type) based on the provided char sequence.
+     * Guesses the content (type) based on the provided char sequence and returns the corresponding {@link XContent}
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContent xContent(CharSequence content) {
         XContentType type = xContentType(content);
         if (type == null) {
@@ -185,15 +195,24 @@ public class XContentFactory {
     }
 
     /**
-     * Guesses the content type based on the provided bytes.
+     * Guesses the content type based on the provided bytes and returns the corresponding {@link XContent}
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContent xContent(byte[] data) {
         return xContent(data, 0, data.length);
     }
 
     /**
-     * Guesses the content type based on the provided bytes.
+     * Guesses the content type based on the provided bytes and returns the corresponding {@link XContent}
+     *
+     * @deprecated guessing the content type should not be needed ideally. We should rather know the content type upfront or read it
+     * from headers. Till we fixed the REST layer to read the Content-Type header, that should be the only place where guessing is needed.
      */
+    @Deprecated
     public static XContent xContent(byte[] data, int offset, int length) {
         XContentType type = xContentType(data, offset, length);
         if (type == null) {
@@ -204,14 +223,24 @@ public class XContentFactory {
 
     /**
      * Guesses the content type based on the provided bytes.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContentType xContentType(byte[] data) {
         return xContentType(data, 0, data.length);
     }
 
     /**
      * Guesses the content type based on the provided input stream without consuming it.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContentType xContentType(InputStream si) throws IOException {
         if (si.markSupported() == false) {
             throw new IllegalArgumentException("Cannot guess the xcontent type without mark/reset support on " + si.getClass());
@@ -228,11 +257,24 @@ public class XContentFactory {
 
     /**
      * Guesses the content type based on the provided bytes.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContentType xContentType(byte[] data, int offset, int length) {
         return xContentType(new BytesArray(data, offset, length));
     }
 
+    /**
+     * Guesses the content type based on the provided bytes and returns the corresponding {@link XContent}
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
     public static XContent xContent(BytesReference bytes) {
         XContentType type = xContentType(bytes);
         if (type == null) {
@@ -243,7 +285,12 @@ public class XContentFactory {
 
     /**
      * Guesses the content type based on the provided bytes.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
      */
+    @Deprecated
     public static XContentType xContentType(BytesReference bytes) {
         int length = bytes.length();
         if (length == 0) {

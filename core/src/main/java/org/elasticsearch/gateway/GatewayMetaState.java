@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
@@ -31,8 +31,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.IndexFolderUpgrader;
@@ -40,6 +40,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 
+import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,31 +51,28 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 
-public class GatewayMetaState extends AbstractComponent implements ClusterStateListener {
+public class GatewayMetaState extends AbstractComponent implements ClusterStateApplier {
 
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
-    private final DanglingIndicesState danglingIndicesState;
 
     @Nullable
     private volatile MetaData previousMetaData;
 
     private volatile Set<Index> previouslyWrittenIndices = emptySet();
 
-    @Inject
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                            DanglingIndicesState danglingIndicesState, TransportNodesListGatewayMetaState nodesListGatewayMetaState,
-                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
-        throws Exception {
+                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) throws IOException {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
-        this.danglingIndicesState = danglingIndicesState;
-        nodesListGatewayMetaState.init(this);
 
         if (DiscoveryNode.isDataNode(settings)) {
             ensureNoPre019ShardState(nodeEnv);
@@ -112,12 +110,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
     }
 
-    public MetaData loadMetaState() throws Exception {
+    public MetaData loadMetaState() throws IOException {
         return metaStateService.loadFullState();
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
 
         final ClusterState state = event.state();
         if (state.blocks().disableStatePersistence()) {
@@ -181,7 +179,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             }
         }
 
-        danglingIndicesState.processDanglingIndices(newMetaData);
         if (success) {
             previousMetaData = newMetaData;
             previouslyWrittenIndices = unmodifiableSet(relevantIndices);
@@ -208,7 +205,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     /**
      * Throws an IAE if a pre 0.19 state is detected
      */
-    private void ensureNoPre019State() throws Exception {
+    private void ensureNoPre019State() throws IOException {
         for (Path dataLocation : nodeEnv.nodeDataPaths()) {
             final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
             if (!Files.exists(stateLocation)) {
@@ -222,8 +219,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                     final String name = stateFile.getFileName().toString();
                     if (name.startsWith("metadata-")) {
                         throw new IllegalStateException("Detected pre 0.19 metadata file please upgrade to a version before "
-                                + Version.CURRENT.minimumCompatibilityVersion()
-                                + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
+                            + Version.CURRENT.minimumIndexCompatibilityVersion()
+                            + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
                     }
                 }
             }
@@ -240,7 +237,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      */
     static MetaData upgradeMetaData(MetaData metaData,
                                     MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                                    MetaDataUpgrader metaDataUpgrader) throws Exception {
+                                    MetaDataUpgrader metaDataUpgrader) throws IOException {
         // upgrade index meta data
         boolean changed = false;
         final MetaData.Builder upgradedMetaData = MetaData.builder(metaData);
@@ -250,32 +247,50 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             changed |= indexMetaData != newMetaData;
             upgradedMetaData.put(newMetaData, false);
         }
-        // collect current customs
-        Map<String, MetaData.Custom> existingCustoms = new HashMap<>();
-        for (ObjectObjectCursor<String, MetaData.Custom> customCursor : metaData.customs()) {
-            existingCustoms.put(customCursor.key, customCursor.value);
-        }
         // upgrade global custom meta data
-        Map<String, MetaData.Custom> upgradedCustoms = metaDataUpgrader.customMetaDataUpgraders.apply(existingCustoms);
-        if (upgradedCustoms.equals(existingCustoms) == false) {
-            existingCustoms.keySet().forEach(upgradedMetaData::removeCustom);
-            for (Map.Entry<String, MetaData.Custom> upgradedCustomEntry : upgradedCustoms.entrySet()) {
-                upgradedMetaData.putCustom(upgradedCustomEntry.getKey(), upgradedCustomEntry.getValue());
-            }
+        if (applyPluginUpgraders(metaData.getCustoms(), metaDataUpgrader.customMetaDataUpgraders,
+            upgradedMetaData::removeCustom,upgradedMetaData::putCustom)) {
+            changed = true;
+        }
+        // upgrade current templates
+        if (applyPluginUpgraders(metaData.getTemplates(), metaDataUpgrader.indexTemplateMetaDataUpgraders,
+            upgradedMetaData::removeTemplate, (s, indexTemplateMetaData) -> upgradedMetaData.put(indexTemplateMetaData))) {
             changed = true;
         }
         return changed ? upgradedMetaData.build() : metaData;
     }
 
+    private static <Data> boolean applyPluginUpgraders(ImmutableOpenMap<String, Data> existingData,
+                                                       UnaryOperator<Map<String, Data>> upgrader,
+                                                       Consumer<String> removeData,
+                                                       BiConsumer<String, Data> putData) {
+        // collect current data
+        Map<String, Data> existingMap = new HashMap<>();
+        for (ObjectObjectCursor<String, Data> customCursor : existingData) {
+            existingMap.put(customCursor.key, customCursor.value);
+        }
+        // upgrade global custom meta data
+        Map<String, Data> upgradedCustoms = upgrader.apply(existingMap);
+        if (upgradedCustoms.equals(existingMap) == false) {
+            // remove all data first so a plugin can remove custom metadata or templates if needed
+            existingMap.keySet().forEach(removeData);
+            for (Map.Entry<String, Data> upgradedCustomEntry : upgradedCustoms.entrySet()) {
+                putData.accept(upgradedCustomEntry.getKey(), upgradedCustomEntry.getValue());
+            }
+            return true;
+        }
+        return false;
+    }
+
     // shard state BWC
-    private void ensureNoPre019ShardState(NodeEnvironment nodeEnv) throws Exception {
+    private void ensureNoPre019ShardState(NodeEnvironment nodeEnv) throws IOException {
         for (Path dataLocation : nodeEnv.nodeDataPaths()) {
             final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
             if (Files.exists(stateLocation)) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
                     for (Path stateFile : stream) {
                         throw new IllegalStateException("Detected pre 0.19 shard state file please upgrade to a version before "
-                                + Version.CURRENT.minimumCompatibilityVersion()
+                                + Version.CURRENT.minimumIndexCompatibilityVersion()
                                 + " first to upgrade state structures - shard state found: [" + stateFile.getParent().toAbsolutePath());
                     }
                 }

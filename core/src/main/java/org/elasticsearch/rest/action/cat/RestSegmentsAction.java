@@ -30,7 +30,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestController;
@@ -45,12 +44,15 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestSegmentsAction extends AbstractCatAction {
-
-    @Inject
     public RestSegmentsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/segments", this);
         controller.registerHandler(GET, "/_cat/segments/{index}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "cat_segments_action";
     }
 
     @Override

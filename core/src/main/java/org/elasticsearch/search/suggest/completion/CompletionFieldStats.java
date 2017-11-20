@@ -20,13 +20,15 @@
 package org.elasticsearch.search.suggest.completion;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
-import org.apache.lucene.index.Fields;
+
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.regex.Regex;
 
 import java.io.IOException;
@@ -48,14 +50,13 @@ public class CompletionFieldStats {
         for (LeafReaderContext atomicReaderContext : indexReader.leaves()) {
             LeafReader atomicReader = atomicReaderContext.reader();
             try {
-                Fields fields = atomicReader.fields();
-                for (String fieldName : fields) {
-                    Terms terms = fields.terms(fieldName);
+                for (FieldInfo info : atomicReader.getFieldInfos()) {
+                    Terms terms = atomicReader.terms(info.name);
                     if (terms instanceof CompletionTerms) {
                         // TODO: currently we load up the suggester for reporting its size
                         long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
-                        if (fieldNamePatterns != null && fieldNamePatterns.length > 0 && Regex.simpleMatch(fieldNamePatterns, fieldName)) {
-                            completionFields.addTo(fieldName, fstSize);
+                        if (fieldNamePatterns != null && fieldNamePatterns.length > 0 && Regex.simpleMatch(fieldNamePatterns, info.name)) {
+                            completionFields.addTo(info.name, fstSize);
                         }
                         sizeInBytes += fstSize;
                     }
@@ -64,6 +65,6 @@ public class CompletionFieldStats {
                 throw new ElasticsearchException(ioe);
             }
         }
-        return new CompletionStats(sizeInBytes, completionFields);
+        return new CompletionStats(sizeInBytes, completionFields == null ? null : new FieldMemoryStats(completionFields));
     }
 }

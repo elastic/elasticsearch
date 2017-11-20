@@ -223,7 +223,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
             fromNode = new DiscoveryNode(in);
             indices = new IndexMetaData[in.readVInt()];
             for (int i = 0; i < indices.length; i++) {
-                indices[i] = IndexMetaData.Builder.readFrom(in);
+                indices[i] = IndexMetaData.readFrom(in);
             }
         }
 

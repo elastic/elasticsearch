@@ -24,7 +24,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -112,14 +111,14 @@ public class ElectMasterService extends AbstractComponent {
         return minimumMasterNodes;
     }
 
-    public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
+    public int countMasterNodes(Iterable<DiscoveryNode> nodes) {
         int count = 0;
         for (DiscoveryNode node : nodes) {
             if (node.isMasterNode()) {
                 count++;
             }
         }
-        return count > 0 && (minimumMasterNodes < 0 || count >= minimumMasterNodes);
+        return count;
     }
 
     public boolean hasEnoughCandidates(Collection<MasterCandidate> candidates) {
@@ -150,13 +149,13 @@ public class ElectMasterService extends AbstractComponent {
         return activeMasters.stream().min(ElectMasterService::compareNodes).get();
     }
 
+    public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
+        final int count = countMasterNodes(nodes);
+        return count > 0 && (minimumMasterNodes < 0 || count >= minimumMasterNodes);
+    }
+
     public boolean hasTooManyMasterNodes(Iterable<DiscoveryNode> nodes) {
-        int count = 0;
-        for (DiscoveryNode node : nodes) {
-            if (node.isMasterNode()) {
-                count++;
-            }
-        }
+        final int count = countMasterNodes(nodes);
         return count > 1 && minimumMasterNodes <= count / 2;
     }
 
@@ -174,7 +173,7 @@ public class ElectMasterService extends AbstractComponent {
      * Returns the given nodes sorted by likelihood of being elected as master, most likely first.
      * Non-master nodes are not removed but are rather put in the end
      */
-    public static List<DiscoveryNode> sortByMasterLikelihood(Iterable<DiscoveryNode> nodes) {
+    static List<DiscoveryNode> sortByMasterLikelihood(Iterable<DiscoveryNode> nodes) {
         ArrayList<DiscoveryNode> sortedNodes = CollectionUtils.iterableAsArrayList(nodes);
         CollectionUtil.introSort(sortedNodes, ElectMasterService::compareNodes);
         return sortedNodes;

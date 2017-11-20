@@ -1,0 +1,43 @@
+[[painless]]
+= Painless Scripting Language
+
+include::../Versions.asciidoc[]
+
+include::painless-getting-started.asciidoc[]
+
+// include::painless-examples.asciidoc[]
+
+// include::painless-design.asciidoc[]
+
+include::painless-lang-spec.asciidoc[]
+
+include::painless-syntax.asciidoc[]
+
+include::painless-api-reference.asciidoc[]
+
+////
+Proposed Outline (WIP)
+Getting Started with Painless
+  Accessing Doc Values
+  Updating Fields
+  Working with Dates
+  Using Regular Expressions
+  Debugging Painless Scripts
+
+Example Scripts
+  Using Painless in Script Fields
+  Using Painless in Watches
+  Using Painless in Function Score Queries
+  Using Painless in Script Queries
+  Using Painless When Updating Docs
+  Using Painless When Reindexing
+
+How Painless Works
+  Painless Architecture
+  Dispatching Functions
+
+Painless Language Specification
+Painless API
+////
+
+Painless API Reference

@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,7 +64,8 @@ public class MasterFaultDetection extends FaultDetection {
 
     }
 
-    private final ClusterService clusterService;
+    private final MasterService masterService;
+    private final java.util.function.Supplier<ClusterState> clusterStateSupplier;
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     private volatile MasterPinger masterPinger;
@@ -78,9 +79,11 @@ public class MasterFaultDetection extends FaultDetection {
     private final AtomicBoolean notifiedMasterFailure = new AtomicBoolean();
 
     public MasterFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                ClusterService clusterService) {
-        super(settings, threadPool, transportService, clusterService.getClusterName());
-        this.clusterService = clusterService;
+                                java.util.function.Supplier<ClusterState> clusterStateSupplier, MasterService masterService,
+                                ClusterName clusterName) {
+        super(settings, threadPool, transportService, clusterName);
+        this.clusterStateSupplier = clusterStateSupplier;
+        this.masterService = masterService;
 
         logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout,
             pingRetryCount);
@@ -111,28 +114,10 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    public void start(final DiscoveryNode masterNode, String reason) {
-        synchronized (masterNodeMutex) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("[master] starting fault detection against master [{}], reason [{}]", masterNode, reason);
-            }
-            innerStart(masterNode);
-        }
-    }
-
     private void innerStart(final DiscoveryNode masterNode) {
         this.masterNode = masterNode;
         this.retryCount = 0;
         this.notifiedMasterFailure.set(false);
-
-        // try and connect to make sure we are connected
-        try {
-            transportService.connectToNode(masterNode);
-        } catch (final Exception e) {
-            // notify master failure (which stops also) and bail..
-            notifyMasterFailure(masterNode, e, "failed to perform initial connect ");
-            return;
-        }
         if (masterPinger != null) {
             masterPinger.stop();
         }
@@ -233,7 +218,8 @@ public class MasterFaultDetection extends FaultDetection {
                 return;
             }
 
-            final MasterPingRequest request = new MasterPingRequest(clusterService.localNode(), masterToPing, clusterName);
+            final MasterPingRequest request = new MasterPingRequest(
+                clusterStateSupplier.get().nodes().getLocalNode(), masterToPing, clusterName);
             final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
                 .withTimeout(pingRetryTimeout).build();
             transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options,
@@ -341,7 +327,7 @@ public class MasterFaultDetection extends FaultDetection {
 
         @Override
         public void messageReceived(final MasterPingRequest request, final TransportChannel channel) throws Exception {
-            final DiscoveryNodes nodes = clusterService.state().nodes();
+            final DiscoveryNodes nodes = clusterStateSupplier.get().nodes();
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
             if (!request.masterNode.equals(nodes.getLocalNode())) {
@@ -366,7 +352,7 @@ public class MasterFaultDetection extends FaultDetection {
 
             if (!nodes.isLocalNodeElectedMaster() || !nodes.nodeExists(request.sourceNode)) {
                 logger.trace("checking ping from {} under a cluster state thread", request.sourceNode);
-                clusterService.submitStateUpdateTask("master ping (from: " + request.sourceNode + ")", new ClusterStateUpdateTask() {
+                masterService.submitStateUpdateTask("master ping (from: " + request.sourceNode + ")", new ClusterStateUpdateTask() {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {

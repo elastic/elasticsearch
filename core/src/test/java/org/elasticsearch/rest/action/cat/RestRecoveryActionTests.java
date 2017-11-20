@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,8 +51,9 @@ public class RestRecoveryActionTests extends ESTestCase {
 
     public void testRestRecoveryAction() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings, Collections.emptySet(), null);
-        final RestRecoveryAction action = new RestRecoveryAction(settings, restController, restController);
+        UsageService usageService = new UsageService(settings);
+        final RestController restController = new RestController(settings, Collections.emptySet(), null, null, null, usageService);
+        final RestRecoveryAction action = new RestRecoveryAction(settings, restController);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;
@@ -69,11 +71,11 @@ public class RestRecoveryActionTests extends ESTestCase {
             when(state.getStage()).thenReturn(randomFrom(RecoveryState.Stage.values()));
             final DiscoveryNode sourceNode = randomBoolean() ? mock(DiscoveryNode.class) : null;
             if (sourceNode != null) {
-                when(sourceNode.getHostName()).thenReturn(randomAsciiOfLength(8));
+                when(sourceNode.getHostName()).thenReturn(randomAlphaOfLength(8));
             }
             when(state.getSourceNode()).thenReturn(sourceNode);
             final DiscoveryNode targetNode = mock(DiscoveryNode.class);
-            when(targetNode.getHostName()).thenReturn(randomAsciiOfLength(8));
+            when(targetNode.getHostName()).thenReturn(randomAlphaOfLength(8));
             when(state.getTargetNode()).thenReturn(targetNode);
 
             RecoveryState.Index index = mock(RecoveryState.Index.class);

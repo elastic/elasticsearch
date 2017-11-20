@@ -20,7 +20,9 @@
 package org.elasticsearch.common.io;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -34,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Simple utility methods for file and stream copying.
@@ -219,21 +222,68 @@ public abstract class Streams {
 
     public static List<String> readAllLines(InputStream input) throws IOException {
         final List<String> lines = new ArrayList<>();
-        readAllLines(input, new Callback<String>() {
-            @Override
-            public void handle(String line) {
-                lines.add(line);
-            }
-        });
+        readAllLines(input, lines::add);
         return lines;
     }
 
-    public static void readAllLines(InputStream input, Callback<String> callback) throws IOException {
+    public static void readAllLines(InputStream input, Consumer<String> consumer) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                callback.handle(line);
+                consumer.accept(line);
             }
+        }
+    }
+
+    /**
+     * Wraps the given {@link BytesStream} in a {@link StreamOutput} that simply flushes when
+     * close is called.
+     */
+    public static BytesStream flushOnCloseStream(BytesStream os) {
+        return new FlushOnCloseOutputStream(os);
+    }
+
+    /**
+     * A wrapper around a {@link BytesStream} that makes the close operation a flush. This is
+     * needed as sometimes a stream will be closed but the bytes that the stream holds still need
+     * to be used and the stream cannot be closed until the bytes have been consumed.
+     */
+    private static class FlushOnCloseOutputStream extends BytesStream {
+
+        private final BytesStream delegate;
+
+        private FlushOnCloseOutputStream(BytesStream bytesStreamOutput) {
+            this.delegate = bytesStreamOutput;
+        }
+
+        @Override
+        public void writeByte(byte b) throws IOException {
+            delegate.writeByte(b);
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) throws IOException {
+            delegate.writeBytes(b, offset, length);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            flush();
+        }
+
+        @Override
+        public void reset() throws IOException {
+            delegate.reset();
+        }
+
+        @Override
+        public BytesReference bytes() {
+            return delegate.bytes();
         }
     }
 }

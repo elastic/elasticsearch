@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -82,7 +82,7 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public AggregationContext context() {
+        public SearchContext context() {
             return in.context();
         }
 

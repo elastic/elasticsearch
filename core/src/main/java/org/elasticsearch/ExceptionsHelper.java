@@ -214,7 +214,7 @@ public final class ExceptionsHelper {
         final String index;
         final Class<? extends Throwable> causeType;
 
-        public GroupBy(Throwable t) {
+        GroupBy(Throwable t) {
             if (t instanceof ElasticsearchException) {
                 final Index index = ((ElasticsearchException) t).getIndex();
                 if (index != null) {

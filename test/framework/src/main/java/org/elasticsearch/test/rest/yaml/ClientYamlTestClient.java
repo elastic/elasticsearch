@@ -19,20 +19,20 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -40,13 +40,12 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Used by {@link ESClientYamlSuiteTestCase} to execute REST requests according to the tests written in yaml suite files. Wraps a
@@ -55,11 +54,11 @@ import java.util.Set;
  */
 public class ClientYamlTestClient {
     private static final Logger logger = Loggers.getLogger(ClientYamlTestClient.class);
-    //query_string params that don't need to be declared in the spec, they are supported by default
-    private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet("pretty", "source", "filter_path");
+
+    private static final ContentType YAML_CONTENT_TYPE = ContentType.create("application/yaml");
 
     private final ClientYamlSuiteRestSpec restSpec;
-    private final RestClient restClient;
+    protected final RestClient restClient;
     private final Version esVersion;
 
     public ClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts,
@@ -77,79 +76,60 @@ public class ClientYamlTestClient {
     /**
      * Calls an api with the provided parameters and body
      */
-    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, String body, Map<String, String> headers)
+    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity, Map<String, String> headers)
             throws IOException {
-
-        if ("raw".equals(apiName)) {
-            // Raw requests are bit simpler....
-            Map<String, String> queryStringParams = new HashMap<>(params);
-            String method = Objects.requireNonNull(queryStringParams.remove("method"), "Method must be set to use raw request");
-            String path = "/"+ Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
-            HttpEntity entity = null;
-            if (body != null && body.length() > 0) {
-                entity = new StringEntity(body, ContentType.APPLICATION_JSON);
-            }
-            // And everything else is a url parameter!
-            try {
-                Response response = restClient.performRequest(method, path, queryStringParams, entity);
-                return new ClientYamlTestResponse(response);
-            } catch(ResponseException e) {
-                throw new ClientYamlTestResponseException(e);
-            }
-        }
-
-        List<Integer> ignores = new ArrayList<>();
-        Map<String, String> requestParams;
-        if (params == null) {
-            requestParams = Collections.emptyMap();
-        } else {
-            requestParams = new HashMap<>(params);
-            if (params.isEmpty() == false) {
-                //ignore is a special parameter supported by the clients, shouldn't be sent to es
-                String ignoreString = requestParams.remove("ignore");
-                if (ignoreString != null) {
-                    try {
-                        ignores.add(Integer.valueOf(ignoreString));
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead");
-                    }
-                }
-            }
-        }
 
         ClientYamlSuiteRestApi restApi = restApi(apiName);
 
         //divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = new HashMap<>();
         Map<String, String> queryStringParams = new HashMap<>();
-        for (Map.Entry<String, String> entry : requestParams.entrySet()) {
-            if (restApi.getPathParts().contains(entry.getKey())) {
+
+        Set<String> apiRequiredPathParts = restApi.getPathParts().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
+                .collect(Collectors.toSet());
+        Set<String> apiRequiredParameters = restApi.getParams().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
+                .collect(Collectors.toSet());
+
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if (restApi.getPathParts().containsKey(entry.getKey())) {
                 pathParts.put(entry.getKey(), entry.getValue());
+                apiRequiredPathParts.remove(entry.getKey());
+            } else if (restApi.getParams().containsKey(entry.getKey())
+                    || restSpec.isGlobalParameter(entry.getKey())
+                    || restSpec.isClientParameter(entry.getKey())) {
+                queryStringParams.put(entry.getKey(), entry.getValue());
+                apiRequiredParameters.remove(entry.getKey());
             } else {
-                if (restApi.getParams().contains(entry.getKey()) || ALWAYS_ACCEPTED_QUERY_STRING_PARAMS.contains(entry.getKey())) {
-                    queryStringParams.put(entry.getKey(), entry.getValue());
-                } else {
-                    throw new IllegalArgumentException("param [" + entry.getKey() + "] not supported in ["
-                            + restApi.getName() + "] " + "api");
-                }
+                throw new IllegalArgumentException(
+                        "path/param [" + entry.getKey() + "] not supported by [" + restApi.getName() + "] " + "api");
             }
+        }
+
+        if (false == apiRequiredPathParts.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "missing required path part: " + apiRequiredPathParts + " by [" + restApi.getName() + "] api");
+        }
+        if (false == apiRequiredParameters.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "missing required parameter: " + apiRequiredParameters + " by [" + restApi.getName() + "] api");
         }
 
         List<String> supportedMethods = restApi.getSupportedMethods(pathParts.keySet());
         String requestMethod;
-        StringEntity requestBody = null;
-        if (Strings.hasLength(body)) {
-            if (!restApi.isBodySupported()) {
+        if (entity != null) {
+            if (false == restApi.isBodySupported()) {
                 throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
             }
+            String contentType = entity.getContentType().getValue();
             //randomly test the GET with source param instead of GET/POST with body
-            if (supportedMethods.contains("GET") && RandomizedTest.rarely()) {
+            if (sendBodyAsSourceParam(supportedMethods, contentType)) {
                 logger.debug("sending the request body as source param with GET method");
-                queryStringParams.put("source", body);
-                requestMethod = "GET";
+                queryStringParams.put("source", EntityUtils.toString(entity));
+                queryStringParams.put("source_content_type", contentType);
+                requestMethod = HttpGet.METHOD_NAME;
+                entity = null;
             } else {
                 requestMethod = RandomizedTest.randomFrom(supportedMethods);
-                requestBody = new StringEntity(body, ContentType.APPLICATION_JSON);
             }
         } else {
             if (restApi.isBodyRequired()) {
@@ -185,20 +165,27 @@ public class ClientYamlTestClient {
         Header[] requestHeaders = new Header[headers.size()];
         int index = 0;
         for (Map.Entry<String, String> header : headers.entrySet()) {
-            logger.info("Adding header {}\n with value {}", header.getKey(), header.getValue());
+            logger.info("Adding header {} with value {}", header.getKey(), header.getValue());
             requestHeaders[index++] = new BasicHeader(header.getKey(), header.getValue());
         }
 
         logger.debug("calling api [{}]", apiName);
         try {
-            Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, requestBody, requestHeaders);
+            Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, entity, requestHeaders);
             return new ClientYamlTestResponse(response);
         } catch(ResponseException e) {
-            if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
-                return new ClientYamlTestResponse(e.getResponse());
-            }
             throw new ClientYamlTestResponseException(e);
         }
+    }
+
+    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType) {
+        if (supportedMethods.contains(HttpGet.METHOD_NAME)) {
+            if (contentType.startsWith(ContentType.APPLICATION_JSON.getMimeType()) ||
+                    contentType.startsWith(YAML_CONTENT_TYPE.getMimeType())) {
+                return RandomizedTest.rarely();
+            }
+        }
+        return false;
     }
 
     private ClientYamlSuiteRestApi restApi(String apiName) {

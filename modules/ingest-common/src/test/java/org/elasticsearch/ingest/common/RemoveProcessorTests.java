@@ -25,6 +25,7 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.HashMap;
 
 import static org.hamcrest.Matchers.containsString;
@@ -35,7 +36,8 @@ public class RemoveProcessorTests extends ESTestCase {
     public void testRemoveFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String field = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-        Processor processor = new RemoveProcessor(randomAsciiOfLength(10), new TestTemplateService.MockTemplate(field));
+        Processor processor = new RemoveProcessor(randomAlphaOfLength(10),
+            Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)));
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(field), equalTo(false));
     }
@@ -43,7 +45,8 @@ public class RemoveProcessorTests extends ESTestCase {
     public void testRemoveNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new RemoveProcessor(randomAsciiOfLength(10), new TestTemplateService.MockTemplate(fieldName));
+        Processor processor = new RemoveProcessor(randomAlphaOfLength(10),
+            Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(fieldName)));
         try {
             processor.execute(ingestDocument);
             fail("remove field should have failed");

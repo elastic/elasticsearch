@@ -23,14 +23,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.ClusterServiceState;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * This class provides primitives for waiting for a configured number of shards
@@ -50,13 +51,13 @@ public class ActiveShardsObserver extends AbstractComponent {
     /**
      * Waits on the specified number of active shards to be started before executing the
      *
-     * @param indexName the index to wait for active shards on
+     * @param indexNames the indices to wait for active shards on
      * @param activeShardCount the number of active shards to wait on before returning
      * @param timeout the timeout value
      * @param onResult a function that is executed in response to the requisite shards becoming active or a timeout (whichever comes first)
      * @param onFailure a function that is executed in response to an error occurring during waiting for the active shards
      */
-    public void waitForActiveShards(final String indexName,
+    public void waitForActiveShards(final String[] indexNames,
                                     final ActiveShardCount activeShardCount,
                                     final TimeValue timeout,
                                     final Consumer<Boolean> onResult,
@@ -69,17 +70,12 @@ public class ActiveShardsObserver extends AbstractComponent {
             return;
         }
 
-        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
-        if (activeShardCount.enoughShardsActive(observer.observedState().getClusterState(), indexName)) {
-                onResult.accept(true);
+        final ClusterState state = clusterService.state();
+        final ClusterStateObserver observer = new ClusterStateObserver(state, clusterService, null, logger, threadPool.getThreadContext());
+        if (activeShardCount.enoughShardsActive(state, indexNames)) {
+            onResult.accept(true);
         } else {
-            final ClusterStateObserver.ChangePredicate shardsAllocatedPredicate =
-                new ClusterStateObserver.ValidationPredicate() {
-                    @Override
-                    protected boolean validate(final ClusterServiceState newState) {
-                        return activeShardCount.enoughShardsActive(newState.getClusterState(), indexName);
-                    }
-                };
+            final Predicate<ClusterState> shardsAllocatedPredicate = newState -> activeShardCount.enoughShardsActive(newState, indexNames);
 
             final ClusterStateObserver.Listener observerListener = new ClusterStateObserver.Listener() {
                 @Override
@@ -89,7 +85,7 @@ public class ActiveShardsObserver extends AbstractComponent {
 
                 @Override
                 public void onClusterServiceClose() {
-                    logger.debug("[{}] cluster service closed while waiting for enough shards to be started.", indexName);
+                    logger.debug("[{}] cluster service closed while waiting for enough shards to be started.", Arrays.toString(indexNames));
                     onFailure.accept(new NodeClosedException(clusterService.localNode()));
                 }
 

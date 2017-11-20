@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -78,7 +79,7 @@ public class ThreadPoolStatsTests extends ESTestCase {
                 builder.endObject();
             }
 
-            try (XContentParser parser = XContentType.JSON.xContent().createParser(os.bytes())) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, os.bytes())) {
                 XContentParser.Token token = parser.currentToken();
                 assertNull(token);
 

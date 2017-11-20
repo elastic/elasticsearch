@@ -6,36 +6,78 @@ is built with. Allows to be used to provide more information on the
 state of a shard and an index, possibly optimization information, data
 "wasted" on deletes, and so on.
 
-Endpoints include segments for a specific index, several indices, or
-all:
+Endpoints include segments for a specific index:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/test/_segments'
-curl -XGET 'http://localhost:9200/test1,test2/_segments'
-curl -XGET 'http://localhost:9200/_segments'
+GET /test/_segments
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/test\?refresh\n{"test": "test"}\n/]
+// TESTSETUP
+
+For several indices:
+
+[source,js]
+--------------------------------------------------
+GET /test1,test2/_segments
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\nPUT test2\n/]
+
+Or for all indices:
+
+[source,js]
+--------------------------------------------------
+GET /_segments
+--------------------------------------------------
+// CONSOLE
 
 Response:
 
 [source,js]
 --------------------------------------------------
 {
-    ...
-        "_3": {
-            "generation": 3,
-            "num_docs": 1121,
-            "deleted_docs": 53,
-            "size_in_bytes": 228288,
-            "memory_in_bytes": 3211,
-            "committed": true,
-            "search": true,
-            "version": "4.6",
-            "compound": true
-        }
-    ...
+  "_shards": ...
+  "indices": {
+    "test": {
+      "shards": {
+        "0": [
+          {
+            "routing": {
+              "state": "STARTED",
+              "primary": true,
+              "node": "zDC_RorJQCao9xf9pg3Fvw"
+            },
+            "num_committed_segments": 0,
+            "num_search_segments": 1,
+            "segments": {
+              "_0": {
+                "generation": 0,
+                "num_docs": 1,
+                "deleted_docs": 0,
+                "size_in_bytes": 3800,
+                "memory_in_bytes": 1410,
+                "committed": false,
+                "search": true,
+                "version": "7.0.0",
+                "compound": true,
+                "attributes": {
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards,/]
+// TESTRESPONSE[s/"node": "zDC_RorJQCao9xf9pg3Fvw"/"node": $body.$_path/]
+// TESTRESPONSE[s/"attributes": \{[^}]*\}/"attributes": $body.$_path/]
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/7\.0\.0/$body.$_path/]
 
 _0::         The key of the JSON document is the name of the segment. This name
              is used to generate file names: all files starting with this
@@ -74,17 +116,20 @@ compound::   Whether the segment is stored in a compound file. When true, this
              means that Lucene merged all files from the segment in a single
              one in order to save file descriptors.
 
+attributes:: Contains information about whether high compression was enabled
+
 [float]
 === Verbose mode
 
 To add additional information that can be used for debugging, use the `verbose` flag.
 
-experimental[The format of the additional verbose information is experimental and can change at any time]
+NOTE: The format of the additional detail information is labelled as experimental in Lucene and it may change in the future.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/test/_segments?verbose=true'
+GET /test/_segments?verbose=true
 --------------------------------------------------
+// CONSOLE
 
 Response:
 
@@ -92,7 +137,7 @@ Response:
 --------------------------------------------------
 {
     ...
-        "_3": {
+        "_0": {
             ...
             "ram_tree": [
                 {
@@ -114,3 +159,5 @@ Response:
     ...
 }
 --------------------------------------------------
+// NOTCONSOLE
+//Response is too verbose to be fully shown in documentation, so we just show the relevant bit and don't test the response.

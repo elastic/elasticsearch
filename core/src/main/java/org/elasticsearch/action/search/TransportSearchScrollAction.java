@@ -45,8 +45,8 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                                        ClusterService clusterService, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver,
                                        SearchTransportService searchTransportService, SearchPhaseController searchPhaseController) {
-        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                SearchScrollRequest::new);
+        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, SearchScrollRequest::new,
+            indexNameExpressionResolver);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;
@@ -60,20 +60,20 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
-            AbstractAsyncAction action;
+            Runnable action;
             switch (scrollId.getType()) {
                 case QUERY_THEN_FETCH_TYPE:
                     action = new SearchScrollQueryThenFetchAsyncAction(logger, clusterService, searchTransportService,
                         searchPhaseController, request, (SearchTask)task, scrollId, listener);
                     break;
-                case QUERY_AND_FETCH_TYPE:
+                case QUERY_AND_FETCH_TYPE: // TODO can we get rid of this?
                     action = new SearchScrollQueryAndFetchAsyncAction(logger, clusterService, searchTransportService,
                         searchPhaseController, request, (SearchTask)task, scrollId, listener);
                     break;
                 default:
                     throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             }
-            action.start();
+            action.run();
         } catch (Exception e) {
             listener.onFailure(e);
         }

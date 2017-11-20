@@ -31,8 +31,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +46,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray sums;
     DocValueFormat format;
 
-    public AvgAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, AggregationContext context,
+    public AvgAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
@@ -77,14 +77,15 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
                 counts = bigArrays.grow(counts, bucket + 1);
                 sums = bigArrays.grow(sums, bucket + 1);
 
-                values.setDocument(doc);
-                final int valueCount = values.count();
-                counts.increment(bucket, valueCount);
-                double sum = 0;
-                for (int i = 0; i < valueCount; i++) {
-                    sum += values.valueAt(i);
+                if (values.advanceExact(doc)) {
+                    final int valueCount = values.docValueCount();
+                    counts.increment(bucket, valueCount);
+                    double sum = 0;
+                    for (int i = 0; i < valueCount; i++) {
+                        sum += values.nextValue();
+                    }
+                    sums.increment(bucket, sum);
                 }
-                sums.increment(bucket, sum);
             }
         };
     }

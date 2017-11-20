@@ -24,7 +24,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
@@ -51,12 +50,12 @@ public class IndexTests extends ESTestCase {
     }
 
     public void testXContent() throws IOException {
-        final String name = randomAsciiOfLengthBetween(4, 15);
+        final String name = randomAlphaOfLengthBetween(4, 15);
         final String uuid = UUIDs.randomBase64UUID();
         final Index original = new Index(name, uuid);
         final XContentBuilder builder = JsonXContent.contentBuilder();
         original.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         parser.nextToken(); // the beginning of the parser
         assertThat(Index.fromXContent(parser), equalTo(original));
     }

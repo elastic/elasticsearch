@@ -12,43 +12,32 @@ Here is an example on how to create the aggregation request:
 [source,java]
 --------------------------------------------------
 ScriptedMetricAggregationBuilder aggregation = AggregationBuilders
-        .scriptedMetric("agg")
-        .initScript(new Script("_agg['heights'] = []"))
-        .mapScript(new Script("if (doc['gender'].value == \"male\") " +
-                "{ _agg.heights.add(doc['height'].value) } " +
-                "else " +
-                "{ _agg.heights.add(-1 * doc['height'].value) }"));
+    .scriptedMetric("agg")
+    .initScript(new Script("params._agg.heights = []"))
+    .mapScript(new Script("params._agg.heights.add(doc.gender.value == 'male' ? doc.height.value : -1.0 * doc.height.value)"));
 --------------------------------------------------
 
 You can also specify a `combine` script which will be executed on each shard:
 
 [source,java]
 --------------------------------------------------
-ScriptedMetricAggregationBuilder aggregation =
-        AggregationBuilders
-                .scriptedMetric("agg")
-                .initScript(new Script("_agg['heights'] = []"))
-                .mapScript(new Script("if (doc['gender'].value == \"male\") " +
-                        "{ _agg.heights.add(doc['height'].value) } " +
-                        "else " +
-                        "{ _agg.heights.add(-1 * doc['height'].value) }"))
-                .combineScript(new Script("heights_sum = 0; for (t in _agg.heights) { heights_sum += t }; return heights_sum"));
+ScriptedMetricAggregationBuilder aggregation = AggregationBuilders
+    .scriptedMetric("agg")
+    .initScript(new Script("params._agg.heights = []"))
+    .mapScript(new Script("params._agg.heights.add(doc.gender.value == 'male' ? doc.height.value : -1.0 * doc.height.value)"))
+    .combineScript(new Script("double heights_sum = 0.0; for (t in params._agg.heights) { heights_sum += t } return heights_sum"));
 --------------------------------------------------
 
 You can also specify a `reduce` script which will be executed on the node which gets the request:
 
 [source,java]
 --------------------------------------------------
-ScriptedMetricAggregationBuilder aggregation =
-        AggregationBuilders
-                .scriptedMetric("agg")
-                .initScript(new Script("_agg['heights'] = []"))
-                .mapScript(new Script("if (doc['gender'].value == \"male\") " +
-                        "{ _agg.heights.add(doc['height'].value) } " +
-                        "else " +
-                        "{ _agg.heights.add(-1 * doc['height'].value) }"))
-                .combineScript(new Script("heights_sum = 0; for (t in _agg.heights) { heights_sum += t }; return heights_sum"))
-                .reduceScript(new Script("heights_sum = 0; for (a in _aggs) { heights_sum += a }; return heights_sum"));
+ScriptedMetricAggregationBuilder aggregation = AggregationBuilders
+    .scriptedMetric("agg")
+    .initScript(new Script("params._agg.heights = []"))
+    .mapScript(new Script("params._agg.heights.add(doc.gender.value == 'male' ? doc.height.value : -1.0 * doc.height.value)"))
+    .combineScript(new Script("double heights_sum = 0.0; for (t in params._agg.heights) { heights_sum += t } return heights_sum"))
+    .reduceScript(new Script("double heights_sum = 0.0; for (a in params._aggs) { heights_sum += a } return heights_sum"));
 --------------------------------------------------
 
 

@@ -1,0 +1,39 @@
+## Smoke tests for analyzers included in the analysis-common module
+
+"whitespace":
+    - do:
+        indices.analyze:
+          body:
+            text:     Foo Bar!
+            analyzer: whitespace
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: Foo }
+    - match:  { tokens.1.token: Bar! }
+
+    - do:
+        indices.analyze:
+          body:
+            text:     Foo Bar!
+            explain:  true
+            analyzer: whitespace
+    - match:  { detail.custom_analyzer: false }
+    - match:  { detail.analyzer.name: whitespace }
+    - length: { detail.analyzer.tokens: 2 }
+    - match:  { detail.analyzer.tokens.0.token: Foo }
+    - match:  { detail.analyzer.tokens.0.start_offset: 0 }
+    - match:  { detail.analyzer.tokens.0.end_offset: 3 }
+    - match:  { detail.analyzer.tokens.0.position: 0 }
+    - match:  { detail.analyzer.tokens.1.token: Bar! }
+    - match:  { detail.analyzer.tokens.1.start_offset: 4 }
+    - match:  { detail.analyzer.tokens.1.end_offset: 8 }
+    - match:  { detail.analyzer.tokens.1.position: 1 }
+
+---
+"bengali":
+    - do:
+        indices.analyze:
+          body:
+            text:     বাড়ী
+            analyzer: bengali
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: বার }

@@ -20,6 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
@@ -59,11 +61,11 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     private static WildcardQueryBuilder randomWildcardQuery() {
         // mapped or unmapped field
-        String text = randomAsciiOfLengthBetween(1, 10);
+        String text = randomAlphaOfLengthBetween(1, 10);
         if (randomBoolean()) {
             return new WildcardQueryBuilder(STRING_FIELD_NAME, text);
         } else {
-            return new WildcardQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
+            return new WildcardQueryBuilder(randomAlphaOfLengthBetween(1, 10), text);
         }
     }
 
@@ -89,7 +91,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     public void testEmptyValue() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(getRandomType(), "");
+        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder("doc", "");
         assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), WildcardQuery.class);
     }
 
@@ -129,11 +131,27 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     public void testWithMetaDataField() throws IOException {
         QueryShardContext context = createShardContext();
-        for (String field : new String[]{"_type", "_all"}) {
+        for (String field : new String[]{"field1", "field2"}) {
             WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(field, "toto");
             Query query = wildcardQueryBuilder.toQuery(context);
             Query expected = new WildcardQuery(new Term(field, "toto"));
             assertEquals(expected, query);
         }
+    }
+    
+    public void testIndexWildcard() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        QueryShardContext context = createShardContext();
+        String index = context.getFullyQualifiedIndexName();
+        
+        Query query = new WildcardQueryBuilder("_index", index).doToQuery(context);
+        assertThat(query instanceof MatchAllDocsQuery, equalTo(true));
+        
+        query = new WildcardQueryBuilder("_index", index + "*").doToQuery(context);
+        assertThat(query instanceof MatchAllDocsQuery, equalTo(true));
+        
+        query = new WildcardQueryBuilder("_index", "index_" + index + "*").doToQuery(context);
+        assertThat(query instanceof MatchNoDocsQuery, equalTo(true));
     }
 }

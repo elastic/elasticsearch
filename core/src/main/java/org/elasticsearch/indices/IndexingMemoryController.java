@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -30,12 +31,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.Closeable;
@@ -151,8 +152,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     protected List<IndexShard> availableShards() {
         List<IndexShard> availableShards = new ArrayList<>();
         for (IndexShard shard : indexShards) {
-            // shadow replica doesn't have an indexing buffer
-            if (shard.canIndex() && CAN_WRITE_INDEX_BUFFER_STATES.contains(shard.state())) {
+            if (CAN_WRITE_INDEX_BUFFER_STATES.contains(shard.state())) {
                 availableShards.add(shard);
             }
         }
@@ -200,12 +200,12 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     }
 
     @Override
-    public void postIndex(Engine.Index index, Engine.IndexResult result) {
+    public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
         recordOperationBytes(index, result);
     }
 
     @Override
-    public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
+    public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
         recordOperationBytes(delete, result);
     }
 
@@ -220,7 +220,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         final long bytesUsed;
         final IndexShard shard;
 
-        public ShardAndBytesUsed(long bytesUsed, IndexShard shard) {
+        ShardAndBytesUsed(long bytesUsed, IndexShard shard) {
             this.bytesUsed = bytesUsed;
             this.shard = shard;
         }
@@ -383,7 +383,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     protected void checkIdle(IndexShard shard, long inactiveTimeNS) {
         try {
             shard.checkIdle(inactiveTimeNS);
-        } catch (EngineClosedException e) {
+        } catch (AlreadyClosedException e) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
         }
     }

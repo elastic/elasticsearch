@@ -21,9 +21,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SleepingLockWrapper;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -39,33 +37,6 @@ import java.util.Arrays;
 
 public class FsDirectoryServiceTests extends ESTestCase {
 
-    public void testHasSleepWrapperOnSharedFS() throws IOException {
-        Settings build = randomBoolean() ?
-            Settings.builder().put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true).build() :
-            Settings.builder().put(IndexMetaData.SETTING_SHADOW_REPLICAS, true).build();;
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("foo", build);
-        IndexStore store = new IndexStore(settings);
-        Path tempDir = createTempDir().resolve(settings.getUUID()).resolve("0");
-        Files.createDirectories(tempDir);
-        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(settings.getIndex(), 0));
-        FsDirectoryService fsDirectoryService = new FsDirectoryService(settings, store, path);
-        Directory directory = fsDirectoryService.newDirectory();
-        assertTrue(directory.getClass().toString(), directory instanceof SleepingLockWrapper);
-    }
-
-    public void testHasNoSleepWrapperOnNormalFS() throws IOException {
-        Settings build = Settings.builder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "simplefs").build();
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("foo", build);
-        IndexStore store = new IndexStore(settings);
-        Path tempDir = createTempDir().resolve(settings.getUUID()).resolve("0");
-        Files.createDirectories(tempDir);
-        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(settings.getIndex(), 0));
-        FsDirectoryService fsDirectoryService = new FsDirectoryService(settings, store, path);
-        Directory directory = fsDirectoryService.newDirectory();
-        assertFalse(directory instanceof SleepingLockWrapper);
-        assertTrue(directory instanceof SimpleFSDirectory);
-    }
-
     public void testPreload() throws IOException {
         doTestPreload();
         doTestPreload("nvd", "dvd", "tim");
@@ -75,7 +46,7 @@ public class FsDirectoryServiceTests extends ESTestCase {
     private void doTestPreload(String...preload) throws IOException {
         Settings build = Settings.builder()
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mmapfs")
-                .putArray(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
+                .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
                 .build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("foo", build);
         IndexStore store = new IndexStore(settings);

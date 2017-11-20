@@ -20,25 +20,26 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RandomAccessWeight;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
@@ -84,8 +85,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         builder.endObject();
     }
 
-    public static Optional<ScriptQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static ScriptQueryBuilder fromXContent(XContentParser parser) throws IOException {
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         Script script = null;
 
@@ -97,21 +97,19 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
+                if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
+                    script = Script.parse(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
+                } else if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
+                    script = Script.parse(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
@@ -122,30 +120,32 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             throw new ParsingException(parser.getTokenLocation(), "script must be provided with a [script] filter");
         }
 
-        return Optional.of(new ScriptQueryBuilder(script)
+        return new ScriptQueryBuilder(script)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH));
+        FilterScript.Factory factory = context.getScriptService().compile(script, FilterScript.CONTEXT);
+        FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), context.lookup());
+        return new ScriptQuery(script, filterScript);
     }
 
     static class ScriptQuery extends Query {
 
         final Script script;
-        final SearchScript searchScript;
+        final FilterScript.LeafFactory filterScript;
 
-        public ScriptQuery(Script script, SearchScript searchScript) {
+        ScriptQuery(Script script, FilterScript.LeafFactory filterScript) {
             this.script = script;
-            this.searchScript = searchScript;
+            this.filterScript = filterScript;
         }
 
         @Override
         public String toString(String field) {
             StringBuilder buffer = new StringBuilder();
-            buffer.append("ScriptFilter(");
+            buffer.append("ScriptQuery(");
             buffer.append(script);
             buffer.append(")");
             return buffer.toString();
@@ -173,35 +173,28 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-            return new RandomAccessWeight(this) {
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+            return new ConstantScoreWeight(this, boost) {
+
                 @Override
-                protected Bits getMatchingDocs(final LeafReaderContext context) throws IOException {
-                    final LeafSearchScript leafScript = searchScript.getLeafSearchScript(context);
-                    return new Bits() {
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
+                    final FilterScript leafScript = filterScript.newInstance(context);
+                    TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
                         @Override
-                        public boolean get(int doc) {
-                            leafScript.setDocument(doc);
-                            Object val = leafScript.run();
-                            if (val == null) {
-                                return false;
-                            }
-                            if (val instanceof Boolean) {
-                                return (Boolean) val;
-                            }
-                            if (val instanceof Number) {
-                                return ((Number) val).longValue() != 0;
-                            }
-                            throw new IllegalArgumentException("Can't handle type [" + val + "] in script filter");
+                        public boolean matches() throws IOException {
+                            leafScript.setDocument(approximation.docID());
+                            return leafScript.execute();
                         }
 
                         @Override
-                        public int length() {
-                            return context.reader().maxDoc();
+                        public float matchCost() {
+                            // TODO: how can we compute this?
+                            return 1000f;
                         }
-
                     };
+                    return new ConstantScoreScorer(this, score(), twoPhase);
                 }
             };
         }

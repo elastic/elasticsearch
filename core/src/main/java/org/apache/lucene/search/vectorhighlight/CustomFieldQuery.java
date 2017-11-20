@@ -33,8 +33,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -69,16 +69,14 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof MultiPhrasePrefixQuery) {
             flatten(sourceQuery.rewrite(reader), reader, flatQueries, boost);
-        } else if (sourceQuery instanceof FiltersFunctionScoreQuery) {
-            flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof MultiPhraseQuery) {
             MultiPhraseQuery q = ((MultiPhraseQuery) sourceQuery);
             convertMultiPhraseQuery(0, new int[q.getTermArrays().length], q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
         } else if (sourceQuery instanceof BlendedTermQuery) {
             final BlendedTermQuery blendedTermQuery = (BlendedTermQuery) sourceQuery;
             flatten(blendedTermQuery.rewrite(reader), reader, flatQueries, boost);
-        } else if (sourceQuery instanceof ToParentBlockJoinQuery) {
-            ToParentBlockJoinQuery blockJoinQuery = (ToParentBlockJoinQuery) sourceQuery;
+        } else if (sourceQuery instanceof ESToParentBlockJoinQuery) {
+            ESToParentBlockJoinQuery blockJoinQuery = (ESToParentBlockJoinQuery) sourceQuery;
             flatten(blockJoinQuery.getChildQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof BoostingQuery) {
             BoostingQuery boostingQuery = (BoostingQuery) sourceQuery;
@@ -92,6 +90,11 @@ public class CustomFieldQuery extends FieldQuery {
             SynonymQuery synQuery = (SynonymQuery) sourceQuery;
             for (Term term : synQuery.getTerms()) {
                 flatten(new TermQuery(term), reader, flatQueries, boost);
+            }
+        } else if (sourceQuery instanceof ESToParentBlockJoinQuery) {
+            Query childQuery = ((ESToParentBlockJoinQuery) sourceQuery).getChildQuery();
+            if (childQuery != null) {
+                flatten(childQuery, reader, flatQueries, boost);
             }
         } else {
             super.flatten(sourceQuery, reader, flatQueries, boost);

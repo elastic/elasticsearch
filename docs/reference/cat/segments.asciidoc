@@ -34,7 +34,7 @@ The following columns provide additional monitoring information:
 
 prirep::        Whether this segment belongs to a primary or replica shard.
 
-ip::            The ip address of the segments shard.
+ip::            The ip address of the segment's shard.
 
 segment::       A segment name, derived from the segment generation. The name
                 is internally used to generate the file names in the directory

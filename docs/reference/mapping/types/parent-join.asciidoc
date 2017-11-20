@@ -1,0 +1,439 @@
+[[parent-join]]
+=== `join` datatype
+
+The `join` datatype is a special field that creates
+parent/child relation within documents of the same index.
+The `relations` section defines a set of possible relations within the documents,
+each relation being a parent name and a child name.
+A parent/child relation can be defined as follows:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "doc": {
+      "properties": {
+        "my_join_field": { <1>
+          "type": "join",
+          "relations": {
+            "question": "answer" <2>
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> The name for the field
+<2> Defines a single relation where `question` is parent of `answer`.
+
+To index a document with a join, the name of the relation and the optional parent
+of the document must be provided in the `source`.
+For instance the following example creates two `parent` documents in the `question` context:
+
+[source,js]
+--------------------------------------------------
+PUT my_index/doc/1?refresh
+{
+  "text": "This is a question",
+  "my_join_field": {
+    "name": "question" <1>
+  }
+}
+
+PUT my_index/doc/2?refresh
+{
+  "text": "This is a another question",
+  "my_join_field": {
+    "name": "question"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> This document is a `question` document.
+
+When indexing parent documents, you can choose to specify just the name of the relation
+as a shortcut instead of encapsulating it in the normal object notation:
+
+[source,js]
+--------------------------------------------------
+PUT my_index/doc/1?refresh
+{
+  "text": "This is a question",
+  "my_join_field": "question" <1>
+}
+
+PUT my_index/doc/2?refresh
+{
+  "text": "This is another question",
+  "my_join_field": "question"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> Simpler notation for a parent document just uses the relation name.
+
+When indexing a child, the name of the relation as well as the parent id of the document
+must be added in the `_source`.
+
+WARNING: It is required to index the lineage of a parent in the same shard so you must
+always route child documents using their greater parent id.
+
+For instance the following example shows how to index two `child` documents:
+
+[source,js]
+--------------------------------------------------
+PUT my_index/doc/3?routing=1&refresh <1>
+{
+  "text": "This is an answer",
+  "my_join_field": {
+    "name": "answer", <2>
+    "parent": "1" <3>
+  }
+}
+
+PUT my_index/doc/4?routing=1&refresh
+{
+  "text": "This is another answer",
+  "my_join_field": {
+    "name": "answer",
+    "parent": "1"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> The routing value is mandatory because parent and child documents must be indexed on the same shard
+<2> `answer` is the name of the join for this document
+<3> The parent id of this child document
+
+==== Parent-join and performance.
+
+The join field shouldn't be used like joins in a relation database. In Elasticsearch the key to good performance
+is to de-normalize your data into documents. Each join field, `has_child` or `has_parent` query adds a
+significant tax to your query performance.
+
+The only case where the join field makes sense is if your data contains a one-to-many relationship where
+one entity significantly outnumbers the other entity. An example of such case is a use case with products
+and offers for these products. In the case that offers significantly outnumbers the number of products then
+it makes sense to model the product as parent document and the offer as child document.
+
+==== Parent-join restrictions
+
+* Only one `join` field mapping is allowed per index.
+* Parent and child documents must be indexed on the same shard.
+  This means that the same `routing` value needs to be provided when
+  <<docs-get,getting>>, <<docs-delete,deleting>>, or <<docs-update,updating>>
+  a child document.
+* An element can have multiple children but only one parent.
+* It is possible to add a new relation to an existing `join` field.
+* It is also possible to add a child to an existing element
+  but only if the element is already a parent.
+
+==== Searching with parent-join
+
+The parent-join creates one field to index the name of the relation
+within the document (`my_parent`, `my_child`, ...).
+
+It also creates one field per parent/child relation.
+The name of this field is the name of the `join` field followed by `#` and the
+name of the parent in the relation.
+So for instance for the `my_parent` => [`my_child`, `another_child`] relation,
+the `join` field creates an additional field named `my_join_field#my_parent`.
+
+This field contains the parent `_id` that the document links to
+if the document is a child (`my_child` or `another_child`) and the `_id` of
+document if it's a parent (`my_parent`).
+
+When searching an index that contains a `join` field, these two fields are always
+returned in the search response:
+
+[source,js]
+--------------------------
+GET my_index/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "sort": ["_id"]
+}
+--------------------------
+// CONSOLE
+// TEST[continued]
+
+Will return:
+
+[source,js]
+--------------------------------------------------
+{
+    ...,
+    "hits": {
+        "total": 4,
+        "max_score": null,
+        "hits": [
+            {
+                "_index": "my_index",
+                "_type": "doc",
+                "_id": "1",
+                "_score": null,
+                "_source": {
+                    "text": "This is a question",
+                    "my_join_field": "question" <1>
+                },
+                "sort": [
+                    "1"
+                ]
+            },
+            {
+                "_index": "my_index",
+                "_type": "doc",
+                "_id": "2",
+                "_score": null,
+                "_source": {
+                    "text": "This is another question",
+                    "my_join_field": "question" <2>
+                },
+                "sort": [
+                    "2"
+                ]
+            },
+            {
+                "_index": "my_index",
+                "_type": "doc",
+                "_id": "3",
+                "_score": null,
+                "_routing": "1",
+                "_source": {
+                    "text": "This is an answer",
+                    "my_join_field": {
+                        "name": "answer", <3>
+                        "parent": "1"  <4>
+                    }
+                },
+                "sort": [
+                    "3"
+                ]
+            },
+            {
+                "_index": "my_index",
+                "_type": "doc",
+                "_id": "4",
+                "_score": null,
+                "_routing": "1",
+                "_source": {
+                    "text": "This is another answer",
+                    "my_join_field": {
+                        "name": "answer",
+                        "parent": "1"
+                    }
+                },
+                "sort": [
+                    "4"
+                ]
+            }
+        ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
+
+<1> This document belongs to the `question` join
+<2> This document belongs to the `question` join
+<3> This document belongs to the `answer` join
+<4> The linked parent id for the child document
+
+==== Parent-join queries and aggregations
+
+See the <<query-dsl-has-child-query,`has_child`>> and
+<<query-dsl-has-parent-query,`has_parent`>> queries,
+the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation,
+and <<parent-child-inner-hits,inner hits>> for more information.
+
+The value of the `join` field is accessible in aggregations
+and scripts, and may be queried with the
+<<query-dsl-parent-id-query, `parent_id` query>>:
+
+[source,js]
+--------------------------
+GET my_index/_search
+{
+  "query": {
+    "parent_id": { <1>
+      "type": "answer",
+      "id": "1"
+    }
+  },
+  "aggs": {
+    "parents": {
+      "terms": {
+        "field": "my_join_field#question", <2>
+        "size": 10
+      }
+    }
+  },
+  "script_fields": {
+    "parent": {
+      "script": {
+         "source": "doc['my_join_field#question']" <3>
+      }
+    }
+  }
+}
+--------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> Querying the `parent id` field (also see the <<query-dsl-has-parent-query,`has_parent` query>> and the <<query-dsl-has-child-query,`has_child` query>>)
+<2> Aggregating on the `parent id` field (also see the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation)
+<3> Accessing the parent id` field in scripts
+
+
+==== Global ordinals
+
+The `join` field uses <<eager-global-ordinals,global ordinals>> to speed up joins.
+Global ordinals need to be rebuilt after any change to a shard. The more
+parent id values are stored in a shard, the longer it takes to rebuild the
+global ordinals for the `join` field.
+
+Global ordinals, by default, are built eagerly: if the index has changed,
+global ordinals for the `join` field will be rebuilt as part of the refresh.
+This can add significant time to the refresh. However most of the times this is the
+right trade-off, otherwise global ordinals are rebuilt when the first parent-join
+query or aggregation is used. This can introduce a significant latency spike for
+your users and usually this is worse as multiple global ordinals for the `join`
+field may be attempt rebuilt within a single refresh interval when many writes
+are occurring.
+
+When the `join` field is used infrequently and writes occur frequently it may
+make sense to disable eager loading:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "doc": {
+      "properties": {
+        "my_join_field": {
+          "type": "join",
+          "relations": {
+             "question": "answer"
+          },
+          "eager_global_ordinals": false
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+The amount of heap used by global ordinals can be checked per parent relation
+as follows:
+
+[source,sh]
+--------------------------------------------------
+# Per-index
+GET _stats/fielddata?human&fields=my_join_field#question
+
+# Per-node per-index
+GET _nodes/stats/indices/fielddata?human&fields=my_join_field#question
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+==== Multiple children per parent
+
+It is also possible to define multiple children for a single parent:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "doc": {
+      "properties": {
+        "my_join_field": {
+          "type": "join",
+          "relations": {
+            "question": ["answer", "comment"]  <1>
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> `question` is parent of `answer` and `comment`.
+
+==== Multiple levels of parent join
+
+WARNING: Using multiple levels of relations to replicate a relational model is not recommended.
+Each level of relation adds an overhead at query time in terms of memory and computation.
+You should de-normalize your data if you care about performance.
+
+Multiple levels of parent/child:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "doc": {
+      "properties": {
+        "my_join_field": {
+          "type": "join",
+          "relations": {
+            "question": ["answer", "comment"],  <1>
+            "answer": "vote" <2>
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> `question` is parent of `answer` and `comment`
+<2> `answer` is parent of `vote`
+
+The mapping above represents the following tree:
+
+                         question
+                          /    \
+                         /      \
+                      comment  answer
+                                 |
+                                 |
+                                vote
+
+Indexing a grand child document requires a `routing` value equals
+to the grand-parent (the greater parent of the lineage):
+
+
+[source,js]
+--------------------------------------------------
+PUT my_index/doc/3?routing=1&refresh <1>
+{
+  "text": "This is a vote",
+  "my_join_field": {
+    "name": "vote",
+    "parent": "2" <2>
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> This child document must be on the same shard than its grand-parent and parent
+<2> The parent id of this document (must points to an `answer` document)

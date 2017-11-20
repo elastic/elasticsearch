@@ -52,7 +52,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         assertThat(query, instanceOf(ScriptQueryBuilder.ScriptQuery.class));
         // make sure the query would not get cached
         ScriptQuery sQuery = (ScriptQuery) query;
-        ScriptQuery clone = new ScriptQuery(sQuery.script, sQuery.searchScript);
+        ScriptQuery clone = new ScriptQuery(sQuery.script, sQuery.filterScript);
         assertFalse(sQuery.equals(clone));
         assertFalse(sQuery.hashCode() == clone.hashCode());
     }
@@ -66,7 +66,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
             "{\n" +
                 "  \"script\" : {\n" +
                 "    \"script\" : {\n" +
-                "      \"inline\" : \"5\",\n" +
+                "      \"source\" : \"5\",\n" +
                 "      \"lang\" : \"mockscript\"\n" +
                 "    },\n" +
                 "    \"boost\" : 1.0,\n" +

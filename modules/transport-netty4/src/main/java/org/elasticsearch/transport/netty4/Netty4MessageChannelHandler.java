@@ -20,13 +20,12 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
-import io.netty.util.ReferenceCountUtil;
+import io.netty.util.Attribute;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.TcpHeader;
-import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.Transports;
 
 import java.net.InetSocketAddress;
@@ -37,23 +36,12 @@ import java.net.InetSocketAddress;
  */
 final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
-    private final TransportServiceAdapter transportServiceAdapter;
     private final Netty4Transport transport;
     private final String profileName;
 
     Netty4MessageChannelHandler(Netty4Transport transport, String profileName) {
-        this.transportServiceAdapter = transport.transportServiceAdapter();
         this.transport = transport;
         this.profileName = profileName;
-    }
-
-    @Override
-    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-        if (msg instanceof ByteBuf && transportServiceAdapter != null) {
-            // record the number of bytes send on the channel
-            promise.addListener(f -> transportServiceAdapter.addBytesSent(((ByteBuf) msg).readableBytes()));
-        }
-        ctx.write(msg, promise);
     }
 
     @Override
@@ -66,12 +54,14 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         final ByteBuf buffer = (ByteBuf) msg;
         final int remainingMessageSize = buffer.getInt(buffer.readerIndex() - TcpHeader.MESSAGE_LENGTH_SIZE);
         final int expectedReaderIndex = buffer.readerIndex() + remainingMessageSize;
-        InetSocketAddress remoteAddress = (InetSocketAddress) ctx.channel().remoteAddress();
         try {
+            Channel channel = ctx.channel();
+            InetSocketAddress remoteAddress = (InetSocketAddress) channel.remoteAddress();
             // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
-            // buffer, or in the cumulation buffer, which is cleaned each time so it could be bigger than the actual size
+            // buffer, or in the cumulative buffer, which is cleaned each time so it could be bigger than the actual size
             BytesReference reference = Netty4Utils.toBytesReference(buffer, remainingMessageSize);
-            transport.messageReceived(reference, ctx.channel(), profileName, remoteAddress, remainingMessageSize);
+            Attribute<NettyTcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
+            transport.messageReceived(reference, channelAttribute.get(), profileName, remoteAddress, remainingMessageSize);
         } finally {
             // Set the expected position of the buffer, no matter what happened
             buffer.readerIndex(expectedReaderIndex);

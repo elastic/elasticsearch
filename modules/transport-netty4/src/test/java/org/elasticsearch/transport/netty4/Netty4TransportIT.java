@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport.netty4;
 
-import io.netty.channel.Channel;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -37,8 +36,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -80,7 +80,7 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
             fail("Expected exception, but didn't happen");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("MY MESSAGE"));
-            assertThat(channelProfileName, is(TransportSettings.DEFAULT_PROFILE));
+            assertThat(channelProfileName, is(TcpTransport.DEFAULT_PROFILE));
         }
     }
 
@@ -109,12 +109,13 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
             super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         }
 
-        protected String handleRequest(Channel channel, String profileName,
+        @Override
+        protected String handleRequest(TcpChannel channel, String profileName,
                                        StreamInput stream, long requestId, int messageLengthBytes, Version version,
-                                       InetSocketAddress remoteAddress) throws IOException {
+                                       InetSocketAddress remoteAddress, byte status) throws IOException {
             String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,
-                    remoteAddress);
-            channelProfileName = TransportSettings.DEFAULT_PROFILE;
+                    remoteAddress, status);
+            channelProfileName = TcpTransport.DEFAULT_PROFILE;
             return action;
         }
 

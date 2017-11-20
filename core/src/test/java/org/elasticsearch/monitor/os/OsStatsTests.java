@@ -37,12 +37,15 @@ public class OsStatsTests extends ESTestCase {
         OsStats.Mem mem = new OsStats.Mem(randomLong(), randomLong());
         OsStats.Swap swap = new OsStats.Swap(randomLong(), randomLong());
         OsStats.Cgroup cgroup = new OsStats.Cgroup(
-            randomAsciiOfLength(8),
-            randomPositiveLong(),
-            randomAsciiOfLength(8),
-            randomPositiveLong(),
-            randomPositiveLong(),
-            new OsStats.Cgroup.CpuStat(randomPositiveLong(), randomPositiveLong(), randomPositiveLong()));
+            randomAlphaOfLength(8),
+            randomNonNegativeLong(),
+            randomAlphaOfLength(8),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+            randomAlphaOfLength(8),
+            Long.toString(randomNonNegativeLong()),
+            Long.toString(randomNonNegativeLong()));
         OsStats osStats = new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -70,6 +73,8 @@ public class OsStatsTests extends ESTestCase {
                 assertEquals(
                     osStats.getCgroup().getCpuStat().getTimeThrottledNanos(),
                     deserializedOsStats.getCgroup().getCpuStat().getTimeThrottledNanos());
+                assertEquals(osStats.getCgroup().getMemoryLimitInBytes(), deserializedOsStats.getCgroup().getMemoryLimitInBytes());
+                assertEquals(osStats.getCgroup().getMemoryUsageInBytes(), deserializedOsStats.getCgroup().getMemoryUsageInBytes());
             }
         }
     }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
@@ -30,6 +30,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 
@@ -39,7 +41,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
@@ -50,7 +51,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     public static final String NAME = "ids";
 
-    private static final ParseField TYPE_FIELD = new ParseField("type", "types", "_type");
+    private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALUES_FIELD = new ParseField("values");
 
     private final Set<String> ids = new HashSet<>();
@@ -62,15 +63,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
      */
     public IdsQueryBuilder() {
         // nothing to do
-    }
-
-    /**
-     * Creates a new IdsQueryBuilder by providing the types of the documents to look for
-     * @deprecated Replaced by {@link #types(String...)}
-     */
-    @Deprecated
-    public IdsQueryBuilder(String... types) {
-        types(types);
     }
 
     /**
@@ -137,7 +129,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         builder.endObject();
     }
 
-    private static ObjectParser<IdsQueryBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME,
+    private static ObjectParser<IdsQueryBuilder, Void> PARSER = new ObjectParser<>(NAME,
             () -> new IdsQueryBuilder());
 
     static {
@@ -146,11 +138,11 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         declareStandardFields(PARSER);
     }
 
-    public static Optional<IdsQueryBuilder> fromXContent(QueryParseContext context) {
+    public static IdsQueryBuilder fromXContent(XContentParser parser) {
         try {
-            return Optional.of(PARSER.apply(context.parser(), context));
+            return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {
-            throw new ParsingException(context.parser().getTokenLocation(), e.getMessage(), e);
+            throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }
     }
 
@@ -163,6 +155,10 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query query;
+        MappedFieldType uidField = context.fieldMapper(UidFieldMapper.NAME);
+        if (uidField == null) {
+            return new MatchNoDocsQuery("No mappings");
+        }
         if (this.ids.isEmpty()) {
              query = Queries.newMatchNoDocsQuery("Missing ids in \"" + this.getName() + "\" query.");
         } else {
@@ -176,7 +172,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
                 Collections.addAll(typesForQuery, types);
             }
 
-            query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(typesForQuery, ids));
+            query = uidField.termsQuery(Arrays.asList(Uid.createUidsForTypesAndIds(typesForQuery, ids)), context);
         }
         return query;
     }

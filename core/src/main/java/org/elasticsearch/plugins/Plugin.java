@@ -19,15 +19,12 @@
 
 package org.elasticsearch.plugins;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -38,18 +35,26 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
@@ -101,11 +106,15 @@ public abstract class Plugin implements Closeable {
      * @param threadPool A service to allow retrieving an executor to run an async action
      * @param resourceWatcherService A service to watch for changes to node local files
      * @param scriptService A service to allow running scripts on the local node
-     * @param searchRequestParsers Parsers for search requests which may be used to templatize search requests
+     * @param xContentRegistry the registry for extensible xContent parsing
+     * @param environment the environment for path and setting configurations
+     * @param nodeEnvironment the node environment used coordinate access to the data paths
+     * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               SearchRequestParsers searchRequestParsers) {
+                                               NamedXContentRegistry xContentRegistry, Environment environment,
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         return Collections.emptyList();
     }
 
@@ -122,6 +131,14 @@ public abstract class Plugin implements Closeable {
      * @see NamedWriteableRegistry
      */
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns parsers for named objects this plugin will parse from {@link XContentParser#namedObject(Class, String, Object)}.
+     * @see NamedWriteableRegistry
+     */
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Collections.emptyList();
     }
 
@@ -145,11 +162,46 @@ public abstract class Plugin implements Closeable {
      * Provides a function to modify global custom meta data on startup.
      * <p>
      * Plugins should return the input custom map via {@link UnaryOperator#identity()} if no upgrade is required.
+     * <p>
+     * The order of custom meta data upgraders calls is undefined and can change between runs so, it is expected that
+     * plugins will modify only data owned by them to avoid conflicts.
+     * <p>
      * @return Never {@code null}. The same or upgraded {@code MetaData.Custom} map.
      * @throws IllegalStateException if the node should not start because at least one {@code MetaData.Custom}
-     *         is unsupported
+     *                               is unsupported
      */
     public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
+        return UnaryOperator.identity();
+    }
+
+    /**
+     * Provides a function to modify index template meta data on startup.
+     * <p>
+     * Plugins should return the input template map via {@link UnaryOperator#identity()} if no upgrade is required.
+     * <p>
+     * The order of the template upgrader calls is undefined and can change between runs so, it is expected that
+     * plugins will modify only templates owned by them to avoid conflicts.
+     * <p>
+     * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetaData} map.
+     * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetaData}
+     *                               cannot be upgraded
+     */
+    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+        return UnaryOperator.identity();
+    }
+
+    /**
+     * Provides a function to modify index meta data when an index is introduced into the cluster state for the first time.
+     * <p>
+     * Plugins should return the input index metadata via {@link UnaryOperator#identity()} if no upgrade is required.
+     * <p>
+     * The order of the index upgrader calls for the same index is undefined and can change between runs so, it is expected that
+     * plugins will modify only indices owned by them to avoid conflicts.
+     * <p>
+     * @return Never {@code null}. The same or upgraded {@code IndexMetaData}.
+     * @throws IllegalStateException if the node should not start because the index is unsupported
+     */
+    public UnaryOperator<IndexMetaData> getIndexMetaDataUpgrader() {
         return UnaryOperator.identity();
     }
 
@@ -163,6 +215,14 @@ public abstract class Plugin implements Closeable {
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         return Collections.emptyList();
     }
+
+    /**
+     * Returns a list of checks that are enforced when a node starts up once a node has the transport protocol bound to a non-loopback
+     * interface. In this case we assume the node is running in production and all bootstrap checks must pass. This allows plugins
+     * to provide a better out of the box experience by pre-configuring otherwise (in production) mandatory settings or to enforce certain
+     * configurations like OS settings or 3rd party resources.
+     */
+    public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
 
     /**
      * Close the resources opened by this plugin.

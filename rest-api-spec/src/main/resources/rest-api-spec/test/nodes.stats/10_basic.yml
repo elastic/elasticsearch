@@ -1,0 +1,36 @@
+---
+"Nodes stats":
+  - do:
+      nodes.stats:
+        metric: [ indices, transport ]
+
+  - is_true: cluster_name
+  - is_true: nodes
+
+---
+"Nodes stats level":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.stats:
+        metric: [ indices ]
+        level: "indices"
+
+  - is_true: nodes.$master.indices.indices
+
+---
+"Nodes stats unrecognized parameter":
+  - skip:
+      version: " - 5.0.99"
+      reason: strict stats handling does not exist in 5.0
+  - do:
+      catch: bad_request
+      nodes.stats:
+        metric: [ transprot ]
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "request [/_nodes/stats/transprot] contains unrecognized metric: [transprot] -> did you mean [transport]?" }

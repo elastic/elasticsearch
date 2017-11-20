@@ -51,17 +51,13 @@ public enum SortOrder implements Writeable {
         }
     };
 
-    static SortOrder readFromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown SortOrder ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
+    public static SortOrder readFromStream(StreamInput in) throws IOException {
+        return in.readEnum(SortOrder.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(this.ordinal());
+        out.writeEnum(this);
     }
 
     public static SortOrder fromString(String op) {

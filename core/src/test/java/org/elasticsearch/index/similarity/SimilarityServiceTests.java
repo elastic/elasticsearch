@@ -20,8 +20,6 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -35,7 +33,7 @@ public class SimilarityServiceTests extends ESTestCase {
     public void testDefaultSimilarity() {
         Settings settings = Settings.builder().build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
+        SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
         assertThat(service.getDefaultSimilarity(), instanceOf(BM25Similarity.class));
     }
 
@@ -44,29 +42,18 @@ public class SimilarityServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put("index.similarity.BM25.type", "classic").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         try {
-            new SimilarityService(indexSettings, Collections.emptyMap());
+            new SimilarityService(indexSettings, null, Collections.emptyMap());
             fail("can't override bm25");
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "Cannot redefine built-in Similarity [BM25]");
         }
     }
 
-    // Pre v3 indices could override built-in similarities
-    public void testOverrideBuiltInSimilarityPreV3() {
-        Settings settings = Settings.builder()
-                                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
-                                    .put("index.similarity.BM25.type", "classic")
-                                    .build();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
-        assertTrue(service.getSimilarity("BM25") instanceof ClassicSimilarityProvider);
-    }
-
-    // Tests #16594
     public void testOverrideDefaultSimilarity() {
-        Settings settings = Settings.builder().put("index.similarity.default.type", "classic").build();
+        Settings settings = Settings.builder().put("index.similarity.default.type", "classic")
+                .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        SimilarityService service = new SimilarityService(indexSettings, Collections.emptyMap());
+        SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
         assertTrue(service.getDefaultSimilarity() instanceof ClassicSimilarity);
     }
 }

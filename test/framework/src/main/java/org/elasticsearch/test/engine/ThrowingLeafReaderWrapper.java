@@ -81,12 +81,14 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         this.thrower = thrower;
     }
 
-
     @Override
-    public Fields fields() throws IOException {
-        Fields fields = super.fields();
-        thrower.maybeThrow(Flags.Fields);
-        return fields == null ? null : new ThrowingFields(fields, thrower);
+    public Terms terms(String field) throws IOException {
+        Terms terms = super.terms(field);
+        if (thrower.wrapTerms(field)) {
+            thrower.maybeThrow(Flags.Terms);
+            return terms == null ? null : new ThrowingTerms(terms, thrower);
+        }
+        return terms;
     }
 
     @Override
@@ -147,7 +149,7 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
     static class ThrowingTermsEnum extends FilterTermsEnum {
         private final Thrower thrower;
 
-        public ThrowingTermsEnum(TermsEnum in, Thrower thrower) {
+        ThrowingTermsEnum(TermsEnum in, Thrower thrower) {
             super(in);
             this.thrower = thrower;
 
@@ -194,5 +196,16 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
     public NumericDocValues getNormValues(String field) throws IOException {
         thrower.maybeThrow(Flags.Norms);
         return super.getNormValues(field);
+    }
+
+
+    @Override
+    public CacheHelper getCoreCacheHelper() {
+        return in.getCoreCacheHelper();
+    }
+
+    @Override
+    public CacheHelper getReaderCacheHelper() {
+        return in.getReaderCacheHelper();
     }
 }

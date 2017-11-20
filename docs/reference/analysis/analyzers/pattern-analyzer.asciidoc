@@ -366,9 +366,8 @@ The above example produces the following terms:
 
 The regex above is easier to understand as:
 
-[source,js]
+[source,regex]
 --------------------------------------------------
-
   ([^\p{L}\d]+)                 # swallow non letters and numbers,
 | (?<=\D)(?=\d)                 # or non-number followed by number,
 | (?<=\d)(?=\D)                 # or number followed by non-number,

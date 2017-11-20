@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -32,6 +33,27 @@ import java.util.Set;
  * A generic abstraction on top of handling content, inspired by JSON and pull parsing.
  */
 public interface XContent {
+
+    /*
+     * NOTE: This comment is only meant for maintainers of the Elasticsearch code base and is intentionally not a Javadoc comment as it
+     *       describes an undocumented system property.
+     *
+     *
+     * Determines whether the XContent parser will always check for duplicate keys. This behavior is enabled by default but
+     * can be disabled by setting the otherwise undocumented system property "es.xcontent.strict_duplicate_detection to "false".
+     *
+     * Before we've enabled this mode, we had custom duplicate checks in various parts of the code base. As the user can still disable this
+     * mode and fall back to the legacy duplicate checks, we still need to keep the custom duplicate checks around and we also need to keep
+     * the tests around.
+     *
+     * If this fallback via system property is removed one day in the future you can remove all tests that call this method and also remove
+     * the corresponding custom duplicate check code.
+     *
+     */
+    static boolean isStrictDuplicateDetectionEnabled() {
+        // Don't allow duplicate keys in JSON content by default but let the user opt out
+        return Booleans.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"));
+    }
 
     /**
      * The type this content handles and produces.
@@ -61,31 +83,31 @@ public interface XContent {
     /**
      * Creates a parser over the provided string content.
      */
-    XContentParser createParser(String content) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, String content) throws IOException;
 
     /**
      * Creates a parser over the provided input stream.
      */
-    XContentParser createParser(InputStream is) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, InputStream is) throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
      */
-    XContentParser createParser(byte[] data) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data) throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
      */
-    XContentParser createParser(byte[] data, int offset, int length) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data, int offset, int length) throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
      */
-    XContentParser createParser(BytesReference bytes) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException;
 
     /**
      * Creates a parser over the provided reader.
      */
-    XContentParser createParser(Reader reader) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, Reader reader) throws IOException;
 
 }

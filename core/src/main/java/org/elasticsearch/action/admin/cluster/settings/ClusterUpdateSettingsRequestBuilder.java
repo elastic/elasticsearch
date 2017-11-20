@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -53,8 +54,8 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
     /**
      * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
      */
-    public ClusterUpdateSettingsRequestBuilder setTransientSettings(String settings) {
-        request.transientSettings(settings);
+    public ClusterUpdateSettingsRequestBuilder setTransientSettings(String settings, XContentType xContentType) {
+        request.transientSettings(settings, xContentType);
         return this;
     }
 
@@ -85,8 +86,8 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
     /**
      * Sets the source containing the persistent settings to be updated. They will get applied cross restarts
      */
-    public ClusterUpdateSettingsRequestBuilder setPersistentSettings(String settings) {
-        request.persistentSettings(settings);
+    public ClusterUpdateSettingsRequestBuilder setPersistentSettings(String settings, XContentType xContentType) {
+        request.persistentSettings(settings, xContentType);
         return this;
     }
 

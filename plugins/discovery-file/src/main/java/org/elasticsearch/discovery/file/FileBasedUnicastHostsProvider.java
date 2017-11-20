@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.discovery.zen.UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT;
-import static org.elasticsearch.discovery.zen.UnicastZenPing.resolveDiscoveryNodes;
+import static org.elasticsearch.discovery.zen.UnicastZenPing.resolveHostsLists;
 
 /**
  * An implementation of {@link UnicastHostsProvider} that reads hosts/ports
@@ -71,11 +71,11 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
 
     private final TimeValue resolveTimeout;
 
-    FileBasedUnicastHostsProvider(Settings settings, TransportService transportService, ExecutorService executorService) {
-        super(settings);
+    FileBasedUnicastHostsProvider(Environment environment, TransportService transportService, ExecutorService executorService) {
+        super(environment.settings());
         this.transportService = transportService;
         this.executorService = executorService;
-        this.unicastHostsFilePath = new Environment(settings).configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
+        this.unicastHostsFilePath = environment.configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
         this.resolveTimeout = DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
     }
 
@@ -97,13 +97,13 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
 
         final List<DiscoveryNode> discoNodes = new ArrayList<>();
         try {
-            discoNodes.addAll(resolveDiscoveryNodes(
+            discoNodes.addAll(resolveHostsLists(
                 executorService,
                 logger,
                 hostsList,
                 1,
                 transportService,
-                () -> UNICAST_HOST_PREFIX + nodeIdGenerator.incrementAndGet() + "#",
+                UNICAST_HOST_PREFIX,
                 resolveTimeout));
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

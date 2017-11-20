@@ -25,6 +25,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -116,6 +118,18 @@ public class MultiPhrasePrefixQuery extends Query {
     }
 
     /**
+     * Returns the terms for each position in this phrase
+     */
+    public Term[][] getTerms() {
+        Term[][] terms = new Term[termArrays.size()][];
+        for (int i = 0; i < termArrays.size(); i++) {
+            terms[i] = new Term[termArrays.get(i).length];
+            System.arraycopy(termArrays.get(i), 0, terms[i], 0, termArrays.get(i).length);
+        }
+        return terms;
+    }
+
+    /**
      * Returns the relative positions of terms in this phrase.
      */
     public int[] getPositions() {
@@ -150,7 +164,17 @@ public class MultiPhrasePrefixQuery extends Query {
             }
         }
         if (terms.isEmpty()) {
-            return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
+            if (sizeMinus1 == 0) {
+                // no prefix and the phrase query is empty
+                return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
+            }
+
+            // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
+            // which rewrites query with an empty reader.
+            return new BooleanQuery.Builder()
+                .add(query.build(), BooleanClause.Occur.MUST)
+                .add(Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
+                    BooleanClause.Occur.MUST).build();
         }
         query.add(terms.toArray(Term.class), position);
         return query.build();

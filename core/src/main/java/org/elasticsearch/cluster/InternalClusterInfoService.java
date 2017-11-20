@@ -19,11 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -53,6 +48,12 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
  * routinely updated on a timer. The timer can be dynamically changed by
@@ -64,7 +65,8 @@ import org.elasticsearch.transport.ReceiveTimeoutTransportException;
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  */
-public class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+public class InternalClusterInfoService extends AbstractComponent
+    implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
 
     public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING =
         Setting.timeSetting("cluster.info.update.interval", TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(10),
@@ -85,9 +87,10 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final NodeClient client;
-    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
+    private final Consumer<ClusterInfo> listener;
 
-    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
+    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client,
+                                      Consumer<ClusterInfo> listener) {
         super(settings);
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
         this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
@@ -105,9 +108,10 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
 
         // Add InternalClusterInfoService to listen for Master changes
-        this.clusterService.add((LocalNodeMasterListener)this);
+        this.clusterService.addLocalNodeMasterListener(this);
         // Add to listen for state changes (when nodes are added)
-        this.clusterService.add((ClusterStateListener)this);
+        this.clusterService.addListener(this);
+        this.listener = listener;
     }
 
     private void setEnabled(boolean enabled) {
@@ -167,7 +171,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             }
         }
 
-        if (this.isMaster && dataNodeAdded && clusterService.state().getNodes().getDataNodes().size() > 1) {
+        if (this.isMaster && dataNodeAdded && event.state().getNodes().getDataNodes().size() > 1) {
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
@@ -198,11 +202,6 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
     @Override
     public ClusterInfo getClusterInfo() {
         return new ClusterInfo(leastAvailableSpaceUsages, mostAvailableSpaceUsages, shardSizes, shardRoutingToDataPath);
-    }
-
-    @Override
-    public void addListener(Listener listener) {
-        this.listeners.add(listener);
     }
 
     /**
@@ -361,34 +360,22 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
         }
         ClusterInfo clusterInfo = getClusterInfo();
-        for (Listener l : listeners) {
-            try {
-                l.onNewInfo(clusterInfo);
-            } catch (Exception e) {
-                logger.info("Failed executing ClusterInfoService listener", e);
-            }
+        try {
+            listener.accept(clusterInfo);
+        } catch (Exception e) {
+            logger.info("Failed executing ClusterInfoService listener", e);
         }
         return clusterInfo;
     }
 
     static void buildShardLevelInfo(Logger logger, ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> newShardSizes,
                                     ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath, ClusterState state) {
-        MetaData meta = state.getMetaData();
         for (ShardStats s : stats) {
-            IndexMetaData indexMeta = meta.index(s.getShardRouting().index());
-            Settings indexSettings = indexMeta == null ? null : indexMeta.getSettings();
             newShardRoutingToDataPath.put(s.getShardRouting(), s.getDataPath());
             long size = s.getStats().getStore().sizeInBytes();
             String sid = ClusterInfo.shardIdentifierFromRouting(s.getShardRouting());
             if (logger.isTraceEnabled()) {
                 logger.trace("shard: {} size: {}", sid, size);
-            }
-            if (indexSettings != null && IndexMetaData.isIndexUsingShadowReplicas(indexSettings)) {
-                // Shards on a shared filesystem should be considered of size 0
-                if (logger.isTraceEnabled()) {
-                    logger.trace("shard: {} is using shadow replicas and will be treated as size 0", sid);
-                }
-                size = 0;
             }
             newShardSizes.put(sid, size);
         }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class FunctionTests extends ScriptTestCase {
     public void testBasic() {
         assertEquals(5, exec("int get() {5;} get()"));
@@ -49,21 +51,58 @@ public class FunctionTests extends ScriptTestCase {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("void test(int x) {} test()");
         });
-        assertTrue(expected.getMessage().contains("Cannot generate an empty function"));
+        assertThat(expected.getMessage(), containsString("Cannot generate an empty function"));
+    }
+
+    public void testReturnsAreUnboxedIfNeeded() {
+        assertEquals((byte) 5, exec("byte get() {Byte.valueOf(5)} get()"));
+        assertEquals((short) 5, exec("short get() {Byte.valueOf(5)} get()"));
+        assertEquals(5, exec("int get() {Byte.valueOf(5)} get()"));
+        assertEquals((short) 5, exec("short get() {Short.valueOf(5)} get()"));
+        assertEquals(5, exec("int get() {Integer.valueOf(5)} get()"));
+        assertEquals(5.0f, exec("float get() {Float.valueOf(5)} get()"));
+        assertEquals(5.0d, exec("double get() {Float.valueOf(5)} get()"));
+        assertEquals(5.0d, exec("double get() {Double.valueOf(5)} get()"));
+        assertEquals(true, exec("boolean get() {Boolean.TRUE} get()"));
     }
 
     public void testDuplicates() {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("void test(int x) {x = 2;} void test(def y) {y = 3;} test()");
         });
-        assertTrue(expected.getMessage().contains("Duplicate functions"));
+        assertThat(expected.getMessage(), containsString("Duplicate functions"));
+    }
+
+    public void testBadCastFromMethod() {
+        Exception e = expectScriptThrows(ClassCastException.class, () -> exec("int get() {5L} get()"));
+        assertEquals("Cannot cast from [long] to [int].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () -> exec("int get() {5.1f} get()"));
+        assertEquals("Cannot cast from [float] to [int].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () -> exec("int get() {5.1d} get()"));
+        assertEquals("Cannot cast from [double] to [int].", e.getMessage());
     }
 
     public void testInfiniteLoop() {
         Error expected = expectScriptThrows(PainlessError.class, () -> {
             exec("void test() {boolean x = true; while (x) {}} test()");
         });
-        assertTrue(expected.getMessage().contains(
-            "The maximum number of statements that can be executed in a loop has been reached."));
+        assertThat(expected.getMessage(),
+                containsString("The maximum number of statements that can be executed in a loop has been reached."));
+    }
+
+    public void testReturnVoid() {
+        assertEquals(null, exec("void test(StringBuilder b, int i) {b.setLength(i)} test(new StringBuilder(), 1)"));
+        Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("int test(StringBuilder b, int i) {b.setLength(i)} test(new StringBuilder(), 1)");
+        });
+        assertEquals("Not all paths provide a return value for method [test].", expected.getMessage());
+        expected = expectScriptThrows(ClassCastException.class, () -> {
+            exec("int test(StringBuilder b, int i) {return b.setLength(i)} test(new StringBuilder(), 1)");
+        });
+        assertEquals("Cannot cast from [void] to [int].", expected.getMessage());
+        expected = expectScriptThrows(ClassCastException.class, () -> {
+            exec("def test(StringBuilder b, int i) {return b.setLength(i)} test(new StringBuilder(), 1)");
+        });
+        assertEquals("Cannot cast from [void] to [def].", expected.getMessage());
     }
 }

@@ -30,7 +30,7 @@ public interface AtomicFieldData extends Accountable, Releasable {
     /**
      * Returns a "scripting" based values.
      */
-    ScriptDocValues getScriptValues();
+    ScriptDocValues<?> getScriptValues();
 
     /**
      * Return a String representation of the values.

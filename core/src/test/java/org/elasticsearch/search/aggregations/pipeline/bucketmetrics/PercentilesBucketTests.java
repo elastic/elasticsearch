@@ -19,10 +19,18 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValueType;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -43,21 +51,46 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
     }
 
     public void testPercentsFromMixedArray() throws Exception {
-        String content = XContentFactory.jsonBuilder()
+        XContentBuilder content = XContentFactory.jsonBuilder()
             .startObject()
-                .field("buckets_path", "test")
-                .array("percents", 0, 20.0, 50, 75.99)
-            .endObject()
-            .string();
+                .startObject("name")
+                    .startObject("percentiles_bucket")
+                        .field("buckets_path", "test")
+                        .array("percents", 0, 20.0, 50, 75.99)
+                    .endObject()
+                .endObject()
+            .endObject();
 
-        XContentParser parser = XContentFactory.xContent(content).createParser(content);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
-        parser.nextToken(); // skip object start
-
-        PercentilesBucketPipelineAggregationBuilder builder = (PercentilesBucketPipelineAggregationBuilder) aggParsers
-            .pipelineParser(PercentilesBucketPipelineAggregationBuilder.NAME, parseFieldMatcher)
-            .parse("test", parseContext);
+        PercentilesBucketPipelineAggregationBuilder builder = (PercentilesBucketPipelineAggregationBuilder) parse(createParser(content));
 
         assertThat(builder.percents(), equalTo(new double[]{0.0, 20.0, 50.0, 75.99}));
+    }
+
+    public void testValidate() {
+        AggregationBuilder singleBucketAgg = new GlobalAggregationBuilder("global");
+        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms", ValueType.STRING);
+        final List<AggregationBuilder> aggBuilders = new ArrayList<>();
+        aggBuilders.add(singleBucketAgg);
+        aggBuilders.add(multiBucketAgg);
+
+        // First try to point to a non-existent agg
+        final PercentilesBucketPipelineAggregationBuilder builder = new PercentilesBucketPipelineAggregationBuilder("name",
+                "invalid_agg>metric");
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> builder.validate(null, aggBuilders, Collections.emptyList()));
+        assertEquals(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                + " aggregation does not exist for aggregation [name]: invalid_agg>metric", ex.getMessage());
+
+        // Now try to point to a single bucket agg
+        PercentilesBucketPipelineAggregationBuilder builder2 = new PercentilesBucketPipelineAggregationBuilder("name", "global>metric");
+        ex = expectThrows(IllegalArgumentException.class, () -> builder2.validate(null, aggBuilders, Collections.emptyList()));
+        assertEquals("The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                + " must be a multi-bucket aggregation for aggregation [name] found :" + GlobalAggregationBuilder.class.getName()
+                + " for buckets path: global>metric", ex.getMessage());
+
+        // Now try to point to a valid multi-bucket agg (no exception should be
+        // thrown)
+        PercentilesBucketPipelineAggregationBuilder builder3 = new PercentilesBucketPipelineAggregationBuilder("name", "terms>metric");
+        builder3.validate(null, aggBuilders, Collections.emptyList());
     }
 }

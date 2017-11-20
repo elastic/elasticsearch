@@ -23,6 +23,10 @@ cluster.
 
 ==============================
 
+WARNING: The `TransportClient` is aimed to be replaced by the Java High Level REST
+Client, which executes HTTP requests instead of serialized Java requests. The
+`TransportClient` will be deprecated in upcoming versions of Elasticsearch and it
+is advised to use the Java High Level REST Client instead.
 
 [[transport-client]]
 === Transport Client
@@ -38,8 +42,8 @@ be "two hop" operations).
 // on startup
 
 TransportClient client = new PreBuiltTransportClient(Settings.EMPTY)
-        .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host1"), 9300))
-        .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host2"), 9300));
+        .addTransportAddress(new TransportAddress(InetAddress.getByName("host1"), 9300))
+        .addTransportAddress(new TransportAddress(InetAddress.getByName("host2"), 9300));
 
 // on shutdown
 
@@ -77,7 +81,7 @@ In order to enable sniffing, set `client.transport.sniff` to `true`:
 
 [source,java]
 --------------------------------------------------
-Settings settings = Settings.settingsBuilder()
+Settings settings = Settings.builder()
         .put("client.transport.sniff", true).build();
 TransportClient client = new PreBuiltTransportClient(settings);
 --------------------------------------------------

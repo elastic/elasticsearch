@@ -35,20 +35,11 @@ import java.io.IOException;
 
 public class PolishStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final StempelStemmer stemmer;
-
     public PolishStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        Trie tire;
-        try {
-            tire = StempelStemmer.load(PolishAnalyzer.class.getResourceAsStream(PolishAnalyzer.DEFAULT_STEMMER_FILE));
-        } catch (IOException ex) {
-            throw new RuntimeException("Unable to load default stemming tables", ex);
-        }
-        stemmer = new StempelStemmer(tire);
     }
 
     @Override public TokenStream create(TokenStream tokenStream) {
-        return new StempelFilter(tokenStream, stemmer);
+        return new StempelFilter(tokenStream, new StempelStemmer(PolishAnalyzer.getDefaultTable()));
     }
 }

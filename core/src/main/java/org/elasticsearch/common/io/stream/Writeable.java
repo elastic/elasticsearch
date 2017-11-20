@@ -34,7 +34,7 @@ public interface Writeable {
     /**
      * Write this into the {@linkplain StreamOutput}.
      */
-    void writeTo(final StreamOutput out) throws IOException;
+    void writeTo(StreamOutput out) throws IOException;
 
     /**
      * Reference to a method that can write some object to a {@link StreamOutput}.
@@ -60,7 +60,7 @@ public interface Writeable {
          * @param out Output to write the {@code value} too
          * @param value The value to add
          */
-        void write(final StreamOutput out, final V value) throws IOException;
+        void write(StreamOutput out, V value) throws IOException;
 
     }
 
@@ -86,7 +86,7 @@ public interface Writeable {
          *
          * @param in Input to read the value from
          */
-        V read(final StreamInput in) throws IOException;
+        V read(StreamInput in) throws IOException;
 
     }
 

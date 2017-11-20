@@ -11,6 +11,7 @@ API, unless otherwise specified.
 * <<multi-index>>
 * <<date-math-index-names>>
 * <<common-options>>
+* <<url-access-control>>
 
 --
 
@@ -19,8 +20,8 @@ API, unless otherwise specified.
 
 Most APIs that refer to an `index` parameter support execution across multiple indices,
 using simple `test1,test2,test3` notation (or `_all` for all indices). It also
-support wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the ability to "add" (`+`)
-and "remove" (`-`), for example: `+test*,-test3`.
+support wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the
+ability to "exclude" (`-`), for example: `test*,-test3`.
 
 All multi indices API support the following url query string parameters:
 
@@ -46,7 +47,7 @@ to. If `open` is specified then the wildcard expression is expanded to only
 open indices and if `closed` is specified then the wildcard expression is
 expanded only to closed indices. Also both values (`open,closed`) can be
 specified to expand to all indices.
-
++
 If `none` is specified then wildcard expansion will be disabled and if `all`
 is specified, wildcard expressions will expand to all indices (this is equivalent
 to specifying `open,closed`).
@@ -117,6 +118,7 @@ The special characters used for date rounding must be URI encoded as follows:
 `|`:: `%7C`
 `+`:: `%2B`
 `:`:: `%3A`
+`,`:: `%2C`
 ======================================================
 
 The following example shows different forms of date math index names and the final index names
@@ -200,7 +202,7 @@ one or more maths expressions:
 * `-1d` - subtract one day
 * `/d`  - round down to the nearest day
 
-The supported time units differ than those supported by <<time-units, time units>> for durations.
+The supported time units differ from those supported by <<time-units, time units>> for durations.
 The supported units are:
 
 [horizontal]
@@ -474,9 +476,8 @@ convention of using underscore casing.
 === Boolean Values
 
 All REST APIs parameters (both request parameters and JSON body) support
-providing boolean "false" as the values: `false`, `0`, `no` and `off`.
-All other values are considered "true". Note, this is not related to
-fields within a document indexed treated as boolean fields.
+providing boolean "false" as the value `false` and boolean "true" as the
+value `true`. All other values will raise an error.
 
 [float]
 === Number Values
@@ -505,8 +506,8 @@ the unit, like `2d` for 2 days.  The supported units are:
 === Byte size units
 
 Whenever the byte size of data needs to be specified, eg when setting a buffer size
-parameter, the value must specify the unit, like `10kb` for 10 kilobytes.  The
-supported units are:
+parameter, the value must specify the unit, like `10kb` for 10 kilobytes. Note that
+these units use powers of 1024, so `1kb` means 1024 bytes. The supported units are:
 
 [horizontal]
 `b`::   Bytes
@@ -576,7 +577,9 @@ the maximum allowed Levenshtein Edit Distance (or number of edits)
 `AUTO`::
 +
 --
-generates an edit distance based on the length of the term. For lengths:
+generates an edit distance based on the length of the term.
+Low and high distance arguments may be optionally provided `AUTO:[low],[high]`, if not specified,
+the default values are 3 and 6, equivalent to `AUTO:3,6` that make for lengths:
 
 `0..2`:: must match exactly
 `3..5`:: one edit allowed
@@ -599,7 +602,8 @@ invalid `size` parameter to the `_search` API:
 POST /twitter/_search?size=surprise_me
 ----------------------------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[s/surprise_me/surprise_me&error_trace=false/ catch:bad_request]
+// Since the test system sends error_trace=true by default we have to override
 
 The response looks like:
 
@@ -632,7 +636,7 @@ But if you set `error_trace=true`:
 POST /twitter/_search?size=surprise_me&error_trace=true
 ----------------------------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[catch:bad_request]
 
 The response looks like:
 
@@ -668,7 +672,22 @@ The response looks like:
 
 For libraries that don't accept a request body for non-POST requests,
 you can pass the request body as the `source` query string parameter
-instead.
+instead. When using this method, the `source_content_type` parameter
+should also be passed with a media type value that indicates the format
+of the source, such as `application/json`.
+
+[float]
+=== Content-Type Requirements
+
+The type of the content sent in a request body must be specified using
+the `Content-Type` header. The value of this header must map to one of
+the supported formats that the API supports. Most APIs support JSON,
+YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
+JSON and SMILE; other types will result in an error response.
+
+Additionally, when using the `source` query string parameter the
+content type must be specified using the `source_content_type` query
+string parameter.
 
 [[url-access-control]]
 == URL-based access control
@@ -680,7 +699,7 @@ the choice of specifying an index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
 
 To prevent the user from overriding the index which has been specified in the
-URL, add this setting to the `config.yml` file:
+URL, add this setting to the `elasticsearch.yml` file:
 
     rest.action.multi.allow_explicit_index: false
 

@@ -21,6 +21,7 @@ package org.elasticsearch.test.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -49,7 +50,7 @@ public class SharedSignificantTermsTestMethods {
 
     public static void aggregateAndCheckFromSeveralShards(ESIntegTestCase testCase) throws ExecutionException, InterruptedException {
         String type = ESTestCase.randomBoolean() ? "text" : "keyword";
-        String settings = "{\"index.number_of_shards\": 5, \"index.number_of_replicas\": 0}";
+        String settings = "{\"index.number_of_shards\": 7, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings, testCase);
         testCase.ensureGreen();
         testCase.logClusterState();
@@ -80,7 +81,7 @@ public class SharedSignificantTermsTestMethods {
         if (type.equals("text")) {
             textMappings += ",fielddata=true";
         }
-        assertAcked(testCase.prepareCreate(INDEX_NAME).setSettings(settings)
+        assertAcked(testCase.prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
                 .addMapping("doc", "text", textMappings, CLASS_FIELD, "type=keyword"));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();

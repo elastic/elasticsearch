@@ -35,6 +35,7 @@ pairs, something like this:
   "manager.name.last":  "Smith"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 An explicit mapping for the above document could look like this:
 
@@ -88,11 +89,6 @@ The following parameters are accepted by `object` fields:
     Whether the JSON value given for the object field should be
     parsed and indexed (`true`, default) or completely ignored (`false`).
 
-<<include-in-all,`include_in_all`>>::
-
-    Sets the default `include_in_all` value for all the `properties` within
-    the object. The object itself is not added to the `_all` field.
-
 <<properties,`properties`>>::
 
     The fields within the object, which can be of any
@@ -101,4 +97,3 @@ The following parameters are accepted by `object` fields:
 
 IMPORTANT: If you need to index arrays of objects instead of single objects,
 read <<nested>> first.
-

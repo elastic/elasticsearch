@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -106,10 +107,10 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
             .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
-        logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
+        logger.info("creating index: [test] using settings: [{}]", settings.build());
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping));
+                .addMapping("type", mapping, XContentType.JSON));
         ensureSearchable();
         final int numDocs = between(10, 100);
         int numCreated = 0;
@@ -241,6 +242,11 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new RandomExceptionDirectoryReaderWrapper(in, settings);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
         }
     }
 

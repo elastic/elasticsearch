@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable.Builder;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -37,9 +38,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -201,6 +204,8 @@ public class ClusterStateCreationUtils {
         discoBuilder.masterNodeId(newNode(0).getId());
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
+        List<String> nodesList = new ArrayList<>(nodes);
+        int currentNodeToAssign = 0;
         for (String index : indices) {
             IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(Settings.builder()
                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -215,7 +220,10 @@ public class ClusterStateCreationUtils {
                 ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 indexShardRoutingBuilder.addShard(
-                    TestShardRouting.newShardRouting(shardId, randomFrom(nodes), true, ShardRoutingState.STARTED));
+                    TestShardRouting.newShardRouting(shardId, nodesList.get(currentNodeToAssign++), true, ShardRoutingState.STARTED));
+                if (currentNodeToAssign == nodesList.size()) {
+                    currentNodeToAssign = 0;
+                }
                 indexRoutingTable.addIndexShard(indexShardRoutingBuilder.build());
             }
 
@@ -264,6 +272,51 @@ public class ClusterStateCreationUtils {
         state.routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build());
         return state.build();
     }
+    
+    
+    /**
+     * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
+
+        int numberOfDataNodes = numberOfReplicas + 1; 
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        for (int i = 0; i < numberOfDataNodes + 1; i++) {
+            final DiscoveryNode node = newNode(i);
+            discoBuilder = discoBuilder.add(node);
+        }
+        discoBuilder.localNodeId(newNode(0).getId());
+        discoBuilder.masterNodeId(newNode(numberOfDataNodes + 1).getId()); 
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
+        Builder routingTableBuilder = RoutingTable.builder();
+
+        org.elasticsearch.cluster.metadata.MetaData.Builder metadataBuilder = MetaData.builder();
+
+        for (String index : indices) {
+            IndexMetaData indexMetaData = IndexMetaData.builder(index)
+                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                            .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+                    .build();
+            metadataBuilder.put(indexMetaData, false).generateClusterUuidIfNeeded();
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetaData.getIndex());
+            for (int i = 0; i < numberOfShards; i++) {
+                final ShardId shardId = new ShardId(index, "_na_", i);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                indexShardRoutingBuilder
+                        .addShard(TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true, ShardRoutingState.STARTED));
+                for (int replica = 0; replica < numberOfReplicas; replica++) {
+                    indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, newNode(replica + 1).getId(), null, false,
+                            ShardRoutingState.STARTED));
+                }
+                indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder.build());
+        }
+        state.metaData(metadataBuilder);
+        state.routingTable(routingTableBuilder.build());
+        return state.build();
+    }    
 
     /**
      * Creates cluster state with and index that has one shard and as many replicas as numberOfReplicas.

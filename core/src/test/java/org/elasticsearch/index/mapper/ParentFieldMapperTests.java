@@ -20,11 +20,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -34,9 +36,12 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -46,6 +51,11 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class ParentFieldMapperTests extends ESSingleNodeTestCase {
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
+
     public void testParentSetInDocNotAllowed() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
@@ -53,7 +63,7 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
 
         try {
             docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().field("_parent", "1122").endObject().bytes()));
+                .startObject().field("_parent", "1122").endObject().bytes(), XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("Field [_parent] is a metadata field and cannot be added inside a document"));
@@ -66,19 +76,20 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
         String childMapping = XContentFactory.jsonBuilder().startObject().startObject("child_type")
                 .startObject("_parent").field("type", "parent_type").endObject()
                 .endObject().endObject().string();
-        IndexService indexService = createIndex("test");
+        IndexService indexService = createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build());
         indexService.mapperService().merge("parent_type", new CompressedXContent(parentMapping), MergeReason.MAPPING_UPDATE, false);
         indexService.mapperService().merge("child_type", new CompressedXContent(childMapping), MergeReason.MAPPING_UPDATE, false);
 
         // Indexing parent doc:
         DocumentMapper parentDocMapper = indexService.mapperService().documentMapper("parent_type");
-        ParsedDocument doc = parentDocMapper.parse(SourceToParse.source("test", "parent_type", "1122", new BytesArray("{}")));
+        ParsedDocument doc =
+            parentDocMapper.parse(SourceToParse.source("test", "parent_type", "1122", new BytesArray("{}"), XContentType.JSON));
         assertEquals(1, getNumberOfFieldWithParentPrefix(doc.rootDoc()));
         assertEquals("1122", doc.rootDoc().getBinaryValue("_parent#parent_type").utf8ToString());
 
         // Indexing child doc:
         DocumentMapper childDocMapper = indexService.mapperService().documentMapper("child_type");
-        doc = childDocMapper.parse(SourceToParse.source("test", "child_type", "1", new BytesArray("{}")).parent("1122"));
+        doc = childDocMapper.parse(SourceToParse.source("test", "child_type", "1", new BytesArray("{}"), XContentType.JSON).parent("1122"));
 
         assertEquals(1, getNumberOfFieldWithParentPrefix(doc.rootDoc()));
         assertEquals("1122", doc.rootDoc().getBinaryValue("_parent#parent_type").utf8ToString());
@@ -92,7 +103,7 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field("x_field", "x_value")
                 .endObject()
-                .bytes()));
+                .bytes(), XContentType.JSON));
         assertEquals(0, getNumberOfFieldWithParentPrefix(doc.rootDoc()));
     }
 
@@ -101,9 +112,9 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
         NamedAnalyzer namedAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, namedAnalyzer, namedAnalyzer, namedAnalyzer,
-            Collections.emptyMap());
-        SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-        MapperService mapperService = new MapperService(indexSettings, indexAnalyzers, similarityService,
+            Collections.emptyMap(), Collections.emptyMap());
+        SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
+        MapperService mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry(), similarityService,
             new IndicesModule(emptyList()).getMapperRegistry(), () -> null);
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("some_type")
             .startObject("properties")
@@ -113,6 +124,8 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
         Set<String> allFields = new HashSet<>(mapperService.simpleMatchToIndexNames("*"));
         assertTrue(allFields.contains("_parent"));
         assertFalse(allFields.contains("_parent#null"));
+        MappedFieldType fieldType = mapperService.fullName("_parent");
+        assertFalse(fieldType.eagerGlobalOrdinals());
     }
 
     private static int getNumberOfFieldWithParentPrefix(ParseContext.Document doc) {

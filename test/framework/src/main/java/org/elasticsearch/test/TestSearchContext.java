@@ -24,13 +24,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -41,6 +40,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -55,11 +55,12 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +69,6 @@ public class TestSearchContext extends SearchContext {
 
     final BigArrays bigArrays;
     final IndexService indexService;
-    final IndexFieldDataService indexFieldDataService;
     final BitsetFilterCache fixedBitSetFilterCache;
     final ThreadPool threadPool;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -81,34 +81,38 @@ public class TestSearchContext extends SearchContext {
     Query query;
     Float minScore;
     SearchTask task;
+    SortAndFormats sort;
+    boolean trackScores = false;
+    boolean trackTotalHits = true;
 
     ContextIndexSearcher searcher;
     int size;
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
+    private ScrollContext scrollContext;
 
     private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, IndexService indexService) {
-        super(ParseFieldMatcher.STRICT);
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
-        this.indexFieldDataService = indexService.fieldData();
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
-        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
+        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
-        super(ParseFieldMatcher.STRICT);
+        this(queryShardContext, null);
+    }
+
+    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
         this.bigArrays = null;
         this.indexService = null;
-        this.indexFieldDataService = null;
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
-        this.indexShard = null;
+        this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
     }
 
@@ -117,7 +121,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Query searchFilter(String[] types) {
+    public Query buildFilteredQuery(Query query) {
         return null;
     }
 
@@ -157,23 +161,19 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext queryBoost(float queryBoost) {
-        return null;
-    }
-
-    @Override
     public long getOriginNanoTime() {
         return originNanoTime;
     }
 
     @Override
     public ScrollContext scrollContext() {
-        return null;
+        return scrollContext;
     }
 
     @Override
     public SearchContext scrollContext(ScrollContext scrollContext) {
-        throw new UnsupportedOperationException();
+        this.scrollContext = scrollContext;
+        return this;
     }
 
     @Override
@@ -216,12 +216,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public List<RescoreSearchContext> rescore() {
-        return null;
+    public List<RescoreContext> rescore() {
+        return Collections.emptyList();
     }
 
     @Override
-    public void addRescore(RescoreSearchContext rescore) {
+    public void addRescore(RescoreContext rescore) {
     }
 
     @Override
@@ -302,8 +302,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public IndexFieldDataService fieldData() {
-        return indexFieldDataService;
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
+        return queryShardContext.getForField(fieldType);
     }
 
     @Override
@@ -343,22 +343,35 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext sort(SortAndFormats sort) {
-        return null;
+        this.sort = sort;
+        return this;
     }
 
     @Override
     public SortAndFormats sort() {
-        return null;
+        return sort;
     }
 
     @Override
     public SearchContext trackScores(boolean trackScores) {
-        return null;
+        this.trackScores = trackScores;
+        return this;
     }
 
     @Override
     public boolean trackScores() {
-        return false;
+        return trackScores;
+    }
+
+    @Override
+    public SearchContext trackTotalHits(boolean trackTotalHits) {
+        this.trackTotalHits = trackTotalHits;
+        return this;
+    }
+
+    @Override
+    public boolean trackTotalHits() {
+        return trackTotalHits;
     }
 
     @Override
@@ -368,6 +381,16 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public FieldDoc searchAfter() {
+        return null;
+    }
+
+    @Override
+    public SearchContext collapse(CollapseContext collapse) {
+        return null;
+    }
+
+    @Override
+    public CollapseContext collapse() {
         return null;
     }
 

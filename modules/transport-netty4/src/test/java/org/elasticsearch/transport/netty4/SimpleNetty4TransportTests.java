@@ -26,6 +26,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
@@ -34,10 +35,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
@@ -49,25 +52,46 @@ import static org.hamcrest.Matchers.containsString;
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
     public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-            ClusterSettings clusterSettings) {
+                                                           ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        Transport transport = new Netty4Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
+        Transport transport = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
+
+            @Override
+            protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
+                InterruptedException {
+                if (doHandshake) {
+                    return super.executeHandshake(node, channel, timeout);
+                } else {
+                    return version.minimumCompatibilityVersion();
+                }
+            }
+
             @Override
             protected Version getCurrentVersion() {
                 return version;
             }
         };
-        return new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                clusterSettings);
+        MockTransportService mockTransportService =
+            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings);
+        mockTransportService.start();
+        return mockTransportService;
     }
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings) {
-        settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
-        MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings);
+    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+        settings = Settings.builder().put(settings).put(TcpTransport.PORT.getKey(), "0").build();
+        MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;
+    }
+
+    @Override
+    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
+        final Netty4Transport t = (Netty4Transport) transport;
+        @SuppressWarnings("unchecked")
+        final TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
+        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {
@@ -76,7 +100,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                     emptyMap(), emptySet(),Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
-            assertThat(e.getMessage(), containsString("connect_timeout"));
+            assertThat(e.getMessage(), containsString("connect_exception"));
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
         }
     }
@@ -92,7 +116,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings);
+            MockTransportService transportService =
+                    nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
             try {
                 transportService.start();
             } finally {

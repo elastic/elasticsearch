@@ -36,6 +36,7 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -52,7 +53,7 @@ import java.io.IOException;
  */
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
-    public static class CommonSettings {
+    class CommonSettings {
         public static final String SETTING_MEMORY_STORAGE_HINT = "memory_storage_hint";
 
         public enum MemoryStorageFormat {
@@ -85,9 +86,9 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     FD loadDirect(LeafReaderContext context) throws Exception;
 
     /**
-     * Comparator used for sorting.
+     * Returns the {@link SortField} to used for sorting.
      */
-    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested);
+    SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
 
     /**
      * Clears any resources associated with this field data.
@@ -98,6 +99,24 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     // in this case, we need to reduce type that will be used when search results are reduced
     // on another node (we don't have the custom source them...)
     abstract class XFieldComparatorSource extends FieldComparatorSource {
+
+        protected final MultiValueMode sortMode;
+        protected final Object missingValue;
+        protected final Nested nested;
+
+        public XFieldComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+            this.sortMode = sortMode;
+            this.missingValue = missingValue;
+            this.nested = nested;
+        }
+
+        public MultiValueMode sortMode() {
+            return this.sortMode;
+        }
+
+        public Nested nested() {
+            return this.nested;
+        }
 
         /**
          * Simple wrapper class around a filter that matches parent documents
@@ -114,6 +133,14 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             public Nested(BitSetProducer rootFilter, Query innerQuery) {
                 this.rootFilter = rootFilter;
                 this.innerQuery = innerQuery;
+            }
+
+            public Query getInnerQuery() {
+                return innerQuery;
+            }
+
+            public BitSetProducer getRootFilter() {
+                return rootFilter;
             }
 
             /**
@@ -136,17 +163,17 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
         }
 
         /** Whether missing values should be sorted first. */
-        protected final boolean sortMissingFirst(Object missingValue) {
+        public final boolean sortMissingFirst(Object missingValue) {
             return "_first".equals(missingValue);
         }
 
         /** Whether missing values should be sorted last, this is the default. */
-        protected final boolean sortMissingLast(Object missingValue) {
+        public final boolean sortMissingLast(Object missingValue) {
             return missingValue == null || "_last".equals(missingValue);
         }
 
         /** Return the missing object value according to the reduced type of the comparator. */
-        protected final Object missingObject(Object missingValue, boolean reversed) {
+        public final Object missingObject(Object missingValue, boolean reversed) {
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 final boolean min = sortMissingFirst(missingValue) ^ reversed;
                 switch (reducedType()) {

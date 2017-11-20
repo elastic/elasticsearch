@@ -1,0 +1,342 @@
+---
+"Update a document using update_by_query":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        index:   twitter
+        refresh: true
+        body:
+          script:
+            lang: painless
+            source: ctx._source.user = "not" + ctx._source.user
+  - match: {updated: 1}
+  - match: {noops: 0}
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            match:
+              user: notkimchy
+  - match: { hits.total: 1 }
+
+---
+"Update document using short `script` form":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+        indices.refresh: {}
+
+  - do:
+      update_by_query:
+        index:   twitter
+        refresh: true
+        body:    { "script": "ctx._source.user = \"not\" + ctx._source.user" }
+  - match: {updated: 1}
+  - match: {noops: 0}
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            match:
+              user: notkimchy
+  - match: { hits.total: 1 }
+
+---
+"Noop one doc":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     2
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: if (ctx._source.user == "kimchy") {ctx._source.user = "not" + ctx._source.user} else {ctx.op = "noop"}
+  - match: {updated: 1}
+  - match: {noops: 1}
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            match:
+              user: notkimchy
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            match:
+              user: notfoo
+  - match: { hits.total: 0 }
+
+---
+"Noop all docs":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     2
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: ctx.op = "noop"
+  - match: {updated: 0}
+  - match: {noops: 2}
+  - match: {batches: 1}
+
+---
+"Setting bogus context is an error":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /Invalid fields added to context \[junk\]/
+      update_by_query:
+        index: twitter
+        body:
+          script:
+            lang: painless
+            source: ctx.junk = "stuff"
+
+---
+"Can't change _id":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /Modifying \[_id\] not allowed/
+      update_by_query:
+        index: twitter
+        body:
+          script:
+            lang: painless
+            source: ctx._id = "stuff"
+
+---
+"Update all docs with one doc deletion":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     2
+        body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     3
+        body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     4
+        body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: if (ctx._source.level != 11) {ctx._source.last_updated = "2016-01-02T00:00:00Z"} else {ctx.op = "delete"}
+  - match: {updated: 3}
+  - match: {deleted: 1}
+  - match: {noops: 0}
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            match:
+              last_updated: "2016-01-02T00:00:00Z"
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            term:
+              level: 11
+  - match: { hits.total: 0 }
+
+  - do:
+      count:
+        index: twitter
+  - match: {count: 3}
+
+---
+"Update all docs with one deletion and one noop":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     2
+        body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     3
+        body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     4
+        body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: |
+              int choice = ctx._source.level % 3;
+              if (choice == 0) {
+                ctx._source.last_updated = "2016-01-02T00:00:00Z";
+              } else if (choice == 1) {
+                ctx.op = "noop";
+              } else {
+                ctx.op = "delete";
+              }
+  - match: {updated: 2}
+  - match: {deleted: 1}
+  - match: {noops: 1}
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            match:
+              last_updated: "2016-01-02T00:00:00Z"
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            match:
+              last_updated: "2016-01-01T12:10:30Z"
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        index: twitter
+        body:
+          query:
+            term:
+              level: 11
+  - match: { hits.total: 0 }
+
+---
+"Set unsupported operation type":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     2
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: bad_request
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: if (ctx._source.user == "kimchy") {ctx.op = "update"} else {ctx.op = "junk"}
+
+  - match: { error.reason: 'Operation type [junk] not allowed, only [noop, index, delete] are allowed' }

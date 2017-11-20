@@ -22,9 +22,11 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -62,7 +64,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
     private void runTestThatVersionIsReturned(String... args) throws Exception {
         runTestVersion(ExitCodes.OK, output -> {
-            assertThat(output, containsString("Version: " + Version.CURRENT.toString()));
+            assertThat(output, containsString("Version: " + Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot())));
             assertThat(output, containsString("Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()));
             assertThat(output, containsString("JVM: " + JvmInfo.jvmInfo().version()));
         }, args);
@@ -78,22 +80,19 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
             false,
             output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
             (foreground, pidFile, quiet, esSettings) -> {},
-            "foo"
-        );
+            "foo");
         runTest(
             ExitCodes.USAGE,
             false,
             output -> assertThat(output, containsString("Positional arguments not allowed, found [foo, bar]")),
             (foreground, pidFile, quiet, esSettings) -> {},
-            "foo", "bar"
-        );
+            "foo", "bar");
         runTest(
             ExitCodes.USAGE,
             false,
             output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
             (foreground, pidFile, quiet, esSettings) -> {},
-            "-E", "foo=bar", "foo", "-E", "baz=qux"
-        );
+            "-E", "foo=bar", "foo", "-E", "baz=qux");
     }
 
     public void testThatPidFileCanBeConfigured() throws Exception {
@@ -151,23 +150,30 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 ExitCodes.OK,
                 true,
                 output -> {},
-                (foreground, pidFile, quiet, esSettings) -> {
-                    assertThat(esSettings.size(), equalTo(2));
-                    assertThat(esSettings, hasEntry("foo", "bar"));
-                    assertThat(esSettings, hasEntry("baz", "qux"));
+                (foreground, pidFile, quiet, env) -> {
+                    Settings settings = env.settings();
+                    assertEquals("bar", settings.get("foo"));
+                    assertEquals("qux", settings.get("baz"));
                 },
-                "-Efoo=bar", "-E", "baz=qux"
-        );
+                "-Efoo=bar", "-E", "baz=qux");
     }
 
     public void testElasticsearchSettingCanNotBeEmpty() throws Exception {
         runTest(
                 ExitCodes.USAGE,
                 false,
-                output -> assertThat(output, containsString("Setting [foo] must not be empty")),
+                output -> assertThat(output, containsString("setting [foo] must not be empty")),
                 (foreground, pidFile, quiet, esSettings) -> {},
-                "-E", "foo="
-        );
+                "-E", "foo=");
+    }
+
+    public void testElasticsearchSettingCanNotBeDuplicated() throws Exception {
+        runTest(
+                ExitCodes.USAGE,
+                false,
+                output -> assertThat(output, containsString("setting [foo] already set, saw [bar] and [baz]")),
+                (foreground, pidFile, quiet, initialEnv) -> {},
+                "-E", "foo=bar", "-E", "foo=baz");
     }
 
     public void testUnknownOption() throws Exception {

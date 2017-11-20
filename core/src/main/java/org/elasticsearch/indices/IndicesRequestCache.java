@@ -130,6 +130,16 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         return value;
     }
 
+    /**
+     * Invalidates the given the cache entry for the given key and it's context
+     * @param cacheEntity the cache entity to invalidate for
+     * @param reader the reader to invalidate the cache entry for
+     * @param cacheKey the cache key to invalidate
+     */
+    void invalidate(CacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
+        cache.invalidate(new Key(cacheEntity, reader.getVersion(), cacheKey));
+    }
+
     private static class Loader implements CacheLoader<Key, BytesReference> {
 
         private final CacheEntity entity;
@@ -166,7 +176,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
 
         /**
          * Returns <code>true</code> iff the resource behind this entity is still open ie.
-         * entities assiciated with it can remain in the cache. ie. IndexShard is still open.
+         * entities associated with it can remain in the cache. ie. IndexShard is still open.
          */
         boolean isOpen();
 
@@ -235,7 +245,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         }
     }
 
-    private class CleanupKey implements IndexReader.ReaderClosedListener {
+    private class CleanupKey implements IndexReader.ClosedListener {
         final CacheEntity entity;
         final long readerVersion; // use the reader version to now keep a reference to a "short" lived reader until its reaped
 
@@ -245,7 +255,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         }
 
         @Override
-        public void onClose(IndexReader reader) {
+        public void onClose(IndexReader.CacheKey cacheKey) {
             Boolean remove = registeredClosedListeners.remove(this);
             if (remove != null) {
                 keysToClean.add(this);
@@ -255,6 +265,9 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             CleanupKey that = (CleanupKey) o;
             if (readerVersion != that.readerVersion) return false;
             if (!entity.getCacheIdentity().equals(that.entity.getCacheIdentity())) return false;

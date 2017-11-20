@@ -43,13 +43,13 @@ class AssistedConstructor<T> {
     private final List<Parameter> allParameters;
 
     @SuppressWarnings("unchecked")
-    public AssistedConstructor(Constructor<T> constructor, List<TypeLiteral<?>> parameterTypes) {
+    AssistedConstructor(Constructor<T> constructor, List<TypeLiteral<?>> parameterTypes) {
         this.constructor = constructor;
 
         Annotation[][] annotations = constructor.getParameterAnnotations();
 
         List<Type> typeList = new ArrayList<>();
-        allParameters = new ArrayList<>();
+        allParameters = new ArrayList<>(parameterTypes.size());
 
         // categorize params as @Assisted or @Injected
         for (int i = 0; i < parameterTypes.size(); i++) {

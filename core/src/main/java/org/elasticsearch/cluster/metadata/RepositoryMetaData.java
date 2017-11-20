@@ -73,17 +73,10 @@ public class RepositoryMetaData {
     }
 
 
-    /**
-     * Reads repository metadata from stream input
-     *
-     * @param in stream input
-     * @return repository metadata
-     */
-    public static RepositoryMetaData readFrom(StreamInput in) throws IOException {
-        String name = in.readString();
-        String type = in.readString();
-        Settings settings = Settings.readSettingsFromStream(in);
-        return new RepositoryMetaData(name, type, settings);
+    public RepositoryMetaData(StreamInput in) throws IOException {
+        name = in.readString();
+        type = in.readString();
+        settings = Settings.readSettingsFromStream(in);
     }
 
     /**

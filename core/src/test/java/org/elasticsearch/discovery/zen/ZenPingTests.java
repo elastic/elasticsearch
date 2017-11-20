@@ -68,7 +68,7 @@ public class ZenPingTests extends ESTestCase {
         Collections.shuffle(pings, random());
 
         ZenPing.PingCollection collection = new ZenPing.PingCollection();
-        collection.addPings(pings);
+        pings.forEach(collection::addPing);
 
         List<ZenPing.PingResponse> aggregate = collection.toList();
 

@@ -20,19 +20,37 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.VersionUtils;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterSerializationTests extends ESAllocationTestCase {
 
@@ -52,7 +70,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
 
-        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"));
+        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"),
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
 
         assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
 
@@ -79,9 +98,117 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         BytesStreamOutput outStream = new BytesStreamOutput();
         source.writeTo(outStream);
         StreamInput inStream = outStream.bytes().streamInput();
-        RoutingTable target = RoutingTable.Builder.readFrom(inStream);
+        RoutingTable target = RoutingTable.readFrom(inStream);
 
         assertThat(target.toString(), equalTo(source.toString()));
     }
 
+    public void testSnapshotDeletionsInProgressSerialization() throws Exception {
+
+        boolean includeRestore = randomBoolean();
+
+        ClusterState.Builder builder = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putCustom(SnapshotDeletionsInProgress.TYPE,
+                SnapshotDeletionsInProgress.newInstance(
+                    new SnapshotDeletionsInProgress.Entry(
+                        new Snapshot("repo1", new SnapshotId("snap1", UUIDs.randomBase64UUID())),
+                        randomNonNegativeLong(), randomNonNegativeLong())
+                ));
+        if (includeRestore) {
+            builder.putCustom(RestoreInProgress.TYPE,
+                new RestoreInProgress(
+                    new RestoreInProgress.Entry(
+                        new Snapshot("repo2", new SnapshotId("snap2", UUIDs.randomBase64UUID())),
+                        RestoreInProgress.State.STARTED,
+                        Collections.singletonList("index_name"),
+                        ImmutableOpenMap.of()
+                    )
+                ));
+        }
+
+        ClusterState clusterState = builder.incrementVersion().build();
+
+        Diff<ClusterState> diffs = clusterState.diff(ClusterState.EMPTY_STATE);
+
+        // serialize with current version
+        BytesStreamOutput outStream = new BytesStreamOutput();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
+        outStream.setVersion(version);
+        diffs.writeTo(outStream);
+        StreamInput inStream = outStream.bytes().streamInput();
+        inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        inStream.setVersion(version);
+        Diff<ClusterState> serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
+        ClusterState stateAfterDiffs = serializedDiffs.apply(ClusterState.EMPTY_STATE);
+        assertThat(stateAfterDiffs.custom(RestoreInProgress.TYPE), includeRestore ? notNullValue() : nullValue());
+        assertThat(stateAfterDiffs.custom(SnapshotDeletionsInProgress.TYPE), notNullValue());
+
+        // remove the custom and try serializing again
+        clusterState = ClusterState.builder(clusterState).removeCustom(SnapshotDeletionsInProgress.TYPE).incrementVersion().build();
+        outStream = new BytesStreamOutput();
+        outStream.setVersion(version);
+        diffs.writeTo(outStream);
+        inStream = outStream.bytes().streamInput();
+        inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        inStream.setVersion(version);
+        serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
+        stateAfterDiffs = serializedDiffs.apply(stateAfterDiffs);
+        assertThat(stateAfterDiffs.custom(RestoreInProgress.TYPE), includeRestore ? notNullValue() : nullValue());
+        assertThat(stateAfterDiffs.custom(SnapshotDeletionsInProgress.TYPE), notNullValue());
+    }
+
+    private ClusterState updateUsingSerialisedDiff(ClusterState original, Diff<ClusterState> diff) throws IOException {
+        BytesStreamOutput outStream = new BytesStreamOutput();
+        outStream.setVersion(Version.CURRENT);
+        diff.writeTo(outStream);
+        StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        diff = ClusterState.readDiffFrom(inStream, newNode("node-name"));
+        return diff.apply(original);
+    }
+
+    public void testObjectReuseWhenApplyingClusterStateDiff() throws Exception {
+        IndexMetaData indexMetaData
+            = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1).build();
+        IndexTemplateMetaData indexTemplateMetaData
+            = IndexTemplateMetaData.builder("test-template").patterns(new ArrayList<>()).build();
+        MetaData metaData = MetaData.builder().put(indexMetaData, true).put(indexTemplateMetaData).build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+
+        ClusterState clusterState1 = ClusterState.builder(new ClusterName("clusterName1"))
+            .metaData(metaData).routingTable(routingTable).build();
+        BytesStreamOutput outStream = new BytesStreamOutput();
+        outStream.setVersion(Version.CURRENT);
+        clusterState1.writeTo(outStream);
+        StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
+        ClusterState serializedClusterState1 = ClusterState.readFrom(inStream, newNode("node4"));
+
+        // Create a new, albeit equal, IndexMetadata object
+        ClusterState clusterState2 = ClusterState.builder(clusterState1).incrementVersion()
+            .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(1).build(), true)).build();
+        assertNotSame("Should have created a new, equivalent, IndexMetaData object in clusterState2",
+            clusterState1.metaData().index("test"), clusterState2.metaData().index("test"));
+
+        ClusterState serializedClusterState2 = updateUsingSerialisedDiff(serializedClusterState1, clusterState2.diff(clusterState1));
+        assertSame("Unchanged metadata should not create new IndexMetaData objects",
+            serializedClusterState1.metaData().index("test"), serializedClusterState2.metaData().index("test"));
+        assertSame("Unchanged routing table should not create new IndexRoutingTable objects",
+            serializedClusterState1.routingTable().index("test"), serializedClusterState2.routingTable().index("test"));
+
+        // Create a new and different IndexMetadata object
+        ClusterState clusterState3 = ClusterState.builder(clusterState1).incrementVersion()
+            .metaData(MetaData.builder().put(IndexMetaData.builder(indexMetaData).numberOfReplicas(2).build(), true)).build();
+        ClusterState serializedClusterState3 = updateUsingSerialisedDiff(serializedClusterState2, clusterState3.diff(clusterState2));
+        assertNotEquals("Should have a new IndexMetaData object",
+            serializedClusterState2.metaData().index("test"), serializedClusterState3.metaData().index("test"));
+        assertSame("Unchanged routing table should not create new IndexRoutingTable objects",
+            serializedClusterState2.routingTable().index("test"), serializedClusterState3.routingTable().index("test"));
+
+        assertSame("nodes", serializedClusterState2.nodes(), serializedClusterState3.nodes());
+        assertSame("blocks", serializedClusterState2.blocks(), serializedClusterState3.blocks());
+        assertSame("template", serializedClusterState2.metaData().templates().get("test-template"),
+            serializedClusterState3.metaData().templates().get("test-template"));
+    }
 }

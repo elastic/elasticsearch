@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -36,13 +37,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+
+import static org.elasticsearch.discovery.zen.PublishClusterStateAction.serializeFullClusterState;
+
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
 
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterStateRequest::new);
+        super(settings, ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters, ClusterStateRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -66,7 +71,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     }
 
     @Override
-    protected void masterOperation(final ClusterStateRequest request, final ClusterState state, ActionListener<ClusterStateResponse> listener) {
+    protected void masterOperation(final ClusterStateRequest request, final ClusterState state,
+                                   final ActionListener<ClusterStateResponse> listener) throws IOException {
         ClusterState currentState = clusterService.state();
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
@@ -120,9 +126,14 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             builder.metaData(mdBuilder);
         }
         if (request.customs()) {
-            builder.customs(currentState.customs());
+            for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
+                if (custom.value.isPrivate() == false) {
+                    builder.putCustom(custom.key, custom.value);
+                }
+            }
         }
-        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build()));
+        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
+                                                        serializeFullClusterState(currentState, Version.CURRENT).length()));
     }
 
 

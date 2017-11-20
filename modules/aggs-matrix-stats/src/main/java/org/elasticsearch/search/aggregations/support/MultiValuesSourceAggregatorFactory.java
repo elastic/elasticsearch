@@ -22,8 +22,8 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -35,10 +35,10 @@ public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource
 
     protected Map<String, ValuesSourceConfig<VS>> configs;
 
-    public MultiValuesSourceAggregatorFactory(String name, Type type, Map<String, ValuesSourceConfig<VS>> configs,
-        AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metaData) throws IOException {
-        super(name, type, context, parent, subFactoriesBuilder, metaData);
+    public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig<VS>> configs,
+            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, subFactoriesBuilder, metaData);
         this.configs = configs;
     }
 
@@ -48,7 +48,7 @@ public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource
         HashMap<String, VS> valuesSources = new HashMap<>();
 
         for (Map.Entry<String, ValuesSourceConfig<VS>> config : configs.entrySet()) {
-            VS vs = context.valuesSource(config.getValue(), context.searchContext());
+            VS vs = config.getValue().toValuesSource(context.getQueryShardContext());
             if (vs != null) {
                 valuesSources.put(config.getKey(), vs);
             }

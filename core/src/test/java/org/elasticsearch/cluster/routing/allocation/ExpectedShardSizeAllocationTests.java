@@ -46,22 +46,13 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
 
     public void testInitializingHasExpectedSize() {
         final long byteSize = randomIntBetween(0, Integer.MAX_VALUE);
-        AllocationService strategy = createAllocationService(Settings.EMPTY, new ClusterInfoService() {
+        AllocationService strategy = createAllocationService(Settings.EMPTY, () -> new ClusterInfo() {
             @Override
-            public ClusterInfo getClusterInfo() {
-                return new ClusterInfo() {
-                    @Override
-                    public Long getShardSize(ShardRouting shardRouting) {
-                        if (shardRouting.getIndexName().equals("test") && shardRouting.shardId().getId() == 0) {
-                            return byteSize;
-                        }
-                        return null;
-                    }
-                };
-            }
-
-            @Override
-            public void addListener(Listener listener) {
+            public Long getShardSize(ShardRouting shardRouting) {
+                if (shardRouting.getIndexName().equals("test") && shardRouting.shardId().getId() == 0) {
+                    return byteSize;
+                }
+                return null;
             }
         });
 
@@ -101,22 +92,13 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
 
     public void testExpectedSizeOnMove() {
         final long byteSize = randomIntBetween(0, Integer.MAX_VALUE);
-        final AllocationService allocation = createAllocationService(Settings.EMPTY, new ClusterInfoService() {
+        final AllocationService allocation = createAllocationService(Settings.EMPTY, () -> new ClusterInfo() {
             @Override
-            public ClusterInfo getClusterInfo() {
-                return new ClusterInfo() {
-                    @Override
-                    public Long getShardSize(ShardRouting shardRouting) {
-                        if (shardRouting.getIndexName().equals("test") && shardRouting.shardId().getId() == 0) {
-                            return byteSize;
-                        }
-                        return null;
-                    }
-                };
-            }
-
-            @Override
-            public void addListener(Listener listener) {
+            public Long getShardSize(ShardRouting shardRouting) {
+                if (shardRouting.getIndexName().equals("test") && shardRouting.shardId().getId() == 0) {
+                    return byteSize;
+                }
+                return null;
             }
         });
         logger.info("creating an index with 1 shard, no replica");

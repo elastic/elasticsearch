@@ -126,7 +126,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             }
             if (primariesInRecovery >= primariesInitialRecoveries) {
                 // TODO: Should index creation not be throttled for primary shards?
-                return allocation.decision(THROTTLE, NAME, "reached the limit of ongoing initial primary recoveries [%d], [%s=%d]",
+                return allocation.decision(THROTTLE, NAME,
+                    "reached the limit of ongoing initial primary recoveries [%d], cluster setting [%s=%d]",
                     primariesInRecovery, CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
                     primariesInitialRecoveries);
             } else {
@@ -140,7 +141,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
             if (currentInRecoveries >= concurrentIncomingRecoveries) {
                 return allocation.decision(THROTTLE, NAME,
-                    "reached the limit of incoming shard recoveries [%d], [%s=%d] (can also be set via [%s])",
+                    "reached the limit of incoming shard recoveries [%d], cluster setting [%s=%d] (can also be set via [%s])",
                     currentInRecoveries, CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                     concurrentIncomingRecoveries,
                     CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey());
@@ -154,7 +155,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 if (primaryNodeOutRecoveries >= concurrentOutgoingRecoveries) {
                     return allocation.decision(THROTTLE, NAME,
                         "reached the limit of outgoing shard recoveries [%d] on the node [%s] which holds the primary, " +
-                        "[%s=%d] (can also be set via [%s])",
+                        "cluster setting [%s=%d] (can also be set via [%s])",
                         primaryNodeOutRecoveries, node.nodeId(),
                         CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                         concurrentOutgoingRecoveries,

@@ -46,7 +46,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByScrollResponse> {
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
@@ -63,32 +63,39 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     }
 
     @Override
-    protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
-        if (request.getSlices() > 1) {
-            ReindexParallelizationHelper.startSlices(client, taskManager, UpdateByQueryAction.INSTANCE, clusterService.localNode().getId(),
-                    (ParentBulkByScrollTask) task, request, listener);
-        } else {
-            ClusterState state = clusterService.state();
-            ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-            new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService,
-                    state).start();
-        }
+    protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
+        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, UpdateByQueryAction.INSTANCE, listener, client,
+            clusterService.localNode(),
+            () -> {
+                ClusterState state = clusterService.state();
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
+                    bulkByScrollTask);
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
+                    listener).start();
+            }
+        );
     }
 
     @Override
-    protected void doExecute(UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
+    protected void doExecute(UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         throw new UnsupportedOperationException("task required");
     }
 
     /**
      * Simple implementation of update-by-query using scrolling and bulk.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest> {
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest> {
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                                 ThreadPool threadPool, UpdateByQueryRequest request, ScriptService scriptService, ClusterState clusterState,
+                                 ActionListener<BulkByScrollResponse> listener) {
+            this(task, logger, client, threadPool, request, scriptService, clusterState, listener, client.settings());
+        }
 
-        public AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                ThreadPool threadPool, UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
-                ScriptService scriptService, ClusterState clusterState) {
-            super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                ThreadPool threadPool, UpdateByQueryRequest request, ScriptService scriptService, ClusterState clusterState,
+                ActionListener<BulkByScrollResponse> listener, Settings settings) {
+            super(task, logger, client, threadPool, request, scriptService, clusterState, listener, settings);
         }
 
         @Override
@@ -101,10 +108,10 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         @Override
-        protected BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
+        public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new UpdateByQueryScriptApplier(task, scriptService, script, script.getParams());
+                return new UpdateByQueryScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
@@ -115,7 +122,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.index(doc.getIndex());
             index.type(doc.getType());
             index.id(doc.getId());
-            index.source(doc.getSource());
+            index.source(doc.getSource(), doc.getXContentType());
             index.versionType(VersionType.INTERNAL);
             index.version(doc.getVersion());
             index.setPipeline(mainRequest.getPipeline());
@@ -124,9 +131,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         class UpdateByQueryScriptApplier extends ScriptApplier {
 
-            UpdateByQueryScriptApplier(WorkingBulkByScrollTask task, ScriptService scriptService, Script script,
-                                 Map<String, Object> params) {
-                super(task, scriptService, script, params);
+            UpdateByQueryScriptApplier(WorkerBulkByScrollTaskState taskWorker, ScriptService scriptService, Script script,
+                                       Map<String, Object> params) {
+                super(taskWorker, scriptService, script, params);
             }
 
             @Override

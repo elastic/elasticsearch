@@ -34,17 +34,17 @@ import java.util.Locale;
 /**
  * Simple class to log {@code ifconfig}-style output at DEBUG logging.
  */
-final class IfConfig {
+public final class IfConfig {
 
     private static final Logger logger = Loggers.getLogger(IfConfig.class);
     private static final String INDENT = "        ";
 
     /** log interface configuration at debug level, if its enabled */
-    static void logIfNecessary() {
+    public static void logIfNecessary() {
         if (logger.isDebugEnabled()) {
             try {
                 doLogging();
-            } catch (IOException | SecurityException e) {
+            } catch (IOException e) {
                 logger.warn("unable to gather network information", e);
             }
         }
@@ -121,15 +121,15 @@ final class IfConfig {
             sb.append("inet ");
             sb.append(NetworkAddress.format(address));
             int netmask = 0xFFFFFFFF << (32 - interfaceAddress.getNetworkPrefixLength());
-            sb.append(" netmask:" + NetworkAddress.format(InetAddress.getByAddress(new byte[] {
-                    (byte)(netmask >>> 24),
-                    (byte)(netmask >>> 16 & 0xFF),
-                    (byte)(netmask >>> 8 & 0xFF),
-                    (byte)(netmask & 0xFF)
+            sb.append(" netmask:").append(NetworkAddress.format(InetAddress.getByAddress(new byte[]{
+                (byte) (netmask >>> 24),
+                (byte) (netmask >>> 16 & 0xFF),
+                (byte) (netmask >>> 8 & 0xFF),
+                (byte) (netmask & 0xFF)
             })));
             InetAddress broadcast = interfaceAddress.getBroadcast();
             if (broadcast != null) {
-                sb.append(" broadcast:" + NetworkAddress.format(broadcast));
+                sb.append(" broadcast:").append(NetworkAddress.format(broadcast));
             }
         }
         if (address.isLoopbackAddress()) {
@@ -160,8 +160,8 @@ final class IfConfig {
         if (nic.isVirtual()) {
             flags.append("VIRTUAL ");
         }
-        flags.append("mtu:" + nic.getMTU());
-        flags.append(" index:" + nic.getIndex());
+        flags.append("mtu:").append(nic.getMTU());
+        flags.append(" index:").append(nic.getIndex());
         return flags.toString();
     }
 }

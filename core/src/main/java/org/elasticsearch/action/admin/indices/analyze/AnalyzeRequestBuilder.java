@@ -113,7 +113,7 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<An
     /**
      * Sets attributes that will include results
      */
-    public AnalyzeRequestBuilder setAttributes(String attributes){
+    public AnalyzeRequestBuilder setAttributes(String... attributes){
         request.attributes(attributes);
         return this;
     }
@@ -125,4 +125,13 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<An
         request.text(texts);
         return this;
     }
+
+    /**
+     * Instead of setting the analyzer and tokenizer, sets the normalizer as name
+     */
+    public AnalyzeRequestBuilder setNormalizer(String normalizer) {
+        request.normalizer(normalizer);
+        return this;
+    }
+
 }

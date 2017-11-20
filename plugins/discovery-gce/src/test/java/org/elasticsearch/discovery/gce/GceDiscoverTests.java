@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -89,13 +90,12 @@ public class GceDiscoverTests extends ESIntegTestCase {
             throw new RuntimeException(e);
         }
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put("discovery.type", "gce")
+            .put("discovery.zen.hosts_provider", "gce")
             .put("path.logs", resolve)
             .put("transport.tcp.port", 0)
             .put("node.portsfile", "true")
             .put("cloud.gce.project_id", "testproject")
             .put("cloud.gce.zone", "primaryzone")
-            .put("discovery.initial_state_timeout", "1s")
             .put("cloud.gce.host", "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort())
             .put("cloud.gce.root_url", "https://" + httpsServer.getAddress().getHostName() +
                 ":" + httpsServer.getAddress().getPort())
@@ -108,8 +108,8 @@ public class GceDiscoverTests extends ESIntegTestCase {
     public static void startHttpd() throws Exception {
         logDir = createTempDir();
         SSLContext sslContext = getSSLContext();
-        httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
-        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
+        httpsServer = MockHttpServer.createHttps(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
+        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
         httpServer.createContext("/computeMetadata/v1/instance/service-accounts/default/token", (s) -> {
             String response = GceMockUtils.readGoogleInternalJsonResponse(

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Strings;
@@ -59,6 +60,8 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
 
     private String[] attributes = Strings.EMPTY_ARRAY;
 
+    private String normalizer;
+
     public static class NameOrDefinition implements Writeable {
         // exactly one of these two members is not null
         public final String name;
@@ -75,7 +78,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
             try {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
                 builder.map(definition);
-                this.definition = Settings.builder().loadFromSource(builder.string()).build();
+                this.definition = Settings.builder().loadFromSource(builder.string(), builder.contentType()).build();
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to parse [" + definition + "]", e);
             }
@@ -202,11 +205,26 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         return this.attributes;
     }
 
+    public String normalizer() {
+        return this.normalizer;
+    }
+
+    public AnalyzeRequest normalizer(String normalizer) {
+        this.normalizer = normalizer;
+        return this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (text == null || text.length == 0) {
             validationException = addValidationError("text is missing", validationException);
+        }
+        if ((index == null || index.length() == 0) && normalizer != null) {
+            validationException = addValidationError("index is required if normalizer is specified", validationException);
+        }
+        if (normalizer != null && (tokenizer != null || analyzer != null)) {
+            validationException = addValidationError("tokenizer/analyze should be null if normalizer is specified", validationException);
         }
         return validationException;
     }
@@ -222,6 +240,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         field = in.readOptionalString();
         explain = in.readBoolean();
         attributes = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            normalizer = in.readOptionalString();
+        }
     }
 
     @Override
@@ -235,5 +256,8 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         out.writeOptionalString(field);
         out.writeBoolean(explain);
         out.writeStringArray(attributes);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            out.writeOptionalString(normalizer);
+        }
     }
 }

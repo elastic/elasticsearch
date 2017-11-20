@@ -19,12 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -35,6 +37,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
+import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
@@ -45,7 +48,7 @@ import java.util.Map;
 /**
  * Node statistics (dynamic, changes depending on when created).
  */
-public class NodeStats extends BaseNodeResponse implements ToXContent {
+public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
     private long timestamp;
 
@@ -85,6 +88,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
     @Nullable
     private IngestStats ingestStats;
 
+    @Nullable
+    private AdaptiveSelectionStats adaptiveSelectionStats;
+
     NodeStats() {
     }
 
@@ -94,7 +100,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
                      @Nullable AllCircuitBreakerStats breaker,
                      @Nullable ScriptStats scriptStats,
                      @Nullable DiscoveryStats discoveryStats,
-                     @Nullable IngestStats ingestStats) {
+                     @Nullable IngestStats ingestStats,
+                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -109,6 +116,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         this.scriptStats = scriptStats;
         this.discoveryStats = discoveryStats;
         this.ingestStats = ingestStats;
+        this.adaptiveSelectionStats = adaptiveSelectionStats;
     }
 
     public long getTimestamp() {
@@ -198,6 +206,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         return ingestStats;
     }
 
+    @Nullable
+    public AdaptiveSelectionStats getAdaptiveSelectionStats() {
+        return adaptiveSelectionStats;
+    }
+
     public static NodeStats readNodeStats(StreamInput in) throws IOException {
         NodeStats nodeInfo = new NodeStats();
         nodeInfo.readFrom(in);
@@ -222,6 +235,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         scriptStats = in.readOptionalWriteable(ScriptStats::new);
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
         ingestStats = in.readOptionalWriteable(IngestStats::new);
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
+        } else {
+            adaptiveSelectionStats = null;
+        }
     }
 
     @Override
@@ -245,6 +263,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         out.writeOptionalWriteable(scriptStats);
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeOptionalWriteable(adaptiveSelectionStats);
+        }
     }
 
     @Override
@@ -304,6 +325,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         }
         if (getIngestStats() != null) {
             getIngestStats().toXContent(builder, params);
+        }
+        if (getAdaptiveSelectionStats() != null) {
+            getAdaptiveSelectionStats().toXContent(builder, params);
         }
         return builder;
     }

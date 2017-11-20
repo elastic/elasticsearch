@@ -19,8 +19,9 @@
 
 package org.elasticsearch.common.lucene;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReader.CoreClosedListener;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
@@ -29,9 +30,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A map between segment core cache keys and the shard that these segments
@@ -46,11 +47,11 @@ import java.util.Set;
  */
 public final class ShardCoreKeyMap {
 
-    private final Map<Object, ShardId> coreKeyToShard;
-    private final Map<String, Set<Object>> indexToCoreKey;
+    private final Map<IndexReader.CacheKey, ShardId> coreKeyToShard;
+    private final Map<String, Set<IndexReader.CacheKey>> indexToCoreKey;
 
     public ShardCoreKeyMap() {
-        coreKeyToShard = new IdentityHashMap<>();
+        coreKeyToShard = new ConcurrentHashMap<>();
         indexToCoreKey = new HashMap<>();
     }
 
@@ -63,22 +64,34 @@ public final class ShardCoreKeyMap {
         if (shardId == null) {
             throw new IllegalArgumentException("Could not extract shard id from " + reader);
         }
-        final Object coreKey = reader.getCoreCacheKey();
+        final IndexReader.CacheHelper cacheHelper = reader.getCoreCacheHelper();
+        if (cacheHelper == null) {
+            throw new IllegalArgumentException("Reader " + reader + " does not support caching");
+        }
+        final IndexReader.CacheKey coreKey = cacheHelper.getKey();
+
+        if (coreKeyToShard.containsKey(coreKey)) {
+            // Do this check before entering the synchronized block in order to
+            // avoid taking the mutex if possible (which should happen most of
+            // the time).
+            return;
+        }
+
         final String index = shardId.getIndexName();
         synchronized (this) {
-            if (coreKeyToShard.put(coreKey, shardId) == null) {
-                Set<Object> objects = indexToCoreKey.get(index);
+            if (coreKeyToShard.containsKey(coreKey) == false) {
+                Set<IndexReader.CacheKey> objects = indexToCoreKey.get(index);
                 if (objects == null) {
                     objects = new HashSet<>();
                     indexToCoreKey.put(index, objects);
                 }
                 final boolean added = objects.add(coreKey);
                 assert added;
-                CoreClosedListener listener = ownerCoreCacheKey -> {
+                IndexReader.ClosedListener listener = ownerCoreCacheKey -> {
                     assert coreKey == ownerCoreCacheKey;
                     synchronized (ShardCoreKeyMap.this) {
                         coreKeyToShard.remove(ownerCoreCacheKey);
-                        final Set<Object> coreKeys = indexToCoreKey.get(index);
+                        final Set<IndexReader.CacheKey> coreKeys = indexToCoreKey.get(index);
                         final boolean removed = coreKeys.remove(coreKey);
                         assert removed;
                         if (coreKeys.isEmpty()) {
@@ -88,8 +101,16 @@ public final class ShardCoreKeyMap {
                 };
                 boolean addedListener = false;
                 try {
-                    reader.addCoreClosedListener(listener);
+                    cacheHelper.addClosedListener(listener);
                     addedListener = true;
+
+                    // Only add the core key to the map as a last operation so that
+                    // if another thread sees that the core key is already in the
+                    // map (like the check just before this synchronized block),
+                    // then it means that the closed listener has already been
+                    // registered.
+                    ShardId previous = coreKeyToShard.put(coreKey, shardId);
+                    assert previous == null;
                 } finally {
                     if (false == addedListener) {
                         try {
@@ -115,7 +136,7 @@ public final class ShardCoreKeyMap {
      * Get the set of core cache keys associated with the given index.
      */
     public synchronized Set<Object> getCoreKeysForIndex(String index) {
-        final Set<Object> objects = indexToCoreKey.get(index);
+        final Set<IndexReader.CacheKey> objects = indexToCoreKey.get(index);
         if (objects == null) {
             return Collections.emptySet();
         }
@@ -132,15 +153,12 @@ public final class ShardCoreKeyMap {
     }
 
     private synchronized boolean assertSize() {
-        // this is heavy and should only used in assertions
-        boolean assertionsEnabled = false;
-        assert assertionsEnabled = true;
-        if (assertionsEnabled == false) {
+        if (!Assertions.ENABLED) {
             throw new AssertionError("only run this if assertions are enabled");
         }
-        Collection<Set<Object>> values = indexToCoreKey.values();
+        Collection<Set<IndexReader.CacheKey>> values = indexToCoreKey.values();
         int size = 0;
-        for (Set<Object> value : values) {
+        for (Set<IndexReader.CacheKey> value : values) {
             size += value.size();
         }
         return size == coreKeyToShard.size();

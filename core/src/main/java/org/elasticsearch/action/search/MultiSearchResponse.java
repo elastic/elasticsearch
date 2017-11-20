@@ -21,14 +21,16 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,7 +39,7 @@ import java.util.Iterator;
 /**
  * A multi search response.
  */
-public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContent {
+public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContentObject {
 
     /**
      * A search response item, holding the actual search response, or an error message if it failed.
@@ -112,11 +114,14 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     private Item[] items;
 
+    private long tookInMillis;
+
     MultiSearchResponse() {
     }
 
-    public MultiSearchResponse(Item[] items) {
+    public MultiSearchResponse(Item[] items, long tookInMillis) {
         this.items = items;
+        this.tookInMillis = tookInMillis;
     }
 
     @Override
@@ -131,12 +136,22 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         return this.items;
     }
 
+    /**
+     * How long the msearch took.
+     */
+    public TimeValue getTook() {
+        return new TimeValue(tookInMillis);
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         items = new Item[in.readVInt()];
         for (int i = 0; i < items.length; i++) {
             items[i] = Item.readItem(in);
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            tookInMillis = in.readVLong();
         }
     }
 
@@ -147,43 +162,39 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             item.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVLong(tookInMillis);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("took", tookInMillis);
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
             builder.startObject();
             if (item.isFailure()) {
-                ElasticsearchException.renderException(builder, params, item.getFailure());
+                ElasticsearchException.generateFailureXContent(builder, params, item.getFailure(), true);
                 builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
             } else {
-                item.getResponse().toXContent(builder, params);
+                item.getResponse().innerToXContent(builder, params);
                 builder.field(Fields.STATUS, item.getResponse().status().getStatus());
             }
             builder.endObject();
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 
     static final class Fields {
         static final String RESPONSES = "responses";
         static final String STATUS = "status";
-        static final String ERROR = "error";
-        static final String ROOT_CAUSE = "root_cause";
     }
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this);
     }
 }

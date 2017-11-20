@@ -1,0 +1,46 @@
+---
+"Test percolator basics via rest":
+  - do:
+      indices.create:
+        index: queries_index
+        body:
+          mappings:
+            doc:
+              properties:
+                query:
+                  type: percolator
+                foo:
+                  type: keyword
+
+  - do:
+      index:
+        index: queries_index
+        type: doc
+        id:   test_percolator
+        body:
+          query:
+            match_all: {}
+
+  - do:
+        indices.refresh: {}
+
+  - do:
+      search:
+        body:
+          - query:
+              percolate:
+                field: query
+                document:
+                  foo: bar
+  - match:  { hits.total:     1  }
+
+  - do:
+      msearch:
+        body:
+          - index: queries_index
+          - query:
+              percolate:
+                field: query
+                document:
+                  foo: bar
+  - match:  { responses.0.hits.total:     1  }

@@ -20,12 +20,12 @@ package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.List;
 
 public class SingleFieldsVisitor extends FieldsVisitor {
 
@@ -54,30 +54,17 @@ public class SingleFieldsVisitor extends FieldsVisitor {
         super.reset();
     }
 
-    public void postProcess(MappedFieldType fieldType) {
-        if (uid != null) {
-            switch (field) {
-            case UidFieldMapper.NAME:
-                addValue(field, uid.toString());
-                break;
-            case IdFieldMapper.NAME:
-                addValue(field, uid.id());
-                break;
-            case TypeFieldMapper.NAME:
-                addValue(field, uid.type());
-                break;
-            }
+    @Override
+    public void postProcess(MapperService mapperService) {
+        super.postProcess(mapperService);
+        if (id != null) {
+            addValue(IdFieldMapper.NAME, id);
         }
-
-        if (fieldsValues == null) {
-            return;
+        if (type != null) {
+            addValue(TypeFieldMapper.NAME, type);
         }
-        List<Object> fieldValues = fieldsValues.get(fieldType.name());
-        if (fieldValues == null) {
-            return;
-        }
-        for (int i = 0; i < fieldValues.size(); i++) {
-            fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));
+        if (type != null && id != null) {
+            addValue(UidFieldMapper.NAME, Uid.createUid(type, id));
         }
     }
 }

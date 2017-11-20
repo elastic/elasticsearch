@@ -19,10 +19,10 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -52,7 +52,8 @@ public final class AssertingTransportInterceptor implements TransportInterceptor
         }
 
         @Override
-        public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
+        public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                   ThreadContext threadContext) {
             return Collections.singletonList(new AssertingTransportInterceptor(settings, namedWriteableRegistry));
         }
     }
@@ -65,6 +66,7 @@ public final class AssertingTransportInterceptor implements TransportInterceptor
 
     @Override
     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                    boolean forceExecution,
                                                                                     TransportRequestHandler<T> actualHandler) {
         return new TransportRequestHandler<T>() {
 
@@ -92,11 +94,11 @@ public final class AssertingTransportInterceptor implements TransportInterceptor
     public AsyncSender interceptSender(final AsyncSender sender) {
         return new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options,
                                                                   final TransportResponseHandler<T> handler) {
                 assertVersionSerializable(request);
-                sender.sendRequest(node, action, request, options, new TransportResponseHandler<T>() {
+                sender.sendRequest(connection, action, request, options, new TransportResponseHandler<T>() {
                     @Override
                     public T newInstance() {
                         return handler.newInstance();

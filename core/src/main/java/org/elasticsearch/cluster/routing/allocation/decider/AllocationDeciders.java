@@ -23,13 +23,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+
+import static org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
 
 /**
  * A composite {@link AllocationDecider} combining the "decision" of multiple
@@ -56,7 +55,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS) {
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
                 ret.add(decision);
             }
         }
@@ -82,7 +82,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS) {
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
                 // the assumption is that a decider that returns the static instance Decision#ALWAYS
                 // does not really implements canAllocate
                 ret.add(decision);
@@ -112,7 +113,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS) {
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
                 ret.add(decision);
             }
         }
@@ -131,7 +133,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS) {
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
                 ret.add(decision);
             }
         }
@@ -150,7 +153,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS) {
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
                 ret.add(decision);
             }
         }
@@ -169,7 +173,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS) {
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
                 ret.add(decision);
             }
         }
@@ -188,7 +193,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS) {
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
                 ret.add(decision);
             }
         }
@@ -216,7 +222,8 @@ public class AllocationDeciders extends AllocationDecider {
                 } else {
                     ret.add(decision);
                 }
-            } else if (decision != Decision.ALWAYS) {
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
                 ret.add(decision);
             }
         }

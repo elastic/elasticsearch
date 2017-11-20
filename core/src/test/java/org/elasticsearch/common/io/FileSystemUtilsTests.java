@@ -19,19 +19,23 @@
 
 package org.elasticsearch.common.io;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.channels.ByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.io.FileTestUtils.assertFileContent;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for {@link org.elasticsearch.common.io.FileSystemUtils}.
@@ -41,6 +45,8 @@ public class FileSystemUtilsTests extends ESTestCase {
 
     private Path src;
     private Path dst;
+    private Path txtFile;
+    private byte[] expectedBytes;
 
     @Before
     public void copySourceFilesToTarget() throws IOException, URISyntaxException {
@@ -48,6 +54,15 @@ public class FileSystemUtilsTests extends ESTestCase {
         dst = createTempDir();
         Files.createDirectories(src);
         Files.createDirectories(dst);
+        txtFile = src.resolve("text-file.txt");
+
+        try (ByteChannel byteChannel = Files.newByteChannel(txtFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            expectedBytes = new byte[3];
+            expectedBytes[0] = randomByte();
+            expectedBytes[1] = randomByte();
+            expectedBytes[2] = randomByte();
+            byteChannel.write(ByteBuffer.wrap(expectedBytes));
+        }
     }
 
     public void testAppend() {
@@ -95,4 +110,46 @@ public class FileSystemUtilsTests extends ESTestCase {
             assertTrue(FileSystemUtils.isHidden(path));
         }
     }
+
+    public void testOpenFileURLStream() throws IOException {
+        URL urlWithWrongProtocol = new URL("http://www.google.com");
+        try (InputStream is = FileSystemUtils.openFileURLStream(urlWithWrongProtocol)) {
+            fail("Should throw IllegalArgumentException due to invalid protocol");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Invalid protocol [http], must be [file] or [jar]", e.getMessage());
+        }
+
+        URL urlWithHost = new URL("file", "localhost", txtFile.toString());
+        try (InputStream is = FileSystemUtils.openFileURLStream(urlWithHost)) {
+            fail("Should throw IllegalArgumentException due to host");
+        } catch (IllegalArgumentException e) {
+            assertEquals("URL cannot have host. Found: [localhost]", e.getMessage());
+        }
+
+        URL urlWithPort = new URL("file", "", 80, txtFile.toString());
+        try (InputStream is = FileSystemUtils.openFileURLStream(urlWithPort)) {
+            fail("Should throw IllegalArgumentException due to port");
+        } catch (IllegalArgumentException e) {
+            assertEquals("URL cannot have port. Found: [80]", e.getMessage());
+        }
+
+        URL validUrl = txtFile.toUri().toURL();
+        try (InputStream is = FileSystemUtils.openFileURLStream(validUrl)) {
+            byte[] actualBytes = new byte[3];
+            is.read(actualBytes);
+            assertArrayEquals(expectedBytes, actualBytes);
+        }
+    }
+
+    public void testIsDesktopServicesStoreFile() throws IOException {
+        final Path path = createTempDir();
+        final Path desktopServicesStore = path.resolve(".DS_Store");
+        Files.createFile(desktopServicesStore);
+        assertThat(FileSystemUtils.isDesktopServicesStore(desktopServicesStore), equalTo(Constants.MAC_OS_X));
+
+        Files.delete(desktopServicesStore);
+        Files.createDirectory(desktopServicesStore);
+        assertFalse(FileSystemUtils.isDesktopServicesStore(desktopServicesStore));
+    }
+
 }

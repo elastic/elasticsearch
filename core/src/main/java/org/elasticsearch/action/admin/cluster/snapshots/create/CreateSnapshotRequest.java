@@ -25,13 +25,11 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -41,11 +39,10 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
-import static org.elasticsearch.common.Strings.hasLength;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Create snapshot request
@@ -91,6 +88,31 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     public CreateSnapshotRequest(String repository, String snapshot) {
         this.snapshot = snapshot;
         this.repository = repository;
+    }
+
+    public CreateSnapshotRequest(StreamInput in) throws IOException {
+        super(in);
+        snapshot = in.readString();
+        repository = in.readString();
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        settings = readSettingsFromStream(in);
+        includeGlobalState = in.readBoolean();
+        waitForCompletion = in.readBoolean();
+        partial = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(snapshot);
+        out.writeString(repository);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        writeSettingsToStream(settings, out);
+        out.writeBoolean(includeGlobalState);
+        out.writeBoolean(waitForCompletion);
+        out.writeBoolean(partial);
     }
 
     @Override
@@ -291,15 +313,16 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     /**
-     * Sets repository-specific snapshot settings in JSON, YAML or properties format
+     * Sets repository-specific snapshot settings in JSON or YAML format
      * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
+     * @param xContentType the content type of the source
      * @return this request
      */
-    public CreateSnapshotRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
+    public CreateSnapshotRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -315,7 +338,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -357,18 +380,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @param source snapshot definition
      * @return this request
      */
-    public CreateSnapshotRequest source(XContentBuilder source) {
-        return source(source.bytes());
-    }
-
-    /**
-     * Parses snapshot definition.
-     *
-     * @param source snapshot definition
-     * @return this request
-     */
-    public CreateSnapshotRequest source(Map source) {
-        for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
+    @SuppressWarnings("unchecked")
+    public CreateSnapshotRequest source(Map<String, Object> source) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
@@ -379,104 +393,23 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(lenientNodeBooleanValue(entry.getValue()));
+                partial(nodeBooleanValue(entry.getValue(), "partial"));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section, should indices an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
+                includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             }
         }
-        indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));
+        indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
         return this;
-    }
-
-    /**
-     * Parses snapshot definition. JSON, YAML and properties formats are supported
-     *
-     * @param source snapshot definition
-     * @return this request
-     */
-    public CreateSnapshotRequest source(String source) {
-        if (hasLength(source)) {
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-                return source(parser.mapOrdered());
-            } catch (Exception e) {
-                throw new IllegalArgumentException("failed to parse repository source [" + source + "]", e);
-            }
-        }
-        return this;
-    }
-
-    /**
-     * Parses snapshot definition. JSON, YAML and properties formats are supported
-     *
-     * @param source snapshot definition
-     * @return this request
-     */
-    public CreateSnapshotRequest source(byte[] source) {
-        return source(source, 0, source.length);
-    }
-
-    /**
-     * Parses snapshot definition. JSON, YAML and properties formats are supported
-     *
-     * @param source snapshot definition
-     * @param offset offset
-     * @param length length
-     * @return this request
-     */
-    public CreateSnapshotRequest source(byte[] source, int offset, int length) {
-        if (length > 0) {
-            try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length)) {
-                return source(parser.mapOrdered());
-            } catch (IOException e) {
-                throw new IllegalArgumentException("failed to parse repository source", e);
-            }
-        }
-        return this;
-    }
-
-    /**
-     * Parses snapshot definition. JSON, YAML and properties formats are supported
-     *
-     * @param source snapshot definition
-     * @return this request
-     */
-    public CreateSnapshotRequest source(BytesReference source) {
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            return source(parser.mapOrdered());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse snapshot source", e);
-        }
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        snapshot = in.readString();
-        repository = in.readString();
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        settings = readSettingsFromStream(in);
-        includeGlobalState = in.readBoolean();
-        waitForCompletion = in.readBoolean();
-        partial = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(snapshot);
-        out.writeString(repository);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        writeSettingsToStream(settings, out);
-        out.writeBoolean(includeGlobalState);
-        out.writeBoolean(waitForCompletion);
-        out.writeBoolean(partial);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

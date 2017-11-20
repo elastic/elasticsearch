@@ -22,13 +22,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
@@ -42,7 +42,7 @@ import java.util.Map;
 public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
+    public void hitsExecute(SearchContext context, SearchHit[] hits) {
         if (hits.length == 0 ||
             // in case the request has only suggest, parsed query is null
             context.parsedQuery() == null) {
@@ -71,15 +71,15 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
                 Bits matchingDocs = null;
                 final IndexReader indexReader = context.searcher().getIndexReader();
                 for (int i = 0; i < hits.length; ++i) {
-                    InternalSearchHit hit = hits[i];
+                    SearchHit hit = hits[i];
                     int hitReaderIndex = ReaderUtil.subIndex(hit.docId(), indexReader.leaves());
                     if (readerIndex != hitReaderIndex) {
                         readerIndex = hitReaderIndex;
                         LeafReaderContext ctx = indexReader.leaves().get(readerIndex);
                         docBase = ctx.docBase;
                         // scorers can be costly to create, so reuse them across docs of the same segment
-                        Scorer scorer = weight.scorer(ctx);
-                        matchingDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), scorer);
+                        ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
+                        matchingDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), scorerSupplier);
                     }
                     if (matchingDocs.get(hit.docId() - docBase)) {
                         matchedQueries[i].add(name);

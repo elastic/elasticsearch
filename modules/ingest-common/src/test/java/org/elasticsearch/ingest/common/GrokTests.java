@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,11 @@ public class GrokTests extends ESTestCase {
         Grok grok = new Grok(basePatterns, "value");
         Map<String, Object> matches = grok.captures(line);
         assertEquals(0, matches.size());
+    }
+
+    public void testNoMatchingPatternInDictionary() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new Grok(Collections.emptyMap(), "%{NOTFOUND}"));
+        assertThat(e.getMessage(), equalTo("Unable to find pattern [NOTFOUND] in Grok's pattern dictionary"));
     }
 
     public void testSimpleSyslogLine() {
@@ -306,5 +312,15 @@ public class GrokTests extends ESTestCase {
         bank.put("MONTHDAY", "(?:(?:0[1-9])|(?:[12][0-9])|(?:3[01])|[1-9])");
         Grok grok = new Grok(bank, "%{MONTHDAY:greatday}");
         assertThat(grok.captures("nomatch"), nullValue());
+    }
+
+    public void testMultipleNamedCapturesWithSameName() {
+        Map<String, String> bank = new HashMap<>();
+        bank.put("SINGLEDIGIT", "[0-9]");
+        Grok grok = new Grok(bank, "%{SINGLEDIGIT:num}%{SINGLEDIGIT:num}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("num", "1");
+        assertThat(grok.captures("12"), equalTo(expected));
     }
 }

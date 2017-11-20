@@ -9,6 +9,7 @@ import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.RuntimeConfigurable
 import org.apache.tools.ant.UnknownElement
 import org.gradle.api.DefaultTask
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.FileTreeElement
 import org.gradle.api.internal.tasks.options.Option
@@ -19,7 +20,7 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.util.PatternFilterable
 import org.gradle.api.tasks.util.PatternSet
-import org.gradle.logging.ProgressLoggerFactory
+import org.gradle.internal.logging.progress.ProgressLoggerFactory
 import org.gradle.util.ConfigureUtil
 
 import javax.inject.Inject
@@ -69,6 +70,10 @@ class RandomizedTestingTask extends DefaultTask {
     @Input
     String ifNoTests = 'ignore'
 
+    @Optional
+    @Input
+    String onNonEmptyWorkDirectory = 'fail'
+
     TestLoggingConfiguration testLoggingConfig = new TestLoggingConfiguration()
 
     BalancersConfiguration balancersConfig = new BalancersConfiguration(task: this)
@@ -81,6 +86,7 @@ class RandomizedTestingTask extends DefaultTask {
     String argLine = null
 
     Map<String, Object> systemProperties = new HashMap<>()
+    Map<String, Object> environmentVariables = new HashMap<>()
     PatternFilterable patternSet = new PatternSet()
 
     RandomizedTestingTask() {
@@ -91,7 +97,7 @@ class RandomizedTestingTask extends DefaultTask {
 
     @Inject
     ProgressLoggerFactory getProgressLoggerFactory() {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException()
     }
 
     void jvmArgs(Iterable<String> arguments) {
@@ -104,6 +110,10 @@ class RandomizedTestingTask extends DefaultTask {
 
     void systemProperty(String property, Object value) {
         systemProperties.put(property, value)
+    }
+
+    void environment(String key, Object value) {
+        environmentVariables.put(key, value)
     }
 
     void include(String... includes) {
@@ -194,7 +204,9 @@ class RandomizedTestingTask extends DefaultTask {
             haltOnFailure: true, // we want to capture when a build failed, but will decide whether to rethrow later
             shuffleOnSlave: shuffleOnSlave,
             leaveTemporary: leaveTemporary,
-            ifNoTests: ifNoTests
+            ifNoTests: ifNoTests,
+            onNonEmptyWorkDirectory: onNonEmptyWorkDirectory,
+            newenvironment: true
         ]
 
         DefaultLogger listener = null
@@ -248,7 +260,15 @@ class RandomizedTestingTask extends DefaultTask {
                     }
                 }
                 for (Map.Entry<String, Object> prop : systemProperties) {
+                    if (prop.getKey().equals('tests.seed')) {
+                        throw new InvalidUserDataException('Seed should be ' +
+                            'set on the project instead of a system property')
+                    }
                     sysproperty key: prop.getKey(), value: prop.getValue().toString()
+                }
+                systemProperty 'tests.seed', project.testSeed
+                for (Map.Entry<String, Object> envvar : environmentVariables) {
+                    env key: envvar.getKey(), value: envvar.getValue().toString()
                 }
                 makeListeners()
             }

@@ -38,6 +38,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.loadDocIdAndVersion;
+import static org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.loadVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -61,15 +63,15 @@ public class VersionsTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        MatcherAssert.assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
+        MatcherAssert.assertThat(loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
 
         Document doc = new Document();
         doc.add(new Field(UidFieldMapper.NAME, "1", UidFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         writer.updateDocument(new Term(UidFieldMapper.NAME, "1"), doc);
         directoryReader = reopen(directoryReader);
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(1L));
-        assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(1L));
+        assertThat(loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(1L));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(1L));
 
         doc = new Document();
         Field uid = new Field(UidFieldMapper.NAME, "1", UidFieldMapper.Defaults.FIELD_TYPE);
@@ -78,8 +80,8 @@ public class VersionsTests extends ESTestCase {
         doc.add(version);
         writer.updateDocument(new Term(UidFieldMapper.NAME, "1"), doc);
         directoryReader = reopen(directoryReader);
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(2L));
-        assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(2L));
+        assertThat(loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(2L));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(2L));
 
         // test reuse of uid field
         doc = new Document();
@@ -89,13 +91,13 @@ public class VersionsTests extends ESTestCase {
         writer.updateDocument(new Term(UidFieldMapper.NAME, "1"), doc);
 
         directoryReader = reopen(directoryReader);
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(3L));
-        assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(3L));
+        assertThat(loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(3L));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(3L));
 
         writer.deleteDocuments(new Term(UidFieldMapper.NAME, "1"));
         directoryReader = reopen(directoryReader);
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
-        assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), nullValue());
+        assertThat(loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), nullValue());
         directoryReader.close();
         writer.close();
         dir.close();
@@ -121,21 +123,21 @@ public class VersionsTests extends ESTestCase {
 
         writer.updateDocuments(new Term(UidFieldMapper.NAME, "1"), docs);
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(5L));
-        assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(5L));
+        assertThat(loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(5L));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(5L));
 
         version.setLongValue(6L);
         writer.updateDocuments(new Term(UidFieldMapper.NAME, "1"), docs);
         version.setLongValue(7L);
         writer.updateDocuments(new Term(UidFieldMapper.NAME, "1"), docs);
         directoryReader = reopen(directoryReader);
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(7L));
-        assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(7L));
+        assertThat(loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(7L));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(7L));
 
         writer.deleteDocuments(new Term(UidFieldMapper.NAME, "1"));
         directoryReader = reopen(directoryReader);
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
-        assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), nullValue());
+        assertThat(loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), nullValue());
         directoryReader.close();
         writer.close();
         dir.close();
@@ -143,7 +145,7 @@ public class VersionsTests extends ESTestCase {
 
     /** Test that version map cache works, is evicted on close, etc */
     public void testCache() throws Exception {
-        int size = Versions.lookupStates.size();
+        int size = VersionsAndSeqNoResolver.lookupStates.size();
 
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -153,22 +155,22 @@ public class VersionsTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         // should increase cache size by 1
-        assertEquals(87, Versions.loadVersion(reader, new Term(UidFieldMapper.NAME, "6")));
-        assertEquals(size+1, Versions.lookupStates.size());
+        assertEquals(87, loadVersion(reader, new Term(UidFieldMapper.NAME, "6")));
+        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
         // should be cache hit
-        assertEquals(87, Versions.loadVersion(reader, new Term(UidFieldMapper.NAME, "6")));
-        assertEquals(size+1, Versions.lookupStates.size());
+        assertEquals(87, loadVersion(reader, new Term(UidFieldMapper.NAME, "6")));
+        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
 
         reader.close();
         writer.close();
         // core should be evicted from the map
-        assertEquals(size, Versions.lookupStates.size());
+        assertEquals(size, VersionsAndSeqNoResolver.lookupStates.size());
         dir.close();
     }
 
     /** Test that version map cache behaves properly with a filtered reader */
     public void testCacheFilterReader() throws Exception {
-        int size = Versions.lookupStates.size();
+        int size = VersionsAndSeqNoResolver.lookupStates.size();
 
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -177,18 +179,18 @@ public class VersionsTests extends ESTestCase {
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
-        assertEquals(87, Versions.loadVersion(reader, new Term(UidFieldMapper.NAME, "6")));
-        assertEquals(size+1, Versions.lookupStates.size());
+        assertEquals(87, loadVersion(reader, new Term(UidFieldMapper.NAME, "6")));
+        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
         // now wrap the reader
         DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId("bogus", "_na_", 5));
-        assertEquals(87, Versions.loadVersion(wrapped, new Term(UidFieldMapper.NAME, "6")));
+        assertEquals(87, loadVersion(wrapped, new Term(UidFieldMapper.NAME, "6")));
         // same size map: core cache key is shared
-        assertEquals(size+1, Versions.lookupStates.size());
+        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
 
         reader.close();
         writer.close();
         // core should be evicted from the map
-        assertEquals(size, Versions.lookupStates.size());
+        assertEquals(size, VersionsAndSeqNoResolver.lookupStates.size());
         dir.close();
     }
 }

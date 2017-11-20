@@ -26,13 +26,11 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -70,7 +68,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             int terms = randomIntBetween(0, 3);
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
-                builder.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
+                builder.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
             }
             value = builder.toString().trim();
         } else {
@@ -80,13 +78,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         MatchQueryBuilder matchQuery = new MatchQueryBuilder(fieldName, value);
         matchQuery.operator(randomFrom(Operator.values()));
 
-        if (randomBoolean()) {
-            if (fieldName.equals(DATE_FIELD_NAME)) {
-                // tokenized dates would trigger parse errors
-                matchQuery.analyzer(randomFrom("keyword", "whitespace"));
-            } else {
-                matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
-            }
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
+            matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
         if (fieldName.equals(STRING_FIELD_NAME) && randomBoolean()) {
@@ -124,13 +117,17 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         if (randomBoolean()) {
             matchQuery.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
         }
+
+        if (randomBoolean()) {
+            matchQuery.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
         return matchQuery;
     }
 
     @Override
     protected Map<String, MatchQueryBuilder> getAlternateVersions() {
         Map<String, MatchQueryBuilder> alternateVersions = new HashMap<>();
-        MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
         String contentString = "{\n" +
                 "    \"match\" : {\n" +
                 "        \"" + matchQuery.fieldName() + "\" : \"" + matchQuery.value() + "\"\n" +
@@ -149,23 +146,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             return;
         }
 
-        switch (queryBuilder.type()) {
-        case BOOLEAN:
-            assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
-                    .or(instanceOf(PointRangeQuery.class)));
-            break;
-        case PHRASE:
-            assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
-                    .or(instanceOf(PointRangeQuery.class)));
-            break;
-        case PHRASE_PREFIX:
-            assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
-                    .or(instanceOf(PointRangeQuery.class)));
-            break;
-        }
         QueryShardContext context = searchContext.getQueryShardContext();
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery && fieldType != null) {
@@ -252,11 +232,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
 
         {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchQuery.type(null));
-            assertEquals("[match] requires type to be non-null", e.getMessage());
-        }
-
-        {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchQuery.zeroTermsQuery(null));
             assertEquals("[match] requires zeroTermsQuery to be non-null", e.getMessage());
         }
@@ -279,6 +254,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "      \"fuzzy_transpositions\" : true,\n" +
                 "      \"lenient\" : false,\n" +
                 "      \"zero_terms_query\" : \"ALL\",\n" +
+                "      \"auto_generate_synonyms_phrase_query\" : true,\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
                 "  }\n" +
@@ -288,79 +264,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         assertEquals(json, "to be or not to be", qb.value());
         assertEquals(json, Operator.AND, qb.operator());
-    }
-
-    public void testLegacyMatchPhrasePrefixQuery() throws IOException {
-        MatchQueryBuilder expectedQB = new MatchQueryBuilder("message", "to be or not to be");
-        expectedQB.type(Type.PHRASE_PREFIX);
-        expectedQB.slop(2);
-        expectedQB.maxExpansions(30);
-        String json = "{\n" +
-                "  \"match\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"to be or not to be\",\n" +
-                "      \"type\" : \"phrase_prefix\",\n" +
-                "      \"operator\" : \"OR\",\n" +
-                "      \"slop\" : 2,\n" +
-                "      \"prefix_length\" : 0,\n" +
-                "      \"max_expansions\" : 30,\n" +
-                "      \"fuzzy_transpositions\" : true,\n" +
-                "      \"lenient\" : false,\n" +
-                "      \"zero_terms_query\" : \"NONE\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
-        checkGeneratedJson(json, qb);
-
-        assertEquals(json, expectedQB, qb);
-
-        assertSerialization(qb);
-
-        checkWarningHeaders("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
-                "Deprecated field [slop] used, replaced by [match_phrase query]");
-
-        // Now check with strict parsing an exception is thrown
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
-        assertThat(e.getMessage(),
-                containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
-    }
-
-    public void testLegacyMatchPhraseQuery() throws IOException {
-        MatchQueryBuilder expectedQB = new MatchQueryBuilder("message", "to be or not to be");
-        expectedQB.type(Type.PHRASE);
-        expectedQB.slop(2);
-        String json = "{\n" +
-                "  \"match\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"to be or not to be\",\n" +
-                "      \"type\" : \"phrase\",\n" +
-                "      \"operator\" : \"OR\",\n" +
-                "      \"slop\" : 2,\n" +
-                "      \"prefix_length\" : 0,\n" +
-                "      \"max_expansions\" : 50,\n" +
-                "      \"fuzzy_transpositions\" : true,\n" +
-                "      \"lenient\" : false,\n" +
-                "      \"zero_terms_query\" : \"NONE\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
-        checkGeneratedJson(json, qb);
-
-        assertEquals(json, expectedQB, qb);
-
-        assertSerialization(qb);
-
-        checkWarningHeaders("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
-                "Deprecated field [slop] used, replaced by [match_phrase query]");
-
-        // Now check with strict parsing an exception is thrown
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
-        assertThat(e.getMessage(),
-                containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {
@@ -436,10 +339,23 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         expectThrows(IllegalStateException.class, () -> parseQuery(json2));
     }
 
+    public void testExceptionUsingAnalyzerOnNumericField() {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext shardContext = createShardContext();
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(DOUBLE_FIELD_NAME, 6.075210893508043E-4);
+        matchQueryBuilder.analyzer("simple");
+        NumberFormatException e = expectThrows(NumberFormatException.class, () -> matchQueryBuilder.toQuery(shardContext));
+        assertEquals("For input string: \"e\"", e.getMessage());
+    }
+
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("t_boost", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("t_boost",
-            "string_boost", "type=text,boost=4").string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(
+                "doc",
+                "string_boost", "type=text,boost=4", "string_no_pos",
+                "type=text,index_options=docs").string()
+            ),
+            MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     public void testMatchPhrasePrefixWithBoost() throws Exception {
@@ -464,6 +380,16 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             Query query = builder.toQuery(context);
             assertThat(query, instanceOf(MultiPhrasePrefixQuery.class));
         }
+    }
 
+    public void testLenientPhraseQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        MatchQuery b = new MatchQuery(context);
+        b.setLenient(true);
+        Query query = b.parse(Type.PHRASE, "string_no_pos", "foo bar");
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        assertThat(query.toString(),
+            containsString("field:[string_no_pos] was indexed without position data; cannot run PhraseQuery"));
     }
 }

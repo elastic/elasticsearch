@@ -193,6 +193,14 @@ public final class IndexSettings {
                     new Property[]{Property.Dynamic, Property.IndexScope});
 
     /**
+     * The maximum number of index commits that an Engine should keep.
+     * Keeping more index commits is likely to increase the chance of ops-based recoveries, but requires more disk space.
+     * See {@link org.elasticsearch.index.engine.KeepUntilGlobalCheckpointDeletionPolicy#maxNumberOfKeptCommits}
+     */
+    public static final Setting<Integer> MAX_INDEX_COMMITS_RETENTION =
+        Setting.intSetting("index.max_index_commits_retention", 2, 1, Property.Dynamic, Property.IndexScope);
+
+    /**
      * Index setting to enable / disable deletes garbage collection.
      * This setting is realtime updateable
      */
@@ -247,6 +255,7 @@ public final class IndexSettings {
     private volatile TimeValue translogRetentionAge;
     private volatile ByteSizeValue translogRetentionSize;
     private volatile ByteSizeValue generationThresholdSize;
+    private volatile int maxIndexCommitsRetention;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
     private final IndexSortConfig indexSortConfig;
@@ -355,6 +364,7 @@ public final class IndexSettings {
         translogRetentionAge = scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING);
         translogRetentionSize = scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
+        maxIndexCommitsRetention = scopedSettings.get(MAX_INDEX_COMMITS_RETENTION);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -407,6 +417,7 @@ public final class IndexSettings {
                 this::setGenerationThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
+        scopedSettings.addSettingsUpdateConsumer(MAX_INDEX_COMMITS_RETENTION, this::setMaxIndexCommitsRetention);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
@@ -435,6 +446,10 @@ public final class IndexSettings {
 
     private void setRefreshInterval(TimeValue timeValue) {
         this.refreshInterval = timeValue;
+    }
+
+    private void setMaxIndexCommitsRetention(int maxIndexCommitsRetention) {
+        this.maxIndexCommitsRetention = maxIndexCommitsRetention;
     }
 
     /**
@@ -605,6 +620,13 @@ public final class IndexSettings {
      */
     public ByteSizeValue getGenerationThresholdSize() {
         return generationThresholdSize;
+    }
+
+    /**
+     * Returns the maximum number of index commits that an Engine should keep.
+     */
+    public int getMaxIndexCommitsRetention() {
+        return maxIndexCommitsRetention;
     }
 
     /**

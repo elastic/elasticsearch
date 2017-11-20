@@ -128,6 +128,7 @@ public class InternalEngine extends Engine {
     private final String uidField;
 
     private final CombinedDeletionPolicy deletionPolicy;
+    private final KeepUntilGlobalCheckpointDeletionPolicy primaryIndexDeletionPolicy;
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
@@ -203,8 +204,9 @@ public class InternalEngine extends Engine {
                     engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
                     engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
                 );
-                this.deletionPolicy = new CombinedDeletionPolicy(
-                    new SnapshotDeletionPolicy(new KeepUntilGlobalCheckpointDeletionPolicy(seqNoService::getGlobalCheckpoint)),
+                this.primaryIndexDeletionPolicy = new KeepUntilGlobalCheckpointDeletionPolicy(
+                    this.engineConfig.getIndexSettings().getMaxIndexCommitsRetention(), seqNoService::getGlobalCheckpoint);
+                this.deletionPolicy = new CombinedDeletionPolicy(new SnapshotDeletionPolicy(primaryIndexDeletionPolicy),
                     translogDeletionPolicy, openMode);
                 writer = createWriter(shouldCreateIndex);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
@@ -2112,6 +2114,7 @@ public class InternalEngine extends Engine {
         final IndexSettings indexSettings = engineConfig.getIndexSettings();
         translogDeletionPolicy.setRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
         translogDeletionPolicy.setRetentionSizeInBytes(indexSettings.getTranslogRetentionSize().getBytes());
+        primaryIndexDeletionPolicy.setMaxNumberOfKeptCommits(indexSettings.getMaxIndexCommitsRetention());
     }
 
     public MergeStats getMergeStats() {

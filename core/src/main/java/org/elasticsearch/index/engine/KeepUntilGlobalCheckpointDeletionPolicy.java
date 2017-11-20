@@ -28,29 +28,37 @@ import java.util.List;
 import java.util.function.LongSupplier;
 
 /**
- * An {@link IndexDeletionPolicy} keeps the oldest commit whose max sequence number is not
+ * An {@link IndexDeletionPolicy} tries to keep the oldest commit whose max sequence number is not
  * greater than the current global checkpoint, and also keeps all subsequent commits. Once those
  * commits are kept, a {@link CombinedDeletionPolicy} will retain translog operations at least up to
  * the current global checkpoint.
+ * <p>
+ * This policy also tries to keep no more than {@link #maxNumberOfKeptCommits} index commits.
  */
 public final class KeepUntilGlobalCheckpointDeletionPolicy extends IndexDeletionPolicy {
+    private int maxNumberOfKeptCommits;
     private final LongSupplier globalCheckpointSupplier;
 
-    public KeepUntilGlobalCheckpointDeletionPolicy(LongSupplier globalCheckpointSupplier) {
+    public KeepUntilGlobalCheckpointDeletionPolicy(int maxNumberOfKeptCommits, LongSupplier globalCheckpointSupplier) {
+        assert maxNumberOfKeptCommits >= 1;
+        this.maxNumberOfKeptCommits = maxNumberOfKeptCommits;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
     }
 
     @Override
-    public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        onCommit(commits);
+    public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
+        if (commits.isEmpty() == false) {
+            onCommit(commits);
+        }
     }
 
     @Override
-    public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        final int keptIndex = indexOfKeptCommits(commits);
+    public synchronized void onCommit(List<? extends IndexCommit> commits) throws IOException {
+        final int keptIndex = Math.max(indexOfKeptCommits(commits), commits.size() - maxNumberOfKeptCommits);
         for (int i = 0; i < keptIndex; i++) {
             commits.get(i).delete();
         }
+        assert commits.get(commits.size() - 1).isDeleted() == false : "Last commit should not be deleted";
     }
 
     private int indexOfKeptCommits(List<? extends IndexCommit> commits) throws IOException {
@@ -66,4 +74,8 @@ public final class KeepUntilGlobalCheckpointDeletionPolicy extends IndexDeletion
         return -1;
     }
 
+    public synchronized void setMaxNumberOfKeptCommits(int maxNumberOfKeptCommits) {
+        assert maxNumberOfKeptCommits >= 1;
+        this.maxNumberOfKeptCommits = maxNumberOfKeptCommits;
+    }
 }

@@ -27,6 +27,23 @@
     - match:  { detail.tokenizer.tokens.2.token: od }
 
 ---
+"nGram_exception":
+    - skip:
+        version: " - 6.0.99"
+        reason: starting from version 6.1.0 this produces a warning
+        features: "warnings"
+    - do:
+        indices.analyze:
+          body:
+            text: good
+            explain: true
+            tokenizer:
+              type: nGram
+              min_gram: 2
+              max_gram: 4
+        warnings:
+          - "Deprecated big difference between max_gram and min_gram in NGram Tokenizer,expected difference must be less than or equal to: [1]"
+---
 "simple_pattern":
     - do:
         indices.analyze:

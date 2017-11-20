@@ -32,9 +32,11 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
@@ -42,6 +44,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +52,7 @@ import java.util.Map;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -67,18 +71,28 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             assumeTrue("test with date fields runs only when at least a type is registered", getCurrentTypes().length > 0);
         }
 
-        // creates the query with random value and field name
-        Object value;
+        final Object value;
         if (fieldName.equals(STRING_FIELD_NAME)) {
             value = getRandomQueryText();
         } else {
             value = getRandomValueForFieldName(fieldName);
         }
-        MultiMatchQueryBuilder query = new MultiMatchQueryBuilder(value, fieldName);
-        // field with random boost
-        if (randomBoolean()) {
-            query.field(fieldName, randomFloat() * 10);
+
+        final MultiMatchQueryBuilder query;
+        if (rarely()) {
+            query = new MultiMatchQueryBuilder(value, fieldName);
+            if (randomBoolean()) {
+                query.lenient(randomBoolean());
+            }
+            // field with random boost
+            if (randomBoolean()) {
+                query.field(fieldName, randomFloat() * 10);
+            }
+        } else {
+            query = new MultiMatchQueryBuilder(value);
+            query.lenient(true);
         }
+
         // sets other parameters of the multi match query
         if (randomBoolean()) {
             query.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
@@ -112,9 +126,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
         if (randomBoolean()) {
             query.tieBreaker(randomFloat());
-        }
-        if (randomBoolean()) {
-            query.lenient(randomBoolean());
         }
         if (randomBoolean()) {
             query.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
@@ -338,5 +349,57 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
 
         assertEquals(expected, query);
+    }
+
+    public void testDefaultField() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("hello");
+        // should pass because we set lenient to true when default field is `*`
+        Query query = builder.toQuery(context);
+        assertThat(query, anyOf(instanceOf(AllTermQuery.class), instanceOf(DisjunctionMaxQuery.class)));
+
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
+        );
+
+        MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("hello");
+        query = qb.toQuery(context);
+        DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+            ), 0.0f
+        );
+        assertEquals(expected, query);
+
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5", INT_FIELD_NAME).build())
+        );
+        // should fail because lenient defaults to false
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> qb.toQuery(context));
+        assertThat(exc, instanceOf(NumberFormatException.class));
+        assertThat(exc.getMessage(), equalTo("For input string: \"hello\""));
+
+        // explicitly sets lenient
+        qb.lenient(true);
+        query = qb.toQuery(context);
+        expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f),
+                new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]")
+            ), 0.0f
+        );
+        assertEquals(expected, query);
+    }
+
+    private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
+        Settings build = Settings.builder().put(oldIndexSettings)
+            .put(indexSettings)
+            .build();
+        return IndexMetaData.builder(name).settings(build).build();
     }
 }

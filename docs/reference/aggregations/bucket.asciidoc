@@ -53,3 +53,5 @@ include::bucket/significanttext-aggregation.asciidoc[]
 
 include::bucket/terms-aggregation.asciidoc[]
 
+include::bucket/composite-aggregation.asciidoc[]
+

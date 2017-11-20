@@ -92,7 +92,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
-import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
@@ -383,11 +382,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 final Settings idxSettings = indexSettingsBuilder.build();
                 int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);
                 final int routingNumShards;
+                final Version indexVersionCreated = idxSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
                 if (recoverFromIndex == null) {
                     if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(idxSettings)) {
                         routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);
                     } else {
-                        routingNumShards = calculateNumRoutingShards(numTargetShards);
+                        routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
                     }
                 } else {
                     assert IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettingsBuilder.build()) == false
@@ -395,7 +395,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(recoverFromIndex);
                     if (sourceMetaData.getNumberOfShards() == 1
                         && isInvalidSplitFactor(numTargetShards, sourceMetaData.getRoutingNumShards())) {
-                        routingNumShards = calculateNumRoutingShards(numTargetShards);
+                        // in this case we have a source index with 1 shard and without an explicit split factor
+                        // or one that is valid in that case we can split into whatever and auto-generate a new factor.
+                        routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
                     } else {
                         routingNumShards = sourceMetaData.getRoutingNumShards();
                     }
@@ -735,9 +737,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      * allow any index to be split at least once and at most 10 times by a factor of two. The closer the number or shards gets to 1024
      * the less default split operations are supported
      */
-    public static int calculateNumRoutingShards(int numShards) {
-        int base = 10; // logBase2(1024)
-        return numShards * 1 << Math.max(1, (base - (int) (Math.log(numShards) / Math.log(2))));
+    public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_0_0_alpha1)) {
+            // only select this automatically for indices that are created on or after 7.0
+            int base = 10; // logBase2(1024)
+            return numShards * 1 << Math.max(1, (base - (int) (Math.log(numShards) / Math.log(2))));
+        } else {
+            return numShards;
+        }
     }
 
     private static boolean isInvalidSplitFactor(int sourceNumberOfShards, int targetNumberOfShards) {

@@ -112,7 +112,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", shardSplits[0]);
         if (useRouting && useMixedRouting == false && randomBoolean()) {
             settings.put("index.routing_partition_size", randomIntBetween(1,  MetaDataCreateIndexService.calculateNumRoutingShards
-                (shardSplits[0]) -1));
+                (shardSplits[0], Version.CURRENT) -1));
             if (useNested) {
                 createInitialIndex.addMapping("t1", "_routing", "required=true", "nested1", "type=nested");
             } else {

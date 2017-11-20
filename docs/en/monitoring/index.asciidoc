@@ -1,0 +1,23 @@
+[role="xpack"]
+[[es-monitoring]]
+= Monitoring {es}
+
+[partintro]
+--
+{monitoring} enables you to easily monitor the health of your {es} cluster. The
+monitoring metrics are collected from each node and stored in {es} indices. You
+can then view the data from {kib} where it’s easy to spot issues at a glance or
+delve into the system behavior over time to diagnose operational issues. In
+addition to the built-in status warnings, you can also set up custom alerts
+based on the data in the monitoring indices.
+
+This section focuses on the {es} monitoring infrastructure and setup. For an
+introduction to monitoring your Elastic stack, including Logstash and {kib}, see
+{xpack-ref}/xpack-monitoring.html[Monitoring the Elastic Stack].
+//For information about using the Monitoring UI, see Monitoring in the Kibana guide.
+
+--
+
+include::stats-export.asciidoc[]
+include::http-export.asciidoc[]
+include::tribe.asciidoc[]

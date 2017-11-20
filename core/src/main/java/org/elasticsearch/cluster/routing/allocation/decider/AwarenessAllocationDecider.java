@@ -227,9 +227,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                     CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey());
         }
         for (ShardRouting shardRouting : node) {
-            if (shardsComputed.contains(shardRouting.shardId())) {
-                continue;
-            }
             shardsComputed.add(shardRouting.shardId());
             IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
             int shardCount = indexMetaData.getNumberOfReplicas() + 1; // 1 for primary

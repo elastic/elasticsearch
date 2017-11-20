@@ -47,10 +47,10 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
         if (in.getVersion().equals(Version.V_6_0_0)) {
             throw new IllegalStateException("resync replication request serialization is broken in 6.0.0");
         }
+        super.readFrom(in);
         operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
     }
 

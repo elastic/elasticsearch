@@ -38,7 +38,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.function.Consumer;
 
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -62,7 +61,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         openChannels = new OpenChannels(logger);
         ArrayList<SocketSelector> selectors = new ArrayList<>();
         selectors.add(socketSelector);
-        handler = new AcceptorEventHandler(logger, openChannels, new RoundRobinSelectorSupplier(selectors), acceptedChannelCallback);
+        handler = new AcceptorEventHandler(logger, openChannels, new RoundRobinSelectorSupplier(selectors));
 
         AcceptingSelector selector = mock(AcceptingSelector.class);
         channel = new DoNotRegisterServerChannel(mock(ServerSocketChannel.class), channelFactory, selector);

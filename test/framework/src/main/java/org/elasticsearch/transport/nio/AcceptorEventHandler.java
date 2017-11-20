@@ -22,13 +22,11 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 
 import java.io.IOException;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -37,15 +35,12 @@ import java.util.function.Supplier;
 public class AcceptorEventHandler extends EventHandler {
 
     private final Supplier<SocketSelector> selectorSupplier;
-    private final Consumer<NioChannel> acceptedChannelCallback;
     private final OpenChannels openChannels;
 
-    public AcceptorEventHandler(Logger logger, OpenChannels openChannels, Supplier<SocketSelector> selectorSupplier,
-                                Consumer<NioChannel> acceptedChannelCallback) {
+    public AcceptorEventHandler(Logger logger, OpenChannels openChannels, Supplier<SocketSelector> selectorSupplier) {
         super(logger, openChannels);
         this.openChannels = openChannels;
         this.selectorSupplier = selectorSupplier;
-        this.acceptedChannelCallback = acceptedChannelCallback;
     }
 
     /**
@@ -56,7 +51,7 @@ public class AcceptorEventHandler extends EventHandler {
      */
     void serverChannelRegistered(NioServerSocketChannel nioServerSocketChannel) {
         SelectionKeyUtils.setAcceptInterested(nioServerSocketChannel);
-        openChannels.serverChannelOpened(nioServerSocketChannel);
+//        openChannels.serverChannelOpened(nioServerSocketChannel);
     }
 
     /**
@@ -79,8 +74,8 @@ public class AcceptorEventHandler extends EventHandler {
         ChannelFactory channelFactory = nioServerChannel.getChannelFactory();
         SocketSelector selector = selectorSupplier.get();
         NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioServerChannel, selector);
-        openChannels.acceptedChannelOpened(nioSocketChannel);
-        acceptedChannelCallback.accept(nioSocketChannel);
+//        openChannels.acceptedChannelOpened(nioSocketChannel);
+        nioServerChannel.getAcceptContext().accept(nioSocketChannel);
     }
 
     /**

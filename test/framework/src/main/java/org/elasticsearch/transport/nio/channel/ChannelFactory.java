@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-
 import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.AcceptingSelector;
@@ -34,10 +33,10 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.function.Consumer;
 
-public class ChannelFactory {
+public abstract class ChannelFactory<SS extends NioServerSocketChannel, S extends NioSocketChannel> {
 
     private final Consumer<NioSocketChannel> contextSetter;
-    private final RawChannelFactory rawChannelFactory;
+    private final ChannelFactory.RawChannelFactory rawChannelFactory;
 
     /**
      * This will create a {@link ChannelFactory} using the profile settings and context setter passed to this
@@ -45,47 +44,42 @@ public class ChannelFactory {
      * {@link NioSocketChannel#setContexts(ReadContext, WriteContext)} with the appropriate read and write
      * contexts. The read and write contexts handle the protocol specific encoding and decoding of messages.
      *
-     * @param profileSettings the profile settings channels opened by this factory
+     * @param rawChannelFactory a factory that will construct the raw socket channels
      * @param contextSetter a consumer that takes a channel and sets the read and write contexts
      */
-    public ChannelFactory(TcpTransport.ProfileSettings profileSettings, Consumer<NioSocketChannel> contextSetter) {
-        this(new RawChannelFactory(profileSettings.tcpNoDelay,
-                profileSettings.tcpKeepAlive,
-                profileSettings.reuseAddress,
-                Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
-                Math.toIntExact(profileSettings.receiveBufferSize.getBytes())), contextSetter);
-    }
-
     ChannelFactory(RawChannelFactory rawChannelFactory, Consumer<NioSocketChannel> contextSetter) {
         this.contextSetter = contextSetter;
         this.rawChannelFactory = rawChannelFactory;
     }
 
-    public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector) throws IOException {
+    public S openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
-        NioSocketChannel channel = createChannel(selector, rawChannel);
+        S channel = createChannel0(selector, rawChannel);
         scheduleChannel(channel, selector);
         return channel;
     }
 
-    public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector) throws IOException {
+    public S acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
-        NioSocketChannel channel = createChannel(selector, rawChannel);
+        S channel = createChannel0(selector, rawChannel);
         scheduleChannel(channel, selector);
         return channel;
     }
 
-    public NioServerSocketChannel openNioServerSocketChannel(InetSocketAddress address, AcceptingSelector selector)
-        throws IOException {
+    public SS openNioServerSocketChannel(InetSocketAddress address, AcceptingSelector selector) throws IOException {
         ServerSocketChannel rawChannel = rawChannelFactory.openNioServerSocketChannel(address);
-        NioServerSocketChannel serverChannel = createServerChannel(selector, rawChannel);
+        SS serverChannel = createServerChannel0(selector, rawChannel);
         scheduleServerChannel(serverChannel, selector);
         return serverChannel;
     }
 
-    private NioSocketChannel createChannel(SocketSelector selector, SocketChannel rawChannel) throws IOException {
+    public abstract S createChannel(SocketSelector selector, SocketChannel channel) throws IOException;
+
+    public abstract SS createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException;
+
+    private S createChannel0(SocketSelector selector, SocketChannel rawChannel) throws IOException {
         try {
-            NioSocketChannel channel = new NioSocketChannel(rawChannel, selector);
+            S channel = createChannel(selector, rawChannel);
             setContexts(channel);
             return channel;
         } catch (Exception e) {
@@ -94,16 +88,16 @@ public class ChannelFactory {
         }
     }
 
-    private NioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel rawChannel) throws IOException {
+    private SS createServerChannel0(AcceptingSelector selector, ServerSocketChannel rawChannel) throws IOException {
         try {
-            return new NioServerSocketChannel(rawChannel, this, selector);
+            return createServerChannel(selector, rawChannel);
         } catch (Exception e) {
             closeRawChannel(rawChannel, e);
             throw e;
         }
     }
 
-    private void scheduleChannel(NioSocketChannel channel, SocketSelector selector) {
+    private void scheduleChannel(S channel, SocketSelector selector) {
         try {
             selector.scheduleForRegistration(channel);
         } catch (IllegalStateException e) {
@@ -112,7 +106,7 @@ public class ChannelFactory {
         }
     }
 
-    private void scheduleServerChannel(NioServerSocketChannel channel, AcceptingSelector selector) {
+    private void scheduleServerChannel(SS channel, AcceptingSelector selector) {
         try {
             selector.scheduleForRegistration(channel);
         } catch (IllegalStateException e) {
@@ -121,7 +115,7 @@ public class ChannelFactory {
         }
     }
 
-    private void setContexts(NioSocketChannel channel) {
+    private void setContexts(S channel) {
         contextSetter.accept(channel);
         assert channel.getReadContext() != null : "read context should have been set on channel";
         assert channel.getWriteContext() != null : "write context should have been set on channel";

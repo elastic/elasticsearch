@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.nio.ESSelector;
 
 import java.io.IOException;
@@ -28,7 +28,9 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectionKey;
 
-public interface NioChannel extends TcpChannel {
+public interface NioChannel {
+
+    boolean isOpen();
 
     InetSocketAddress getLocalAddress();
 
@@ -43,4 +45,6 @@ public interface NioChannel extends TcpChannel {
     SelectionKey getSelectionKey();
 
     NetworkChannel getRawChannel();
+
+    void addCloseListener(ActionListener<Void> listener);
 }

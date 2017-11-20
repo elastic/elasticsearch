@@ -52,9 +52,9 @@ public class ChannelFactoryTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void setupFactory() throws IOException {
-        rawChannelFactory = mock(ChannelFactory.RawChannelFactory.class);
+        rawChannelFactory = mock(TcpChannelFactory.RawChannelFactory.class);
         Consumer contextSetter = mock(Consumer.class);
-        channelFactory = new ChannelFactory(rawChannelFactory, contextSetter);
+        channelFactory = new TestChannelFactory(rawChannelFactory, contextSetter);
         socketSelector = mock(SocketSelector.class);
         acceptingSelector = mock(AcceptingSelector.class);
         rawChannel = SocketChannel.open();
@@ -137,5 +137,22 @@ public class ChannelFactoryTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> channelFactory.openNioServerSocketChannel(address, acceptingSelector));
 
         assertFalse(rawServerChannel.isOpen());
+    }
+
+    private static class TestChannelFactory extends ChannelFactory {
+
+        TestChannelFactory(RawChannelFactory rawChannelFactory, Consumer<NioSocketChannel> contextSetter) {
+            super(rawChannelFactory, contextSetter);
+        }
+
+        @Override
+        public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
+            return new NioSocketChannel(channel, selector);
+        }
+
+        @Override
+        public NioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
+            return new NioServerSocketChannel(channel, this, selector);
+        }
     }
 }

@@ -19,39 +19,37 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.transport.nio.AcceptingSelector;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.nio.SocketSelector;
 
 import java.io.IOException;
-import java.nio.channels.ServerSocketChannel;
-import java.util.function.Consumer;
+import java.net.StandardSocketOptions;
+import java.nio.channels.SocketChannel;
 
-public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChannel> {
+public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel {
 
-    private final ChannelFactory channelFactory;
-    private Consumer<NioSocketChannel> acceptContext;
-
-    public NioServerSocketChannel(ServerSocketChannel socketChannel, ChannelFactory channelFactory, AcceptingSelector selector)
-        throws IOException {
+    public TcpNioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
         super(socketChannel, selector);
-        this.channelFactory = channelFactory;
     }
 
-    public ChannelFactory getChannelFactory() {
-        return channelFactory;
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+        getWriteContext().sendMessage(reference, listener);
     }
 
-    public void setAcceptContext(Consumer<NioSocketChannel> acceptContext) {
-        this.acceptContext = acceptContext;
-    }
-
-    public Consumer<NioSocketChannel> getAcceptContext() {
-        return acceptContext;
+    @Override
+    public void setSoLinger(int value) throws IOException {
+        if (isOpen()) {
+            getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
+        }
     }
 
     @Override
     public String toString() {
-        return "NioServerSocketChannel{" +
+        return "TcpNioSocketChannel{" +
             "localAddress=" + getLocalAddress() +
+            ", remoteAddress=" + getRemoteAddress() +
             '}';
     }
 }

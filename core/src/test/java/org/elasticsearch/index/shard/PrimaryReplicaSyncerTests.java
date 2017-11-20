@@ -48,7 +48,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         PrimaryReplicaSyncer.SyncAction syncAction =
             (request, parentTask, allocationId, primaryTerm, listener) -> {
-                logger.info("Sending off {} operations", request.getOperations().size());
+                logger.info("Sending off {} operations", request.getOperations().length);
                 syncActionCalled.set(true);
                 assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
                 listener.onResponse(new ResyncReplicationResponse());
@@ -98,7 +98,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         CountDownLatch syncCalledLatch = new CountDownLatch(1);
         PrimaryReplicaSyncer.SyncAction syncAction =
             (request, parentTask, allocationId, primaryTerm, listener) -> {
-                logger.info("Sending off {} operations", request.getOperations().size());
+                logger.info("Sending off {} operations", request.getOperations().length);
                 syncActionCalled.set(true);
                 syncCalledLatch.countDown();
                 threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));

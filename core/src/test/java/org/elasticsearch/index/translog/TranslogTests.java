@@ -2343,7 +2343,7 @@ public class TranslogTests extends ESTestCase {
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
         BytesStreamOutput out = new BytesStreamOutput();
-        Translog.Operation.writeOperation(index, out);
+        Translog.Operation.writeOperation(out, index);
         StreamInput in = out.bytes().streamInput();
         Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
         assertEquals(index, serializedIndex);
@@ -2354,7 +2354,7 @@ public class TranslogTests extends ESTestCase {
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();
-        Translog.Operation.writeOperation(delete, out);
+        Translog.Operation.writeOperation(out, delete);
         in = out.bytes().streamInput();
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);

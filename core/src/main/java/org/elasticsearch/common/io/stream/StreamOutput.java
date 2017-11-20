@@ -706,6 +706,13 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public <T> void writeArray(Writer<T> writer, T[] array) throws IOException {
+        writeVInt(array.length);
+        for (T value : array) {
+            writer.write(this, value);
+        }
+    }
+
     public <T extends Writeable> void writeArray(T[] array) throws IOException {
         writeVInt(array.length);
         for (T value: array) {

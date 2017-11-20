@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -40,7 +39,7 @@ public class ResyncReplicationRequestTests extends ESTestCase {
         final byte[] bytes = "{}".getBytes(Charset.forName("UTF-8"));
         final Translog.Index index = new Translog.Index("type", "id", 0, Versions.MATCH_ANY, VersionType.INTERNAL, bytes, null, null, -1);
         final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
-        final ResyncReplicationRequest before = new ResyncReplicationRequest(shardId, Collections.singletonList(index));
+        final ResyncReplicationRequest before = new ResyncReplicationRequest(shardId, new Translog.Operation[]{index});
 
         final BytesStreamOutput out = new BytesStreamOutput();
         before.writeTo(out);

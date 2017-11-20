@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog;
 
-import com.vividsolutions.jts.util.Assert;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.Term;
@@ -893,7 +892,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         /**
          * Reads the type and the operation from the given stream. The operation must be written with
-         * {@link Operation#writeOperation(Operation, StreamOutput)}
+         * {@link Operation#writeOperation(StreamOutput, Operation)}
          */
         static Operation readOperation(final StreamInput input) throws IOException {
             final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
@@ -914,7 +913,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         /**
          * Writes the type and translog operation to the given stream
          */
-        static void writeOperation(final Translog.Operation operation, final StreamOutput output) throws IOException {
+        static void writeOperation(final StreamOutput output, final Operation operation) throws IOException {
             output.writeByte(operation.opType().id());
             switch(operation.opType()) {
                 case CREATE:
@@ -1493,7 +1492,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         // because closing it closes the underlying stream, which we don't
         // want to do here.
         out.resetDigest();
-        Translog.Operation.writeOperation(op, out);
+        Translog.Operation.writeOperation(out, op);
         long checksum = out.getChecksum();
         out.writeInt((int) checksum);
     }

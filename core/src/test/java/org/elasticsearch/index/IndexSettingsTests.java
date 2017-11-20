@@ -444,24 +444,6 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(actual, settings.getGenerationThresholdSize());
     }
 
-    public void testMaxKeptIndexCommits() throws Exception {
-        final int maxKeptIndexCommits = randomIntBetween(1, 100);
-        final IndexMetaData metaData =
-            newIndexMeta(
-                "index",
-                Settings.builder()
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexSettings.MAX_INDEX_COMMITS_RETENTION.getKey(), maxKeptIndexCommits)
-                    .build());
-        final IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
-        assertThat(settings.getMaxIndexCommitsRetention(), equalTo(maxKeptIndexCommits));
-        final int newSetting = randomIntBetween(1, 100);
-        settings.updateIndexMetaData(
-            newIndexMeta("index", Settings.builder()
-                .put(IndexSettings.MAX_INDEX_COMMITS_RETENTION.getKey(), newSetting).build()));
-        assertThat(settings.getMaxIndexCommitsRetention(), equalTo(newSetting));
-    }
-
     public void testArchiveBrokenIndexSettings() {
         Settings settings =
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(

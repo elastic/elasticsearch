@@ -34,16 +34,12 @@ To follow the steps in this tutorial, you will need the following
 components of the Elastic Stack:
 
 * {es} {version}, which stores the data and the analysis results
-* {xpack} {version}, which includes the beta {ml} features for both {es} and {kib}
+* {xpack} {version}, which includes the {ml} features for both {es} and {kib}
 * {kib} {version}, which provides a helpful user interface for creating and
 viewing jobs +
 
 //ll {ml} features are available to use as an API, however this tutorial
 //will focus on using the {ml} tab in the {kib} UI.
-
-WARNING: The {xpackml} features are in beta and subject to change.
-Beta features are not subject to the same support SLA as GA features,
-and deployment in production is at your own risk.
 
 See the https://www.elastic.co/support/matrix[Elastic Support Matrix] for
 information about supported operating systems.

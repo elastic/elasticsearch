@@ -207,7 +207,7 @@ the number of nested fields that can be defined per index has been limited to 50
 Indexing a document with an array of 100 objects within a nested field, will actually
 create 101 documents, as each nested object will be indexed as a separate document.
 To prevent out of memory errors when a single document contains too many nested json
-objects, the number of nested json objects that a single document may contain has been
-limited to 10000. See <<mapping-limit-settings>>.
+objects, the number of nested json objects that a single document may contain across all fields
+has been limited to 10000. See <<mapping-limit-settings>>.
 
 

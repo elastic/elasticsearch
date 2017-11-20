@@ -305,9 +305,9 @@ public abstract class ParseContext {
 
         private SeqNoFieldMapper.SequenceIDFields seqID;
 
-        private final Long maxAllowedNumNestedDocs;
+        private final long maxAllowedNumNestedDocs;
 
-        private Long numNestedDocs;
+        private long numNestedDocs;
 
 
         private final List<Mapper> dynamicMappers;
@@ -325,7 +325,7 @@ public abstract class ParseContext {
             this.version = null;
             this.sourceToParse = source;
             this.dynamicMappers = new ArrayList<>();
-            this.maxAllowedNumNestedDocs = indexSettings.getAsLong(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(), 10000L);
+            this.maxAllowedNumNestedDocs = MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.get(indexSettings);
             this.numNestedDocs = 0L;
         }
 

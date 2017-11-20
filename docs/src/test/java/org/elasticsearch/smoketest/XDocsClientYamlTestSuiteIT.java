@@ -88,7 +88,6 @@ public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 if (state.equals("started") == false || state.equals("starting") == false) {
                     getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
                 }
-
                 assertThat(state, is("started"));
             });
         }
@@ -121,5 +120,10 @@ public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @After
     public void cleanMlState() {
         new MlRestTestStateCleaner(logger, adminClient(), this);
+    }
+
+    @Override
+    protected boolean randomizeContentType() {
+        return false;
     }
 }

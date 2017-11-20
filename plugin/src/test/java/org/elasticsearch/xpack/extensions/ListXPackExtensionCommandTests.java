@@ -51,7 +51,7 @@ public class ListXPackExtensionCommandTests extends ESTestCase {
         }
 
         @Override
-        protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+        protected Environment createEnv(Map<String, String> settings) throws UserException {
             return env;
         }
 

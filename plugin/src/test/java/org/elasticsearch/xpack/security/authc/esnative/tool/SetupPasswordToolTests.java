@@ -102,7 +102,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             protected AutoSetup newAutoSetup() {
                 return new AutoSetup() {
                     @Override
-                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(Map<String, String> settings) throws UserException {
                         Settings.Builder builder = Settings.builder();
                         settings.forEach((k,v) -> builder.put(k, v));
                         return TestEnvironment.newEnvironment(builder.build());
@@ -114,7 +114,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             protected InteractiveSetup newInteractiveSetup() {
                 return new InteractiveSetup() {
                     @Override
-                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(Map<String, String> settings) throws UserException {
                         Settings.Builder builder = Settings.builder();
                         settings.forEach((k,v) -> builder.put(k, v));
                         return TestEnvironment.newEnvironment(builder.build());

@@ -156,7 +156,8 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                     }
                 }
             } else {
-                if (metaData.getNumberOfShards() != 1) { // we can split into anything from 1
+                if (metaData.getNumberOfShards() != 1) {
+                    // we can split into anything from 1
                     Objects.requireNonNull(IndexMetaData.selectSplitShard(i, metaData, numShards));
                 }
                 // we just execute this to ensure we get the right exceptions if the number of shards is wrong or less then etc.

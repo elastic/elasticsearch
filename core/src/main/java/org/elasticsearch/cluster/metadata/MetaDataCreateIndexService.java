@@ -383,24 +383,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);
                 final int routingNumShards;
                 final Version indexVersionCreated = idxSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
-                if (recoverFromIndex == null) {
-                    if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(idxSettings)) {
-                        routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);
+                    if (recoverFromIndex == null) {
+                        if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(idxSettings)) {
+                            routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);
+                        } else {
+                            routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
+                        }
                     } else {
-                        routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
-                    }
-                } else {
-                    assert IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettingsBuilder.build()) == false
-                        : "index.number_of_routing_shards should not be present on the target index on resize";
-                    final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(recoverFromIndex);
-                    if (sourceMetaData.getNumberOfShards() == 1
-                        && isInvalidSplitFactor(numTargetShards, sourceMetaData.getRoutingNumShards())) {
-                        // in this case we have a source index with 1 shard and without an explicit split factor
-                        // or one that is valid in that case we can split into whatever and auto-generate a new factor.
-                        routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
-                    } else {
-                        routingNumShards = sourceMetaData.getRoutingNumShards();
-                    }
+                        assert IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettingsBuilder.build()) == false
+                            : "index.number_of_routing_shards should not be present on the target index on resize";
+                        final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(recoverFromIndex);
+                        if (shouldAutoCalculateNumRoutingShards(numTargetShards, sourceMetaData.getNumberOfShards(),
+                            sourceMetaData.getRoutingNumShards())) {
+                            // in this case we have a source index with 1 shard and without an explicit split factor
+                            // or one that is valid in that case we can split into whatever and auto-generate a new factor.
+                            routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
+                        } else {
+                            routingNumShards = sourceMetaData.getRoutingNumShards();
+                        }
                 }
                 // remove the setting it's temporary and is only relevant once we create the index
                 indexSettingsBuilder.remove(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
@@ -747,8 +747,21 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    private static boolean isInvalidSplitFactor(int sourceNumberOfShards, int targetNumberOfShards) {
-        int factor = sourceNumberOfShards / targetNumberOfShards;
-        return factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1;
+
+    /**
+     * Returns <code>true</code> iff the we should calculate the number of routing shards for the split index based on
+     * the source index. This only applies to source indices that have only 1 shards. We don't want to recalculate the num routing
+     * shards on indices that already have a valid number of routing shards.
+     */
+    static boolean shouldAutoCalculateNumRoutingShards(int numTargetShards, int numSourceShards, int numSourceRoutingShards) {
+        if (numSourceShards == 1) {
+            if (numSourceRoutingShards < numTargetShards) {
+                // we have a source index that has less routing shards than our target shards -- we should reset
+                return true;
+            }
+            int factor = numSourceRoutingShards /  numTargetShards;
+            return factor * numTargetShards != numSourceRoutingShards || factor <= 1;
+        }
+        return false;
     }
 }

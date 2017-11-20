@@ -297,6 +297,14 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
 
+    public void testShouldAutoCalculateNumRoutingShards() {
+        assertTrue(MetaDataCreateIndexService.shouldAutoCalculateNumRoutingShards(2, 1, 1));
+        assertFalse(MetaDataCreateIndexService.shouldAutoCalculateNumRoutingShards(10, 1, 20));
+        assertTrue(MetaDataCreateIndexService.shouldAutoCalculateNumRoutingShards(10, 1, 5));
+        assertTrue(MetaDataCreateIndexService.shouldAutoCalculateNumRoutingShards(10, 1, 16));
+        assertFalse(MetaDataCreateIndexService.shouldAutoCalculateNumRoutingShards(2, 1, 8));
+    }
+
     public void testCalculateNumRoutingShards() {
         assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(1, Version.CURRENT));
         assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(2, Version.CURRENT));

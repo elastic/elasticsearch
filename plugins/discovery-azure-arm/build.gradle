@@ -45,6 +45,9 @@ dependencies {
   compile "com.microsoft.azure:azure-mgmt-redis:${versions.azure}"
   compile "com.microsoft.azure:azure-mgmt-dns:${versions.azure}"
   compile "com.microsoft.azure:azure-mgmt-cdn:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-servicebus:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-containerregistry:${versions.azure}"
+  compile "com.microsoft.azure:azure-mgmt-documentdb:${versions.azure}"
   compile "com.microsoft.azure:azure-client-authentication:${versions.azure_auth}"
   compile "com.microsoft.azure:azure-client-runtime:${versions.azure_auth}"
   compile "com.microsoft.rest:client-runtime:${versions.azure_auth}"
@@ -127,13 +130,7 @@ thirdPartyAudit.excludes = [
   'org.bouncycastle.jce.spec.ECNamedCurveSpec',
   'org.bouncycastle.math.ec.ECCurve',
   'org.slf4j.ext.EventData',
-  'com.microsoft.azure.management.containerregistry.Registries',
-  'com.microsoft.azure.management.containerregistry.implementation.ContainerRegistryManager',
-  'com.microsoft.azure.management.documentdb.DocumentDBAccounts', 
-  'com.microsoft.azure.management.documentdb.implementation.DocumentDBManager', 
-  'com.microsoft.azure.management.servicebus.ServiceBusNamespaces', 
-  'com.microsoft.azure.management.servicebus.implementation.ServiceBusManager', 
-  'rx.Completable$CompletableOnSubscribe', 
+  'rx.Completable$CompletableOnSubscribe',
   'rx.Completable$CompletableSubscriber',
 
   // sun.misc.Unsafe usage

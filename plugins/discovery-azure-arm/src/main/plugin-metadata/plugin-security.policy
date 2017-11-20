@@ -34,6 +34,9 @@ grant {
   permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.redis.implementation";
   permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.dns.implementation";
   permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.cdn.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.servicebus.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.containerregistry.implementation";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.com.microsoft.azure.management.documentdb.implementation";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.util.PropertyPermission "*", "read,write";
   permission java.net.SocketPermission "*", "connect,resolve";

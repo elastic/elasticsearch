@@ -27,6 +27,8 @@ import com.microsoft.azure.management.compute.VirtualMachine;
 import com.microsoft.azure.management.compute.VirtualMachines;
 import com.microsoft.azure.management.network.PublicIPAddress;
 import com.microsoft.rest.RestClient;
+import com.microsoft.rest.ServiceResponseBuilder;
+import com.microsoft.rest.serializer.JacksonAdapter;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
@@ -101,6 +103,8 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
             RestClient restClient = new RestClient.Builder()
                 .withBaseUrl(AzureEnvironment.AZURE, AzureEnvironment.Endpoint.RESOURCE_MANAGER)
                 .withCredentials(new ApplicationTokenCredentials(clientId, tenantId, secret, AzureEnvironment.AZURE))
+                .withResponseBuilderFactory(new ServiceResponseBuilder.Factory())
+                .withSerializerAdapter(new JacksonAdapter())
                 .build();
 
             logger.debug("Rest client initialized");

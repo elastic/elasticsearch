@@ -189,15 +189,12 @@ xpack.ssl.key: certs/${node.name}/${node.name}.key <1>
 xpack.ssl.certificate: certs/${node.name}/${node.name}.crt <2>
 xpack.ssl.certificate_authorities: certs/ca/ca.crt <3>
 xpack.security.transport.ssl.enabled: true
-xpack.security.http.ssl.enabled: true <4>
 -----------------------------------------------------------
 <1> If this path does not exist on every node or the file name does not match
 the `node.name` configuration setting, you must specify the full path to the
 node key file.
 <2> Alternatively, specify the full path to the node certificate.
 <3> Alternatively specify the full path to the CA certificate.
-<4> This setting is optional. It enables SSL on the HTTP layer to ensure that
-communication between HTTP clients and the cluster is encrypted.
 --
 
 .. Start {es}.

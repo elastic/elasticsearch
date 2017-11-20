@@ -59,23 +59,28 @@ POST /sales/docs/_bulk?refresh
 
 For instance the following document:
 
-```
+[source,js]
+--------------------------------------------------
 {
     "keyword": ["foo", "bar"],
     "number": [23, 65, 76]
 }
-```
+--------------------------------------------------
+// NOTCONSOLE
+
 \... creates the following composite buckets when `keyword` and `number` are used as values source
 for the aggregation:
 
-```
+[source,js]
+--------------------------------------------------
 { "keyword": "foo", "number": 23 }
 { "keyword": "foo", "number": 65 }
 { "keyword": "foo", "number": 76 }
 { "keyword": "bar", "number": 23 }
 { "keyword": "bar", "number": 65 }
 { "keyword": "bar", "number": 76 }
-```
+--------------------------------------------------
+// NOTCONSOLE
 
 ==== Values source
 

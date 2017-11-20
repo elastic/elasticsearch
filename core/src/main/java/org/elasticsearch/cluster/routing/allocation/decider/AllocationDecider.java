@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
@@ -97,6 +98,10 @@ public abstract class AllocationDecider extends AbstractComponent {
      * {@link Decision#ALWAYS}.
      */
     public Decision canRebalance(RoutingAllocation allocation) {
+        return Decision.ALWAYS;
+    }
+    
+    public Decision decideOutgoingMovePerNode(RoutingNode node, RoutingAllocation allocation, RoutingNodes routingNodes) {
         return Decision.ALWAYS;
     }
 

@@ -20,12 +20,15 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
@@ -33,6 +36,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -212,5 +216,89 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         }
 
         return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
+    }
+    
+    @Override
+    public Decision decideOutgoingMovePerNode(RoutingNode node, RoutingAllocation allocation, RoutingNodes routingNode) {
+        long startTime = System.nanoTime();
+        Set<ShardId> shardsComputed = new HashSet<>();
+        if (awarenessAttributes.length == 0) {
+            return allocation.decision(Decision.YES, NAME, "allocation awareness is not enabled, set cluster setting [%s] to enable it",
+                    CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey());
+        }
+        for (ShardRouting shardRouting : node) {
+            if (shardsComputed.contains(shardRouting.shardId())) {
+                continue;
+            }
+            shardsComputed.add(shardRouting.shardId());
+            IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
+            int shardCount = indexMetaData.getNumberOfReplicas() + 1; // 1 for primary
+            for (String awarenessAttribute : awarenessAttributes) {
+                // the node the shard exists on must be associated with an awareness attribute
+                if (!node.node().getAttributes().containsKey(awarenessAttribute)) {
+                    return allocation.decision(Decision.NO, NAME,
+                            "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
+                            awarenessAttribute, CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
+                            allocation.debugDecision() ? Strings.arrayToCommaDelimitedString(awarenessAttributes) : null);
+                }
+
+                // build attr_value -> nodes map
+                ObjectIntHashMap<String> nodesPerAttribute = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
+
+                // build the count of shards per attribute value
+                ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
+                for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting.shardId())) {
+                    if (assignedShard.started() || assignedShard.initializing()) {
+                        // Note: this also counts relocation targets as that will be the new location of
+                        // the shard.
+                        // Relocation sources should not be counted as the shard is moving away
+                        RoutingNode rNode = allocation.routingNodes().node(assignedShard.currentNodeId());
+                        shardPerAttribute.addTo(rNode.node().getAttributes().get(awarenessAttribute), 1);
+                    }
+                }
+
+                int numberOfAttributes = nodesPerAttribute.size();
+                List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
+                if (fullValues != null) {
+                    for (String fullValue : fullValues) {
+                        if (!shardPerAttribute.containsKey(fullValue)) {
+                            numberOfAttributes++;
+                        }
+                    }
+                }
+                // TODO should we remove ones that are not part of full list?
+
+                int averagePerAttribute = shardCount / numberOfAttributes;
+                int totalLeftover = shardCount % numberOfAttributes;
+                int requiredCountPerAttribute;
+                if (averagePerAttribute == 0) {
+                    // if we have more attributes values than shard count, no leftover
+                    totalLeftover = 0;
+                    requiredCountPerAttribute = 1;
+                } else {
+                    requiredCountPerAttribute = averagePerAttribute;
+                }
+                int leftoverPerAttribute = totalLeftover == 0 ? 0 : 1;
+
+                int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
+                // if we are above with leftover, then we know we are not good, even with mod
+                if (currentNodeCount > (requiredCountPerAttribute + leftoverPerAttribute)) {
+                    return allocation.decision(Decision.NO, NAME,
+                    "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total configured "
+                    + "shard copies for this shard id and [%d] total attribute values, expected the allocated shard count per "
+                    + "attribute [%d] to be less than or equal to the upper bound of the required number of shards per attribute [%d]",
+                    awarenessAttribute, shardCount, numberOfAttributes, currentNodeCount, requiredCountPerAttribute + leftoverPerAttribute);
+                }
+                // all is well, we are below or same as average
+                if (currentNodeCount <= requiredCountPerAttribute) {
+                    continue;
+                }
+            }
+        }
+        long endTime = System.nanoTime();
+        long totalTime = endTime - startTime;
+        logger.info("Returning decision {} for node {} after {}", Decision.YES, node.nodeId(), totalTime);
+        return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
+
     }
 }

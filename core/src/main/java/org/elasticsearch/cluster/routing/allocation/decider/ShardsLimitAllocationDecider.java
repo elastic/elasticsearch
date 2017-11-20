@@ -21,14 +21,19 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
+import java.util.List;
 import java.util.function.BiPredicate;
 
 /**
@@ -135,6 +140,42 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             nodeShardCount, indexShardLimit, clusterShardLimit);
     }
 
+    @Override
+    public Decision decideOutgoingMovePerNode(RoutingNode node, RoutingAllocation allocation, RoutingNodes routingNodes) {
+        long startTime = System.nanoTime();
+        final int clusterShardLimit = this.clusterShardLimit;
+        int nodeShardCount = node.numberOfShardsWithState(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED,
+        ShardRoutingState.UNASSIGNED);
+        if (clusterShardLimit > 0 && nodeShardCount > clusterShardLimit) {
+            long endTime = System.nanoTime();
+            long totalTime = endTime - startTime;
+            logger.info("Returning decision {} for node {} after {}", Decision.NO, node.nodeId(), totalTime);
+            return allocation.decision(Decision.NO, NAME, "too many shards for this node [%d], cluster-level " + "limit per node: [%d]",
+            nodeShardCount, clusterShardLimit);
+        }
+        ImmutableOpenMap<String, IndexMetaData> indexMd = allocation.metaData().getIndices();
+        for (ObjectObjectCursor<String, IndexMetaData> indexMdEntry : indexMd) {
+            final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMdEntry.value.getSettings(), settings);
+            if (indexShardLimit > 0) {
+                List<ShardRouting> shardPerIndex = node.shardsWithState(indexMdEntry.key, ShardRoutingState.INITIALIZING,
+                ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED);
+                if (indexShardLimit > 0 && shardPerIndex.size() > indexShardLimit) {
+                    long endTime = System.nanoTime();
+                    long totalTime = endTime - startTime;
+                    logger.info("Returning decision {} for node {} after {}", Decision.NO, node.nodeId(), totalTime);
+                    return allocation.decision(Decision.NO, NAME,
+                    "too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]", shardPerIndex.size(),
+                    indexMdEntry.key, INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);
+                }
+            }
+        }
+        long endTime = System.nanoTime();
+        long totalTime = endTime - startTime;
+        logger.info("Returning decision {} for node {} after {}", Decision.YES, node.nodeId(), totalTime);
+        return allocation.decision(Decision.YES, NAME,
+                "the shard count is under index limit [%d] and cluster level node limit [%d] of total shards per node", clusterShardLimit);
+    }
+    
     @Override
     public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         // Only checks the node-level limit, not the index-level

@@ -25,9 +25,12 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
@@ -40,6 +43,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
     private final DiscoveryNode node;
 
     private final LinkedHashMap<ShardId, ShardRouting> shards; // LinkedHashMap to preserve order
+    
+    private final Map<ShardRoutingState, Set<ShardRouting>> shardPerState = new LinkedHashMap<>();
+    
+    private final Map<String, Map<ShardRoutingState, Set<ShardRouting>>> shardPerIndexPerState = new LinkedHashMap<>();
 
     public RoutingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
         this(nodeId, node, buildShardRoutingMap(shards));
@@ -49,6 +56,11 @@ public class RoutingNode implements Iterable<ShardRouting> {
         this.nodeId = nodeId;
         this.node = node;
         this.shards = shards;
+        for (Map.Entry<ShardId, ShardRouting> shardMap : shards.entrySet()) {
+            shardPerState.computeIfAbsent(shardMap.getValue().state(), k -> new HashSet<>()).add(shardMap.getValue());
+            shardPerIndexPerState.computeIfAbsent(shardMap.getKey().getIndexName(), k -> new LinkedHashMap<>())
+            .computeIfAbsent(shardMap.getValue().state(), k -> new HashSet<>()).add(shardMap.getValue());
+        }
     }
 
     private static LinkedHashMap<ShardId, ShardRouting> buildShardRoutingMap(ShardRouting... shardRoutings) {
@@ -104,6 +116,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
                 + "] where it already exists. current [" + shards.get(shard.shardId()) + "]. new [" + shard + "]");
         }
         shards.put(shard.shardId(), shard);
+        shardPerState.computeIfAbsent(shard.state(), k -> new HashSet<>()).add(shard);
+        shardPerIndexPerState.computeIfAbsent(shard.getIndexName(), k -> new LinkedHashMap<>())
+        .computeIfAbsent(shard.state(), k -> new HashSet<>()).add(shard);
+    
     }
 
     void update(ShardRouting oldShard, ShardRouting newShard) {
@@ -112,6 +128,19 @@ public class RoutingNode implements Iterable<ShardRouting> {
             // TODO: change caller logic in RoutingNodes so that this check can go away
             return;
         }
+        shardPerState.computeIfPresent(oldShard.state(), (k, c) -> {
+            c.remove(oldShard);
+            return c.isEmpty() ? null : c;
+        });
+        shardPerIndexPerState.computeIfPresent(oldShard.getIndexName(), (k, c) -> {
+            if (c.get(oldShard.state()) != null) {
+                c.get(oldShard.state()).remove(oldShard);
+            }
+            return c;
+        });
+        shardPerState.computeIfAbsent(newShard.state(), k -> new HashSet<>()).add(newShard);
+        shardPerIndexPerState.computeIfAbsent(newShard.getIndexName(), k -> new LinkedHashMap<>())
+        .computeIfAbsent(newShard.state(), k -> new HashSet<>()).add(newShard);
         ShardRouting previousValue = shards.put(newShard.shardId(), newShard);
         assert previousValue == oldShard : "expected shard " + previousValue + " but was " + oldShard;
     }
@@ -119,6 +148,16 @@ public class RoutingNode implements Iterable<ShardRouting> {
     void remove(ShardRouting shard) {
         ShardRouting previousValue = shards.remove(shard.shardId());
         assert previousValue == shard : "expected shard " + previousValue + " but was " + shard;
+        shardPerState.computeIfPresent(previousValue.state(), (k, c) -> {
+            c.remove(previousValue);
+            return c.isEmpty() ? null : c;
+        });
+        shardPerIndexPerState.computeIfPresent(shard.getIndexName(), (k, c) -> {
+            if (c.get(shard.state()) != null) {
+                c.get(shard.state()).remove(shard);
+            }
+            return c;
+        });
     }
 
     /**
@@ -128,11 +167,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
      */
     public int numberOfShardsWithState(ShardRoutingState... states) {
         int count = 0;
-        for (ShardRouting shardEntry : this) {
-            for (ShardRoutingState state : states) {
-                if (shardEntry.state() == state) {
-                    count++;
-                }
+        for (ShardRoutingState state : states) {
+            if (shardPerState.get(state) != null) {
+                count += shardPerState.get(state).size();
             }
         }
         return count;
@@ -145,12 +182,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
      */
     public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
         List<ShardRouting> shards = new ArrayList<>();
-        for (ShardRouting shardEntry : this) {
-            for (ShardRoutingState state : states) {
-                if (shardEntry.state() == state) {
-                    shards.add(shardEntry);
-                }
-            }
+        for (ShardRoutingState state : states) {
+            if (shardPerState.get(state) != null)
+                shards.addAll(shardPerState.get(state));
         }
         return shards;
     }
@@ -163,15 +197,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
      */
     public List<ShardRouting> shardsWithState(String index, ShardRoutingState... states) {
         List<ShardRouting> shards = new ArrayList<>();
-
-        for (ShardRouting shardEntry : this) {
-            if (!shardEntry.getIndexName().equals(index)) {
-                continue;
-            }
-            for (ShardRoutingState state : states) {
-                if (shardEntry.state() == state) {
-                    shards.add(shardEntry);
-                }
+        Map<ShardRoutingState, Set<ShardRouting>> shardPerIndexMap = shardPerIndexPerState.get(index);
+        for (ShardRoutingState state : states) {
+            if (shardPerIndexMap != null && shardPerIndexMap.get(state) != null) {
+                shards.addAll(shardPerIndexMap.get(state));
             }
         }
         return shards;

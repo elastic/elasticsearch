@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -204,5 +205,18 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         }
         assert initializingShard.initializing();
         return initializingShard;
+    }
+
+    @Override
+    public Decision decideOutgoingMovePerNode(RoutingNode node, RoutingAllocation allocation, RoutingNodes routingNodes) {
+        int primaryNodeOutRecoveries = routingNodes.getOutgoingRecoveries(node.nodeId());
+        logger.info(" Primary outgoing recoveries " + primaryNodeOutRecoveries + " " + node.nodeId() + " " + node);
+        if (primaryNodeOutRecoveries >= concurrentOutgoingRecoveries) {
+            return allocation.decision(THROTTLE, NAME, "too many outgoing shards are currently recovering [%d], limit: [%d]",
+                    primaryNodeOutRecoveries, concurrentOutgoingRecoveries);
+        } else {
+            return allocation.decision(YES, NAME, "below shard recovery limit of outgoing: [%d < %d]", primaryNodeOutRecoveries,
+                    concurrentOutgoingRecoveries);
+        }
     }
 }

@@ -16,18 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.cli;
 
-apply plugin: 'elasticsearch.build'
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-dependencies {
-  provided "org.elasticsearch:elasticsearch:${version}"
-  provided "org.elasticsearch:elasticsearch-cli:${version}"
-  testCompile "org.elasticsearch.test:framework:${version}"
-  testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:18.0'
+/**
+ * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
+ */
+@Retention(RetentionPolicy.CLASS)
+@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
+public @interface SuppressForbidden {
+    String reason();
 }
 
-test {
-  // TODO: find a way to add permissions for the tests in this module
-  systemProperty 'tests.security.manager', 'false'
-}

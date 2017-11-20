@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cli;
 
-import org.elasticsearch.common.SuppressForbidden;
-
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;

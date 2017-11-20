@@ -57,6 +57,11 @@ for (Version version : wireCompatVersions) {
   if (project.bwc_tests_enabled) {
     bwcTest.dependsOn(versionBwcTest)
   }
+
+  /* To support taking index snapshots, we have to set path.repo setting */
+  tasks.getByName("${baseName}#mixedClusterTestRunner").configure {
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+  }
 }
 
 test.enabled = false // no unit tests for rolling upgrades, only the rest integration test

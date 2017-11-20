@@ -29,17 +29,13 @@ import java.util.Map;
 import java.util.function.Function;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
 
 public class InternalSettingsPreparer {
-
-    private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json"};
 
     private static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     private static final String TEXT_PROMPT_VALUE = "${prompt.text}";

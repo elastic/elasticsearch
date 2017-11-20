@@ -35,10 +35,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -61,7 +61,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
-            protected Version executeHandshake(DiscoveryNode node, NioChannel channel, TimeValue timeout) throws IOException,
+            protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
                 InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, channel, timeout);
@@ -77,7 +77,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
             @Override
             protected SocketEventHandler getSocketEventHandler() {
-                return new TestingSocketEventHandler(logger, this::exceptionCaught);
+                return new TestingSocketEventHandler(logger, this::exceptionCaught, openChannels);
             }
         };
         MockTransportService mockTransportService =
@@ -98,9 +98,9 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
     protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        final NioTransport t = (NioTransport) transport;
-        @SuppressWarnings("unchecked") TcpTransport<NioChannel>.NodeChannels channels = (TcpTransport<NioChannel>.NodeChannels) connection;
-        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, false);
+        @SuppressWarnings("unchecked")
+        TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
+        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {

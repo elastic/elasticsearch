@@ -25,18 +25,14 @@ import com.vividsolutions.jts.geom.GeometryFactory;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Shape;
@@ -45,14 +41,16 @@ import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder implements NamedWriteable, ToXContentObject {
+public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>> implements NamedWriteable, ToXContentObject {
 
     protected static final Logger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
 
@@ -62,6 +60,8 @@ public abstract class ShapeBuilder implements NamedWriteable, ToXContentObject {
         // to prevent exceptions only present if debug enabled
         DEBUG = Assertions.ENABLED;
     }
+
+    protected final List<Coordinate> coordinates;
 
     public static final double DATELINE = 180;
 
@@ -85,7 +85,103 @@ public abstract class ShapeBuilder implements NamedWriteable, ToXContentObject {
     /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#index() */
     protected static final boolean AUTO_INDEX_JTS_GEOMETRY = true;//may want to turn off once SpatialStrategy impls do it.
 
+    /** default ctor */
     protected ShapeBuilder() {
+        coordinates = new ArrayList<>();
+    }
+
+    /** ctor from list of coordinates */
+    protected ShapeBuilder(List<Coordinate> coordinates) {
+        if (coordinates == null || coordinates.size() == 0) {
+            throw new IllegalArgumentException("cannot create point collection with empty set of points");
+        }
+        this.coordinates = coordinates;
+    }
+
+    /** ctor from serialized stream input */
+    protected ShapeBuilder(StreamInput in) throws IOException {
+        int size = in.readVInt();
+        coordinates = new ArrayList<>(size);
+        for (int i=0; i < size; i++) {
+            coordinates.add(readFromStream(in));
+        }
+    }
+
+    protected static Coordinate readFromStream(StreamInput in) throws IOException {
+        return new Coordinate(in.readDouble(), in.readDouble());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(coordinates.size());
+        for (Coordinate point : coordinates) {
+            writeCoordinateTo(point, out);
+        }
+    }
+
+    protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
+        out.writeDouble(coordinate.x);
+        out.writeDouble(coordinate.y);
+    }
+
+    @SuppressWarnings("unchecked")
+    private E thisRef() {
+        return (E)this;
+    }
+
+    /**
+     * Add a new coordinate to the collection
+     * @param longitude longitude of the coordinate
+     * @param latitude latitude of the coordinate
+     * @return this
+     */
+    public E coordinate(double longitude, double latitude) {
+        return this.coordinate(new Coordinate(longitude, latitude));
+    }
+
+    /**
+     * Add a new coordinate to the collection
+     * @param coordinate coordinate of the point
+     * @return this
+     */
+    public E coordinate(Coordinate coordinate) {
+        this.coordinates.add(coordinate);
+        return thisRef();
+    }
+
+    /**
+     * Add a array of coordinates to the collection
+     *
+     * @param coordinates array of {@link Coordinate}s to add
+     * @return this
+     */
+    public E coordinates(Coordinate...coordinates) {
+        return this.coordinates(Arrays.asList(coordinates));
+    }
+
+    /**
+     * Add a collection of coordinates to the collection
+     *
+     * @param coordinates array of {@link Coordinate}s to add
+     * @return this
+     */
+    public E coordinates(Collection<? extends Coordinate> coordinates) {
+        this.coordinates.addAll(coordinates);
+        return thisRef();
+    }
+
+    /**
+     * Copy all coordinate to a new Array
+     *
+     * @param closed if set to true the first point of the array is repeated as last element
+     * @return Array of coordinates
+     */
+    protected Coordinate[] coordinates(boolean closed) {
+        Coordinate[] result = coordinates.toArray(new Coordinate[coordinates.size() + (closed?1:0)]);
+        if(closed) {
+            result[result.length-1] = result[0];
+        }
+        return result;
     }
 
     protected JtsGeometry jtsGeometry(Geometry geom) {
@@ -104,84 +200,7 @@ public abstract class ShapeBuilder implements NamedWriteable, ToXContentObject {
      * the builder looses its validity. So this method should only be called once on a builder
      * @return new {@link Shape} defined by the builder
      */
-    public abstract Shape build();
-
-    /**
-     * Recursive method which parses the arrays of coordinates used to define
-     * Shapes
-     *
-     * @param parser
-     *            Parser that will be read from
-     * @return CoordinateNode representing the start of the coordinate tree
-     * @throws IOException
-     *             Thrown if an error occurs while reading from the
-     *             XContentParser
-     */
-    private static CoordinateNode parseCoordinates(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-
-        // Base cases
-        if (token != XContentParser.Token.START_ARRAY &&
-                token != XContentParser.Token.END_ARRAY &&
-                token != XContentParser.Token.VALUE_NULL) {
-            double lon = parser.doubleValue();
-            token = parser.nextToken();
-            double lat = parser.doubleValue();
-            token = parser.nextToken();
-            while (token == XContentParser.Token.VALUE_NUMBER) {
-                token = parser.nextToken();
-            }
-            return new CoordinateNode(new Coordinate(lon, lat));
-        } else if (token == XContentParser.Token.VALUE_NULL) {
-            throw new IllegalArgumentException("coordinates cannot contain NULL values)");
-        }
-
-        List<CoordinateNode> nodes = new ArrayList<>();
-        while (token != XContentParser.Token.END_ARRAY) {
-            nodes.add(parseCoordinates(parser));
-            token = parser.nextToken();
-        }
-
-        return new CoordinateNode(nodes);
-    }
-
-    /**
-     * Create a new {@link ShapeBuilder} from {@link XContent}
-     * @param parser parser to read the GeoShape from
-     * @return {@link ShapeBuilder} read from the parser or null
-     *          if the parsers current token has been <code>null</code>
-     * @throws IOException if the input could not be read
-     */
-    public static ShapeBuilder parse(XContentParser parser) throws IOException {
-        return GeoShapeType.parse(parser, null);
-    }
-
-    /**
-     * Create a new {@link ShapeBuilder} from {@link XContent}
-     * @param parser parser to read the GeoShape from
-     * @param geoDocMapper document field mapper reference required for spatial parameters relevant
-     *                     to the shape construction process (e.g., orientation)
-     *                     todo: refactor to place build specific parameters in the SpatialContext
-     * @return {@link ShapeBuilder} read from the parser or null
-     *          if the parsers current token has been <code>null</code>
-     * @throws IOException if the input could not be read
-     */
-    public static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper geoDocMapper) throws IOException {
-        return GeoShapeType.parse(parser, geoDocMapper);
-    }
-
-    protected static XContentBuilder toXContent(XContentBuilder builder, Coordinate coordinate) throws IOException {
-        return builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
-    }
-
-    protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
-        out.writeDouble(coordinate.x);
-        out.writeDouble(coordinate.y);
-    }
-
-    protected static Coordinate readFromStream(StreamInput in) throws IOException {
-        return new Coordinate(in.readDouble(), in.readDouble());
-    }
+    public abstract T build();
 
     protected static Coordinate shift(Coordinate coordinate, double dateline) {
         if (dateline == 0) {
@@ -253,58 +272,6 @@ public abstract class ShapeBuilder implements NamedWriteable, ToXContentObject {
         }
         Arrays.sort(edges, INTERSECTION_ORDER);
         return numIntersections;
-    }
-
-    /**
-     * Node used to represent a tree of coordinates.
-     * <p>
-     * Can either be a leaf node consisting of a Coordinate, or a parent with
-     * children
-     */
-    protected static class CoordinateNode implements ToXContentObject {
-
-        protected final Coordinate coordinate;
-        protected final List<CoordinateNode> children;
-
-        /**
-         * Creates a new leaf CoordinateNode
-         *
-         * @param coordinate
-         *            Coordinate for the Node
-         */
-        protected CoordinateNode(Coordinate coordinate) {
-            this.coordinate = coordinate;
-            this.children = null;
-        }
-
-        /**
-         * Creates a new parent CoordinateNode
-         *
-         * @param children
-         *            Children of the Node
-         */
-        protected CoordinateNode(List<CoordinateNode> children) {
-            this.children = children;
-            this.coordinate = null;
-        }
-
-        protected boolean isEmpty() {
-            return (coordinate == null && (children == null || children.isEmpty()));
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (children == null) {
-                builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
-            } else {
-                builder.startArray();
-                for (CoordinateNode child : children) {
-                    child.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
-            return builder;
-        }
     }
 
     /**
@@ -415,293 +382,50 @@ public abstract class ShapeBuilder implements NamedWriteable, ToXContentObject {
         }
     }
 
-    public static final String FIELD_TYPE = "type";
-    public static final String FIELD_COORDINATES = "coordinates";
-    public static final String FIELD_GEOMETRIES = "geometries";
-    public static final String FIELD_ORIENTATION = "orientation";
-
     protected static final boolean debugEnabled() {
         return LOGGER.isDebugEnabled() || DEBUG;
     }
 
+    protected static XContentBuilder toXContent(XContentBuilder builder, Coordinate coordinate) throws IOException {
+        return builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
+    }
+
     /**
-     * Enumeration that lists all {@link GeoShapeType}s that can be handled
+     * builds an array of coordinates to a {@link XContentBuilder}
+     *
+     * @param builder builder to use
+     * @param closed repeat the first point at the end of the array if it's not already defines as last element of the array
+     * @return the builder
      */
-    public enum GeoShapeType {
-        POINT("point"),
-        MULTIPOINT("multipoint"),
-        LINESTRING("linestring"),
-        MULTILINESTRING("multilinestring"),
-        POLYGON("polygon"),
-        MULTIPOLYGON("multipolygon"),
-        GEOMETRYCOLLECTION("geometrycollection"),
-        ENVELOPE("envelope"),
-        CIRCLE("circle");
-
-        private final String shapename;
-
-        GeoShapeType(String shapename) {
-            this.shapename = shapename;
+    protected XContentBuilder coordinatesToXcontent(XContentBuilder builder, boolean closed) throws IOException {
+        builder.startArray();
+        for(Coordinate coord : coordinates) {
+            toXContent(builder, coord);
         }
-
-        protected String shapeName() {
-            return shapename;
-        }
-
-        public static GeoShapeType forName(String geoshapename) {
-            String typename = geoshapename.toLowerCase(Locale.ROOT);
-            for (GeoShapeType type : values()) {
-                if(type.shapename.equals(typename)) {
-                    return type;
-                }
-            }
-            throw new IllegalArgumentException("unknown geo_shape ["+geoshapename+"]");
-        }
-
-        public static ShapeBuilder parse(XContentParser parser) throws IOException {
-            return parse(parser, null);
-        }
-
-        /**
-         * Parse the geometry specified by the source document and return a ShapeBuilder instance used to
-         * build the actual geometry
-         * @param parser - parse utility object including source document
-         * @param shapeMapper - field mapper needed for index specific parameters
-         * @return ShapeBuilder - a builder instance used to create the geometry
-         */
-        public static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper shapeMapper) throws IOException {
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return null;
-            } else if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
-            }
-
-            GeoShapeType shapeType = null;
-            Distance radius = null;
-            CoordinateNode node = null;
-            GeometryCollectionBuilder geometryCollections = null;
-
-            Orientation requestedOrientation = (shapeMapper == null) ? Orientation.RIGHT : shapeMapper.fieldType().orientation();
-            boolean coerce = (shapeMapper == null) ? GeoShapeFieldMapper.Defaults.COERCE.value() : shapeMapper.coerce().value();
-
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String fieldName = parser.currentName();
-
-                    if (FIELD_TYPE.equals(fieldName)) {
-                        parser.nextToken();
-                        shapeType = GeoShapeType.forName(parser.text());
-                    } else if (FIELD_COORDINATES.equals(fieldName)) {
-                        parser.nextToken();
-                        node = parseCoordinates(parser);
-                    } else if (FIELD_GEOMETRIES.equals(fieldName)) {
-                        parser.nextToken();
-                        geometryCollections = parseGeometries(parser, shapeMapper);
-                    } else if (CircleBuilder.FIELD_RADIUS.equals(fieldName)) {
-                        parser.nextToken();
-                        radius = Distance.parseDistance(parser.text());
-                    } else if (FIELD_ORIENTATION.equals(fieldName)) {
-                        parser.nextToken();
-                        requestedOrientation = Orientation.fromString(parser.text());
-                    } else {
-                        parser.nextToken();
-                        parser.skipChildren();
-                    }
-                }
-            }
-
-            if (shapeType == null) {
-                throw new ElasticsearchParseException("shape type not included");
-            } else if (node == null && GeoShapeType.GEOMETRYCOLLECTION != shapeType) {
-                throw new ElasticsearchParseException("coordinates not included");
-            } else if (geometryCollections == null && GeoShapeType.GEOMETRYCOLLECTION == shapeType) {
-                throw new ElasticsearchParseException("geometries not included");
-            } else if (radius != null && GeoShapeType.CIRCLE != shapeType) {
-                throw new ElasticsearchParseException("field [{}] is supported for [{}] only", CircleBuilder.FIELD_RADIUS,
-                        CircleBuilder.TYPE);
-            }
-
-            switch (shapeType) {
-                case POINT: return parsePoint(node);
-                case MULTIPOINT: return parseMultiPoint(node);
-                case LINESTRING: return parseLineString(node);
-                case MULTILINESTRING: return parseMultiLine(node);
-                case POLYGON: return parsePolygon(node, requestedOrientation, coerce);
-                case MULTIPOLYGON: return parseMultiPolygon(node, requestedOrientation, coerce);
-                case CIRCLE: return parseCircle(node, radius);
-                case ENVELOPE: return parseEnvelope(node);
-                case GEOMETRYCOLLECTION: return geometryCollections;
-                default:
-                    throw new ElasticsearchParseException("shape type [{}] not included", shapeType);
+        if(closed) {
+            Coordinate start = coordinates.get(0);
+            Coordinate end = coordinates.get(coordinates.size()-1);
+            if(start.x != end.x || start.y != end.y) {
+                toXContent(builder, coordinates.get(0));
             }
         }
+        builder.endArray();
+        return builder;
+    }
 
-        protected static void validatePointNode(CoordinateNode node) {
-            if (node.isEmpty()) {
-                throw new ElasticsearchParseException(
-                        "invalid number of points (0) provided when expecting a single coordinate ([lat, lng])");
-            } else if (node.coordinate == null) {
-                if (node.children.isEmpty() == false) {
-                    throw new ElasticsearchParseException("multipoint data provided when single point data expected.");
-                }
-            }
-        }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ShapeBuilder)) return false;
 
-        protected static PointBuilder parsePoint(CoordinateNode node) {
-            validatePointNode(node);
-            return ShapeBuilders.newPoint(node.coordinate);
-        }
+        ShapeBuilder<?,?> that = (ShapeBuilder<?,?>) o;
 
-        protected static CircleBuilder parseCircle(CoordinateNode coordinates, Distance radius) {
-            return ShapeBuilders.newCircleBuilder().center(coordinates.coordinate).radius(radius);
-        }
+        return Objects.equals(coordinates, that.coordinates);
+    }
 
-        protected static EnvelopeBuilder parseEnvelope(CoordinateNode coordinates) {
-            // validate the coordinate array for envelope type
-            if (coordinates.children.size() != 2) {
-                throw new ElasticsearchParseException(
-                        "invalid number of points [{}] provided for geo_shape [{}] when expecting an array of 2 coordinates",
-                        coordinates.children.size(), GeoShapeType.ENVELOPE.shapename);
-            }
-            // verify coordinate bounds, correct if necessary
-            Coordinate uL = coordinates.children.get(0).coordinate;
-            Coordinate lR = coordinates.children.get(1).coordinate;
-            if (((lR.x < uL.x) || (uL.y < lR.y))) {
-                Coordinate uLtmp = uL;
-                uL = new Coordinate(Math.min(uL.x, lR.x), Math.max(uL.y, lR.y));
-                lR = new Coordinate(Math.max(uLtmp.x, lR.x), Math.min(uLtmp.y, lR.y));
-            }
-            return ShapeBuilders.newEnvelope(uL, lR);
-        }
-
-        protected static void validateMultiPointNode(CoordinateNode coordinates) {
-            if (coordinates.children == null || coordinates.children.isEmpty()) {
-                if (coordinates.coordinate != null) {
-                    throw new ElasticsearchParseException("single coordinate found when expecting an array of " +
-                            "coordinates. change type to point or change data to an array of >0 coordinates");
-                }
-                throw new ElasticsearchParseException("no data provided for multipoint object when expecting " +
-                        ">0 points (e.g., [[lat, lng]] or [[lat, lng], ...])");
-            } else {
-                for (CoordinateNode point : coordinates.children) {
-                    validatePointNode(point);
-                }
-            }
-        }
-
-        protected static MultiPointBuilder parseMultiPoint(CoordinateNode coordinates) {
-            validateMultiPointNode(coordinates);
-            CoordinatesBuilder points = new CoordinatesBuilder();
-            for (CoordinateNode node : coordinates.children) {
-                points.coordinate(node.coordinate);
-            }
-            return new MultiPointBuilder(points.build());
-        }
-
-        protected static LineStringBuilder parseLineString(CoordinateNode coordinates) {
-            /**
-             * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
-             * "coordinates" member must be an array of two or more positions
-             * LineStringBuilder should throw a graceful exception if < 2 coordinates/points are provided
-             */
-            if (coordinates.children.size() < 2) {
-                throw new ElasticsearchParseException("invalid number of points in LineString (found [{}] - must be >= 2)",
-                        coordinates.children.size());
-            }
-
-            CoordinatesBuilder line = new CoordinatesBuilder();
-            for (CoordinateNode node : coordinates.children) {
-                line.coordinate(node.coordinate);
-            }
-            return ShapeBuilders.newLineString(line);
-        }
-
-        protected static MultiLineStringBuilder parseMultiLine(CoordinateNode coordinates) {
-            MultiLineStringBuilder multiline = ShapeBuilders.newMultiLinestring();
-            for (CoordinateNode node : coordinates.children) {
-                multiline.linestring(parseLineString(node));
-            }
-            return multiline;
-        }
-
-        protected static LineStringBuilder parseLinearRing(CoordinateNode coordinates, boolean coerce) {
-            /**
-             * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
-             * A LinearRing is closed LineString with 4 or more positions. The first and last positions
-             * are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
-             * represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
-             */
-            if (coordinates.children == null) {
-                String error = "Invalid LinearRing found.";
-                error += (coordinates.coordinate == null) ?
-                        " No coordinate array provided" : " Found a single coordinate when expecting a coordinate array";
-                throw new ElasticsearchParseException(error);
-            }
-
-            int numValidPts = coerce ? 3 : 4;
-            if (coordinates.children.size() < numValidPts) {
-                throw new ElasticsearchParseException("invalid number of points in LinearRing (found [{}] - must be >= [{}])",
-                        coordinates.children.size(), numValidPts);
-            }
-
-            if (!coordinates.children.get(0).coordinate.equals(
-                    coordinates.children.get(coordinates.children.size() - 1).coordinate)) {
-                if (coerce) {
-                    coordinates.children.add(coordinates.children.get(0));
-                } else {
-                    throw new ElasticsearchParseException("invalid LinearRing found (coordinates are not closed)");
-                }
-            }
-            return parseLineString(coordinates);
-        }
-
-        protected static PolygonBuilder parsePolygon(CoordinateNode coordinates, final Orientation orientation, final boolean coerce) {
-            if (coordinates.children == null || coordinates.children.isEmpty()) {
-                throw new ElasticsearchParseException(
-                        "invalid LinearRing provided for type polygon. Linear ring must be an array of coordinates");
-            }
-
-            LineStringBuilder shell = parseLinearRing(coordinates.children.get(0), coerce);
-            PolygonBuilder polygon = new PolygonBuilder(shell, orientation);
-            for (int i = 1; i < coordinates.children.size(); i++) {
-                polygon.hole(parseLinearRing(coordinates.children.get(i), coerce));
-            }
-            return polygon;
-        }
-
-        protected static MultiPolygonBuilder parseMultiPolygon(CoordinateNode coordinates, final Orientation orientation,
-                                                               final boolean coerce) {
-            MultiPolygonBuilder polygons = ShapeBuilders.newMultiPolygon(orientation);
-            for (CoordinateNode node : coordinates.children) {
-                polygons.polygon(parsePolygon(node, orientation, coerce));
-            }
-            return polygons;
-        }
-
-        /**
-         * Parse the geometries array of a GeometryCollection
-         *
-         * @param parser Parser that will be read from
-         * @return Geometry[] geometries of the GeometryCollection
-         * @throws IOException Thrown if an error occurs while reading from the XContentParser
-         */
-        protected static GeometryCollectionBuilder parseGeometries(XContentParser parser, GeoShapeFieldMapper mapper) throws
-                IOException {
-            if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-                throw new ElasticsearchParseException("geometries must be an array of geojson objects");
-            }
-
-            XContentParser.Token token = parser.nextToken();
-            GeometryCollectionBuilder geometryCollection = ShapeBuilders.newGeometryCollection();
-            while (token != XContentParser.Token.END_ARRAY) {
-                ShapeBuilder shapeBuilder = GeoShapeType.parse(parser);
-                geometryCollection.shape(shapeBuilder);
-                token = parser.nextToken();
-            }
-
-            return geometryCollection;
-        }
+    @Override
+    public int hashCode() {
+        return Objects.hash(coordinates);
     }
 
     @Override

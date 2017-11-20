@@ -19,8 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import java.io.IOException;
-
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
@@ -36,6 +34,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+
+import java.io.IOException;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -81,13 +81,35 @@ class S3Repository extends BlobStoreRepository {
     static final Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
 
     /**
+     * Maximum size of files that can be uploaded using a single upload request.
+     */
+    static final ByteSizeValue MAX_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
+
+    /**
+     * Minimum size of parts that can be uploaded using the Multipart Upload API.
+     * (see http://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html)
+     */
+    static final ByteSizeValue MIN_PART_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.MB);
+
+    /**
+     * Maximum size of parts that can be uploaded using the Multipart Upload API.
+     * (see http://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html)
+     */
+    static final ByteSizeValue MAX_PART_SIZE_USING_MULTIPART = MAX_FILE_SIZE;
+
+    /**
+     * Maximum size of files that can be uploaded using the Multipart Upload API.
+     */
+    static final ByteSizeValue MAX_FILE_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.TB);
+
+    /**
      * Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
      * the S3 repository will use the AWS Multipart Upload API to split the chunk into several parts, each of buffer_size length, and
      * to upload each part in its own request. Note that setting a buffer size lower than 5mb is not allowed since it will prevents the
      * use of the Multipart API and may result in upload errors. Defaults to the minimum between 100MB and 5% of the heap size.
      */
-    static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting("buffer_size", DEFAULT_BUFFER_SIZE,
-            new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
+    static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
+        Setting.byteSizeSetting("buffer_size", DEFAULT_BUFFER_SIZE, MIN_PART_SIZE_USING_MULTIPART, MAX_PART_SIZE_USING_MULTIPART);
 
     /**
      * Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.

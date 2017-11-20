@@ -20,7 +20,10 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.nio.OpenChannels;
 import org.elasticsearch.transport.nio.SocketEventHandler;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.junit.After;
@@ -30,14 +33,13 @@ import java.io.IOException;
 import java.net.ConnectException;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -46,11 +48,13 @@ public class NioSocketChannelTests extends ESTestCase {
     private SocketSelector selector;
     private AtomicBoolean closedRawChannel;
     private Thread thread;
+    private OpenChannels openChannels;
 
     @Before
     @SuppressWarnings("unchecked")
     public void startSelector() throws IOException {
-        selector = new SocketSelector(new SocketEventHandler(logger, mock(BiConsumer.class)));
+        openChannels = new OpenChannels(logger);
+        selector = new SocketSelector(new SocketEventHandler(logger, mock(BiConsumer.class), openChannels));
         thread = new Thread(selector::runLoop);
         closedRawChannel = new AtomicBoolean(false);
         thread.start();
@@ -63,64 +67,63 @@ public class NioSocketChannelTests extends ESTestCase {
         thread.join();
     }
 
-    public void testClose() throws IOException, TimeoutException, InterruptedException {
-        AtomicReference<NioChannel> ref = new AtomicReference<>();
+    public void testClose() throws Exception {
+        AtomicReference<TcpChannel> ref = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, mock(SocketChannel.class), selector);
+        openChannels.clientChannelOpened(socketChannel);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
-        Consumer<NioChannel> listener = (c) -> {
+        Consumer<TcpChannel> listener = (c) -> {
             ref.set(c);
             latch.countDown();
         };
-        socketChannel.getCloseFuture().addListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(socketChannel)));
-        CloseFuture closeFuture = socketChannel.getCloseFuture();
+        socketChannel.addCloseListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(socketChannel)));
 
-        assertFalse(closeFuture.isClosed());
+        assertTrue(socketChannel.isOpen());
         assertFalse(closedRawChannel.get());
+        assertTrue(openChannels.getClientChannels().containsKey(socketChannel));
 
-        socketChannel.closeAsync();
-
-        closeFuture.awaitClose(100, TimeUnit.SECONDS);
+        TcpChannel.closeChannel(socketChannel, true);
 
         assertTrue(closedRawChannel.get());
-        assertTrue(closeFuture.isClosed());
+        assertFalse(socketChannel.isOpen());
+        assertFalse(openChannels.getClientChannels().containsKey(socketChannel));
         latch.await();
         assertSame(socketChannel, ref.get());
     }
 
-    public void testConnectSucceeds() throws IOException, InterruptedException {
+    public void testConnectSucceeds() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenReturn(true);
         NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, rawChannel, selector);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         selector.scheduleForRegistration(socketChannel);
 
-        ConnectFuture connectFuture = socketChannel.getConnectFuture();
-        assertTrue(connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS));
+        PlainActionFuture<NioChannel> connectFuture = PlainActionFuture.newFuture();
+        socketChannel.addConnectListener(connectFuture);
+        connectFuture.get(100, TimeUnit.SECONDS);
 
         assertTrue(socketChannel.isConnectComplete());
         assertTrue(socketChannel.isOpen());
         assertFalse(closedRawChannel.get());
-        assertFalse(connectFuture.connectFailed());
-        assertNull(connectFuture.getException());
     }
 
-    public void testConnectFails() throws IOException, InterruptedException {
+    public void testConnectFails() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenThrow(new ConnectException());
         NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, rawChannel, selector);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         selector.scheduleForRegistration(socketChannel);
 
-        ConnectFuture connectFuture = socketChannel.getConnectFuture();
-        assertFalse(connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS));
+        PlainActionFuture<NioChannel> connectFuture = PlainActionFuture.newFuture();
+        socketChannel.addConnectListener(connectFuture);
+        ExecutionException e = expectThrows(ExecutionException.class, () -> connectFuture.get(100, TimeUnit.SECONDS));
+        assertTrue(e.getCause() instanceof IOException);
 
         assertFalse(socketChannel.isConnectComplete());
         // Even if connection fails the channel is 'open' until close() is called
         assertTrue(socketChannel.isOpen());
-        assertTrue(connectFuture.connectFailed());
-        assertThat(connectFuture.getException(), instanceOf(ConnectException.class));
     }
 
     private class DoNotCloseChannel extends DoNotRegisterChannel {

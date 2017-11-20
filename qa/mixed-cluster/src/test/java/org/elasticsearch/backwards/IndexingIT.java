@@ -27,6 +27,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -42,7 +43,9 @@ import java.util.stream.Collectors;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class IndexingIT extends ESRestTestCase {
 
@@ -235,6 +238,57 @@ public class IndexingIT extends ESRestTestCase {
             }
             assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
         }
+    }
+
+    public void testUpdateSnapshotStatus() throws Exception {
+        Nodes nodes = buildNodeAndVersions();
+        assertThat(nodes.getNewNodes(), not(empty()));
+        logger.info("cluster discovered: {}", nodes.toString());
+
+        // Create the repository before taking the snapshot.
+        String repoConfig = JsonXContent.contentBuilder()
+            .startObject()
+            .field("type", "fs")
+            .startObject("settings")
+            .field("compress", randomBoolean())
+            .field("location", System.getProperty("tests.path.repo"))
+            .endObject()
+            .endObject()
+            .string();
+
+        assertOK(
+            client().performRequest("PUT", "/_snapshot/repo", emptyMap(),
+                new StringEntity(repoConfig, ContentType.APPLICATION_JSON))
+        );
+
+        String bwcNames = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
+
+        // Allocating shards on the BWC nodes to makes sure that taking snapshot happens on those nodes.
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(5, 10))
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .put("index.routing.allocation.include._name", bwcNames);
+
+        final String index = "test-snapshot-index";
+        createIndex(index, settings.build());
+        indexDocs(index, 0, between(50, 100));
+        ensureGreen();
+        assertOK(client().performRequest("POST", index + "/_refresh"));
+
+        assertOK(
+            client().performRequest("PUT", "/_snapshot/repo/bwc-snapshot", singletonMap("wait_for_completion", "true"),
+                new StringEntity("{\"indices\": \"" + index + "\"}", ContentType.APPLICATION_JSON))
+        );
+
+        // Allocating shards on all nodes, taking snapshots should happen on all nodes.
+        updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
+        ensureGreen();
+        assertOK(client().performRequest("POST", index + "/_refresh"));
+
+        assertOK(
+            client().performRequest("PUT", "/_snapshot/repo/mixed-snapshot", singletonMap("wait_for_completion", "true"),
+                new StringEntity("{\"indices\": \"" + index + "\"}", ContentType.APPLICATION_JSON))
+        );
     }
 
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {

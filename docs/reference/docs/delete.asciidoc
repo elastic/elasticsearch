@@ -59,7 +59,7 @@ Example to delete with routing
 
 [source,js]
 --------------------------------------------------
-PUT /twitter/tweet/1?routing=kimhcy
+PUT /twitter/tweet/1?routing=kimchy
 {
     "test": "test"
 }

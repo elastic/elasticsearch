@@ -126,9 +126,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public void postParse(ParseContext context) throws IOException {
         // In the case of nested docs, let's fill nested docs with version=1 so that Lucene doesn't write a Bitset for documents
         // that don't have the field. This is consistent with the default value for efficiency.
+        Field version = context.version();
+        assert version != null;
         for (int i = 1; i < context.docs().size(); i++) {
             final Document doc = context.docs().get(i);
-            doc.add(new NumericDocValuesField(NAME, 1L));
+            doc.add(version);
         }
     }
 

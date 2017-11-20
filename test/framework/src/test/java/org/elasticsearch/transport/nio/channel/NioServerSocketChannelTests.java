@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.AcceptingSelector;
@@ -61,26 +62,39 @@ public class NioServerSocketChannelTests extends ESTestCase {
     }
 
     public void testClose() throws Exception {
-        AtomicReference<TcpChannel> ref = new AtomicReference<>();
+        AtomicBoolean isClosed = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
 
         NioChannel channel = new DoNotCloseServerChannel("nio", mock(ServerSocketChannel.class), mock(ChannelFactory.class), selector);
-        Consumer<TcpChannel> listener = (c) -> {
-            ref.set(c);
-            latch.countDown();
-        };
-        channel.addCloseListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(channel)));
+
+        channel.addCloseListener(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void o) {
+                isClosed.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                isClosed.set(true);
+                latch.countDown();
+            }
+        });
 
         assertTrue(channel.isOpen());
         assertFalse(closedRawChannel.get());
+        assertFalse(isClosed.get());
 
-        TcpChannel.closeChannel(channel, true);
+        PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+        channel.addCloseListener(closeFuture);
+        channel.close();
+        closeFuture.actionGet();
 
 
         assertTrue(closedRawChannel.get());
         assertFalse(channel.isOpen());
         latch.await();
-        assertSame(channel, ref.get());
+        assertTrue(isClosed.get());
     }
 
     private class DoNotCloseServerChannel extends DoNotRegisterServerChannel {

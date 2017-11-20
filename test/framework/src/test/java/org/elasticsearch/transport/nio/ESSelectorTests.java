@@ -51,19 +51,12 @@ public class ESSelectorTests extends ESTestCase {
     public void testQueueChannelForClosed() throws IOException {
         NioChannel channel = mock(NioChannel.class);
         when(channel.getSelector()).thenReturn(selector);
-        selector.addRegisteredChannel(channel);
 
         selector.queueChannelClose(channel);
-
-        assertEquals(1, selector.getRegisteredChannels().size());
 
         selector.singleLoop();
 
         verify(handler).handleClose(channel);
-        // Will be called in the channel close method
-        selector.removeRegisteredChannel(channel);
-
-        assertEquals(0, selector.getRegisteredChannels().size());
     }
 
     public void testSelectorClosedExceptionIsNotCaughtWhileRunning() throws IOException {

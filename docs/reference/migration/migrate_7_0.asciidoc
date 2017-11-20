@@ -30,6 +30,8 @@ way to reindex old indices is to use the `reindex` API.
 * <<breaking_70_mappings_changes>>
 * <<breaking_70_search_changes>>
 * <<breaking_70_plugins_changes>>
+* <<breaking_70_api_changes>>
+
 
 include::migrate_7_0/aggregations.asciidoc[]
 include::migrate_7_0/cluster.asciidoc[]
@@ -37,3 +39,5 @@ include::migrate_7_0/indices.asciidoc[]
 include::migrate_7_0/mappings.asciidoc[]
 include::migrate_7_0/search.asciidoc[]
 include::migrate_7_0/plugins.asciidoc[]
+include::migrate_7_0/api.asciidoc[]
+

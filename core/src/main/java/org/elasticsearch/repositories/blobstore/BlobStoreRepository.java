@@ -35,7 +35,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -110,9 +109,11 @@ import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1451,6 +1452,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
                 Store.MetadataSnapshot recoveryTargetMetadata;
                 try {
+                    // this will throw an IOException if the store has no segments infos file. The
+                    // store can still have existing files but they will be deleted just before being
+                    // restored.
                     recoveryTargetMetadata = targetShard.snapshotStoreMetadata();
                 } catch (IndexNotFoundException e) {
                     // happens when restore to an empty shard, not a big deal
@@ -1478,7 +1482,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
                     fileInfos.put(fileInfo.metadata().name(), fileInfo);
                 }
+
                 final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(unmodifiableMap(snapshotMetaData), emptyMap(), 0);
+
+                final StoreFileMetaData restoredSegmentsFile = sourceMetaData.getSegmentsFile();
+                if (restoredSegmentsFile == null) {
+                    throw new IndexShardRestoreFailedException(shardId, "Snapshot has no segments file");
+                }
+
                 final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
                 for (StoreFileMetaData md : diff.identical) {
                     BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
@@ -1510,24 +1521,33 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         index.totalRecoverFiles(), new ByteSizeValue(index.totalRecoverBytes()), index.reusedFileCount(), new ByteSizeValue(index.reusedFileCount()));
                 }
                 try {
-                    // first, delete pre-existing files in the store that have the same name but are
-                    // different (i.e. different length/checksum) from those being restored in the snapshot
-                    for (final StoreFileMetaData storeFileMetaData : diff.different) {
-                        IOUtils.deleteFiles(store.directory(), storeFileMetaData.name());
-                    }
+                    // list of all existing store files without the identical ones
+                    final Set<String> deleteIfExistFiles = Sets.difference(
+                        new HashSet<>(Arrays.asList(store.directory().listAll())),
+                        diff.identical.stream().map(StoreFileMetaData::name).collect(Collectors.toSet())
+                    );
+
                     // restore the files from the snapshot to the Lucene store
                     for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
+                        // if a file with a same physical name already exist in the store we need to delete it
+                        // before restoring it from the snapshot. We could be lenient and try to reuse the existing
+                        // store files (and compare their names/length/checksum again with the snapshot files) but to
+                        // avoid extra complexity we simply delete them and restore them again like StoreRecovery
+                        // does with dangling indices. Any existing store file that is not restored from the snapshot
+                        // will be clean up by RecoveryTarget.cleanFiles().
+                        final String physicalName = fileToRecover.physicalName();
+                        if (deleteIfExistFiles.contains(physicalName)) {
+                            logger.trace("[{}] [{}] deleting pre-existing file [{}]", shardId, snapshotId, physicalName);
+                            store.directory().deleteFile(physicalName);
+                        }
+
                         logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
                         restoreFile(fileToRecover, store);
                     }
                 } catch (IOException ex) {
                     throw new IndexShardRestoreFailedException(shardId, "Failed to recover index", ex);
                 }
-                final StoreFileMetaData restoredSegmentsFile = sourceMetaData.getSegmentsFile();
-                if (recoveryTargetMetadata == null) {
-                    throw new IndexShardRestoreFailedException(shardId, "Snapshot has no segments file");
-                }
-                assert restoredSegmentsFile != null;
+
                 // read the snapshot data persisted
                 final SegmentInfos segmentCommitInfos;
                 try {

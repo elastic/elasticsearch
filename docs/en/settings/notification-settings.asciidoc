@@ -17,6 +17,18 @@ send set up {watcher} and send notifications via <<email-notification-settings, 
 `xpack.watcher.enabled`::
 Set to `false` to disable {watcher} on the node.
 
+`xpack.watcher.encrypt_sensitive_data` (<<secure-settings,Secure>>)::
+Set to `true` to encrypt sensitive data. If this setting is enabled, you
+must also specify the `xpack.watcher.encryption_key` setting. For more
+information, see
+{xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}].
+
+`xpack.watcher.encryption_key` (<<secure-settings,Secure>>)::
+Specifies the path to a file that contains a key for encrypting sensitive data.
+If `xpack.watcher.encrypt_sensitive_data` is set to `true`, this setting is
+required. For more information, see
+{xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}].
+
 `xpack.watcher.history.cleaner_service.enabled`::
 Set to `false` (default) to disable the cleaner service, which removes previous
 versions of {watcher} indices (for example, .watcher-history*) when it

@@ -55,17 +55,34 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 public class MatchQuery {
+    // Mapping types that can use a whitespace analyzer to separate tokens (numbers, dates, ips).
+    private static final Set<String> WHITESPACE_ANALYZER_MAPPER_TYPES;
+
+    static {
+        WHITESPACE_ANALYZER_MAPPER_TYPES = new HashSet<>();
+        WHITESPACE_ANALYZER_MAPPER_TYPES.add(DateFieldMapper.CONTENT_TYPE);
+        WHITESPACE_ANALYZER_MAPPER_TYPES.add(IpFieldMapper.CONTENT_TYPE);
+        for (NumberFieldMapper.NumberType nt : NumberFieldMapper.NumberType.values()) {
+            WHITESPACE_ANALYZER_MAPPER_TYPES.add(nt.typeName());
+        }
+        WHITESPACE_ANALYZER_MAPPER_TYPES.add("scaled_float");
+    }
+
 
     public enum Type implements Writeable {
         /**
@@ -268,9 +285,7 @@ public class MatchQuery {
          * in order to be able to handle multiple clauses separated by spaces in the same query.
          */
         if (noForcedAnalyzer &&
-                fieldType instanceof NumberFieldMapper.NumberFieldType ||
-                fieldType instanceof DateFieldMapper.DateFieldType ||
-                fieldType instanceof IpFieldMapper.IpFieldType) {
+                WHITESPACE_ANALYZER_MAPPER_TYPES.contains(fieldType.typeName())) {
             analyzer = WHITESPACE_ANALYZER;
         } else if (fieldType.tokenized() == false && noForcedAnalyzer) {
             return blendTermQuery(new Term(fieldName, value.toString()), fieldType);

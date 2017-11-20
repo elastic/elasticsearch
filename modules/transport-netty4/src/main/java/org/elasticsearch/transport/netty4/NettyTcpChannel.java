@@ -84,11 +84,8 @@ public class NettyTcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        if (channel.eventLoop().isShuttingDown()) {
-            listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
-        } else {
-            ChannelPromise writePromise = channel.newPromise();
-            writePromise.addListener(f -> {
+        ChannelPromise writePromise = channel.newPromise();
+        writePromise.addListener(f -> {
             if (f.isSuccess()) {
                 listener.onResponse(null);
             } else {
@@ -97,8 +94,11 @@ public class NettyTcpChannel implements TcpChannel {
                 assert cause instanceof Exception;
                 listener.onFailure((Exception) cause);
             }
-            });
-            channel.writeAndFlush(Netty4Utils.toByteBuf(reference), writePromise);
+        });
+        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), writePromise);
+        
+        if (channel.eventLoop().isShutdown()) {
+            listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
         }
     }
 

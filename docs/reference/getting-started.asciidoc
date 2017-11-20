@@ -64,7 +64,7 @@ A type used to be a logical category/partition of your index to allow you to sto
 [float]
 === Document
 
-A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is an ubiquitous internet data interchange format.
+A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is a ubiquitous internet data interchange format.
 
 Within an index/type, you can store as many documents as you want. Note that although a document physically resides in an index, a document actually must be indexed/assigned to a type inside an index.
 

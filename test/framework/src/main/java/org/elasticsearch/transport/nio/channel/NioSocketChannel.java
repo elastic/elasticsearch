@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 
@@ -34,7 +35,7 @@ import java.util.concurrent.CompletableFuture;
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
-    private final CompletableFuture<NioChannel> connectContext = new CompletableFuture<>();
+    private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
     private WriteContext writeContext;
     private ReadContext readContext;
@@ -44,6 +45,11 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         super(profile, socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
         this.socketSelector = selector;
+    }
+
+    @Override
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+        writeContext.sendMessage(reference, listener);
     }
 
     @Override
@@ -151,12 +157,12 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
             isConnected = internalFinish();
         }
         if (isConnected) {
-            connectContext.complete(this);
+            connectContext.complete(null);
         }
         return isConnected;
     }
 
-    public void addConnectListener(ActionListener<NioChannel> listener) {
+    public void addConnectListener(ActionListener<Void> listener) {
         connectContext.whenComplete(ActionListener.toBiConsumer(listener));
     }
 

@@ -23,11 +23,6 @@ import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.apache.logging.log4j.Level;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -55,12 +50,13 @@ public abstract class Command implements Closeable {
         this.description = description;
     }
 
-    final SetOnce<Thread> shutdownHookThread = new SetOnce<>();
+    private Thread shutdownHookThread;
 
     /** Parses options for this command from args and executes it. */
     public final int main(String[] args, Terminal terminal) throws Exception {
         if (addShutdownHook()) {
-            shutdownHookThread.set(new Thread(() -> {
+
+            shutdownHookThread = new Thread(() -> {
                 try {
                     this.close();
                 } catch (final IOException e) {
@@ -75,16 +71,11 @@ public abstract class Command implements Closeable {
                         throw new AssertionError(impossible);
                     }
                 }
-            }));
-            Runtime.getRuntime().addShutdownHook(shutdownHookThread.get());
+            });
+            Runtime.getRuntime().addShutdownHook(shutdownHookThread);
         }
 
-        if (shouldConfigureLoggingWithoutConfig()) {
-            // initialize default for es.logger.level because we will not read the log4j2.properties
-            final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
-            final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
-            LogConfigurator.configureWithoutConfig(settings);
-        }
+        beforeExecute();
 
         try {
             mainWithoutErrorHandling(args, terminal);
@@ -103,14 +94,10 @@ public abstract class Command implements Closeable {
     }
 
     /**
-     * Indicate whether or not logging should be configured without reading a log4j2.properties. Most commands should do this because we do
-     * not configure logging for CLI tools. Only commands that configure logging on their own should not do this.
-     *
-     * @return true if logging should be configured without reading a log4j2.properties file
+     * Setup method to be executed before parsing or execution of the command being run. Any exceptions thrown by the
+     * method will not be cleanly caught by the parser.
      */
-    protected boolean shouldConfigureLoggingWithoutConfig() {
-        return true;
-    }
+    protected void beforeExecute() {}
 
     /**
      * Executes the command, but all errors are thrown.
@@ -164,6 +151,11 @@ public abstract class Command implements Closeable {
      */
     protected boolean addShutdownHook() {
         return true;
+    }
+
+    /** Gets the shutdown hook thread if it exists **/
+    Thread getShutdownHookThread() {
+        return shutdownHookThread;
     }
 
     @Override

@@ -68,7 +68,7 @@ import java.util.function.Consumer;
  * that need real networking. This implementation is a test only implementation that implements
  * the networking layer in the worst possible way since it blocks and uses a thread per request model.
  */
-public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel> {
+public class MockTcpTransport extends TcpTransport {
 
     /**
      * A pre-built light connection profile that shares a single connection across all
@@ -107,11 +107,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         // using the ES thread factory here is crucial for tests otherwise disruption tests won't block that thread
         executor = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX));
         this.mockVersion = mockVersion;
-    }
-
-    @Override
-    protected InetSocketAddress getLocalAddress(MockChannel mockChannel) {
-        return mockChannel.localAddress;
     }
 
     @Override
@@ -176,7 +171,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected MockChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<MockChannel> connectListener)
+    protected MockChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
         throws IOException {
         InetSocketAddress address = node.getAddress().address();
         final MockSocket socket = new MockSocket();
@@ -191,7 +186,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             MockChannel channel = new MockChannel(socket, address, "none", (c) -> {});
             channel.loopRead(executor);
             success = true;
-            connectListener.onResponse(channel);
+            connectListener.onResponse(null);
             return channel;
         } finally {
             if (success == false) {
@@ -223,22 +218,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void sendMessage(MockChannel mockChannel, BytesReference reference, ActionListener<MockChannel> listener) {
-        try {
-            synchronized (mockChannel) {
-                final Socket socket = mockChannel.activeChannel;
-                OutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
-                reference.writeTo(outputStream);
-                outputStream.flush();
-            }
-            listener.onResponse(mockChannel);
-        } catch (IOException e) {
-            listener.onFailure(e);
-            onException(mockChannel, e);
-        }
-    }
-
-    @Override
     public long getNumOpenServerConnections() {
         return 1;
     }
@@ -252,7 +231,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
         private final Closeable onClose;
-        private final CompletableFuture<TcpChannel> closeFuture = new CompletableFuture<>();
+        private final CompletableFuture<Void> closeFuture = new CompletableFuture<>();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -377,14 +356,14 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         public void close() {
             try {
                 close0();
-                closeFuture.complete(this);
+                closeFuture.complete(null);
             } catch (IOException e) {
                 closeFuture.completeExceptionally(e);
             }
         }
 
         @Override
-        public void addCloseListener(ActionListener<TcpChannel> listener) {
+        public void addCloseListener(ActionListener<Void> listener) {
             closeFuture.whenComplete(ActionListener.toBiConsumer(listener));
         }
 
@@ -401,6 +380,25 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             return isOpen.get();
         }
 
+        @Override
+        public InetSocketAddress getLocalAddress() {
+            return localAddress;
+        }
+
+        @Override
+        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+            try {
+                synchronized (this) {
+                    OutputStream outputStream = new BufferedOutputStream(activeChannel.getOutputStream());
+                    reference.writeTo(outputStream);
+                    outputStream.flush();
+                }
+                listener.onResponse(null);
+            } catch (IOException e) {
+                listener.onFailure(e);
+                onException(this, e);
+            }
+        }
     }
 
 

@@ -58,7 +58,7 @@ dependencies {
   compile 'org.elasticsearch:securesm:1.1'
 
   // utilities
-  compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
+  compile "org.elasticsearch:elasticsearch-cli:${version}"
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
@@ -265,6 +265,12 @@ if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /jackson-.*/, to: 'jackson'
+  dependencies = project.configurations.runtime.fileCollection {
+    it.group.startsWith('org.elasticsearch') == false ||
+            // keep the following org.elasticsearch jars in
+            (it.name == 'jna' ||
+             it.name == 'securesm')
+  }
 }
 
 if (isEclipse == false || project.path == ":core-tests") {

@@ -19,19 +19,18 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -61,7 +60,7 @@ public interface TcpChannel extends Releasable {
      *
      * @param listener to be executed
      */
-    void addCloseListener(ActionListener<TcpChannel> listener);
+    void addCloseListener(ActionListener<Void> listener);
 
 
     /**
@@ -81,6 +80,22 @@ public interface TcpChannel extends Releasable {
     boolean isOpen();
 
     /**
+     * Returns the local address for this channel.
+     *
+     * @return the local address of this channel.
+     */
+    InetSocketAddress getLocalAddress();
+
+    /**
+     * Sends a tcp message to the channel. The listener will be executed once the send process has been
+     * completed.
+     *
+     * @param reference to send to channel
+     * @param listener to execute upon send completion
+     */
+    void sendMessage(BytesReference reference, ActionListener<Void> listener);
+
+    /**
      * Closes the channel.
      *
      * @param channel to close
@@ -98,10 +113,10 @@ public interface TcpChannel extends Releasable {
      */
     static <C extends TcpChannel> void closeChannels(List<C> channels, boolean blocking) {
         if (blocking) {
-            ArrayList<ActionFuture<TcpChannel>> futures = new ArrayList<>(channels.size());
+            ArrayList<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
             for (final C channel : channels) {
                 if (channel.isOpen()) {
-                    PlainActionFuture<TcpChannel> closeFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
                     channel.addCloseListener(closeFuture);
                     channel.close();
                     futures.add(closeFuture);
@@ -120,15 +135,14 @@ public interface TcpChannel extends Releasable {
      * @param discoveryNode the node for the pending connections
      * @param connectionFutures representing the pending connections
      * @param connectTimeout to wait for a connection
-     * @param <C> the type of channel
      * @throws ConnectTransportException if one of the connections fails
      */
-    static <C extends TcpChannel> void awaitConnected(DiscoveryNode discoveryNode, List<ActionFuture<C>> connectionFutures,
-                                                      TimeValue connectTimeout) throws ConnectTransportException {
+    static void awaitConnected(DiscoveryNode discoveryNode, List<ActionFuture<Void>> connectionFutures, TimeValue connectTimeout)
+        throws ConnectTransportException {
         Exception connectionException = null;
         boolean allConnected = true;
 
-        for (ActionFuture<C> connectionFuture : connectionFutures) {
+        for (ActionFuture<Void> connectionFuture : connectionFutures) {
             try {
                 connectionFuture.get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
             } catch (TimeoutException e) {
@@ -153,8 +167,8 @@ public interface TcpChannel extends Releasable {
         }
     }
 
-    static void blockOnFutures(List<ActionFuture<TcpChannel>> futures) {
-        for (ActionFuture<TcpChannel> future : futures) {
+    static void blockOnFutures(List<ActionFuture<Void>> futures) {
+        for (ActionFuture<Void> future : futures) {
             try {
                 future.get();
             } catch (ExecutionException e) {

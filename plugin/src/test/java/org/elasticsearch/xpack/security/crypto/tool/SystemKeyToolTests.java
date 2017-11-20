@@ -49,7 +49,7 @@ public class SystemKeyToolTests extends CommandTestCase {
         return new SystemKeyTool() {
 
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+            protected Environment createEnv(Map<String, String> settings) throws UserException {
                 Settings.Builder builder = Settings.builder();
                 settings.forEach((k,v) -> builder.put(k, v));
                 return TestEnvironment.newEnvironment(builder.build());

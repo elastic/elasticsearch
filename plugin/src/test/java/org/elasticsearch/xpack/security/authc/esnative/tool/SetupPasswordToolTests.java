@@ -28,9 +28,10 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
-
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,10 +39,11 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-
+import javax.net.ssl.SSLException;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -100,7 +102,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             protected AutoSetup newAutoSetup() {
                 return new AutoSetup() {
                     @Override
-                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(Map<String, String> settings) throws UserException {
                         Settings.Builder builder = Settings.builder();
                         settings.forEach((k,v) -> builder.put(k, v));
                         return TestEnvironment.newEnvironment(builder.build());
@@ -112,7 +114,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             protected InteractiveSetup newInteractiveSetup() {
                 return new InteractiveSetup() {
                     @Override
-                    protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(Map<String, String> settings) throws UserException {
                         Settings.Builder builder = Settings.builder();
                         settings.forEach((k,v) -> builder.put(k, v));
                         return TestEnvironment.newEnvironment(builder.build());
@@ -124,26 +126,31 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     public void testAutoSetup() throws Exception {
-        String url = httpClient.getDefaultURL();
-        execute("auto", pathHomeParameter, "-b", "true");
+        URL url = new URL(httpClient.getDefaultURL());
+        if (randomBoolean()) {
+            execute("auto", pathHomeParameter, "-b", "true");
+        } else {
+            terminal.addTextInput("Y");
+            execute("auto", pathHomeParameter);
+        }
 
         verify(keyStore).decrypt(new char[0]);
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
-        URL checkUrl = new URL(url + "/_xpack/security/_authenticate?pretty");
+        URL checkUrl = checkURL(url);
         inOrder.verify(httpClient).postURL(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
                 any(CheckedConsumer.class));
         for (String user : usersInSetOrder) {
-            URL urlWithRoute = new URL(url + "/_xpack/security/user/" + user + "/_password");
+            URL urlWithRoute = passwdURL(url, user);
             inOrder.verify(httpClient).postURL(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     any(CheckedSupplier.class), any(CheckedConsumer.class));
         }
-
     }
 
     public void testAuthnFail() throws Exception {
-        URL authnURL = new URL(httpClient.getDefaultURL() + "/_xpack/security/_authenticate?pretty");
+        URL url = new URL(httpClient.getDefaultURL());
+        URL authnURL = checkURL(url);
         when(httpClient.postURL(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), any(CheckedSupplier.class),
                 any(CheckedConsumer.class))).thenReturn(HttpURLConnection.HTTP_UNAUTHORIZED);
 
@@ -153,38 +160,66 @@ public class SetupPasswordToolTests extends CommandTestCase {
         } catch (UserException e) {
             assertEquals(ExitCodes.CONFIG, e.exitCode);
         }
+    }
 
+    public void testWrongServer() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+        URL authnURL = checkURL(url);
+        doThrow(randomFrom(new IOException(), new SSLException(""))).when(httpClient).postURL(eq("GET"), eq(authnURL), eq(ElasticUser.NAME),
+                any(SecureString.class), any(CheckedSupplier.class), any(CheckedConsumer.class));
+
+        try {
+            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            fail("Should have thrown exception");
+        } catch (UserException e) {
+            assertEquals(ExitCodes.CONFIG, e.exitCode);
+        }
     }
 
     public void testUrlOption() throws Exception {
-        String url = "http://localhost:9202";
-        execute("auto", pathHomeParameter, "-u", url, "-b");
+        URL url = new URL("http://localhost:9202" + randomFrom("", "/", "//", "/smth", "//smth/", "//x//x/"));
+        execute("auto", pathHomeParameter, "-u", url.toString(), "-b");
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
-        URL checkUrl = new URL(url + "/_xpack/security/_authenticate?pretty");
+        URL checkUrl = checkURL(url);
         inOrder.verify(httpClient).postURL(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
                 any(CheckedConsumer.class));
         for (String user : usersInSetOrder) {
-            URL urlWithRoute = new URL(url + "/_xpack/security/user/" + user + "/_password");
+            URL urlWithRoute = passwdURL(url, user);
             inOrder.verify(httpClient).postURL(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     any(CheckedSupplier.class), any(CheckedConsumer.class));
         }
     }
 
+    public void testSetUserPassFail() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+        String userToFail = randomFrom(SetupPasswordTool.USERS);
+        URL userToFailURL = passwdURL(url, userToFail);
+
+        doThrow(new IOException()).when(httpClient).postURL(eq("PUT"), eq(userToFailURL), anyString(), any(SecureString.class),
+                any(CheckedSupplier.class), any(CheckedConsumer.class));
+        try {
+            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter, "-b");
+            fail("Should have thrown exception");
+        } catch (UserException e) {
+            assertEquals(ExitCodes.TEMP_FAILURE, e.exitCode);
+        }
+    }
+
     public void testInteractiveSetup() throws Exception {
-        String url = httpClient.getDefaultURL();
+        URL url = new URL(httpClient.getDefaultURL());
 
         terminal.addTextInput("Y");
         execute("interactive", pathHomeParameter);
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
-        URL checkUrl = new URL(url + "/_xpack/security/_authenticate?pretty");
+        URL checkUrl = checkURL(url);
         inOrder.verify(httpClient).postURL(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
                 any(CheckedConsumer.class));
         for (String user : usersInSetOrder) {
-            URL urlWithRoute = new URL(url + "/_xpack/security/user/" + user + "/_password");
+            URL urlWithRoute = passwdURL(url, user);
             ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
             inOrder.verify(httpClient).postURL(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     passwordCaptor.capture(), any(CheckedConsumer.class));
@@ -193,7 +228,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     public void testInteractivePasswordsFatFingers() throws Exception {
-        String url = httpClient.getDefaultURL();
+        URL url = new URL(httpClient.getDefaultURL());
 
         terminal.reset();
         terminal.addTextInput("Y");
@@ -218,11 +253,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
-        URL checkUrl = new URL(url + "/_xpack/security/_authenticate?pretty");
+        URL checkUrl = checkURL(url);
         inOrder.verify(httpClient).postURL(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
                 any(CheckedConsumer.class));
         for (String user : usersInSetOrder) {
-            URL urlWithRoute = new URL(url + "/_xpack/security/user/" + user + "/_password");
+            URL urlWithRoute = passwdURL(url, user);
             ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
             inOrder.verify(httpClient).postURL(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     passwordCaptor.capture(), any(CheckedConsumer.class));
@@ -242,5 +277,13 @@ public class SetupPasswordToolTests extends CommandTestCase {
             }
         }
         throw new RuntimeException("Did not properly parse password.");
+    }
+
+    private URL checkURL(URL url) throws MalformedURLException, URISyntaxException {
+        return new URL(url, (url.toURI().getPath() + "/_xpack/security/_authenticate").replaceAll("/+", "/") + "?pretty");
+    }
+
+    private URL passwdURL(URL url, String user) throws MalformedURLException, URISyntaxException {
+        return new URL(url, (url.toURI().getPath() + "/_xpack/security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
     }
 }

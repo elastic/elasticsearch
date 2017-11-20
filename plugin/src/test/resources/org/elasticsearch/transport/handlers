@@ -98,7 +98,6 @@ internal:cluster/nodes/indices/shard/store
 internal:cluster/nodes/indices/shard/store[n]
 internal:cluster/shard/failure
 internal:cluster/shard/started
-internal:cluster/snapshot/update_snapshot
 internal:cluster/snapshot/update_snapshot_status
 internal:discovery/zen/fd/master_ping
 internal:discovery/zen/fd/ping

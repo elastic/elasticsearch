@@ -9,10 +9,12 @@
 
 * <<certgen>>
 * <<setup-passwords>>
+* <<syskeygen>>
 * <<users-command>>
 
 --
 
 include::certgen.asciidoc[]
 include::setup-passwords.asciidoc[]
+include::syskeygen.asciidoc[]
 include::users-command.asciidoc[]

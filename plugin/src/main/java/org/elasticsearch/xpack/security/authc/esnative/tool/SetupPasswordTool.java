@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import javax.net.ssl.SSLException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.SocketException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -21,6 +21,7 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.bouncycastle.util.io.Streams;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
@@ -113,7 +114,7 @@ public class SetupPasswordTool extends MultiCommand {
             checkElasticKeystorePasswordValid(terminal, env);
 
             if (shouldPrompt) {
-                terminal.println("Initiating the setup of reserved user " + String.join(",", USERS) + " passwords.");
+                terminal.println("Initiating the setup of passwords for reserved users " + String.join(",", USERS) + ".");
                 terminal.println("The passwords will be randomly generated and printed to the console.");
                 boolean shouldContinue = terminal.promptYesNo("Please confirm that you would like to continue", false);
                 terminal.println("\n");
@@ -124,7 +125,7 @@ public class SetupPasswordTool extends MultiCommand {
 
             SecureRandom secureRandom = new SecureRandom();
             changePasswords((user) -> generatePassword(secureRandom, user),
-                    (user, password) -> changedPasswordCallback(terminal, user, password));
+                    (user, password) -> changedPasswordCallback(terminal, user, password), terminal);
         }
 
         private SecureString generatePassword(SecureRandom secureRandom, String user) {
@@ -158,7 +159,7 @@ public class SetupPasswordTool extends MultiCommand {
             checkElasticKeystorePasswordValid(terminal, env);
 
             if (shouldPrompt) {
-                terminal.println("Initiating the setup of reserved user " + String.join(",", USERS) + " passwords.");
+                terminal.println("Initiating the setup of passwords for reserved users " + String.join(",", USERS) + ".");
                 terminal.println("You will be prompted to enter passwords as the process progresses.");
                 boolean shouldContinue = terminal.promptYesNo("Please confirm that you would like to continue", false);
                 terminal.println("\n");
@@ -168,7 +169,7 @@ public class SetupPasswordTool extends MultiCommand {
             }
 
             changePasswords(user -> promptForPassword(terminal, user),
-                    (user, password) -> changedPasswordCallback(terminal, user, password));
+                    (user, password) -> changedPasswordCallback(terminal, user, password), terminal);
         }
 
         private SecureString promptForPassword(Terminal terminal, String user) throws UserException {
@@ -212,7 +213,7 @@ public class SetupPasswordTool extends MultiCommand {
 
         private String elasticUser = ElasticUser.NAME;
         private SecureString elasticUserPassword;
-        private String url;
+        private URL url;
 
         SetupCommand(String description) {
             super(description);
@@ -223,7 +224,7 @@ public class SetupPasswordTool extends MultiCommand {
             client = clientFunction.apply(env);
             try (KeyStoreWrapper keyStore = keyStoreFunction.apply(env)) {
                 String providedUrl = urlOption.value(options);
-                url = providedUrl == null ? client.getDefaultURL() : providedUrl;
+                url = new URL(providedUrl == null ? client.getDefaultURL() : providedUrl);
                 setShouldPrompt(options);
 
                 // TODO: We currently do not support keystore passwords
@@ -234,7 +235,7 @@ public class SetupPasswordTool extends MultiCommand {
         }
 
         private void setParser() {
-            urlOption = parser.acceptsAll(Arrays.asList("u", "url"), "The url for the change password request.").withOptionalArg();
+            urlOption = parser.acceptsAll(Arrays.asList("u", "url"), "The url for the change password request.").withRequiredArg();
             noPromptOption = parser.acceptsAll(Arrays.asList("b", "batch"),
                     "If enabled, run the change password process without prompting the user.").withOptionalArg();
         }
@@ -257,14 +258,12 @@ public class SetupPasswordTool extends MultiCommand {
          *            where to write verbose info.
          */
         void checkElasticKeystorePasswordValid(Terminal terminal, Environment env) throws Exception {
-            URL route = new URL(url + "/_xpack/security/_authenticate?pretty");
+            URL route = new URL(url, (url.toURI().getPath() + "/_xpack/security/_authenticate").replaceAll("/+", "/") + "?pretty");
+            terminal.println(Verbosity.VERBOSE, "");
+            terminal.println(Verbosity.VERBOSE, "Testing if bootstrap password is valid for " + route.toString());
             try {
-                terminal.println(Verbosity.VERBOSE, "");
-                terminal.println(Verbosity.VERBOSE, "Testing if bootstrap password is valid for " + route.toString());
-                int httpCode = client.postURL("GET", route, elasticUser, elasticUserPassword, () -> null, is -> {
-                    byte[] bytes = Streams.readAll(is);
-                    terminal.println(Verbosity.VERBOSE, new String(bytes, StandardCharsets.UTF_8));
-                });
+                final int httpCode = client.postURL("GET", route, elasticUser, elasticUserPassword, () -> null,
+                        is -> verboseLogResponse(is, terminal));
                 // keystore password is not valid
                 if (httpCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
                     terminal.println("");
@@ -275,23 +274,33 @@ public class SetupPasswordTool extends MultiCommand {
                     terminal.println("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configFile()));
                     terminal.println("");
                     throw new UserException(ExitCodes.CONFIG, "Failed to verify bootstrap password");
+                } else if (httpCode != HttpURLConnection.HTTP_OK) {
+                    terminal.println("");
+                    terminal.println("Unexpected response code [" + httpCode + "] from calling GET " + route.toString());
+                    terminal.println("Possible causes include:");
+                    terminal.println(" * The relative path of the URL is incorrect. Is there a proxy in-between?");
+                    terminal.println(" * The protocol (http/https) does not match the port.");
+                    terminal.println(" * Is this really an Elasticsearch server?");
+                    terminal.println("");
+                    throw new UserException(ExitCodes.CONFIG, "Uknown error");
                 }
-            } catch (SocketException e) {
-                terminal.println("");
-                terminal.println("Cannot connect to elasticsearch node.");
-                e.printStackTrace(terminal.getWriter());
-                terminal.println("");
-                throw new UserException(ExitCodes.CONFIG,
-                        "Failed to connect to elasticsearch at " + route.toString() + ". Is the URL correct and elasticsearch running?", e);
             } catch (SSLException e) {
                 terminal.println("");
                 terminal.println("SSL connection to " + route.toString() + " failed: " + e.getMessage());
                 terminal.println("Please check the elasticsearch SSL settings under " + CommandLineHttpClient.HTTP_SSL_SETTING);
-                terminal.println("");
-                e.printStackTrace(terminal.getWriter());
+                terminal.println(Verbosity.VERBOSE, "");
+                terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
                 terminal.println("");
                 throw new UserException(ExitCodes.CONFIG,
                         "Failed to establish SSL connection to elasticsearch at " + route.toString() + ". ", e);
+            } catch (IOException e) {
+                terminal.println("");
+                terminal.println("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
+                terminal.println(Verbosity.VERBOSE, "");
+                terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.println("");
+                throw new UserException(ExitCodes.CONFIG, "Failed to connect to elasticsearch at " +
+                        route.toString() + ". Is the URL correct and elasticsearch running?", e);
             }
         }
 
@@ -303,12 +312,15 @@ public class SetupPasswordTool extends MultiCommand {
          * @param password
          *            the new password of the user.
          */
-        private void changeUserPassword(String user, SecureString password) throws Exception {
-            URL route = new URL(url + "/_xpack/security/user/" + user + "/_password");
+        private void changeUserPassword(String user, SecureString password, Terminal terminal) throws Exception {
+            URL route = new URL(url, (url.toURI().getPath() + "/_xpack/security/user/" + user + "/_password").replaceAll("/+", "/") +
+                    "?pretty");
+            terminal.println(Verbosity.VERBOSE, "");
+            terminal.println(Verbosity.VERBOSE, "Trying user password change call " + route.toString());
             try {
                 // supplier should own his resources
                 SecureString supplierPassword = password.clone();
-                client.postURL("PUT", route, elasticUser, elasticUserPassword, () -> {
+                final int httpCode = client.postURL("PUT", route, elasticUser, elasticUserPassword, () -> {
                     try {
                         XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
                         xContentBuilder.startObject().field("password", supplierPassword.toString()).endObject();
@@ -316,9 +328,24 @@ public class SetupPasswordTool extends MultiCommand {
                     } finally {
                         supplierPassword.close();
                     }
-                }, is -> {
-                });
+                }, is -> verboseLogResponse(is, terminal));
+                if (httpCode != HttpURLConnection.HTTP_OK) {
+                    terminal.println("");
+                    terminal.println("Unexpected response code [" + httpCode + "] from calling PUT " + route.toString());
+                    terminal.println("Possible next steps:");
+                    terminal.println("* Try running this tool again.");
+                    terminal.println("* Check the elasticsearch logs for additional error details.");
+                    terminal.println("* Use the change password API manually. ");
+                    terminal.println("");
+                    throw new UserException(ExitCodes.TEMP_FAILURE,
+                            "Failed to set password for user [" + user + "].");
+                }
             } catch (IOException e) {
+                terminal.println("");
+                terminal.println("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
+                terminal.println(Verbosity.VERBOSE, "");
+                terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.println("");
                 throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to set password for user [" + user + "].", e);
             }
         }
@@ -333,7 +360,7 @@ public class SetupPasswordTool extends MultiCommand {
          *            Callback for each successful operation
          */
         void changePasswords(CheckedFunction<String, SecureString, UserException> passwordFn,
-                CheckedBiConsumer<String, SecureString, Exception> successCallback) throws Exception {
+                CheckedBiConsumer<String, SecureString, Exception> successCallback, Terminal terminal) throws Exception {
             Map<String, SecureString> passwordsMap = new HashMap<>(USERS.size());
             try {
                 for (String user : USERS) {
@@ -350,17 +377,27 @@ public class SetupPasswordTool extends MultiCommand {
                         superUserEntry = entry;
                         continue;
                     }
-                    changeUserPassword(entry.getKey(), entry.getValue());
+                    changeUserPassword(entry.getKey(), entry.getValue(), terminal);
                     successCallback.accept(entry.getKey(), entry.getValue());
                 }
                 // change elastic superuser
                 if (superUserEntry != null) {
-                    changeUserPassword(superUserEntry.getKey(), superUserEntry.getValue());
+                    changeUserPassword(superUserEntry.getKey(), superUserEntry.getValue(), terminal);
                     successCallback.accept(superUserEntry.getKey(), superUserEntry.getValue());
                 }
             } finally {
                 passwordsMap.forEach((user, pass) -> pass.close());
             }
         }
+
+        private void verboseLogResponse(InputStream is, Terminal terminal) throws IOException {
+            if (is != null) {
+                byte[] bytes = Streams.readAll(is);
+                terminal.println(Verbosity.VERBOSE, new String(bytes, StandardCharsets.UTF_8));
+            } else {
+                terminal.println(Verbosity.VERBOSE, "<Empty response>");
+            }
+        }
     }
+
 }

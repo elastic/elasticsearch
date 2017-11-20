@@ -343,7 +343,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 for (TcpChannel channel : channels.getChannels()) {
                     internalSendMessage(channel, pingHeader, new SendMetricListener(pingHeader.length()) {
                         @Override
-                        protected void innerInnerOnResponse(TcpChannel channel) {
+                        protected void innerInnerOnResponse(Void v) {
                             successfulPings.inc();
                         }
 
@@ -595,10 +595,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 int numConnections = connectionProfile.getNumConnections();
                 assert numConnections > 0 : "A connection profile must be configured with at least one connection";
                 List<TcpChannel> channels = new ArrayList<>(numConnections);
-                List<ActionFuture<TcpChannel>> connectionFutures = new ArrayList<>(numConnections);
+                List<ActionFuture<Void>> connectionFutures = new ArrayList<>(numConnections);
                 for (int i = 0; i < numConnections; ++i) {
                     try {
-                        PlainActionFuture<TcpChannel> connectFuture = PlainActionFuture.newFuture();
+                        PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                         connectionFutures.add(connectFuture);
                         TcpChannel channel = initiateChannel(node, connectionProfile.getConnectTimeout(), connectFuture);
                         channels.add(channel);
@@ -940,7 +940,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 for (Map.Entry<String, List<TcpChannel>> entry : serverChannels.entrySet()) {
                     String profile = entry.getKey();
                     List<TcpChannel> channels = entry.getValue();
-                    ActionListener<TcpChannel> closeFailLogger = ActionListener.wrap(c -> {},
+                    ActionListener<Void> closeFailLogger = ActionListener.wrap(c -> {},
                         e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e));
                     channels.forEach(c -> c.addCloseListener(closeFailLogger));
                     TcpChannel.closeChannels(channels, true);
@@ -1016,7 +1016,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
                 final SendMetricListener closeChannel = new SendMetricListener(message.length()) {
                     @Override
-                    protected void innerInnerOnResponse(TcpChannel channel) {
+                    protected void innerInnerOnResponse(Void v) {
                         TcpChannel.closeChannel(channel, false);
                     }
 
@@ -1060,7 +1060,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<TcpChannel> connectListener)
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
         throws IOException;
 
     /**
@@ -1687,7 +1687,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * This listener increments the transmitted bytes metric on success.
      */
-    private abstract class SendMetricListener extends NotifyOnceListener<TcpChannel> {
+    private abstract class SendMetricListener extends NotifyOnceListener<Void> {
         private final long messageSize;
 
         private SendMetricListener(long messageSize) {
@@ -1695,12 +1695,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        protected final void innerOnResponse(org.elasticsearch.transport.TcpChannel object) {
+        protected final void innerOnResponse(Void object) {
             transmittedBytesMetric.inc(messageSize);
             innerInnerOnResponse(object);
         }
 
-        protected abstract void innerInnerOnResponse(org.elasticsearch.transport.TcpChannel object);
+        protected abstract void innerInnerOnResponse(Void object);
     }
 
     private final class SendListener extends SendMetricListener {
@@ -1716,7 +1716,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        protected void innerInnerOnResponse(TcpChannel channel) {
+        protected void innerInnerOnResponse(Void v) {
             release();
         }
 

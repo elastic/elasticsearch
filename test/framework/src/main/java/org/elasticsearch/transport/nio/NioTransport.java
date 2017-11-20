@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
@@ -95,22 +93,11 @@ public class NioTransport extends TcpTransport {
     }
 
     @Override
-    protected NioChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<TcpChannel> connectListener)
+    protected NioChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
         throws IOException {
         NioSocketChannel channel = clientChannelFactory.openNioChannel(node.getAddress().address(), clientSelectorSupplier.get());
         openChannels.clientChannelOpened(channel);
-        // TODO: Temporary conversion due to types
-        channel.addConnectListener(new ActionListener<NioChannel>() {
-            @Override
-            public void onResponse(NioChannel nioChannel) {
-                connectListener.onResponse(nioChannel);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                connectListener.onFailure(e);
-            }
-        });
+        channel.addConnectListener(connectListener);
         return channel;
     }
 

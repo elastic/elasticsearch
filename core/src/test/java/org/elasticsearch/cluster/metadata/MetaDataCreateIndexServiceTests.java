@@ -55,10 +55,13 @@ import static org.hamcrest.Matchers.endsWith;
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
+        int numRoutingShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(settings) ? IndexMetaData
+            .INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(settings) : numShards;
         MetaData.Builder metaBuilder = MetaData.builder();
         IndexMetaData indexMetaData = IndexMetaData.builder(name).settings(settings(Version.CURRENT)
             .put(settings))
-            .numberOfShards(numShards).numberOfReplicas(numReplicas).build();
+            .numberOfShards(numShards).numberOfReplicas(numReplicas)
+            .setRoutingNumShards(numRoutingShards).build();
         metaBuilder.put(indexMetaData, false);
         MetaData metaData = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -203,10 +206,19 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 }
             ).getMessage());
 
-
+        assertEquals("mappings are not allowed when resizing indices, all mappings are copied from the source index",
+            expectThrows(IllegalArgumentException.class, () -> {
+                    MetaDataCreateIndexService.validateSplitIndex(state, "source", Collections.singleton("foo"),
+                        "target", targetSettings);
+                }
+            ).getMessage());
+        int targetShards;
+        do {
+            targetShards = randomIntBetween(numShards+1, 100);
+        } while (isSplitable(numShards, targetShards) == false);
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
-            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
-            .build();
+            Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
@@ -217,10 +229,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         routingTable = service.applyStartedShards(clusterState,
             routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        int targetShards;
-        do {
-            targetShards = randomIntBetween(numShards+1, 100);
-        } while (isSplitable(numShards, targetShards) == false);
+
         MetaDataCreateIndexService.validateSplitIndex(clusterState, "source", Collections.emptySet(), "target",
             Settings.builder().put("index.number_of_shards", targetShards).build());
     }

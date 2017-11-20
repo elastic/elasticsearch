@@ -13,6 +13,7 @@
           settings:
             number_of_shards: 1
             number_of_replicas: 0
+            index.number_of_routing_shards: 2
           mappings:
             test:
               properties:

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -164,7 +165,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                 .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
                 .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class))
-                .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
+                .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class))
+                .or(instanceOf(BlendedTermQuery.class)));
     }
 
     public void testIllegaArguments() {

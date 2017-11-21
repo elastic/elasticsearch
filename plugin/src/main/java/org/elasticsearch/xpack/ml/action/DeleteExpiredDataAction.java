@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.retention.ExpiredForecastsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
@@ -146,6 +147,7 @@ public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Requ
             Auditor auditor = new Auditor(client, clusterService);
             List<MlDataRemover> dataRemovers = Arrays.asList(
                     new ExpiredResultsRemover(client, clusterService, auditor),
+                    new ExpiredForecastsRemover(client),
                     new ExpiredModelSnapshotsRemover(client, clusterService)
             );
             Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);

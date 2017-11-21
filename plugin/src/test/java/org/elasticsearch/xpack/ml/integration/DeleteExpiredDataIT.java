@@ -23,11 +23,13 @@ import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -88,6 +90,8 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         registerJob(newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
         registerJob(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L));
 
+        List<Long> shortExpiryForecastIds = new ArrayList<>();
+
         long now = System.currentTimeMillis();
         long oneDayAgo = now - TimeValue.timeValueHours(48).getMillis() - 1;
         for (Job.Builder job : getJobs()) {
@@ -116,6 +120,16 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + job.getId(), "doc", snapshotDocId);
             updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
             client().execute(UpdateAction.INSTANCE, updateSnapshotRequest).get();
+
+            // Now let's create some forecasts
+            openJob(job.getId());
+            long forecastShortExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), TimeValue.timeValueSeconds(1));
+            shortExpiryForecastIds.add(forecastShortExpiryId);
+            long forecastDefaultExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), null);
+            long forecastNoExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), TimeValue.ZERO);
+            waitForecastToFinish(job.getId(), forecastShortExpiryId);
+            waitForecastToFinish(job.getId(), forecastDefaultExpiryId);
+            waitForecastToFinish(job.getId(), forecastNoExpiryId);
         }
         // Refresh to ensure the snapshot timestamp updates are visible
         client().admin().indices().prepareRefresh("*").get();
@@ -125,7 +139,6 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         for (Job.Builder job : getJobs()) {
             // Run up to now
-            openJob(job.getId());
             startDatafeed(job.getId() + "-feed", 0, now);
             waitUntilJobIsClosed(job.getId());
             assertThat(getBuckets(job.getId()).size(), is(greaterThanOrEqualTo(70)));
@@ -142,6 +155,14 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         long totalNotificationsCountBeforeDelete = client().prepareSearch(".ml-notifications").get().getHits().totalHits;
         assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
         assertThat(totalNotificationsCountBeforeDelete, greaterThan(0L));
+
+        // Verify forecasts were created
+        List<ForecastRequestStats> forecastStats = getForecastStats();
+        assertThat(forecastStats.size(), equalTo(getJobs().size() * 3));
+        for (ForecastRequestStats forecastStat : forecastStats) {
+            assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()),
+                    equalTo((long) forecastStat.getRecordCount()));
+        }
 
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
 
@@ -181,6 +202,19 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         long totalNotificationsCountAfterDelete = client().prepareSearch(".ml-notifications").get().getHits().totalHits;
         assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
         assertThat(totalNotificationsCountAfterDelete, greaterThanOrEqualTo(totalNotificationsCountBeforeDelete));
+
+        // Verify short expiry forecasts were deleted only
+        forecastStats = getForecastStats();
+        assertThat(forecastStats.size(), equalTo(getJobs().size() * 2));
+        for (ForecastRequestStats forecastStat : forecastStats) {
+            assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()),
+                    equalTo((long) forecastStat.getRecordCount()));
+        }
+        for (Job.Builder job : getJobs()) {
+            for (long forecastId : shortExpiryForecastIds) {
+                assertThat(countForecastDocs(job.getId(), forecastId), equalTo(0L));
+            }
+        }
     }
 
     private static Job.Builder newJobBuilder(String id) {

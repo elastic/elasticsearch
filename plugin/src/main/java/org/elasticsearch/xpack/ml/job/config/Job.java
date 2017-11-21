@@ -222,8 +222,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         createTime = new Date(in.readVLong());
         finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
         lastDataTime = in.readBoolean() ? new Date(in.readVLong()) : null;
-        // TODO: set to V_6_1_0 after backporting
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             establishedModelMemory = in.readOptionalLong();
         } else {
             establishedModelMemory = null;
@@ -484,8 +483,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         } else {
             out.writeBoolean(false);
         }
-        // TODO: set to V_6_1_0 after backporting
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalLong(establishedModelMemory);
         }
         analysisConfig.writeTo(out);
@@ -707,8 +705,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             lastDataTime = in.readBoolean() ? new Date(in.readVLong()) : null;
-            // TODO: set to V_6_1_0 after backporting
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
                 establishedModelMemory = in.readOptionalLong();
             }
             analysisConfig = in.readOptionalWriteable(AnalysisConfig::new);
@@ -896,8 +893,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             } else {
                 out.writeBoolean(false);
             }
-            // TODO: set to V_6_1_0 after backporting
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
                 out.writeOptionalLong(establishedModelMemory);
             }
             out.writeOptionalWriteable(analysisConfig);

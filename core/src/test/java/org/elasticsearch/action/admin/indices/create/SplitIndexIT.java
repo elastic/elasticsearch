@@ -110,16 +110,18 @@ public class SplitIndexIT extends ESIntegTestCase {
         final boolean useMixedRouting = useRouting ? randomBoolean() : false;
         CreateIndexRequestBuilder createInitialIndex = prepareCreate("source");
         Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", sourceShards);
-        final int routingShards;
+        final boolean useRoutingPartition;
         if (randomBoolean()) {
             // randomly set the value manually
-            routingShards = secondSplitShards * randomIntBetween(1, 10);
+            int routingShards = secondSplitShards * randomIntBetween(1, 10);
             settings.put("index.number_of_routing_shards", routingShards);
+            useRoutingPartition = false;
         } else {
-            routingShards = MetaDataCreateIndexService.calculateNumRoutingShards(sourceShards, Version.CURRENT);
+            useRoutingPartition = randomBoolean();
         }
-        if (useRouting && useMixedRouting == false && randomBoolean()) {
-            settings.put("index.routing_partition_size", randomIntBetween(1, routingShards-1));
+        if (useRouting && useMixedRouting == false && useRoutingPartition) {
+            settings.put("index.routing_partition_size",
+                randomIntBetween(1, MetaDataCreateIndexService.calculateNumRoutingShards(sourceShards, Version.CURRENT)-1));
             if (useNested) {
                 createInitialIndex.addMapping("t1", "_routing", "required=true", "nested1", "type=nested");
             } else {
@@ -192,8 +194,8 @@ public class SplitIndexIT extends ESIntegTestCase {
         Settings.Builder firstSplitSettingsBuilder = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", firstSplitShards);
-        if (sourceShards == 1 && randomBoolean()) { // try to set it if we have a source index with 1 shard
-            firstSplitSettingsBuilder.put("index.number_of_routing_shards", routingShards);
+        if (sourceShards == 1 && useRoutingPartition == false && randomBoolean()) { // try to set it if we have a source index with 1 shard
+            firstSplitSettingsBuilder.put("index.number_of_routing_shards", secondSplitShards);
         }
         assertAcked(client().admin().indices().prepareResizeIndex("source", "first_split")
             .setResizeType(ResizeType.SPLIT)

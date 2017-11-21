@@ -118,7 +118,7 @@ subprojects {
     into outputDir
   }
 
-  for (Version version : indexCompatVersions) {
+  for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
     String baseName = "v${version}"
 
     Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -227,7 +227,11 @@ subprojects {
   // basic integ tests includes testing bwc against the most recent version
   task integTest {
     if (project.bwc_tests_enabled) {
-      dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
+      if (project.bwc_tests_enabled) {
+        for (final def version : versionCollection.basicIntegrationTestVersions) {
+          dependsOn "v${version}#bwcTest"
+        }
+      }
     }
   }
 

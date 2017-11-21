@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -63,22 +64,39 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.StringJoiner;
 
-final class Request {
+public final class Request {
 
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
-    final String method;
-    final String endpoint;
-    final Map<String, String> params;
-    final HttpEntity entity;
+    private final String method;
+    private final String endpoint;
+    private final Map<String, String> parameters;
+    private final HttpEntity entity;
 
-    Request(String method, String endpoint, Map<String, String> params, HttpEntity entity) {
-        this.method = method;
-        this.endpoint = endpoint;
-        this.params = params;
+    public Request(String method, String endpoint, Map<String, String> parameters, HttpEntity entity) {
+        this.method = Objects.requireNonNull(method, "method cannot be null");
+        this.endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
+        this.parameters = Objects.requireNonNull(parameters, "parameters cannot be null");
         this.entity = entity;
+    }
+
+    public String getMethod() {
+        return method;
+    }
+
+    public String getEndpoint() {
+        return endpoint;
+    }
+
+    public Map<String, String> getParameters() {
+        return parameters;
+    }
+
+    public HttpEntity getEntity() {
+        return entity;
     }
 
     @Override
@@ -86,7 +104,7 @@ final class Request {
         return "Request{" +
                 "method='" + method + '\'' +
                 ", endpoint='" + endpoint + '\'' +
-                ", params=" + params +
+                ", params=" + parameters +
                 ", hasBody=" + (entity != null) +
                 '}';
     }
@@ -102,6 +120,17 @@ final class Request {
         parameters.withVersionType(deleteRequest.versionType());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
+
+        return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
+        String endpoint = endpoint(deleteIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(deleteIndexRequest.timeout());
+        parameters.withMasterTimeout(deleteIndexRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(deleteIndexRequest.indicesOptions());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
@@ -162,23 +191,23 @@ final class Request {
                         metadata.field("_id", request.id());
                     }
                     if (Strings.hasLength(request.routing())) {
-                        metadata.field("_routing", request.routing());
+                        metadata.field("routing", request.routing());
                     }
                     if (Strings.hasLength(request.parent())) {
-                        metadata.field("_parent", request.parent());
+                        metadata.field("parent", request.parent());
                     }
                     if (request.version() != Versions.MATCH_ANY) {
-                        metadata.field("_version", request.version());
+                        metadata.field("version", request.version());
                     }
 
                     VersionType versionType = request.versionType();
                     if (versionType != VersionType.INTERNAL) {
                         if (versionType == VersionType.EXTERNAL) {
-                            metadata.field("_version_type", "external");
+                            metadata.field("version_type", "external");
                         } else if (versionType == VersionType.EXTERNAL_GTE) {
-                            metadata.field("_version_type", "external_gte");
+                            metadata.field("version_type", "external_gte");
                         } else if (versionType == VersionType.FORCE) {
-                            metadata.field("_version_type", "force");
+                            metadata.field("version_type", "force");
                         }
                     }
 
@@ -190,7 +219,7 @@ final class Request {
                     } else if (opType == DocWriteRequest.OpType.UPDATE) {
                         UpdateRequest updateRequest = (UpdateRequest) request;
                         if (updateRequest.retryOnConflict() > 0) {
-                            metadata.field("_retry_on_conflict", updateRequest.retryOnConflict());
+                            metadata.field("retry_on_conflict", updateRequest.retryOnConflict());
                         }
                         if (updateRequest.fetchSource() != null) {
                             metadata.field("_source", updateRequest.fetchSource());
@@ -233,7 +262,7 @@ final class Request {
 
     static Request exists(GetRequest getRequest) {
         Request request = get(getRequest);
-        return new Request(HttpHead.METHOD_NAME, request.endpoint, request.params, null);
+        return new Request(HttpHead.METHOD_NAME, request.endpoint, request.parameters, null);
     }
 
     static Request get(GetRequest getRequest) {
@@ -381,7 +410,7 @@ final class Request {
      * @return the {@link ContentType}
      */
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
-    static ContentType createContentType(final XContentType xContentType) {
+    public static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
@@ -430,6 +459,10 @@ final class Request {
                 }
             }
             return this;
+        }
+
+        Params withMasterTimeout(TimeValue masterTimeout) {
+            return putParam("master_timeout", masterTimeout);
         }
 
         Params withParent(String parent) {

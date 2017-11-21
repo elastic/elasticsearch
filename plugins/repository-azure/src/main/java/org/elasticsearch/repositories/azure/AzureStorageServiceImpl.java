@@ -34,9 +34,6 @@ import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.repositories.azure.AzureStorageService;
-import org.elasticsearch.repositories.azure.AzureStorageSettings;
-import org.elasticsearch.repositories.azure.SocketAccess;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -45,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.EnumSet;
@@ -79,14 +75,18 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
     void createClient(AzureStorageSettings azureStorageSettings) {
         try {
-            logger.trace("creating new Azure storage client using account [{}], key [{}]",
-                azureStorageSettings.getAccount(), azureStorageSettings.getKey());
+            logger.trace("creating new Azure storage client using account [{}], key [{}], endpoint suffix [{}]",
+                azureStorageSettings.getAccount(), azureStorageSettings.getKey(), azureStorageSettings.getEndpointSuffix());
 
             String storageConnectionString =
                 "DefaultEndpointsProtocol=https;"
                     + "AccountName=" + azureStorageSettings.getAccount() + ";"
                     + "AccountKey=" + azureStorageSettings.getKey();
 
+            String endpointSuffix = azureStorageSettings.getEndpointSuffix();
+            if (endpointSuffix != null && !endpointSuffix.isEmpty()) {
+                storageConnectionString += ";EndpointSuffix=" + endpointSuffix;
+            }
             // Retrieve storage account from connection-string.
             CloudStorageAccount storageAccount = CloudStorageAccount.parse(storageConnectionString);
 
@@ -258,15 +258,6 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     @Override
-    public OutputStream getOutputStream(String account, LocationMode mode, String container, String blob)
-        throws URISyntaxException, StorageException {
-        logger.trace("writing container [{}], blob [{}]", container, blob);
-        CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
-        return SocketAccess.doPrivilegedException(() -> blockBlobReference.openOutputStream(null, null, generateOperationContext(account)));
-    }
-
-    @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix)
         throws URISyntaxException, StorageException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
@@ -314,5 +305,16 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             });
             logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);
         }
+    }
+
+    @Override
+    public void writeBlob(String account, LocationMode mode, String container, String blobName, InputStream inputStream, long blobSize)
+        throws URISyntaxException, StorageException {
+        logger.trace("writeBlob({}, stream, {})", blobName, blobSize);
+        CloudBlobClient client = this.getSelectedClient(account, mode);
+        CloudBlobContainer blobContainer = client.getContainerReference(container);
+        CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobName);
+        SocketAccess.doPrivilegedVoidException(() -> blob.upload(inputStream, blobSize, null, null, generateOperationContext(account)));
+        logger.trace("writeBlob({}, stream, {}) - done", blobName, blobSize);
     }
 }

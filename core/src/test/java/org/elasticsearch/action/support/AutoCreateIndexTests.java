@@ -102,7 +102,7 @@ public class AutoCreateIndexTests extends ESTestCase {
 
     public void testExistingIndex() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom(true, false,
-                randomAlphaOfLengthBetween(7, 10))).build();
+                randomAlphaOfLengthBetween(7, 10)).toString()).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         assertThat(autoCreateIndex.shouldAutoCreate(randomFrom("index1", "index2", "index3"),
                 buildClusterState("index1", "index2", "index3")), equalTo(false));

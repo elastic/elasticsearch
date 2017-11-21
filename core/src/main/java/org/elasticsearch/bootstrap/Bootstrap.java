@@ -30,7 +30,6 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
@@ -245,7 +244,6 @@ final class Bootstrap {
             final SecureSettings secureSettings,
             final Settings initialSettings,
             final Path configPath) {
-        Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
@@ -254,7 +252,7 @@ final class Bootstrap {
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap(), configPath);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath);
     }
 
     private void start() throws NodeValidationException {

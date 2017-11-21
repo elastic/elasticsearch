@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,5 +45,28 @@ public class CreateIndexRequestTests extends ESTestCase {
                 assertEquals(mapping, serialized.mappings().get("my_type"));
             }
         }
+    }
+    
+    public void testTopLevelKeys() throws IOException {
+        String createIndex =
+                "{\n"
+                + "  \"FOO_SHOULD_BE_ILLEGAL_HERE\": {\n"
+                + "    \"BAR_IS_THE_SAME\": 42\n"
+                + "  },\n"
+                + "  \"mappings\": {\n"
+                + "    \"test\": {\n"
+                + "      \"properties\": {\n"
+                + "        \"field1\": {\n"
+                + "          \"type\": \"text\"\n"
+                + "       }\n"
+                + "     }\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+        CreateIndexRequest request = new CreateIndexRequest();
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, 
+                () -> {request.source(createIndex, XContentType.JSON);});
+        assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -49,6 +50,10 @@ import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -69,6 +74,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -104,6 +110,7 @@ import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -114,6 +121,9 @@ import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -161,6 +171,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -191,6 +202,7 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -405,7 +417,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
             }
 
-            for (String setting : randomSettingsBuilder.internalMap().keySet()) {
+            for (String setting : randomSettingsBuilder.keys()) {
                 assertThat("non index. prefix setting set on index template, its a node setting...", setting, startsWith("index."));
             }
             // always default delayed allocation to 0 to make sure we have tests are not delayed
@@ -416,9 +428,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (randomBoolean()) {
                 randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), randomBoolean());
-            }
-            if (randomBoolean()) {
-                randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_TERM_QUERIES_SETTING.getKey(), randomBoolean());
             }
             PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
                 .preparePutTemplate("random_index_template")
@@ -456,7 +465,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
-                random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
+                (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString());
         }
         switch (random.nextInt(4)) {
             case 3:
@@ -537,15 +546,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
                         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
-                        final Map<String, String> persistent = metaData.persistentSettings().getAsMap();
+                        final Set<String> persistent = metaData.persistentSettings().keySet();
                         assertThat("test leaves persistent cluster metadata behind: " + persistent, persistent.size(), equalTo(0));
-                        final Map<String, String> transientSettings =  new HashMap<>(metaData.transientSettings().getAsMap());
+                        final Set<String> transientSettings =  new HashSet<>(metaData.transientSettings().keySet());
                         if (isInternalCluster() && internalCluster().getAutoManageMinMasterNode()) {
                             // this is set by the test infra
                             transientSettings.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
                         }
                         assertThat("test leaves transient cluster metadata behind: " + transientSettings,
-                            transientSettings.keySet(), empty());
+                            transientSettings, empty());
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
@@ -1960,7 +1969,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
     public static Path randomRepoPath(Settings settings) {
-        Environment environment = new Environment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
         Path[] repoFiles = environment.repoFiles();
         assert repoFiles.length > 0;
         Path path;
@@ -2194,4 +2203,44 @@ public abstract class ESIntegTestCase extends ESTestCase {
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
+
+    protected void assertSeqNos() throws Exception {
+        assertBusy(() -> {
+            IndicesStatsResponse stats = client().admin().indices().prepareStats().clear().get();
+            for (IndexStats indexStats : stats.getIndices().values()) {
+                for (IndexShardStats indexShardStats : indexStats.getIndexShards().values()) {
+                    Optional<ShardStats> maybePrimary = Stream.of(indexShardStats.getShards())
+                            .filter(s -> s.getShardRouting().active() && s.getShardRouting().primary())
+                            .findFirst();
+                    if (maybePrimary.isPresent() == false) {
+                        continue;
+                    }
+                    ShardStats primary = maybePrimary.get();
+                    final SeqNoStats primarySeqNoStats = primary.getSeqNoStats();
+                    final ShardRouting primaryShardRouting = primary.getShardRouting();
+                    assertThat(primaryShardRouting + " should have set the global checkpoint",
+                            primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO)));
+                    final DiscoveryNode node = clusterService().state().nodes().get(primaryShardRouting.currentNodeId());
+                    final IndicesService indicesService =
+                            internalCluster().getInstance(IndicesService.class, node.getName());
+                    final IndexShard indexShard = indicesService.getShardOrNull(primaryShardRouting.shardId());
+                    final ObjectLongMap<String> globalCheckpoints = indexShard.getInSyncGlobalCheckpoints();
+                    for (ShardStats shardStats : indexShardStats) {
+                        final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                        assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
+                                seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
+                        assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",
+                                seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
+                        assertThat(shardStats.getShardRouting() + " max seq no mismatch",
+                                seqNoStats.getMaxSeqNo(), equalTo(primarySeqNoStats.getMaxSeqNo()));
+                        // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
+                        assertThat(
+                                seqNoStats.getGlobalCheckpoint(),
+                                equalTo(globalCheckpoints.get(shardStats.getShardRouting().allocationId().getId())));
+                    }
+                }
+            }
+        });
+    }
+
 }

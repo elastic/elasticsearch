@@ -52,10 +52,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(super.restClientSettings())
-            // increase the timeout so that we can actually see the result of failed cluster health
-            // calls that have a default timeout of 30s
-            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "40s")
-            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "40s")
+            // increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "90s")
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
             .build();
     }
 }

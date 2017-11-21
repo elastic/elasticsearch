@@ -37,14 +37,17 @@ for (Version version : wireCompatVersions) {
     includePackaged = true
   }
 
-  /* This project runs the core REST tests against a 2 node cluster where one of
+  /* This project runs the core REST tests against a 4 node cluster where two of
      the nodes has a different minor.  */
   Object extension = extensions.findByName("${baseName}#mixedClusterTestCluster")
-  configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
+  configure(extension) {
     distribution = 'zip'
     numNodes = 4
     numBwcNodes = 2
-    bwcVersion = project.wireCompatVersions[-1]
+    bwcVersion = version
+
+    setting 'logger.level', 'DEBUG'
+    setting 'logger.org.elasticsearch.discovery', 'TRACE'
   }
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
@@ -53,6 +56,11 @@ for (Version version : wireCompatVersions) {
 
   if (project.bwc_tests_enabled) {
     bwcTest.dependsOn(versionBwcTest)
+  }
+
+  /* To support taking index snapshots, we have to set path.repo setting */
+  tasks.getByName("${baseName}#mixedClusterTestRunner").configure {
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
   }
 }
 

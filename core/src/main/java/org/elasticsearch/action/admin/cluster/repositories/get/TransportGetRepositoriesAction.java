@@ -51,7 +51,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     @Inject
     public TransportGetRepositoriesAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetRepositoriesRequest::new);
+        super(settings, GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetRepositoriesRequest::new, indexNameExpressionResolver);
     }
 
     @Override

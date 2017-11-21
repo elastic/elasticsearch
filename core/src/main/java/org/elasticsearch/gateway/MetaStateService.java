@@ -133,7 +133,7 @@ public class MetaStateService extends AbstractComponent {
     /**
      * Writes the global state, *without* the indices states.
      */
-    void writeGlobalState(String reason, MetaData metaData) throws Exception {
+    void writeGlobalState(String reason, MetaData metaData) throws IOException {
         logger.trace("[_global] writing state, reason [{}]",  reason);
         try {
             MetaData.FORMAT.write(metaData, nodeEnv.nodeDataPaths());

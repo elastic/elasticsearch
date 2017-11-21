@@ -191,7 +191,7 @@ public class ScriptClassInfo {
         }
         Definition.Struct struct;
         if (componentType.equals(Object.class)) {
-            struct = Definition.DEF_TYPE.struct;
+            struct = definition.DefType.struct;
         } else {
             Definition.RuntimeClass runtimeClass = definition.getRuntimeClass(componentType);
             if (runtimeClass == null) {

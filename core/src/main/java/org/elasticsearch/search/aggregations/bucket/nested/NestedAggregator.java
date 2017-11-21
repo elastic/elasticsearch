@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import com.carrotsearch.hppc.LongArrayList;
+
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -51,14 +53,19 @@ class NestedAggregator extends BucketsAggregator implements SingleBucketAggregat
 
     private final BitSetProducer parentFilter;
     private final Query childFilter;
+    private final boolean collectsFromSingleBucket;
+
+    private BufferingNestedLeafBucketCollector bufferingNestedLeafBucketCollector;
 
     NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
-            SearchContext context, Aggregator parentAggregator,
-                            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                     SearchContext context, Aggregator parentAggregator,
+                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+                     boolean collectsFromSingleBucket) throws IOException {
         super(name, factories, context, parentAggregator, pipelineAggregators, metaData);
         Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter() : Queries.newNonNestedFilter();
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
+        this.collectsFromSingleBucket = collectsFromSingleBucket;
     }
 
     @Override
@@ -71,26 +78,38 @@ class NestedAggregator extends BucketsAggregator implements SingleBucketAggregat
 
         final BitSet parentDocs = parentFilter.getBitSet(ctx);
         final DocIdSetIterator childDocs = childDocsScorer != null ? childDocsScorer.iterator() : null;
-        return new LeafBucketCollectorBase(sub, null) {
-            @Override
-            public void collect(int parentDoc, long bucket) throws IOException {
-                // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent
-                // doc), so we can skip:
-                if (parentDoc == 0 || parentDocs == null || childDocs == null) {
-                    return;
-                }
+        if (collectsFromSingleBucket) {
+            return new LeafBucketCollectorBase(sub, null) {
+                @Override
+                public void collect(int parentDoc, long bucket) throws IOException {
+                    // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent
+                    // doc), so we can skip:
+                    if (parentDoc == 0 || parentDocs == null || childDocs == null) {
+                        return;
+                    }
 
-                final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                int childDocId = childDocs.docID();
-                if (childDocId <= prevParentDoc) {
-                    childDocId = childDocs.advance(prevParentDoc + 1);
-                }
+                    final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+                    int childDocId = childDocs.docID();
+                    if (childDocId <= prevParentDoc) {
+                        childDocId = childDocs.advance(prevParentDoc + 1);
+                    }
 
-                for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
-                    collectBucket(sub, childDocId, bucket);
+                    for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
+                        collectBucket(sub, childDocId, bucket);
+                    }
                 }
-            }
-        };
+            };
+        } else {
+            doPostCollection();
+            return bufferingNestedLeafBucketCollector = new BufferingNestedLeafBucketCollector(sub, parentDocs, childDocs);
+        }
+    }
+
+    @Override
+    protected void doPostCollection() throws IOException {
+        if (bufferingNestedLeafBucketCollector != null) {
+            bufferingNestedLeafBucketCollector.postCollect();
+        }
     }
 
     @Override
@@ -102,6 +121,65 @@ class NestedAggregator extends BucketsAggregator implements SingleBucketAggregat
         @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+    }
+
+    class BufferingNestedLeafBucketCollector extends LeafBucketCollectorBase {
+
+        final BitSet parentDocs;
+        final LeafBucketCollector sub;
+        final DocIdSetIterator childDocs;
+        final LongArrayList bucketBuffer = new LongArrayList();
+
+        int currentParentDoc = -1;
+
+        BufferingNestedLeafBucketCollector(LeafBucketCollector sub, BitSet parentDocs, DocIdSetIterator childDocs) {
+            super(sub, null);
+            this.sub = sub;
+            this.parentDocs = parentDocs;
+            this.childDocs = childDocs;
+        }
+
+        @Override
+        public void collect(int parentDoc, long bucket) throws IOException {
+            // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent
+            // doc), so we can skip:
+            if (parentDoc == 0 || parentDocs == null || childDocs == null) {
+                return;
+            }
+
+            if (currentParentDoc != parentDoc) {
+                processChildBuckets(currentParentDoc, bucketBuffer);
+                currentParentDoc = parentDoc;
+            }
+            bucketBuffer.add(bucket);
+        }
+
+        void processChildBuckets(int parentDoc, LongArrayList buckets) throws IOException {
+            if (bucketBuffer.isEmpty()) {
+                return;
+            }
+
+
+            final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+            int childDocId = childDocs.docID();
+            if (childDocId <= prevParentDoc) {
+                childDocId = childDocs.advance(prevParentDoc + 1);
+            }
+
+            for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
+                final long[] buffer = buckets.buffer;
+                final int size = buckets.size();
+                for (int i = 0; i < size; i++) {
+                    collectBucket(sub, childDocId, buffer[i]);
+                }
+            }
+            bucketBuffer.clear();
+        }
+
+        void postCollect() throws IOException {
+            processChildBuckets(currentParentDoc, bucketBuffer);
+        }
+
     }
 
 }

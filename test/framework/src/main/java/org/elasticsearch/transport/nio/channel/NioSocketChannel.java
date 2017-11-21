@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 
@@ -28,23 +30,30 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
 
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
-    private final ConnectFuture connectFuture = new ConnectFuture();
+    private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
     private WriteContext writeContext;
     private ReadContext readContext;
+    private Exception connectException;
 
-    public NioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
-        super(profile, socketChannel, selector);
+    public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
+        super(socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
         this.socketSelector = selector;
     }
 
     @Override
-    public void closeFromSelector() {
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+        writeContext.sendMessage(reference, listener);
+    }
+
+    @Override
+    public void closeFromSelector() throws IOException {
         assert socketSelector.isOnCurrentThread() : "Should only call from selector thread";
         // Even if the channel has already been closed we will clear any pending write operations just in case
         if (writeContext.hasQueuedWriteOps()) {
@@ -108,7 +117,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     public boolean isConnectComplete() {
-        return connectFuture.isConnectComplete();
+        return isConnectComplete0();
     }
 
     public boolean isWritable() {
@@ -130,11 +139,13 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
      * @throws IOException if an I/O error occurs
      */
     public boolean finishConnect() throws IOException {
-        if (connectFuture.isConnectComplete()) {
+        if (isConnectComplete0()) {
             return true;
-        } else if (connectFuture.connectFailed()) {
-            Exception exception = connectFuture.getException();
-            if (exception instanceof IOException) {
+        } else if (connectContext.isCompletedExceptionally()) {
+            Exception exception = connectException;
+            if (exception == null) {
+                throw new AssertionError("Should have received connection exception");
+            } else if (exception instanceof IOException) {
                 throw (IOException) exception;
             } else {
                 throw (RuntimeException) exception;
@@ -146,24 +157,34 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
             isConnected = internalFinish();
         }
         if (isConnected) {
-            connectFuture.setConnectionComplete(this);
+            connectContext.complete(null);
         }
         return isConnected;
     }
 
-    public ConnectFuture getConnectFuture() {
-        return connectFuture;
+    public void addConnectListener(ActionListener<Void> listener) {
+        connectContext.whenComplete(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public String toString() {
+        return "NioSocketChannel{" +
+            "localAddress=" + getLocalAddress() +
+            ", remoteAddress=" + remoteAddress +
+            '}';
     }
 
     private boolean internalFinish() throws IOException {
         try {
             return socketChannel.finishConnect();
-        } catch (IOException e) {
-            connectFuture.setConnectionFailed(e);
-            throw e;
-        } catch (RuntimeException e) {
-            connectFuture.setConnectionFailed(e);
+        } catch (IOException | RuntimeException e) {
+            connectException = e;
+            connectContext.completeExceptionally(e);
             throw e;
         }
+    }
+
+    private boolean isConnectComplete0() {
+        return connectContext.isDone() && connectContext.isCompletedExceptionally() == false;
     }
 }

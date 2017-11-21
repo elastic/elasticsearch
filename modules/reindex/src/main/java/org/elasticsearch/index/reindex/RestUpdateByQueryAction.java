@@ -67,7 +67,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
         Map<String, Consumer<Object>> consumers = new HashMap<>();
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
-        consumers.put("script", o -> internal.setScript(parseScript((Map<String, Object>)o)));
+        consumers.put("script", o -> internal.setScript(parseScript(o)));
 
         parseInternalRequest(internal, request, consumers);
 
@@ -76,49 +76,58 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     }
 
     @SuppressWarnings("unchecked")
-    private static Script parseScript(Map<String, Object> config) {
-        String script = null;
-        ScriptType type = null;
-        String lang = DEFAULT_SCRIPT_LANG;
-        Map<String, Object> params = Collections.emptyMap();
-        for (Iterator<Map.Entry<String, Object>> itr = config.entrySet().iterator(); itr.hasNext();) {
-            Map.Entry<String, Object> entry = itr.next();
-            String parameterName = entry.getKey();
-            Object parameterValue = entry.getValue();
-            if (Script.LANG_PARSE_FIELD.match(parameterName)) {
-                if (parameterValue instanceof String || parameterValue == null) {
-                    lang = (String) parameterValue;
-                } else {
-                    throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
-                }
-            } else if (Script.PARAMS_PARSE_FIELD.match(parameterName)) {
-                if (parameterValue instanceof Map || parameterValue == null) {
-                    params = (Map<String, Object>) parameterValue;
-                } else {
-                    throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
-                }
-            } else if (ScriptType.INLINE.getParseField().match(parameterName)) {
-                if (parameterValue instanceof String || parameterValue == null) {
-                    script = (String) parameterValue;
-                    type = ScriptType.INLINE;
-                } else {
-                    throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
-                }
-            } else if (ScriptType.STORED.getParseField().match(parameterName)) {
-                if (parameterValue instanceof String || parameterValue == null) {
-                    script = (String) parameterValue;
-                    type = ScriptType.STORED;
-                } else {
-                    throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+    private static Script parseScript(Object config) {
+        assert config != null : "Script should not be null";
+
+        if (config instanceof String) {
+            return new Script((String) config);
+        } else if (config instanceof Map) {
+            Map<String,Object> configMap = (Map<String, Object>) config;
+            String script = null;
+            ScriptType type = null;
+            String lang = DEFAULT_SCRIPT_LANG;
+            Map<String, Object> params = Collections.emptyMap();
+            for (Iterator<Map.Entry<String, Object>> itr = configMap.entrySet().iterator(); itr.hasNext();) {
+                Map.Entry<String, Object> entry = itr.next();
+                String parameterName = entry.getKey();
+                Object parameterValue = entry.getValue();
+                if (Script.LANG_PARSE_FIELD.match(parameterName)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        lang = (String) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else if (Script.PARAMS_PARSE_FIELD.match(parameterName)) {
+                    if (parameterValue instanceof Map || parameterValue == null) {
+                        params = (Map<String, Object>) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else if (ScriptType.INLINE.getParseField().match(parameterName)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        script = (String) parameterValue;
+                        type = ScriptType.INLINE;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else if (ScriptType.STORED.getParseField().match(parameterName)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        script = (String) parameterValue;
+                        type = ScriptType.STORED;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
                 }
             }
-        }
-        if (script == null) {
-            throw new ElasticsearchParseException("expected one of [{}] or [{}] fields, but found none",
+            if (script == null) {
+                throw new ElasticsearchParseException("expected one of [{}] or [{}] fields, but found none",
                     ScriptType.INLINE.getParseField().getPreferredName(), ScriptType.STORED.getParseField().getPreferredName());
-        }
-        assert type != null : "if script is not null, type should definitely not be null";
+            }
+            assert type != null : "if script is not null, type should definitely not be null";
 
-        return new Script(type, lang, script, params);
+            return new Script(type, lang, script, params);
+        } else {
+            throw new IllegalArgumentException("Script value should be a String or a Map");
+        }
     }
 }

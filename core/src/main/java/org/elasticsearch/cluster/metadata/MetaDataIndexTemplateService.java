@@ -276,7 +276,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
 
         try {
-            indexScopedSettings.validate(request.settings);
+            indexScopedSettings.validate(request.settings, true); // templates must be consistent with regards to dependencies
         } catch (IllegalArgumentException iae) {
             validationErrors.add(iae.getMessage());
             for (Throwable t : iae.getSuppressed()) {

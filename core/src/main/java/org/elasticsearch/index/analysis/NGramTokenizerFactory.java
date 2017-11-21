@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.IndexSettings;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -65,8 +67,8 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         MATCHERS = unmodifiableMap(matchers);
     }
 
-    static CharMatcher parseTokenChars(String[] characterClasses) {
-        if (characterClasses == null || characterClasses.length == 0) {
+    static CharMatcher parseTokenChars(List<String> characterClasses) {
+        if (characterClasses == null || characterClasses.isEmpty()) {
             return null;
         }
         CharMatcher.Builder builder = new CharMatcher.Builder();
@@ -83,9 +85,22 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
 
     public NGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
+        int maxAllowedNgramDiff = indexSettings.getMaxNgramDiff();
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
-        this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
+        int ngramDiff = maxGram - minGram;
+        if (ngramDiff > maxAllowedNgramDiff) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+                throw new IllegalArgumentException(
+                    "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
+                        + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
+                        + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
+            } else {
+                deprecationLogger.deprecated("Deprecated big difference between max_gram and min_gram in NGram Tokenizer,"
+                    + "expected difference must be less than or equal to: [" + maxAllowedNgramDiff + "]");
+            }
+        }
+        this.matcher = parseTokenChars(settings.getAsList("token_chars"));
     }
 
     @Override

@@ -56,7 +56,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.After;
 import org.junit.Before;
@@ -119,7 +119,7 @@ public class RefreshListenersTests extends ESTestCase {
         };
         EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, allocationId, threadPool,
                 indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
-                eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
+                eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
                 TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), null, null);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
@@ -270,7 +270,6 @@ public class RefreshListenersTests extends ESTestCase {
      * Uses a bunch of threads to index, wait for refresh, and non-realtime get documents to validate that they are visible after waiting
      * regardless of what crazy sequence of events causes the refresh listener to fire.
      */
-    @TestLogging("_root:debug,org.elasticsearch.index.engine.Engine.DW:trace")
     public void testLotsOfThreads() throws Exception {
         int threadCount = between(3, 10);
         maxListeners = between(1, threadCount * 2);

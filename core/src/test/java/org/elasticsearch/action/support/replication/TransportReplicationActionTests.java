@@ -639,7 +639,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] captures = transport.getCapturedRequestsAndClear();
         assertThat(captures, arrayWithSize(1));
         if (randomBoolean()) {
-            final TransportReplicationAction.ReplicaResponse response = new TransportReplicationAction.ReplicaResponse(randomLong());
+            final TransportReplicationAction.ReplicaResponse response =
+                    new TransportReplicationAction.ReplicaResponse(randomLong(), randomLong());
             transport.handleResponse(captures[0].requestId, response);
             assertTrue(listener.isDone());
             assertThat(listener.get(), equalTo(response));
@@ -1237,11 +1238,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         return new TransportChannel() {
 
             @Override
-            public String action() {
-                return null;
-            }
-
-            @Override
             public String getProfileName() {
                 return "";
             }
@@ -1259,11 +1255,6 @@ public class TransportReplicationActionTests extends ESTestCase {
             @Override
             public void sendResponse(Exception exception) throws IOException {
                 listener.onFailure(exception);
-            }
-
-            @Override
-            public long getRequestId() {
-                return 0;
             }
 
             @Override

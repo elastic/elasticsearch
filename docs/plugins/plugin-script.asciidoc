@@ -64,21 +64,46 @@ sudo bin/elasticsearch-plugin install [url] <1>
 -----------------------------------
 <1> must be a valid URL, the plugin name is determined from its descriptor.
 
-For instance, to install a plugin from your local file system, you could run:
-
+--
+Unix::
+To install a plugin from your local file system at `/path/to/plugin.zip`, you could run:
++
 [source,shell]
 -----------------------------------
 sudo bin/elasticsearch-plugin install file:///path/to/plugin.zip
 -----------------------------------
 
+Windows::
+To install a plugin from your local file system at `C:\path\to\plugin.zip`, you could run:
++
+[source,shell]
+-----------------------------------
+bin\elasticsearch-plugin install file:///C:/path/to/plugin.zip
+-----------------------------------
++
+NOTE: Any path that contains spaces must be wrapped in quotes!
++
+NOTE: If you are installing a plugin from the filesystem the plugin distribution
+must not be contained in the `plugins` directory for the node that you are
+installing the plugin to or installation will fail.
+
+HTTP::
+To install a plugin from a HTTP URL:
++
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin install http://some.domain/path/to/plugin.zip
+-----------------------------------
++
 The plugin script will refuse to talk to an HTTPS URL with an untrusted
 certificate. To use a self-signed HTTPS cert, you will need to add the CA cert
 to a local Java truststore and pass the location to the script as follows:
-
++
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://....
+sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
 -----------------------------------
+--
 
 [[listing-removing-updating]]
 === Listing, Removing and Updating Installed Plugins

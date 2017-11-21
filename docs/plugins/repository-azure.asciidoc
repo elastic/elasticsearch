@@ -44,15 +44,18 @@ The initial backoff period is defined by Azure SDK as `30s`. Which means `30s` o
 before retrying after a first timeout or failure. The maximum backoff period is defined by Azure SDK as
 `90s`.
 
+`endpoint_suffix` can be used to specify Azure endpoint suffix explicitly. Defaults to `core.windows.net`.
+
 [source,yaml]
 ----
 azure.client.default.timeout: 10s
 azure.client.default.max_retries: 7
+azure.client.default.endpoint_suffix: core.chinacloudapi.cn
 azure.client.secondary.timeout: 30s
 ----
 
 In this example, timeout will be `10s` per try for `default` with `7` retries before failing
-and `30s` per try for `secondary` with `3` retries.
+and endpoint suffix will be `core.chinacloudapi.cn` and `30s` per try for `secondary` with `3` retries.
 
 [IMPORTANT]
 .Supported Azure Storage Account types

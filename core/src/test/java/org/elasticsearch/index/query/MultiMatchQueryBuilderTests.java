@@ -32,14 +32,18 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,18 +69,28 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             assumeTrue("test with date fields runs only when at least a type is registered", getCurrentTypes().length > 0);
         }
 
-        // creates the query with random value and field name
-        Object value;
+        final Object value;
         if (fieldName.equals(STRING_FIELD_NAME)) {
             value = getRandomQueryText();
         } else {
             value = getRandomValueForFieldName(fieldName);
         }
-        MultiMatchQueryBuilder query = new MultiMatchQueryBuilder(value, fieldName);
-        // field with random boost
-        if (randomBoolean()) {
-            query.field(fieldName, randomFloat() * 10);
+
+        final MultiMatchQueryBuilder query;
+        if (rarely()) {
+            query = new MultiMatchQueryBuilder(value, fieldName);
+            if (randomBoolean()) {
+                query.lenient(randomBoolean());
+            }
+            // field with random boost
+            if (randomBoolean()) {
+                query.field(fieldName, randomFloat() * 10);
+            }
+        } else {
+            query = new MultiMatchQueryBuilder(value);
+            query.lenient(true);
         }
+
         // sets other parameters of the multi match query
         if (randomBoolean()) {
             query.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
@@ -112,9 +126,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             query.tieBreaker(randomFloat());
         }
         if (randomBoolean()) {
-            query.lenient(randomBoolean());
-        }
-        if (randomBoolean()) {
             query.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
@@ -122,6 +133,9 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
         if (randomBoolean()) {
             query.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
+        if (randomBoolean()) {
+            query.fuzzyTranspositions(randomBoolean());
         }
         // test with fields with boost and patterns delegated to the tests further below
         return query;
@@ -241,6 +255,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 "    \"lenient\" : false,\n" +
                 "    \"zero_terms_query\" : \"NONE\",\n" +
                 "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
+                "    \"fuzzy_transpositions\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -252,6 +267,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(json, 3, parsed.fields().size());
         assertEquals(json, MultiMatchQueryBuilder.Type.MOST_FIELDS, parsed.type());
         assertEquals(json, Operator.OR, parsed.operator());
+        assertEquals(json, false, parsed.fuzzyTranspositions());
     }
 
     /**
@@ -316,5 +332,72 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         query.toQuery(context); // no exception
         query.analyzer(null);
         query.toQuery(context); // no exception
+    }
+
+    public void testToFuzzyQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("text").field(STRING_FIELD_NAME);
+        qb.fuzziness(Fuzziness.TWO);
+        qb.prefixLength(2);
+        qb.maxExpansions(5);
+        qb.fuzzyTranspositions(false);
+
+        Query query = qb.toQuery(createShardContext());
+        FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+
+        assertEquals(expected, query);
+    }
+
+    public void testDefaultField() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("hello");
+        // should pass because we set lenient to true when default field is `*`
+        Query query = builder.toQuery(context);
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
+        );
+
+        MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("hello");
+        query = qb.toQuery(context);
+        DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+            ), 0.0f
+        );
+        assertEquals(expected, query);
+
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5", INT_FIELD_NAME).build())
+        );
+        // should fail because lenient defaults to false
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> qb.toQuery(context));
+        assertThat(exc, instanceOf(NumberFormatException.class));
+        assertThat(exc.getMessage(), equalTo("For input string: \"hello\""));
+
+        // explicitly sets lenient
+        qb.lenient(true);
+        query = qb.toQuery(context);
+        expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f),
+                new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]")
+            ), 0.0f
+        );
+        assertEquals(expected, query);
+    }
+
+    private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
+        Settings build = Settings.builder().put(oldIndexSettings)
+            .put(indexSettings)
+            .build();
+        return IndexMetaData.builder(name).settings(build).build();
     }
 }

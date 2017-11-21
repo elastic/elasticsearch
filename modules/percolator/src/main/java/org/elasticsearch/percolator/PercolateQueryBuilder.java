@@ -639,7 +639,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         String name = this.name != null ? this.name : field;
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext, mapUnmappedFieldsAsString);
-        return pft.percolateQuery(name, queryStore, documents, docSearcher);
+        return pft.percolateQuery(name, queryStore, documents, docSearcher, context.indexVersionCreated());
     }
 
     public String getField() {
@@ -705,7 +705,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     if (binaryDocValues.advanceExact(docId)) {
                         BytesRef qbSource = binaryDocValues.binaryValue();
                         try (InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length)) {
-                            try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)) {
+                            try (StreamInput input = new NamedWriteableAwareStreamInput(
+                                    new InputStreamStreamInput(in, qbSource.length), registry)) {
                                 input.setVersion(indexVersion);
                                 // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
                                 // to encode multiple binary values into a single binary doc values field.

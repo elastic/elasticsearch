@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 public class WriteOperationTests extends ESTestCase {
 
     private NioSocketChannel channel;
-    private ActionListener<NioChannel> listener;
+    private ActionListener<Void> listener;
 
     @Before
     @SuppressWarnings("unchecked")

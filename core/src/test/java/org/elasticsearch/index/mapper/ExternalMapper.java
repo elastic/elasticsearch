@@ -20,12 +20,17 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.locationtech.spatial4j.shape.Point;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -128,6 +133,15 @@ public class ExternalMapper extends FieldMapper {
         public String typeName() {
             return "faketype";
         }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
     }
 
     private final String generatedValue;
@@ -167,7 +181,7 @@ public class ExternalMapper extends FieldMapper {
         pointMapper.parse(context.createExternalValueContext(point));
 
         // Let's add a Dummy Shape
-        Point shape = ShapeBuilders.newPoint(-100, 45).build();
+        Point shape = new PointBuilder(-100, 45).build();
         shapeMapper.parse(context.createExternalValueContext(shape));
 
         context = context.createExternalValueContext(generatedValue);

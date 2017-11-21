@@ -55,6 +55,7 @@ import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
@@ -128,7 +129,9 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
             } catch(ResponseException e) {
                 Response response = e.getResponse();
                 if (sniffResponse.isFailure) {
-                    assertThat(e.getMessage(), containsString("GET " + httpHost + "/_nodes/http?timeout=" + sniffRequestTimeout + "ms"));
+                    final String errorPrefix = "method [GET], host [" + httpHost + "], URI [/_nodes/http?timeout=" + sniffRequestTimeout
+                        + "ms], status line [HTTP/1.1";
+                    assertThat(e.getMessage(), startsWith(errorPrefix));
                     assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
                     assertThat(response.getHost(), equalTo(httpHost));
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));

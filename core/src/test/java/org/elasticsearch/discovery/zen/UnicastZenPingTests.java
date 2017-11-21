@@ -179,7 +179,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final ClusterState stateMismatch = ClusterState.builder(new ClusterName("mismatch")).version(randomNonNegativeLong()).build();
 
         Settings hostsSettings = Settings.builder()
-            .putArray("discovery.zen.ping.unicast.hosts",
+            .putList("discovery.zen.ping.unicast.hosts",
                 NetworkAddress.format(new InetSocketAddress(handleA.address.address().getAddress(), handleA.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort())),
@@ -258,6 +258,16 @@ public class UnicastZenPingTests extends ESTestCase {
         assertPingCount(handleD, handleA, 0);
         assertPingCount(handleD, handleB, 0);
         assertPingCount(handleD, handleC, 3);
+
+        zenPingC.close();
+        handleD.counters.clear();
+        logger.info("ping from UZP_D after closing UZP_C");
+        pingResponses = zenPingD.pingAndWait().toList();
+        // check that node does not respond to pings anymore after the ping service has been closed
+        assertThat(pingResponses.size(), equalTo(0));
+        assertPingCount(handleD, handleA, 0);
+        assertPingCount(handleD, handleB, 0);
+        assertPingCount(handleD, handleC, 3);
     }
 
     public void testUnknownHostNotCached() throws ExecutionException, InterruptedException {
@@ -305,7 +315,7 @@ public class UnicastZenPingTests extends ESTestCase {
                     new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort()))});
 
         final Settings hostsSettings = Settings.builder()
-            .putArray("discovery.zen.ping.unicast.hosts", "UZP_A", "UZP_B", "UZP_C")
+            .putList("discovery.zen.ping.unicast.hosts", "UZP_A", "UZP_B", "UZP_C")
             .put("cluster.name", "test")
             .build();
 
@@ -589,7 +599,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final boolean useHosts = randomBoolean();
         final Settings.Builder hostsSettingsBuilder = Settings.builder().put("cluster.name", "test");
         if (useHosts) {
-            hostsSettingsBuilder.putArray("discovery.zen.ping.unicast.hosts",
+            hostsSettingsBuilder.putList("discovery.zen.ping.unicast.hosts",
                 NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort()))
             );
         } else {

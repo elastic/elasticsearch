@@ -41,7 +41,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
     @Inject
     public TransportTypesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, TypesExistsRequest::new);
+        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, TypesExistsRequest::new, indexNameExpressionResolver);
     }
 
     @Override

@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -187,6 +188,15 @@ public class TransportService extends AbstractLifecycleComponent {
         return new TaskManager(settings);
     }
 
+    /**
+     * The executor service for this transport service.
+     *
+     * @return the executor service
+     */
+    protected ExecutorService getExecutorService() {
+        return threadPool.generic();
+    }
+
     void setTracerLogInclude(List<String> tracerLogInclude) {
         this.tracerLogInclude = tracerLogInclude.toArray(Strings.EMPTY_ARRAY);
     }
@@ -232,7 +242,7 @@ public class TransportService extends AbstractLifecycleComponent {
                 if (holderToNotify != null) {
                     // callback that an exception happened, but on a different thread since we don't
                     // want handlers to worry about stack overflows
-                    threadPool.generic().execute(new AbstractRunnable() {
+                    getExecutorService().execute(new AbstractRunnable() {
                         @Override
                         public void onRejection(Exception e) {
                             // if we get rejected during node shutdown we don't wanna bubble it up
@@ -879,7 +889,7 @@ public class TransportService extends AbstractLifecycleComponent {
         // connectToNode(); connection is completed successfully
         // addConnectionListener(); this listener shouldn't be called
         final Stream<TransportConnectionListener> listenersToNotify = TransportService.this.connectionListeners.stream();
-        threadPool.generic().execute(() -> listenersToNotify.forEach(listener -> listener.onNodeConnected(node)));
+        getExecutorService().execute(() -> listenersToNotify.forEach(listener -> listener.onNodeConnected(node)));
     }
 
     void onConnectionOpened(Transport.Connection connection) {
@@ -887,12 +897,12 @@ public class TransportService extends AbstractLifecycleComponent {
         // connectToNode(); connection is completed successfully
         // addConnectionListener(); this listener shouldn't be called
         final Stream<TransportConnectionListener> listenersToNotify = TransportService.this.connectionListeners.stream();
-        threadPool.generic().execute(() -> listenersToNotify.forEach(listener -> listener.onConnectionOpened(connection)));
+        getExecutorService().execute(() -> listenersToNotify.forEach(listener -> listener.onConnectionOpened(connection)));
     }
 
     public void onNodeDisconnected(final DiscoveryNode node) {
         try {
-            threadPool.generic().execute( () -> {
+            getExecutorService().execute( () -> {
                 for (final TransportConnectionListener connectionListener : connectionListeners) {
                     connectionListener.onNodeDisconnected(node);
                 }
@@ -911,7 +921,7 @@ public class TransportService extends AbstractLifecycleComponent {
                     if (holderToNotify != null) {
                         // callback that an exception happened, but on a different thread since we don't
                         // want handlers to worry about stack overflows
-                        threadPool.generic().execute(() -> holderToNotify.handler().handleException(new NodeDisconnectedException(
+                        getExecutorService().execute(() -> holderToNotify.handler().handleException(new NodeDisconnectedException(
                             connection.getNode(), holderToNotify.action())));
                     }
                 }
@@ -1107,19 +1117,14 @@ public class TransportService extends AbstractLifecycleComponent {
         final TransportService service;
         final ThreadPool threadPool;
 
-        DirectResponseChannel(Logger logger, DiscoveryNode localNode, String action, long requestId,
-                                     TransportService service, ThreadPool threadPool) {
+        DirectResponseChannel(Logger logger, DiscoveryNode localNode, String action, long requestId, TransportService service,
+                              ThreadPool threadPool) {
             this.logger = logger;
             this.localNode = localNode;
             this.action = action;
             this.requestId = requestId;
             this.service = service;
             this.threadPool = threadPool;
-        }
-
-        @Override
-        public String action() {
-            return action;
         }
 
         @Override
@@ -1167,13 +1172,7 @@ public class TransportService extends AbstractLifecycleComponent {
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processException(handler, rtx);
                 } else {
-                    threadPool.executor(handler.executor()).execute(new Runnable() {
-                        @SuppressWarnings({"unchecked"})
-                        @Override
-                        public void run() {
-                            processException(handler, rtx);
-                        }
-                    });
+                    threadPool.executor(handler.executor()).execute(() -> processException(handler, rtx));
                 }
             }
         }
@@ -1193,11 +1192,6 @@ public class TransportService extends AbstractLifecycleComponent {
                     (Supplier<?>) () -> new ParameterizedMessage(
                         "failed to handle exception for action [{}], handler [{}]", action, handler), e);
             }
-        }
-
-        @Override
-        public long getRequestId() {
-            return requestId;
         }
 
         @Override

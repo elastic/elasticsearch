@@ -42,14 +42,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -124,7 +127,7 @@ public class Setting<T> implements ToXContentObject {
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
 
     private Setting(Key key, @Nullable Setting<T> fallbackSetting, Function<Settings, String> defaultValue, Function<String, T> parser,
-            Validator<T> validator, Property... properties) {
+                    Validator<T> validator, Property... properties) {
         assert this instanceof SecureSetting || this.isGroupSetting() || parser.apply(defaultValue.apply(Settings.EMPTY)) != null
                : "parser returned null";
         this.key = key;
@@ -328,7 +331,7 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
     public boolean exists(Settings settings) {
-        return settings.getAsMap().containsKey(getKey());
+        return settings.keySet().contains(getKey());
     }
 
     /**
@@ -456,6 +459,14 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Returns a set of settings that are required at validation time. Unless all of the dependencies are present in the settings
+     * object validation of setting must fail.
+     */
+    public Set<String> getSettingsDependencies(String key) {
+        return Collections.emptySet();
+    }
+
+    /**
      * Build a new updater with a noop validator.
      */
     final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger) {
@@ -517,11 +528,13 @@ public class Setting<T> implements ToXContentObject {
     public static class AffixSetting<T> extends Setting<T> {
         private final AffixKey key;
         private final Function<String, Setting<T>> delegateFactory;
+        private final Set<AffixSetting> dependencies;
 
-        public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory) {
+        public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory, AffixSetting... dependencies) {
             super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
             this.key = key;
             this.delegateFactory = delegateFactory;
+            this.dependencies = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(dependencies)));
         }
 
         boolean isGroupSetting() {
@@ -529,7 +542,16 @@ public class Setting<T> implements ToXContentObject {
         }
 
         private Stream<String> matchStream(Settings settings) {
-            return settings.getAsMap().keySet().stream().filter((key) -> match(key)).map(settingKey -> key.getConcreteString(settingKey));
+            return settings.keySet().stream().filter((key) -> match(key)).map(settingKey -> key.getConcreteString(settingKey));
+        }
+
+        public Set<String> getSettingsDependencies(String settingsKey) {
+            if (dependencies.isEmpty()) {
+                return Collections.emptySet();
+            } else {
+                String namespace = key.getNamespace(settingsKey);
+                return dependencies.stream().map(s -> s.key.toConcreteKey(namespace).key).collect(Collectors.toSet());
+            }
         }
 
         AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>> newAffixUpdater(
@@ -547,8 +569,9 @@ public class Setting<T> implements ToXContentObject {
                     final Map<AbstractScopedSettings.SettingUpdater<T>, T> result = new IdentityHashMap<>();
                     Stream.concat(matchStream(current), matchStream(previous)).distinct().forEach(aKey -> {
                         String namespace = key.getNamespace(aKey);
+                        Setting<T> concreteSetting = getConcreteSetting(aKey);
                         AbstractScopedSettings.SettingUpdater<T> updater =
-                            getConcreteSetting(aKey).newUpdater((v) -> consumer.accept(namespace, v), logger,
+                            concreteSetting.newUpdater((v) -> consumer.accept(namespace, v), logger,
                                 (v) -> validator.accept(namespace, v));
                         if (updater.hasChanged(current, previous)) {
                             // only the ones that have changed otherwise we might get too many updates
@@ -565,6 +588,43 @@ public class Setting<T> implements ToXContentObject {
                     for (Map.Entry<AbstractScopedSettings.SettingUpdater<T>, T> entry : value.entrySet()) {
                         entry.getKey().apply(entry.getValue(), current, previous);
                     }
+                }
+            };
+        }
+
+        AbstractScopedSettings.SettingUpdater<Map<String, T>> newAffixMapUpdater(Consumer<Map<String, T>> consumer, Logger logger,
+                                                                                 BiConsumer<String, T> validator, boolean omitDefaults) {
+            return new AbstractScopedSettings.SettingUpdater<Map<String, T>>() {
+
+                @Override
+                public boolean hasChanged(Settings current, Settings previous) {
+                    return  Stream.concat(matchStream(current), matchStream(previous)).findAny().isPresent();
+                }
+
+                @Override
+                public Map<String, T> getValue(Settings current, Settings previous) {
+                    // we collect all concrete keys and then delegate to the actual setting for validation and settings extraction
+                    final Map<String, T> result = new IdentityHashMap<>();
+                    Stream.concat(matchStream(current), matchStream(previous)).distinct().forEach(aKey -> {
+                        String namespace = key.getNamespace(aKey);
+                        Setting<T> concreteSetting = getConcreteSetting(aKey);
+                        AbstractScopedSettings.SettingUpdater<T> updater =
+                            concreteSetting.newUpdater((v) -> {}, logger, (v) -> validator.accept(namespace, v));
+                        if (updater.hasChanged(current, previous)) {
+                            // only the ones that have changed otherwise we might get too many updates
+                            // the hasChanged above checks only if there are any changes
+                                T value = updater.getValue(current, previous);
+                            if ((omitDefaults && value.equals(concreteSetting.getDefault(current))) == false) {
+                                result.put(namespace, value);
+                            }
+                        }
+                    });
+                    return result;
+                }
+
+                @Override
+                public void apply(Map<String, T> value, Settings current, Settings previous) {
+                    consumer.accept(value);
                 }
             };
         }
@@ -604,7 +664,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * Returns the namespace for a concrete settting. Ie. an affix setting with prefix: <tt>search.</tt> and suffix: <tt>username</tt>
+         * Returns the namespace for a concrete setting. Ie. an affix setting with prefix: <tt>search.</tt> and suffix: <tt>username</tt>
          * will return <tt>remote</tt> as a namespace for the setting <tt>search.remote.username</tt>
          */
         public String getNamespace(Setting<T> concreteSetting) {
@@ -617,6 +677,25 @@ public class Setting<T> implements ToXContentObject {
          */
         public Stream<Setting<T>> getAllConcreteSettings(Settings settings) {
             return matchStream(settings).distinct().map(this::getConcreteSetting);
+        }
+
+        /**
+         * Returns distinct namespaces for the given settings
+         */
+        public Set<String> getNamespaces(Settings settings) {
+            return settings.keySet().stream().filter(this::match).map(key::getNamespace).collect(Collectors.toSet());
+        }
+
+        /**
+         * Returns a map of all namespaces to it's values give the provided settings
+         */
+        public Map<String, T> getAsMap(Settings settings) {
+            Map<String, T> map = new HashMap<>();
+            matchStream(settings).distinct().forEach(key -> {
+                Setting<T> concreteSetting = getConcreteSetting(key);
+                map.put(getNamespace(concreteSetting), concreteSetting.get(settings));
+            });
+            return Collections.unmodifiableMap(map);
         }
     }
 
@@ -686,8 +765,8 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public boolean exists(Settings settings) {
-            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                if (entry.getKey().startsWith(key)) {
+            for (String settingsKey : settings.keySet()) {
+                if (settingsKey.startsWith(key)) {
                     return true;
                 }
             }
@@ -696,13 +775,11 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-            Map<String, String> leftGroup = get(source).getAsMap();
+            Set<String> leftGroup = get(source).keySet();
             Settings defaultGroup = get(defaultSettings);
-            for (Map.Entry<String, String> entry : defaultGroup.getAsMap().entrySet()) {
-                if (leftGroup.containsKey(entry.getKey()) == false) {
-                    builder.put(getKey() + entry.getKey(), entry.getValue());
-                }
-            }
+
+            builder.put(Settings.builder().put(defaultGroup.filter(k -> leftGroup.contains(k) == false), false)
+                    .normalizePrefix(getKey()).build(), false);
         }
 
         @Override
@@ -729,7 +806,7 @@ public class Setting<T> implements ToXContentObject {
                         validator.accept(currentSettings);
                     } catch (Exception | AssertionError e) {
                         throw new IllegalArgumentException("illegal value can't update [" + key + "] from ["
-                                + previousSettings.getAsMap() + "] to [" + currentSettings.getAsMap() + "]", e);
+                                + previousSettings + "] to [" + currentSettings+ "]", e);
                     }
                     return currentSettings;
                 }
@@ -755,14 +832,14 @@ public class Setting<T> implements ToXContentObject {
 
         private ListSetting(String key, Function<Settings, List<String>> defaultStringValue, Function<String, List<T>> parser,
                             Property... properties) {
-            super(new ListKey(key), (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser,
+            super(new ListKey(key), (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s)), parser,
                 properties);
             this.defaultStringValue = defaultStringValue;
         }
 
         @Override
         public String getRaw(Settings settings) {
-            String[] array = settings.getAsArray(getKey(), null);
+            List<String> array = settings.getAsList(getKey(), null);
             return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
         }
 
@@ -772,19 +849,13 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public boolean exists(Settings settings) {
-            boolean exists = super.exists(settings);
-            return exists || settings.get(getKey() + ".0") != null;
-        }
-
-        @Override
         public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
             if (exists(source) == false) {
-                String[] asArray = defaultSettings.getAsArray(getKey(), null);
-                if (asArray == null) {
-                    builder.putArray(getKey(), defaultStringValue.apply(defaultSettings));
+                List<String> asList = defaultSettings.getAsList(getKey(), null);
+                if (asList == null) {
+                    builder.putList(getKey(), defaultStringValue.apply(defaultSettings));
                 } else {
-                    builder.putArray(getKey(), asArray);
+                    builder.putList(getKey(), asList);
                 }
             }
         }
@@ -864,12 +935,26 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, key), properties);
     }
 
+    public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, Validator<Integer> validator,
+                                              Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, (s) -> parseInt(s, minValue, key),validator,
+            properties);
+    }
+
     public static Setting<Long> longSetting(String key, long defaultValue, long minValue, Property... properties) {
         return new Setting<>(key, (s) -> Long.toString(defaultValue), (s) -> parseLong(s, minValue, key), properties);
     }
 
     public static Setting<String> simpleString(String key, Property... properties) {
         return new Setting<>(key, s -> "", Function.identity(), properties);
+    }
+
+    public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
+        return new Setting<>(key, fallback, Function.identity(), properties);
+    }
+
+    public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
     }
 
     public static int parseInt(String s, int minValue, String key) {
@@ -1040,7 +1125,7 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    private static String arrayToParsableString(String[] array) {
+    private static String arrayToParsableString(List<String> array) {
         try {
             XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
             builder.startArray();
@@ -1126,16 +1211,16 @@ public class Setting<T> implements ToXContentObject {
      * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, affix key settings don't support updaters
      * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> AffixSetting<T> affixKeySetting(String prefix, String suffix, Function<String, Setting<T>> delegateFactory) {
-        return affixKeySetting(new AffixKey(prefix, suffix), delegateFactory);
+    public static <T> AffixSetting<T> affixKeySetting(String prefix, String suffix, Function<String, Setting<T>> delegateFactory,
+                                                      AffixSetting... dependencies) {
+        return affixKeySetting(new AffixKey(prefix, suffix), delegateFactory, dependencies);
     }
 
-    private static <T> AffixSetting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory) {
+    private static <T> AffixSetting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory,
+                                                       AffixSetting... dependencies) {
         Setting<T> delegate = delegateFactory.apply("_na_");
-        return new AffixSetting<>(key, delegate, delegateFactory);
-    };
-
-
+        return new AffixSetting<>(key, delegate, delegateFactory, dependencies);
+    }
 
     public interface Key {
         boolean match(String key);

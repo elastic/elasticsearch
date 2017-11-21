@@ -22,13 +22,9 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 
 import java.io.IOException;
-import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.Iterator;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -51,19 +47,20 @@ public class AcceptingSelector extends ESSelector {
     }
 
     @Override
-    void doSelect(int timeout) throws IOException, ClosedSelectorException {
-        setUpNewServerChannels();
-
-        int ready = selector.select(timeout);
-        if (ready > 0) {
-            Set<SelectionKey> selectionKeys = selector.selectedKeys();
-            Iterator<SelectionKey> keyIterator = selectionKeys.iterator();
-            while (keyIterator.hasNext()) {
-                SelectionKey sk = keyIterator.next();
-                keyIterator.remove();
-                acceptChannel(sk);
+    void processKey(SelectionKey selectionKey) {
+        NioServerSocketChannel serverChannel = (NioServerSocketChannel) selectionKey.attachment();
+        if (selectionKey.isAcceptable()) {
+            try {
+                eventHandler.acceptChannel(serverChannel);
+            } catch (IOException e) {
+                eventHandler.acceptException(serverChannel, e);
             }
         }
+    }
+
+    @Override
+    void preSelect() {
+        setUpNewServerChannels();
     }
 
     @Override
@@ -74,6 +71,7 @@ public class AcceptingSelector extends ESSelector {
     /**
      * Schedules a NioServerSocketChannel to be registered with this selector. The channel will by queued and
      * eventually registered next time through the event loop.
+     *
      * @param serverSocketChannel the channel to register
      */
     public void scheduleForRegistration(NioServerSocketChannel serverSocketChannel) {
@@ -82,7 +80,7 @@ public class AcceptingSelector extends ESSelector {
         wakeup();
     }
 
-    private void setUpNewServerChannels() throws ClosedChannelException {
+    private void setUpNewServerChannels() {
         NioServerSocketChannel newChannel;
         while ((newChannel = this.newChannels.poll()) != null) {
             assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
@@ -91,7 +89,6 @@ public class AcceptingSelector extends ESSelector {
                     newChannel.register();
                     SelectionKey selectionKey = newChannel.getSelectionKey();
                     selectionKey.attach(newChannel);
-                    addRegisteredChannel(newChannel);
                     eventHandler.serverChannelRegistered(newChannel);
                 } else {
                     eventHandler.registrationException(newChannel, new ClosedChannelException());
@@ -99,25 +96,6 @@ public class AcceptingSelector extends ESSelector {
             } catch (IOException e) {
                 eventHandler.registrationException(newChannel, e);
             }
-        }
-    }
-
-    private void acceptChannel(SelectionKey sk) {
-        NioServerSocketChannel serverChannel = (NioServerSocketChannel) sk.attachment();
-        if (sk.isValid()) {
-            try {
-                if (sk.isAcceptable()) {
-                    try {
-                        eventHandler.acceptChannel(serverChannel);
-                    } catch (IOException e) {
-                        eventHandler.acceptException(serverChannel, e);
-                    }
-                }
-            } catch (CancelledKeyException ex) {
-                eventHandler.genericServerChannelException(serverChannel, ex);
-            }
-        } else {
-            eventHandler.genericServerChannelException(serverChannel, new CancelledKeyException());
         }
     }
 }

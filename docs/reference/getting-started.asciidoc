@@ -13,7 +13,7 @@ Here are a few sample use-cases that Elasticsearch could be used for:
 * You run a price alerting platform which allows price-savvy customers to specify a rule like "I am interested in buying a specific electronic gadget and I want to be notified if the price of gadget falls below $X from any vendor within the next month". In this case you can scrape vendor prices, push them into Elasticsearch and use its reverse-search (Percolator) capability to match price movements against customer queries and eventually push the alerts out to the customer once matches are found.
 * You have analytics/business-intelligence needs and want to quickly investigate, analyze, visualize, and ask ad-hoc questions on a lot of data (think millions or billions of records). In this case, you can use Elasticsearch to store your data and then use Kibana (part of the Elasticsearch/Logstash/Kibana stack) to build custom dashboards that can visualize aspects of your data that are important to you. Additionally, you can use the Elasticsearch aggregations functionality to perform complex business intelligence queries against your data.
 
-For the rest of this tutorial, I will guide you through the process of getting Elasticsearch up and running, taking a peek inside it, and performing basic operations like indexing, searching, and modifying your data. At the end of this tutorial, you should have a good idea of what Elasticsearch is, how it works, and hopefully be inspired to see how you can use it to either build sophisticated search applications or to mine intelligence from your data.
+For the rest of this tutorial, you will be guided through the process of getting Elasticsearch up and running, taking a peek inside it, and performing basic operations like indexing, searching, and modifying your data. At the end of this tutorial, you should have a good idea of what Elasticsearch is, how it works, and hopefully be inspired to see how you can use it to either build sophisticated search applications or to mine intelligence from your data.
 --
 
 == Basic Concepts
@@ -64,7 +64,7 @@ A type used to be a logical category/partition of your index to allow you to sto
 [float]
 === Document
 
-A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is an ubiquitous internet data interchange format.
+A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is a ubiquitous internet data interchange format.
 
 Within an index/type, you can store as many documents as you want. Note that although a document physically resides in an index, a document actually must be indexed/assigned to a type inside an index.
 
@@ -146,6 +146,16 @@ And now we are ready to start our node and single cluster:
 [source,sh]
 --------------------------------------------------
 ./elasticsearch
+--------------------------------------------------
+
+[float]
+=== Installation with Homebrew
+
+On macOS, Elasticsearch can also be installed via https://brew.sh[Homebrew]:
+
+["source","sh"]
+--------------------------------------------------
+brew install elasticsearch
 --------------------------------------------------
 
 [float]
@@ -288,7 +298,13 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 
 We can see that our cluster named "elasticsearch" is up with a green status.
 
-Whenever we ask for the cluster health, we either get green, yellow, or red. Green means everything is good (cluster is fully functional), yellow means all data is available but some replicas are not yet allocated (cluster is fully functional), and red means some data is not available for whatever reason. Note that even if a cluster is red, it still is partially functional (i.e. it will continue to serve search requests from the available shards) but you will likely need to fix it ASAP since you have missing data.
+Whenever we ask for the cluster health, we either get green, yellow, or red.
+
+    * Green - everything is good (cluster is fully functional)
+    * Yellow - all data is available but some replicas are not yet allocated (cluster is fully functional)
+    * Red - some data is not available for whatever reason (cluster is partially functional)
+
+**Note:** When a cluster is red, it will continue to serve search requests from the available shards but you will likely need to fix it ASAP since there are unassigned shards.
 
 Also from the above response, we can see a total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we are using the default cluster name (elasticsearch) and since Elasticsearch uses unicast network discovery by default to find other nodes on the same machine, it is possible that you could accidentally start up more than one node on your computer and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
 
@@ -352,7 +368,7 @@ And the response:
 health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 yellow open   customer 95SQ4TSUT7mWBT7VNHH67A   5   1          0            0       260b           260b
 --------------------------------------------------
-// TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+b/ _cat]
+// TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+\\.?\\d?k?b/ _cat]
 
 The results of the second command tells us that we now have 1 index named customer and it has 5 primary shards and 1 replica (the defaults) and it contains 0 documents in it.
 
@@ -570,7 +586,7 @@ POST /customer/doc/1/_update?pretty
 
 In the above example, `ctx._source` refers to the current source document that is about to be updated.
 
-Note that as of this writing, updates can only be performed on a single document at a time. In the future, Elasticsearch might provide the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement).
+Elasticsearch provides the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement). See {ref}/docs-update-by-query.html[`docs-update-by-query` API]
 
 === Deleting Documents
 
@@ -644,7 +660,7 @@ Now that we've gotten a glimpse of the basics, let's try to work on a more reali
 --------------------------------------------------
 // NOTCONSOLE
 
-For the curious, I generated this data from http://www.json-generator.com/[`www.json-generator.com/`] so please ignore the actual values and semantics of the data as these are all randomly generated.
+For the curious, this data was generated using http://www.json-generator.com/[`www.json-generator.com/`], so please ignore the actual values and semantics of the data as these are all randomly generated.
 
 [float]
 === Loading the Sample Dataset
@@ -1268,4 +1284,4 @@ There are many other aggregations capabilities that we won't go into detail here
 
 == Conclusion
 
-Elasticsearch is both a simple and complex product. We've so far learned the basics of what it is, how to look inside of it, and how to work with it using some of the REST APIs. I hope that this tutorial has given you a better understanding of what Elasticsearch is and more importantly, inspired you to further experiment with the rest of its great features!
+Elasticsearch is both a simple and complex product. We've so far learned the basics of what it is, how to look inside of it, and how to work with it using some of the REST APIs. Hopefully this tutorial has given you a better understanding of what Elasticsearch is and more importantly, inspired you to further experiment with the rest of its great features!

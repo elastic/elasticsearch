@@ -293,7 +293,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
-            final IndexShard otherReplica = shards.getReplicas().get(1);
 
             // simulate docs that were inflight when primary failed
             final int extraDocs = randomIntBetween(0, 5);
@@ -637,6 +636,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                                     return super.addDocument(doc);
                                 }
                             },
+                    null,
                     null,
                     config);
         }

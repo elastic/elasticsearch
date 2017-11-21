@@ -19,28 +19,20 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.LineNumberReader;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.PrimitiveIterator;
-import java.util.Spliterator;
+import java.util.Stack;
 
 /**
  * The entire API for Painless.  Also used as a whitelist for checking for legal
@@ -48,55 +40,57 @@ import java.util.Spliterator;
  */
 public final class Definition {
 
-    private static final List<String> DEFINITION_FILES = Collections.unmodifiableList(
-        Arrays.asList("org.elasticsearch.txt",
-                      "java.lang.txt",
-                      "java.math.txt",
-                      "java.text.txt",
-                      "java.time.txt",
-                      "java.time.chrono.txt",
-                      "java.time.format.txt",
-                      "java.time.temporal.txt",
-                      "java.time.zone.txt",
-                      "java.util.txt",
-                      "java.util.function.txt",
-                      "java.util.regex.txt",
-                      "java.util.stream.txt",
-                      "joda.time.txt"));
+    private static final String[] DEFINITION_FILES = new String[] {
+            "org.elasticsearch.txt",
+            "java.lang.txt",
+            "java.math.txt",
+            "java.text.txt",
+            "java.time.txt",
+            "java.time.chrono.txt",
+            "java.time.format.txt",
+            "java.time.temporal.txt",
+            "java.time.zone.txt",
+            "java.util.txt",
+            "java.util.function.txt",
+            "java.util.regex.txt",
+            "java.util.stream.txt",
+            "joda.time.txt"
+    };
 
     /**
      * Whitelist that is "built in" to Painless and required by all scripts.
      */
-    public static final Definition BUILTINS = new Definition();
+    public static final Definition DEFINITION = new Definition(
+        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Definition.class, DEFINITION_FILES)));
 
     /** Some native types as constants: */
-    public static final Type VOID_TYPE = BUILTINS.getType("void");
-    public static final Type BOOLEAN_TYPE = BUILTINS.getType("boolean");
-    public static final Type BOOLEAN_OBJ_TYPE = BUILTINS.getType("Boolean");
-    public static final Type BYTE_TYPE = BUILTINS.getType("byte");
-    public static final Type BYTE_OBJ_TYPE = BUILTINS.getType("Byte");
-    public static final Type SHORT_TYPE = BUILTINS.getType("short");
-    public static final Type SHORT_OBJ_TYPE = BUILTINS.getType("Short");
-    public static final Type INT_TYPE = BUILTINS.getType("int");
-    public static final Type INT_OBJ_TYPE = BUILTINS.getType("Integer");
-    public static final Type LONG_TYPE = BUILTINS.getType("long");
-    public static final Type LONG_OBJ_TYPE = BUILTINS.getType("Long");
-    public static final Type FLOAT_TYPE = BUILTINS.getType("float");
-    public static final Type FLOAT_OBJ_TYPE = BUILTINS.getType("Float");
-    public static final Type DOUBLE_TYPE = BUILTINS.getType("double");
-    public static final Type DOUBLE_OBJ_TYPE = BUILTINS.getType("Double");
-    public static final Type CHAR_TYPE = BUILTINS.getType("char");
-    public static final Type CHAR_OBJ_TYPE = BUILTINS.getType("Character");
-    public static final Type OBJECT_TYPE = BUILTINS.getType("Object");
-    public static final Type DEF_TYPE = BUILTINS.getType("def");
-    public static final Type NUMBER_TYPE = BUILTINS.getType("Number");
-    public static final Type STRING_TYPE = BUILTINS.getType("String");
-    public static final Type EXCEPTION_TYPE = BUILTINS.getType("Exception");
-    public static final Type PATTERN_TYPE = BUILTINS.getType("Pattern");
-    public static final Type MATCHER_TYPE = BUILTINS.getType("Matcher");
-    public static final Type ITERATOR_TYPE = BUILTINS.getType("Iterator");
-    public static final Type ARRAY_LIST_TYPE = BUILTINS.getType("ArrayList");
-    public static final Type HASH_MAP_TYPE = BUILTINS.getType("HashMap");
+    public final Type voidType;
+    public final Type booleanType;
+    public final Type BooleanType;
+    public final Type byteType;
+    public final Type ByteType;
+    public final Type shortType;
+    public final Type ShortType;
+    public final Type intType;
+    public final Type IntegerType;
+    public final Type longType;
+    public final Type LongType;
+    public final Type floatType;
+    public final Type FloatType;
+    public final Type doubleType;
+    public final Type DoubleType;
+    public final Type charType;
+    public final Type CharacterType;
+    public final Type ObjectType;
+    public final Type DefType;
+    public final Type NumberType;
+    public final Type StringType;
+    public final Type ExceptionType;
+    public final Type PatternType;
+    public final Type MatcherType;
+    public final Type IteratorType;
+    public final Type ArrayListType;
+    public final Type HashMapType;
 
     public static final class Type {
         public final String name;
@@ -110,10 +104,10 @@ public final class Definition {
                      final Struct struct, final Class<?> clazz, final org.objectweb.asm.Type type) {
             this.name = name;
             this.dimensions = dimensions;
+            this.dynamic = dynamic;
             this.struct = struct;
             this.clazz = clazz;
             this.type = type;
-            this.dynamic = dynamic;
         }
 
         @Override
@@ -439,58 +433,58 @@ public final class Definition {
 
     /** Returns whether or not a non-array type exists. */
     public boolean isSimpleType(final String name) {
-        return BUILTINS.structsMap.containsKey(name);
+        return structsMap.containsKey(name);
     }
 
     /** Gets the type given by its name */
     public Type getType(final String name) {
-        return BUILTINS.getTypeInternal(name);
+        return getTypeInternal(name);
     }
 
     /** Creates an array type from the given Struct. */
     public Type getType(final Struct struct, final int dimensions) {
-        return BUILTINS.getTypeInternal(struct, dimensions);
+        return getTypeInternal(struct, dimensions);
     }
 
-    public static Type getBoxedType(Type unboxed) {
+    public Type getBoxedType(Type unboxed) {
         if (unboxed.clazz == boolean.class) {
-            return BOOLEAN_OBJ_TYPE;
+            return BooleanType;
         } else if (unboxed.clazz == byte.class) {
-            return BYTE_OBJ_TYPE;
+            return ByteType;
         } else if (unboxed.clazz == short.class) {
-            return SHORT_OBJ_TYPE;
+            return ShortType;
         } else if (unboxed.clazz == char.class) {
-            return CHAR_OBJ_TYPE;
+            return CharacterType;
         } else if (unboxed.clazz == int.class) {
-            return INT_OBJ_TYPE;
+            return IntegerType;
         } else if (unboxed.clazz == long.class) {
-            return LONG_OBJ_TYPE;
+            return LongType;
         } else if (unboxed.clazz == float.class) {
-            return FLOAT_OBJ_TYPE;
+            return FloatType;
         } else if (unboxed.clazz == double.class) {
-            return DOUBLE_OBJ_TYPE;
+            return DoubleType;
         }
 
         return unboxed;
     }
 
-    public static Type getUnboxedType(Type boxed) {
+    public Type getUnboxedType(Type boxed) {
         if (boxed.clazz == Boolean.class) {
-            return BOOLEAN_TYPE;
+            return booleanType;
         } else if (boxed.clazz == Byte.class) {
-            return BYTE_TYPE;
+            return byteType;
         } else if (boxed.clazz == Short.class) {
-            return SHORT_TYPE;
+            return shortType;
         } else if (boxed.clazz == Character.class) {
-            return CHAR_TYPE;
+            return charType;
         } else if (boxed.clazz == Integer.class) {
-            return INT_TYPE;
+            return intType;
         } else if (boxed.clazz == Long.class) {
-            return LONG_TYPE;
+            return longType;
         } else if (boxed.clazz == Float.class) {
-            return FLOAT_TYPE;
+            return floatType;
         } else if (boxed.clazz == Double.class) {
-            return DOUBLE_TYPE;
+            return doubleType;
         }
 
         return boxed;
@@ -509,12 +503,12 @@ public final class Definition {
     }
 
     public RuntimeClass getRuntimeClass(Class<?> clazz) {
-        return BUILTINS.runtimeMap.get(clazz);
+        return runtimeMap.get(clazz);
     }
 
     /** Collection of all simple types. Used by {@code PainlessDocGenerator} to generate an API reference. */
-    static Collection<Type> allSimpleTypes() {
-        return BUILTINS.simpleTypesMap.values();
+    Collection<Type> allSimpleTypes() {
+        return simpleTypesMap.values();
     }
 
     // INTERNAL IMPLEMENTATION:
@@ -523,31 +517,121 @@ public final class Definition {
     private final Map<String, Struct> structsMap;
     private final Map<String, Type> simpleTypesMap;
 
-    private Definition() {
+    public AnalyzerCaster caster;
+
+    private Definition(List<Whitelist> whitelists) {
         structsMap = new HashMap<>();
         simpleTypesMap = new HashMap<>();
         runtimeMap = new HashMap<>();
 
-        // parse the classes and return hierarchy (map of class name -> superclasses/interfaces)
-        Map<String, List<String>> hierarchy = addStructs();
-        // add every method for each class
-        addElements();
-        // apply hierarchy: this means e.g. copying Object's methods into String (thats how subclasses work)
-        for (Map.Entry<String,List<String>> clazz : hierarchy.entrySet()) {
-            copyStruct(clazz.getKey(), clazz.getValue());
+        Map<Class<?>, Struct> javaClassesToPainlessStructs = new HashMap<>();
+        String origin = null;
+
+        // add the universal def type
+        structsMap.put("def", new Struct("def", Object.class, org.objectweb.asm.Type.getType(Object.class)));
+
+        try {
+            // first iteration collects all the Painless type names that
+            // are used for validation during the second iteration
+            for (Whitelist whitelist : whitelists) {
+                for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
+                    Struct painlessStruct = structsMap.get(whitelistStruct.painlessTypeName);
+
+                    if (painlessStruct != null && painlessStruct.clazz.getName().equals(whitelistStruct.javaClassName) == false) {
+                        throw new IllegalArgumentException("struct [" + painlessStruct.name + "] cannot represent multiple classes " +
+                            "[" + painlessStruct.clazz.getName() + "] and [" + whitelistStruct.javaClassName + "]");
+                    }
+
+                    origin = whitelistStruct.origin;
+                    addStruct(whitelist.javaClassLoader, whitelistStruct);
+
+                    painlessStruct = structsMap.get(whitelistStruct.painlessTypeName);
+                    javaClassesToPainlessStructs.put(painlessStruct.clazz, painlessStruct);
+                }
+            }
+
+            // second iteration adds all the constructors, methods, and fields that will
+            // be available in Painless along with validating they exist and all their types have
+            // been white-listed during the first iteration
+            for (Whitelist whitelist : whitelists) {
+                for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
+                    for (Whitelist.Constructor whitelistConstructor : whitelistStruct.whitelistConstructors) {
+                        origin = whitelistConstructor.origin;
+                        addConstructor(whitelistStruct.painlessTypeName, whitelistConstructor);
+                    }
+
+                    for (Whitelist.Method whitelistMethod : whitelistStruct.whitelistMethods) {
+                        origin = whitelistMethod.origin;
+                        addMethod(whitelist.javaClassLoader, whitelistStruct.painlessTypeName, whitelistMethod);
+                    }
+
+                    for (Whitelist.Field whitelistField : whitelistStruct.whitelistFields) {
+                        origin = whitelistField.origin;
+                        addField(whitelistStruct.painlessTypeName, whitelistField);
+                    }
+                }
+            }
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("error loading whitelist(s) " + origin, exception);
         }
-        // if someone declares an interface type, its still an Object
-        for (Map.Entry<String,Struct> clazz : structsMap.entrySet()) {
-            String name = clazz.getKey();
-            Class<?> javaPeer = clazz.getValue().clazz;
-            if (javaPeer.isInterface()) {
-                copyStruct(name, Collections.singletonList("Object"));
-            } else if (name.equals("def") == false && name.equals("Object") == false && javaPeer.isPrimitive() == false) {
-                // but otherwise, unless its a primitive type, it really should
-                assert hierarchy.get(name) != null : "class '" + name + "' does not extend Object!";
-                assert hierarchy.get(name).contains("Object") : "class '" + name + "' does not extend Object!";
+
+        // goes through each Painless struct and determines the inheritance list,
+        // and then adds all inherited types to the Painless struct's whitelist
+        for (Struct painlessStruct : structsMap.values()) {
+            List<String> painlessSuperStructs = new ArrayList<>();
+            Class<?> javaSuperClass = painlessStruct.clazz.getSuperclass();
+
+            Stack<Class<?>> javaInteraceLookups = new Stack<>();
+            javaInteraceLookups.push(painlessStruct.clazz);
+
+            // adds super classes to the inheritance list
+            if (javaSuperClass != null && javaSuperClass.isInterface() == false) {
+                while (javaSuperClass != null) {
+                    Struct painlessSuperStruct = javaClassesToPainlessStructs.get(javaSuperClass);
+
+                    if (painlessSuperStruct != null) {
+                        painlessSuperStructs.add(painlessSuperStruct.name);
+                    }
+
+                    javaInteraceLookups.push(javaSuperClass);
+                    javaSuperClass = javaSuperClass.getSuperclass();
+                }
+            }
+
+            // adds all super interfaces to the inheritance list
+            while (javaInteraceLookups.isEmpty() == false) {
+                Class<?> javaInterfaceLookup = javaInteraceLookups.pop();
+
+                for (Class<?> javaSuperInterface : javaInterfaceLookup.getInterfaces()) {
+                    Struct painlessInterfaceStruct = javaClassesToPainlessStructs.get(javaSuperInterface);
+
+                    if (painlessInterfaceStruct != null) {
+                        String painlessInterfaceStructName = painlessInterfaceStruct.name;
+
+                        if (painlessSuperStructs.contains(painlessInterfaceStructName) == false) {
+                            painlessSuperStructs.add(painlessInterfaceStructName);
+                        }
+
+                        for (Class<?> javaPushInterface : javaInterfaceLookup.getInterfaces()) {
+                            javaInteraceLookups.push(javaPushInterface);
+                        }
+                    }
+                }
+            }
+
+            // copies methods and fields from super structs to the parent struct
+            copyStruct(painlessStruct.name, painlessSuperStructs);
+
+            // copies methods and fields from Object into interface types
+            if (painlessStruct.clazz.isInterface() || ("def").equals(painlessStruct.name)) {
+                Struct painlessObjectStruct = javaClassesToPainlessStructs.get(Object.class);
+
+                if (painlessObjectStruct != null) {
+                    copyStruct(painlessStruct.name, Collections.singletonList(painlessObjectStruct.name));
+                }
             }
         }
+
         // mark functional interfaces (or set null, to mark class is not)
         for (Struct clazz : structsMap.values()) {
             clazz.functionalMethod.set(computeFunctionalInterfaceMethod(clazz));
@@ -555,392 +639,343 @@ public final class Definition {
 
         // precompute runtime classes
         for (Struct struct : structsMap.values()) {
-          addRuntimeClass(struct);
+            addRuntimeClass(struct);
         }
         // copy all structs to make them unmodifiable for outside users:
         for (final Map.Entry<String,Struct> entry : structsMap.entrySet()) {
             entry.setValue(entry.getValue().freeze());
         }
+
+        voidType = getType("void");
+        booleanType = getType("boolean");
+        BooleanType = getType("Boolean");
+        byteType = getType("byte");
+        ByteType = getType("Byte");
+        shortType = getType("short");
+        ShortType = getType("Short");
+        intType = getType("int");
+        IntegerType = getType("Integer");
+        longType = getType("long");
+        LongType = getType("Long");
+        floatType = getType("float");
+        FloatType = getType("Float");
+        doubleType = getType("double");
+        DoubleType = getType("Double");
+        charType = getType("char");
+        CharacterType = getType("Character");
+        ObjectType = getType("Object");
+        DefType = getType("def");
+        NumberType = getType("Number");
+        StringType = getType("String");
+        ExceptionType = getType("Exception");
+        PatternType = getType("Pattern");
+        MatcherType = getType("Matcher");
+        IteratorType = getType("Iterator");
+        ArrayListType = getType("ArrayList");
+        HashMapType = getType("HashMap");
+
+        caster = new AnalyzerCaster(this);
     }
 
-    /** adds classes from definition. returns hierarchy */
-    private Map<String,List<String>> addStructs() {
-        final Map<String,List<String>> hierarchy = new HashMap<>();
-        for (String file : DEFINITION_FILES) {
-            int currentLine = -1;
+    private void addStruct(ClassLoader whitelistClassLoader, Whitelist.Struct whitelistStruct) {
+        if (!whitelistStruct.painlessTypeName.matches("^[_a-zA-Z][._a-zA-Z0-9]*")) {
+            throw new IllegalArgumentException("invalid struct type name [" + whitelistStruct.painlessTypeName + "]");
+        }
+
+        Class<?> javaClass;
+
+        if      ("void".equals(whitelistStruct.javaClassName))    javaClass = void.class;
+        else if ("boolean".equals(whitelistStruct.javaClassName)) javaClass = boolean.class;
+        else if ("byte".equals(whitelistStruct.javaClassName))    javaClass = byte.class;
+        else if ("short".equals(whitelistStruct.javaClassName))   javaClass = short.class;
+        else if ("char".equals(whitelistStruct.javaClassName))    javaClass = char.class;
+        else if ("int".equals(whitelistStruct.javaClassName))     javaClass = int.class;
+        else if ("long".equals(whitelistStruct.javaClassName))    javaClass = long.class;
+        else if ("float".equals(whitelistStruct.javaClassName))   javaClass = float.class;
+        else if ("double".equals(whitelistStruct.javaClassName))  javaClass = double.class;
+        else {
             try {
-                try (InputStream stream = Definition.class.getResourceAsStream(file);
-                        LineNumberReader reader = new LineNumberReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                    String line = null;
-                    while ((line = reader.readLine()) != null) {
-                        currentLine = reader.getLineNumber();
-                        line = line.trim();
-                        if (line.length() == 0 || line.charAt(0) == '#') {
-                            continue;
-                        }
-                        if (line.startsWith("class ")) {
-                            String elements[] = line.split("\u0020");
-                            assert elements[2].equals("->") : "Invalid struct definition [" + String.join(" ", elements) +"]";
-                            if (elements.length == 7) {
-                                hierarchy.put(elements[1], Arrays.asList(elements[5].split(",")));
-                            } else {
-                                assert elements.length == 5 : "Invalid struct definition [" + String.join(" ", elements) + "]";
-                            }
-                            String className = elements[1];
-                            String javaPeer = elements[3];
-                            final Class<?> javaClazz;
-                            switch (javaPeer) {
-                                case "void":
-                                    javaClazz = void.class;
-                                    break;
-                                case "boolean":
-                                    javaClazz = boolean.class;
-                                    break;
-                                case "byte":
-                                    javaClazz = byte.class;
-                                    break;
-                                case "short":
-                                    javaClazz = short.class;
-                                    break;
-                                case "char":
-                                    javaClazz = char.class;
-                                    break;
-                                case "int":
-                                    javaClazz = int.class;
-                                    break;
-                                case "long":
-                                    javaClazz = long.class;
-                                    break;
-                                case "float":
-                                    javaClazz = float.class;
-                                    break;
-                                case "double":
-                                    javaClazz = double.class;
-                                    break;
-                                default:
-                                    javaClazz = Class.forName(javaPeer);
-                                    break;
-                            }
-                            addStruct(className, javaClazz);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                throw new RuntimeException("error in " + file + ", line: " + currentLine, e);
-            }
-        }
-        return hierarchy;
-    }
-
-    /** adds class methods/fields/ctors */
-    private void addElements() {
-        for (String file : DEFINITION_FILES) {
-            int currentLine = -1;
-            try {
-                try (InputStream stream = Definition.class.getResourceAsStream(file);
-                        LineNumberReader reader = new LineNumberReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                    String line = null;
-                    String currentClass = null;
-                    while ((line = reader.readLine()) != null) {
-                        currentLine = reader.getLineNumber();
-                        line = line.trim();
-                        if (line.length() == 0 || line.charAt(0) == '#') {
-                            continue;
-                        } else if (line.startsWith("class ")) {
-                            assert currentClass == null;
-                            currentClass = line.split("\u0020")[1];
-                        } else if (line.equals("}")) {
-                            assert currentClass != null;
-                            currentClass = null;
-                        } else {
-                            assert currentClass != null;
-                            addSignature(currentClass, line);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                throw new RuntimeException("syntax error in " + file + ", line: " + currentLine, e);
-            }
-        }
-    }
-
-    private void addStruct(final String name, final Class<?> clazz) {
-        if (!name.matches("^[_a-zA-Z][\\.,_a-zA-Z0-9]*$")) {
-            throw new IllegalArgumentException("Invalid struct name [" + name + "].");
-        }
-
-        if (structsMap.containsKey(name)) {
-            throw new IllegalArgumentException("Duplicate struct name [" + name + "].");
-        }
-
-        final Struct struct = new Struct(name, clazz, org.objectweb.asm.Type.getType(clazz));
-
-        structsMap.put(name, struct);
-        simpleTypesMap.put(name, getTypeInternal(name));
-    }
-
-    private void addConstructorInternal(final String struct, final String name, final Type[] args) {
-        final Struct owner = structsMap.get(struct);
-
-        if (owner == null) {
-            throw new IllegalArgumentException(
-                "Owner struct [" + struct + "] not defined for constructor [" + name + "].");
-        }
-
-        if (!name.matches("<init>")) {
-            throw new IllegalArgumentException(
-                "Invalid constructor name [" + name + "] with the struct [" + owner.name + "].");
-        }
-
-        MethodKey methodKey = new MethodKey(name, args.length);
-
-        if (owner.constructors.containsKey(methodKey)) {
-            throw new IllegalArgumentException(
-                "Duplicate constructor [" + methodKey + "] found within the struct [" + owner.name + "].");
-        }
-
-        if (owner.staticMethods.containsKey(methodKey)) {
-            throw new IllegalArgumentException("Constructors and static methods may not have the same signature" +
-                " [" + methodKey + "] within the same struct [" + owner.name + "].");
-        }
-
-        if (owner.methods.containsKey(methodKey)) {
-            throw new IllegalArgumentException("Constructors and methods may not have the same signature" +
-                " [" + methodKey + "] within the same struct [" + owner.name + "].");
-        }
-
-        final Class<?>[] classes = new Class<?>[args.length];
-
-        for (int count = 0; count < classes.length; ++count) {
-            classes[count] = args[count].clazz;
-        }
-
-        final java.lang.reflect.Constructor<?> reflect;
-
-        try {
-            reflect = owner.clazz.getConstructor(classes);
-        } catch (final NoSuchMethodException exception) {
-            throw new IllegalArgumentException("Constructor [" + name + "] not found for class" +
-                " [" + owner.clazz.getName() + "] with arguments " + Arrays.toString(classes) + ".");
-        }
-
-        final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
-        final Type returnType = getTypeInternal("void");
-        final MethodHandle handle;
-
-        try {
-            handle = MethodHandles.publicLookup().in(owner.clazz).unreflectConstructor(reflect);
-        } catch (final IllegalAccessException exception) {
-            throw new IllegalArgumentException("Constructor " +
-                " not found for class [" + owner.clazz.getName() + "]" +
-                " with arguments " + Arrays.toString(classes) + ".");
-        }
-
-        final Method constructor = new Method(name, owner, null, returnType, Arrays.asList(args), asm, reflect.getModifiers(), handle);
-
-        owner.constructors.put(methodKey, constructor);
-    }
-
-    /**
-     * Adds a new signature to the definition.
-     * <p>
-     * Signatures have the following forms:
-     * <ul>
-     *   <li>{@code void method(String,int)}
-     *   <li>{@code boolean field}
-     *   <li>{@code Class <init>(String)}
-     * </ul>
-     * no spaces allowed.
-     */
-    private void addSignature(String className, String signature) {
-        String elements[] = signature.split("\u0020");
-        if (elements.length != 2) {
-            throw new IllegalArgumentException("Malformed signature: " + signature);
-        }
-        // method or field type (e.g. return type)
-        Type rtn = getTypeInternal(elements[0]);
-        int parenIndex = elements[1].indexOf('(');
-        if (parenIndex != -1) {
-            // method or ctor
-            int parenEnd = elements[1].indexOf(')');
-            final Type args[];
-            if (parenEnd > parenIndex + 1) {
-                String arguments[] = elements[1].substring(parenIndex + 1, parenEnd).split(",");
-                args = new Type[arguments.length];
-                for (int i = 0; i < arguments.length; i++) {
-                    args[i] = getTypeInternal(arguments[i]);
-                }
-            } else {
-                args = new Type[0];
-            }
-            String methodName = elements[1].substring(0, parenIndex);
-            if (methodName.equals("<init>")) {
-                if (!elements[0].equals(className)) {
-                    throw new IllegalArgumentException("Constructors must return their own type");
-                }
-                addConstructorInternal(className, "<init>", args);
-            } else {
-                int index = methodName.lastIndexOf(".");
-
-                if (index >= 0) {
-                    String augmentation = methodName.substring(0, index);
-                    methodName = methodName.substring(index + 1);
-                    addMethodInternal(className, methodName, augmentation, rtn, args);
-                } else {
-                    addMethodInternal(className, methodName, null, rtn, args);
-                }
-            }
-        } else {
-            // field
-            addFieldInternal(className, elements[1], rtn);
-        }
-    }
-
-    private void addMethodInternal(String struct, String name, String augmentation, Type rtn, Type[] args) {
-        final Struct owner = structsMap.get(struct);
-
-        if (owner == null) {
-            throw new IllegalArgumentException("Owner struct [" + struct + "] not defined" +
-                " for method [" + name + "].");
-        }
-
-        if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
-            throw new IllegalArgumentException("Invalid method name" +
-                " [" + name + "] with the struct [" + owner.name + "].");
-        }
-
-        MethodKey methodKey = new MethodKey(name, args.length);
-
-        if (owner.constructors.containsKey(methodKey)) {
-            throw new IllegalArgumentException("Constructors and methods" +
-                " may not have the same signature [" + methodKey + "] within the same struct" +
-                " [" + owner.name + "].");
-        }
-
-        if (owner.staticMethods.containsKey(methodKey) || owner.methods.containsKey(methodKey)) {
-            throw new IllegalArgumentException(
-                "Duplicate method signature [" + methodKey + "] found within the struct [" + owner.name + "].");
-        }
-
-        final Class<?> implClass;
-        final Class<?>[] params;
-
-        if (augmentation == null) {
-            implClass = owner.clazz;
-            params = new Class<?>[args.length];
-            for (int count = 0; count < args.length; ++count) {
-                params[count] = args[count].clazz;
-            }
-        } else {
-            try {
-                implClass = Class.forName(augmentation);
+                javaClass = Class.forName(whitelistStruct.javaClassName, true, whitelistClassLoader);
             } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("Augmentation class [" + augmentation + "]" +
-                    " not found for struct [" + struct + "] using method name [" + name + "].", cnfe);
-            }
-
-            params = new Class<?>[args.length + 1];
-            params[0] = owner.clazz;
-            for (int count = 0; count < args.length; ++count) {
-                params[count+1] = args[count].clazz;
+                throw new IllegalArgumentException("invalid java class name [" + whitelistStruct.javaClassName + "]" +
+                        " for struct [" + whitelistStruct.painlessTypeName + "]");
             }
         }
 
-        final java.lang.reflect.Method reflect;
+        Struct existingStruct = structsMap.get(whitelistStruct.painlessTypeName);
 
-        try {
-            reflect = implClass.getMethod(name, params);
-        } catch (NoSuchMethodException exception) {
-            throw new IllegalArgumentException("Method [" + name +
-                "] not found for class [" + implClass.getName() + "]" +
-                " with arguments " + Arrays.toString(params) + ".");
-        }
+        if (existingStruct == null) {
+            Struct struct = new Struct(whitelistStruct.painlessTypeName, javaClass, org.objectweb.asm.Type.getType(javaClass));
 
-        if (!reflect.getReturnType().equals(rtn.clazz)) {
-            throw new IllegalArgumentException("Specified return type class [" + rtn.clazz + "]" +
-                " does not match the found return type class [" + reflect.getReturnType() + "] for the" +
-                " method [" + name + "]" +
-                " within the struct [" + owner.name + "].");
-        }
-
-        final org.objectweb.asm.commons.Method asm = org.objectweb.asm.commons.Method.getMethod(reflect);
-
-        MethodHandle handle;
-
-        try {
-            handle = MethodHandles.publicLookup().in(implClass).unreflect(reflect);
-        } catch (final IllegalAccessException exception) {
-            throw new IllegalArgumentException("Method [" + name + "]" +
-                " not found for class [" + implClass.getName() + "]" +
-                " with arguments " + Arrays.toString(params) + ".");
-        }
-
-        final int modifiers = reflect.getModifiers();
-        final Method method =
-            new Method(name, owner, augmentation == null ? null : implClass, rtn, Arrays.asList(args), asm, modifiers, handle);
-
-        if (augmentation == null && java.lang.reflect.Modifier.isStatic(modifiers)) {
-            owner.staticMethods.put(methodKey, method);
-        } else {
-            owner.methods.put(methodKey, method);
+            structsMap.put(whitelistStruct.painlessTypeName, struct);
+            simpleTypesMap.put(whitelistStruct.painlessTypeName, getTypeInternal(whitelistStruct.painlessTypeName));
+        } else if (existingStruct.clazz.equals(javaClass) == false) {
+            throw new IllegalArgumentException("struct [" + whitelistStruct.painlessTypeName + "] is used to " +
+                    "illegally represent multiple java classes [" + whitelistStruct.javaClassName + "] and " +
+                    "[" + existingStruct.clazz.getName() + "]");
         }
     }
 
-    private void addFieldInternal(String struct, String name, Type type) {
-        final Struct owner = structsMap.get(struct);
+    private void addConstructor(String ownerStructName, Whitelist.Constructor whitelistConstructor) {
+        Struct ownerStruct = structsMap.get(ownerStructName);
 
-        if (owner == null) {
-            throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for " +
-                " field [" + name + "].");
+        if (ownerStruct == null) {
+            throw new IllegalArgumentException("owner struct [" + ownerStructName + "] not defined for constructor with " +
+                    "parameters " + whitelistConstructor.painlessParameterTypeNames);
         }
 
-        if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
-            throw new IllegalArgumentException("Invalid field " +
-                " name [" + name + "] with the struct [" + owner.name + "].");
+        List<Type> painlessParametersTypes = new ArrayList<>(whitelistConstructor.painlessParameterTypeNames.size());
+        Class<?>[] javaClassParameters = new Class<?>[whitelistConstructor.painlessParameterTypeNames.size()];
+
+        for (int parameterCount = 0; parameterCount < whitelistConstructor.painlessParameterTypeNames.size(); ++parameterCount) {
+            String painlessParameterTypeName = whitelistConstructor.painlessParameterTypeNames.get(parameterCount);
+
+            try {
+                Type painlessParameterType = getTypeInternal(painlessParameterTypeName);
+
+                painlessParametersTypes.add(painlessParameterType);
+                javaClassParameters[parameterCount] = painlessParameterType.clazz;
+            } catch (IllegalArgumentException iae) {
+                throw new IllegalArgumentException("struct not defined for constructor parameter [" + painlessParameterTypeName + "] " +
+                        "with owner struct [" + ownerStructName + "] and constructor parameters " +
+                        whitelistConstructor.painlessParameterTypeNames, iae);
+            }
         }
 
-        if (owner.staticMembers.containsKey(name) || owner.members.containsKey(name)) {
-             throw new IllegalArgumentException("Duplicate field name [" + name + "]" +
-                     " found within the struct [" + owner.name + "].");
-        }
-
-        java.lang.reflect.Field reflect;
+        java.lang.reflect.Constructor<?> javaConstructor;
 
         try {
-            reflect = owner.clazz.getField(name);
-        } catch (final NoSuchFieldException exception) {
-            throw new IllegalArgumentException("Field [" + name + "]" +
-                " not found for class [" + owner.clazz.getName() + "].");
+            javaConstructor = ownerStruct.clazz.getConstructor(javaClassParameters);
+        } catch (NoSuchMethodException exception) {
+            throw new IllegalArgumentException("constructor not defined for owner struct [" + ownerStructName + "] " +
+                    " with constructor parameters " + whitelistConstructor.painlessParameterTypeNames, exception);
         }
 
-        final int modifiers = reflect.getModifiers();
-        boolean isStatic = java.lang.reflect.Modifier.isStatic(modifiers);
+        MethodKey painlessMethodKey = new MethodKey("<init>", whitelistConstructor.painlessParameterTypeNames.size());
+        Method painlessConstructor = ownerStruct.constructors.get(painlessMethodKey);
 
-        MethodHandle getter = null;
-        MethodHandle setter = null;
+        if (painlessConstructor == null) {
+            org.objectweb.asm.commons.Method asmConstructor = org.objectweb.asm.commons.Method.getMethod(javaConstructor);
+            MethodHandle javaHandle;
+
+            try {
+                javaHandle = MethodHandles.publicLookup().in(ownerStruct.clazz).unreflectConstructor(javaConstructor);
+            } catch (IllegalAccessException exception) {
+                throw new IllegalArgumentException("constructor not defined for owner struct [" + ownerStructName + "] " +
+                        " with constructor parameters " + whitelistConstructor.painlessParameterTypeNames);
+            }
+
+            painlessConstructor = new Method("<init>", ownerStruct, null, getTypeInternal("void"), painlessParametersTypes,
+                asmConstructor, javaConstructor.getModifiers(), javaHandle);
+            ownerStruct.constructors.put(painlessMethodKey, painlessConstructor);
+        } else if (painlessConstructor.equals(painlessParametersTypes) == false){
+            throw new IllegalArgumentException(
+                    "illegal duplicate constructors [" + painlessMethodKey + "] found within the struct [" + ownerStruct.name + "] " +
+                    "with parameters " + painlessParametersTypes + " and " + painlessConstructor.arguments);
+        }
+    }
+
+    private void addMethod(ClassLoader whitelistClassLoader, String ownerStructName, Whitelist.Method whitelistMethod) {
+        Struct ownerStruct = structsMap.get(ownerStructName);
+
+        if (ownerStruct == null) {
+            throw new IllegalArgumentException("owner struct [" + ownerStructName + "] not defined for method with " +
+                    "name [" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
+        }
+
+        if (!whitelistMethod.javaMethodName.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
+            throw new IllegalArgumentException("invalid method name" +
+                    " [" + whitelistMethod.javaMethodName + "] for owner struct [" + ownerStructName + "].");
+        }
+
+        Class<?> javaAugmentedClass = null;
+
+        if (whitelistMethod.javaAugmentedClassName != null) {
+            try {
+                javaAugmentedClass = Class.forName(whitelistMethod.javaAugmentedClassName, true, whitelistClassLoader);
+            } catch (ClassNotFoundException cnfe) {
+                throw new IllegalArgumentException("augmented class [" + whitelistMethod.javaAugmentedClassName + "] " +
+                        "not found for method with name [" + whitelistMethod.javaMethodName + "] " +
+                        "and parameters " + whitelistMethod.painlessParameterTypeNames, cnfe);
+            }
+        }
+
+        int augmentedOffset = javaAugmentedClass == null ? 0 : 1;
+
+        List<Type> painlessParametersTypes = new ArrayList<>(whitelistMethod.painlessParameterTypeNames.size());
+        Class<?>[] javaClassParameters = new Class<?>[whitelistMethod.painlessParameterTypeNames.size() + augmentedOffset];
+
+        if (javaAugmentedClass != null) {
+            javaClassParameters[0] = ownerStruct.clazz;
+        }
+
+        for (int parameterCount = 0; parameterCount < whitelistMethod.painlessParameterTypeNames.size(); ++parameterCount) {
+            String painlessParameterTypeName = whitelistMethod.painlessParameterTypeNames.get(parameterCount);
+
+            try {
+                Type painlessParameterType = getTypeInternal(painlessParameterTypeName);
+
+                painlessParametersTypes.add(painlessParameterType);
+                javaClassParameters[parameterCount + augmentedOffset] = painlessParameterType.clazz;
+            } catch (IllegalArgumentException iae) {
+                throw new IllegalArgumentException("struct not defined for method parameter [" + painlessParameterTypeName + "] " +
+                        "with owner struct [" + ownerStructName + "] and method with name [" + whitelistMethod.javaMethodName + "] " +
+                        "and parameters " + whitelistMethod.painlessParameterTypeNames, iae);
+            }
+        }
+
+        Class<?> javaImplClass = javaAugmentedClass == null ? ownerStruct.clazz : javaAugmentedClass;
+        java.lang.reflect.Method javaMethod;
 
         try {
-            if (!isStatic) {
-                getter = MethodHandles.publicLookup().unreflectGetter(reflect);
-                setter = MethodHandles.publicLookup().unreflectSetter(reflect);
-            }
-        } catch (final IllegalAccessException exception) {
-            throw new IllegalArgumentException("Getter/Setter [" + name + "]" +
-                " not found for class [" + owner.clazz.getName() + "].");
+            javaMethod = javaImplClass.getMethod(whitelistMethod.javaMethodName, javaClassParameters);
+        } catch (NoSuchMethodException nsme) {
+            throw new IllegalArgumentException("method with name [" + whitelistMethod.javaMethodName + "] " +
+                    "and parameters " + whitelistMethod.painlessParameterTypeNames + " not found for class [" +
+                    javaImplClass.getName() + "]", nsme);
         }
 
-        final Field field = new Field(name, reflect.getName(), owner, type, modifiers, getter, setter);
+        Type painlessReturnType;
 
-        if (isStatic) {
-            // require that all static fields are static final
-            if (!java.lang.reflect.Modifier.isFinal(modifiers)) {
-                throw new IllegalArgumentException("Static [" + name + "]" +
-                    " within the struct [" + owner.name + "] is not final.");
+        try {
+            painlessReturnType = getTypeInternal(whitelistMethod.painlessReturnTypeName);
+        } catch (IllegalArgumentException iae) {
+            throw new IllegalArgumentException("struct not defined for return type [" + whitelistMethod.painlessReturnTypeName + "] " +
+                    "with owner struct [" + ownerStructName + "] and method with name [" + whitelistMethod.javaMethodName + "] " +
+                    "and parameters " + whitelistMethod.painlessParameterTypeNames, iae);
+        }
+
+        if (javaMethod.getReturnType().equals(painlessReturnType.clazz) == false) {
+            throw new IllegalArgumentException("specified return type class [" + painlessReturnType.clazz + "] " +
+                    "does not match the return type class [" + javaMethod.getReturnType() + "] for the " +
+                    "method with name [" + whitelistMethod.javaMethodName + "] " +
+                    "and parameters " + whitelistMethod.painlessParameterTypeNames);
+        }
+
+        MethodKey painlessMethodKey = new MethodKey(whitelistMethod.javaMethodName, whitelistMethod.painlessParameterTypeNames.size());
+
+        if (javaAugmentedClass == null && Modifier.isStatic(javaMethod.getModifiers())) {
+            Method painlessMethod = ownerStruct.staticMethods.get(painlessMethodKey);
+
+            if (painlessMethod == null) {
+                org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
+                MethodHandle javaMethodHandle;
+
+                try {
+                    javaMethodHandle = MethodHandles.publicLookup().in(javaImplClass).unreflect(javaMethod);
+                } catch (IllegalAccessException exception) {
+                    throw new IllegalArgumentException("method handle not found for method with name " +
+                        "[" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
+                }
+
+                painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, null, painlessReturnType,
+                    painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
+                ownerStruct.staticMethods.put(painlessMethodKey, painlessMethod);
+            } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
+                    painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
+                throw new IllegalArgumentException("illegal duplicate static methods [" + painlessMethodKey + "] " +
+                        "found within the struct [" + ownerStruct.name + "] with name [" + whitelistMethod.javaMethodName + "], " +
+                        "return types [" + painlessReturnType + "] and [" + painlessMethod.rtn.name + "], " +
+                        "and parameters " + painlessParametersTypes + " and " + painlessMethod.arguments);
             }
-
-            owner.staticMembers.put(name, field);
         } else {
-            owner.members.put(name, field);
+            Method painlessMethod = ownerStruct.methods.get(painlessMethodKey);
+
+            if (painlessMethod == null) {
+                org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
+                MethodHandle javaMethodHandle;
+
+                try {
+                    javaMethodHandle = MethodHandles.publicLookup().in(javaImplClass).unreflect(javaMethod);
+                } catch (IllegalAccessException exception) {
+                    throw new IllegalArgumentException("method handle not found for method with name " +
+                        "[" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
+                }
+
+                painlessMethod = new Method(whitelistMethod.javaMethodName, ownerStruct, javaAugmentedClass, painlessReturnType,
+                    painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle);
+                ownerStruct.methods.put(painlessMethodKey, painlessMethod);
+            } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnType) &&
+                painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
+                throw new IllegalArgumentException("illegal duplicate member methods [" + painlessMethodKey + "] " +
+                    "found within the struct [" + ownerStruct.name + "] with name [" + whitelistMethod.javaMethodName + "], " +
+                    "return types [" + painlessReturnType + "] and [" + painlessMethod.rtn.name + "], " +
+                    "and parameters " + painlessParametersTypes + " and " + painlessMethod.arguments);
+            }
+        }
+    }
+
+    private void addField(String ownerStructName, Whitelist.Field whitelistField) {
+        Struct ownerStruct = structsMap.get(ownerStructName);
+
+        if (ownerStruct == null) {
+            throw new IllegalArgumentException("owner struct [" + ownerStructName + "] not defined for method with " +
+                    "name [" + whitelistField.javaFieldName + "] and type " + whitelistField.painlessFieldTypeName);
+        }
+
+        if (!whitelistField.javaFieldName.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
+            throw new IllegalArgumentException("invalid field name " +
+                    "[" + whitelistField.painlessFieldTypeName + "] for owner struct [" + ownerStructName + "].");
+        }
+
+        java.lang.reflect.Field javaField;
+
+        try {
+            javaField = ownerStruct.clazz.getField(whitelistField.javaFieldName);
+        } catch (NoSuchFieldException exception) {
+            throw new IllegalArgumentException("field [" + whitelistField.javaFieldName + "] " +
+                    "not found for class [" + ownerStruct.clazz.getName() + "].");
+        }
+
+        Type painlessFieldType;
+
+        try {
+            painlessFieldType = getTypeInternal(whitelistField.painlessFieldTypeName);
+        } catch (IllegalArgumentException iae) {
+            throw new IllegalArgumentException("struct not defined for return type [" + whitelistField.painlessFieldTypeName + "] " +
+                "with owner struct [" + ownerStructName + "] and field with name [" + whitelistField.javaFieldName + "]", iae);
+        }
+
+        if (Modifier.isStatic(javaField.getModifiers())) {
+            if (Modifier.isFinal(javaField.getModifiers()) == false) {
+                throw new IllegalArgumentException("static [" + whitelistField.javaFieldName + "] " +
+                        "with owner struct [" + ownerStruct.name + "] is not final");
+            }
+
+            Field painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
+
+            if (painlessField == null) {
+                painlessField = new Field(whitelistField.javaFieldName, javaField.getName(),
+                    ownerStruct, painlessFieldType, javaField.getModifiers(), null, null);
+                ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
+            } else if (painlessField.type.equals(painlessFieldType) == false) {
+                throw new IllegalArgumentException("illegal duplicate static fields [" + whitelistField.javaFieldName + "] " +
+                    "found within the struct [" + ownerStruct.name + "] with type [" + whitelistField.painlessFieldTypeName + "]");
+            }
+        } else {
+            MethodHandle javaMethodHandleGetter = null;
+            MethodHandle javaMethodHandleSetter = null;
+
+            try {
+                if (Modifier.isStatic(javaField.getModifiers()) == false) {
+                    javaMethodHandleGetter = MethodHandles.publicLookup().unreflectGetter(javaField);
+                    javaMethodHandleSetter = MethodHandles.publicLookup().unreflectSetter(javaField);
+                }
+            } catch (IllegalAccessException exception) {
+                throw new IllegalArgumentException("getter/setter [" + whitelistField.javaFieldName + "]" +
+                    " not found for class [" + ownerStruct.clazz.getName() + "].");
+            }
+
+            Field painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
+
+            if (painlessField == null) {
+                painlessField = new Field(whitelistField.javaFieldName, javaField.getName(),
+                    ownerStruct, painlessFieldType, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter);
+                ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
+            } else if (painlessField.type.equals(painlessFieldType) == false) {
+                throw new IllegalArgumentException("illegal duplicate member fields [" + whitelistField.javaFieldName + "] " +
+                    "found within the struct [" + ownerStruct.name + "] with type [" + whitelistField.painlessFieldTypeName + "]");
+            }
         }
     }
 
@@ -968,8 +1003,12 @@ public final class Definition {
                 MethodKey methodKey = kvPair.getKey();
                 Method method = kvPair.getValue();
                 if (owner.methods.get(methodKey) == null) {
+                    // TODO: some of these are no longer valid or outright don't work
+                    // TODO: since classes may not come from the Painless classloader
+                    // TODO: and it was dependent on the order of the extends which
+                    // TODO: which no longer exists since this is generated automatically
                     // sanity check, look for missing covariant/generic override
-                    if (owner.clazz.isInterface() && child.clazz == Object.class) {
+                    /*if (owner.clazz.isInterface() && child.clazz == Object.class) {
                         // ok
                     } else if (child.clazz == Spliterator.OfPrimitive.class || child.clazz == PrimitiveIterator.class) {
                         // ok, we rely on generics erasure for these (its guaranteed in the javadocs though!!!!)
@@ -1009,7 +1048,7 @@ public final class Definition {
                         } catch (ReflectiveOperationException e) {
                             throw new AssertionError(e);
                         }
-                    }
+                    }*/
                     owner.methods.put(methodKey, method);
                 }
             }
@@ -1104,7 +1143,7 @@ public final class Definition {
         if (methods.size() != 1) {
             if (hasAnnotation) {
                 throw new IllegalArgumentException("Class: " + clazz.name +
-                                                   " is marked with FunctionalInterface but doesn't fit the bill: " + methods);
+                    " is marked with FunctionalInterface but doesn't fit the bill: " + methods);
             }
             return null;
         }
@@ -1113,7 +1152,7 @@ public final class Definition {
         Method painless = clazz.methods.get(new Definition.MethodKey(oneMethod.getName(), oneMethod.getParameterCount()));
         if (painless == null || painless.method.equals(org.objectweb.asm.commons.Method.getMethod(oneMethod)) == false) {
             throw new IllegalArgumentException("Class: " + clazz.name + " is functional but the functional " +
-                                               "method is not whitelisted!");
+                "method is not whitelisted!");
         }
         return painless;
     }

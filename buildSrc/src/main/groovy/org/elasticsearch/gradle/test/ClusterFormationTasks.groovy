@@ -311,13 +311,14 @@ class ClusterFormationTasks {
                 // Define a node attribute so we can test that it exists
                 'node.attr.testattr'           : 'test'
         ]
-        // we set min master nodes to the total number of nodes in the cluster and
-        // basically skip initial state recovery to allow the cluster to form using a realistic master election
-        // this means all nodes must be up, join the seed node and do a master election. This will also allow new and
-        // old nodes in the BWC case to become the master
-        if (node.config.useMinimumMasterNodes && node.config.numNodes > 1) {
-            esConfig['discovery.zen.minimum_master_nodes'] = node.config.numNodes
-            esConfig['discovery.initial_state_timeout'] = '0s' // don't wait for state.. just start up quickly
+        int minimumMasterNodes = node.config.minimumMasterNodes.call()
+        if (minimumMasterNodes > 0) {
+            esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
+        }
+        if (node.config.numNodes > 1) {
+            // don't wait for state.. just start up quickly
+            // this will also allow new and old nodes in the BWC case to become the master
+            esConfig['discovery.initial_state_timeout'] = '0s'
         }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
@@ -424,7 +425,7 @@ class ClusterFormationTasks {
 
             Project pluginProject = plugin.getValue()
             verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
-            String configurationName = "_plugin_${prefix}_${pluginProject.path}"
+            String configurationName = pluginConfigurationName(prefix, pluginProject)
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
                 configuration = project.configurations.create(configurationName)
@@ -453,13 +454,21 @@ class ClusterFormationTasks {
         return copyPlugins
     }
 
+    private static String pluginConfigurationName(final String prefix, final Project project) {
+        return "_plugin_${prefix}_${project.path}".replace(':', '_')
+    }
+
+    private static String pluginBwcConfigurationName(final String prefix, final Project project) {
+        return "_plugin_bwc_${prefix}_${project.path}".replace(':', '_')
+    }
+
     /** Configures task to copy a plugin based on a zip file resolved using dependencies for an older version */
     static Task configureCopyBwcPluginsTask(String name, Project project, Task setup, NodeInfo node, String prefix) {
         Configuration bwcPlugins = project.configurations.getByName("${prefix}_elasticsearchBwcPlugins")
         for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
             Project pluginProject = plugin.getValue()
             verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
-            String configurationName = "_plugin_bwc_${prefix}_${pluginProject.path}"
+            String configurationName = pluginBwcConfigurationName(prefix, pluginProject)
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
                 configuration = project.configurations.create(configurationName)
@@ -498,9 +507,9 @@ class ClusterFormationTasks {
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin, String prefix) {
         final FileCollection pluginZip;
         if (node.nodeVersion != VersionProperties.elasticsearch) {
-            pluginZip = project.configurations.getByName("_plugin_bwc_${prefix}_${plugin.path}")
+            pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, plugin))
         } else {
-            pluginZip = project.configurations.getByName("_plugin_${prefix}_${plugin.path}")
+            pluginZip = project.configurations.getByName(pluginConfigurationName(prefix, plugin))
         }
         // delay reading the file location until execution time by wrapping in a closure within a GString
         final Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"

@@ -329,10 +329,8 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
                     },
                     "_score": 0.2876821,
                     "_source": {
-                      "comments": {
-                        "comment": "This car could have better brakes", <3>
-                        "username": "baddriver007"
-                      }
+                      "comment": "This car could have better brakes", <3>
+                      "username": "baddriver007"
                     }
                   }
                 ]

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -40,12 +41,14 @@ public class ShardSearchFailureTests extends ESTestCase {
     public static ShardSearchFailure createTestItem() {
         String randomMessage = randomAlphaOfLengthBetween(3, 20);
         Exception ex = new ParsingException(0, 0, randomMessage , new IllegalArgumentException("some bad argument"));
-        String nodeId = randomAlphaOfLengthBetween(5, 10);
-        String indexName = randomAlphaOfLengthBetween(5, 10);
-        String indexUuid = randomAlphaOfLengthBetween(5, 10);
-        int shardId = randomInt();
-        return new ShardSearchFailure(ex,
-                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, indexUuid), shardId), null, null));
+        SearchShardTarget searchShardTarget = null;
+        if (randomBoolean()) {
+            String nodeId = randomAlphaOfLengthBetween(5, 10);
+            String indexName = randomAlphaOfLengthBetween(5, 10);
+            searchShardTarget = new SearchShardTarget(nodeId,
+                    new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), randomInt()), null, null);
+        }
+        return new ShardSearchFailure(ex, searchShardTarget);
     }
 
     public void testFromXContent() throws IOException {
@@ -80,10 +83,10 @@ public class ShardSearchFailureTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
         assertEquals(response.index(), parsed.index());
-        assertEquals(response.shard().getNodeId(), parsed.shard().getNodeId());
+        assertEquals(response.shard(), parsed.shard());
         assertEquals(response.shardId(), parsed.shardId());
 
-        /**
+        /*
          * we cannot compare the cause, because it will be wrapped in an outer
          * ElasticSearchException best effort: try to check that the original
          * message appears somewhere in the rendered xContent

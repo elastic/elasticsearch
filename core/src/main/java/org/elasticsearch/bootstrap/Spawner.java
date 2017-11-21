@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
@@ -73,6 +74,9 @@ final class Spawner implements Closeable {
          */
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsFile)) {
             for (final Path plugin : stream) {
+                if (FileSystemUtils.isDesktopServicesStore(plugin)) {
+                    continue;
+                }
                 final PluginInfo info = PluginInfo.readFromProperties(plugin);
                 final Path spawnPath = Platforms.nativeControllerPath(plugin);
                 if (!Files.isRegularFile(spawnPath)) {

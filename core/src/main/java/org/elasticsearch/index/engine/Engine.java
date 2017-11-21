@@ -36,7 +36,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -90,7 +90,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 public abstract class Engine implements Closeable {
 
@@ -170,7 +170,7 @@ public abstract class Engine implements Closeable {
         return IndexWriter.SOURCE_MERGE.equals(source);
     }
 
-    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
+    protected Searcher newSearcher(String source, IndexSearcher searcher, ReferenceManager<IndexSearcher> manager) {
         return new EngineSearcher(source, searcher, manager, store, logger);
     }
 
@@ -186,6 +186,9 @@ public abstract class Engine implements Closeable {
 
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
+
+    /** Returns how many bytes we are currently moving from heap to disk */
+    public abstract long getWritingBytes();
 
     /**
      * A throttling class that can be activated, causing the
@@ -465,8 +468,9 @@ public abstract class Engine implements Closeable {
         PENDING_OPERATIONS
     }
 
-    protected final GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
-        final Searcher searcher = searcherFactory.apply("get");
+    protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory,
+                                              SearcherScope scope) throws EngineException {
+        final Searcher searcher = searcherFactory.apply("get", scope);
         final DocIdAndVersion docIdAndVersion;
         try {
             docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), get.uid());
@@ -494,23 +498,40 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
+    public abstract GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException;
+
 
     /**
      * Returns a new searcher instance. The consumer of this
      * API is responsible for releasing the returned searcher in a
      * safe manner, preferably in a try/finally block.
      *
+     * @param source the source API or routing that triggers this searcher acquire
+     *
      * @see Searcher#close()
      */
     public final Searcher acquireSearcher(String source) throws EngineException {
+        return acquireSearcher(source, SearcherScope.EXTERNAL);
+    }
+
+    /**
+     * Returns a new searcher instance. The consumer of this
+     * API is responsible for releasing the returned searcher in a
+     * safe manner, preferably in a try/finally block.
+     *
+     * @param source the source API or routing that triggers this searcher acquire
+     * @param scope the scope of this searcher ie. if the searcher will be used for get or search purposes
+     *
+     * @see Searcher#close()
+     */
+    public final Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
         boolean success = false;
          /* Acquire order here is store -> manager since we need
           * to make sure that the store is not closed before
           * the searcher is acquired. */
         store.incRef();
         try {
-            final SearcherManager manager = getSearcherManager(); // can never be null
+            final ReferenceManager<IndexSearcher> manager = getSearcherManager(source, scope); // can never be null
             /* This might throw NPE but that's fine we will run ensureOpen()
             *  in the catch block and throw the right exception */
             final IndexSearcher searcher = manager.acquire();
@@ -536,6 +557,10 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    public enum SearcherScope {
+        EXTERNAL, INTERNAL
+    }
+
     /** returns the translog for this engine */
     public abstract Translog getTranslog();
 
@@ -550,13 +575,17 @@ public abstract class Engine implements Closeable {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
-    /** get the sequence number service */
+    /**
+     * The sequence number service for this engine.
+     *
+     * @return the sequence number service
+     */
     public abstract SequenceNumbersService seqNoService();
 
     /**
      * Read the last segments info from the commit pointed to by the searcher manager
      */
-    protected static SegmentInfos readLastCommittedSegmentInfos(final SearcherManager sm, final Store store) throws IOException {
+    protected static SegmentInfos readLastCommittedSegmentInfos(final ReferenceManager<IndexSearcher> sm, final Store store) throws IOException {
         IndexSearcher searcher = sm.acquire();
         try {
             IndexCommit latestCommit = ((DirectoryReader) searcher.getIndexReader()).getIndexCommit();
@@ -681,17 +710,16 @@ public abstract class Engine implements Closeable {
     }
 
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
-    public abstract  long getIndexBufferRAMBytesUsed();
+    public abstract long getIndexBufferRAMBytesUsed();
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
-
         // first, go over and compute the search ones...
-        Searcher searcher = acquireSearcher("segments");
-        try {
+        try (Searcher searcher = acquireSearcher("segments")){
             for (LeafReaderContext reader : searcher.reader().leaves()) {
-                SegmentCommitInfo info = segmentReader(reader.reader()).getSegmentInfo();
+                final SegmentReader segmentReader = segmentReader(reader.reader());
+                SegmentCommitInfo info = segmentReader.getSegmentInfo();
                 assert !segments.containsKey(info.info.name);
                 Segment segment = new Segment(info.info.name);
                 segment.search = true;
@@ -704,7 +732,6 @@ public abstract class Engine implements Closeable {
                 } catch (IOException e) {
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                 }
-                final SegmentReader segmentReader = segmentReader(reader.reader());
                 segment.memoryInBytes = segmentReader.ramBytesUsed();
                 segment.segmentSort = info.info.getIndexSort();
                 if (verbose) {
@@ -714,8 +741,6 @@ public abstract class Engine implements Closeable {
                 // TODO: add more fine grained mem stats values to per segment info here
                 segments.put(info.info.name, segment);
             }
-        } finally {
-            searcher.close();
         }
 
         // now, correlate or add the committed ones...
@@ -762,13 +787,19 @@ public abstract class Engine implements Closeable {
     public final boolean refreshNeeded() {
         if (store.tryIncRef()) {
             /*
-              we need to inc the store here since searcherManager.isSearcherCurrent()
-              acquires a searcher internally and that might keep a file open on the
+              we need to inc the store here since we acquire a searcher and that might keep a file open on the
               store. this violates the assumption that all files are closed when
               the store is closed so we need to make sure we increment it here
              */
             try {
-                return getSearcherManager().isSearcherCurrent() == false;
+                ReferenceManager<IndexSearcher> manager = getSearcherManager("refresh_needed", SearcherScope.EXTERNAL);
+                final IndexSearcher searcher =  manager.acquire();
+                try {
+                    final IndexReader r = searcher.getIndexReader();
+                    return ((DirectoryReader) r).isCurrent() == false;
+                } finally {
+                    manager.release(searcher);
+                }
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
                 failEngine("failed to access searcher manager", e);
@@ -1306,7 +1337,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected abstract SearcherManager getSearcherManager();
+    protected abstract ReferenceManager<IndexSearcher> getSearcherManager(String source, SearcherScope scope);
 
     /**
      * Method to close the engine while the write lock is held.

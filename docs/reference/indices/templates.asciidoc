@@ -7,8 +7,10 @@ applied when new indices are created. The templates include both
 and a simple pattern template that controls whether the template should be 
 applied to the new index.
 
-NOTE: Templates are only applied at index creation time.  Changing a template
-will have no impact on existing indices.
+NOTE: Templates are only applied at index creation time. Changing a template
+will have no impact on existing indices. When using the create index API, the
+settings/mappings defined as part of the create index call will take precedence
+over any matching settings/mappings defined in the template.
 
 For example:
 

@@ -23,14 +23,18 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -123,7 +127,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
             if (getCurrentTypes().length > 0) {
-                expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, queryBuilder.fieldName())));
+                if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                        && context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
+                    expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(queryBuilder.fieldName()));
+                } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                        && context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
+                    expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(queryBuilder.fieldName()));
+                } else {
+                    expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, queryBuilder.fieldName())));
+                }
             } else {
                 expectedQuery = new MatchNoDocsQuery("no mappings yet");
             }
@@ -381,25 +393,10 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "  }\n" +
                 "}";
         assertNotNull(parseQuery(json));
-
-        final String deprecatedJson =
-                "{\n" +
-                "  \"range\" : {\n" +
-                "    \"timestamp\" : {\n" +
-                "      \"from\" : \"2015-01-01 00:00:00\",\n" +
-                "      \"to\" : \"now\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    },\n" +
-                "    \"_name\" : \"my_range\"\n" +
-                "  }\n" +
-                "}";
-
-        assertNotNull(parseQuery(deprecatedJson));
-        assertWarnings("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]");
     }
 
     public void testRewriteDateToMatchAll() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(1, 20);
+        String fieldName = DATE_FIELD_NAME;
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
@@ -422,7 +419,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         final Query luceneQuery = rewrittenRange.toQuery(queryShardContext);
         final Query expectedQuery;
         if (getCurrentTypes().length > 0) {
-            expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
+            if (queryShardContext.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                    && queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
+                expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
+            } else {
+                expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
+            }
         } else {
             expectedQuery = new MatchNoDocsQuery("no mappings yet");
         }
@@ -430,7 +432,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testRewriteDateToMatchAllWithTimezoneAndFormat() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(1, 20);
+        String fieldName = DATE_FIELD_NAME;
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
@@ -534,5 +536,30 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "  }";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[range] query doesn't support multiple fields, found [age] and [" + DATE_FIELD_NAME + "]", e.getMessage());
+    }
+
+    public void testParseRelation() {
+        String json =
+            "{\n" +
+                "    \"range\": {\n" +
+                "      \"age\": {\n" +
+                "        \"gte\": 30,\n" +
+                "        \"lte\": 40,\n" +
+                "        \"relation\": \"disjoint\"\n" +
+                "      }" +
+                "    }\n" +
+                "  }";
+        String fieldName = randomAlphaOfLengthBetween(1, 20);
+        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertEquals("[range] query does not support relation [disjoint]", e1.getMessage());
+        RangeQueryBuilder builder = new RangeQueryBuilder(fieldName);
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, ()->builder.relation("disjoint"));
+        assertEquals("[range] query does not support relation [disjoint]", e2.getMessage());
+        builder.relation("contains");
+        assertEquals(ShapeRelation.CONTAINS, builder.relation());
+        builder.relation("within");
+        assertEquals(ShapeRelation.WITHIN, builder.relation());
+        builder.relation("intersects");
+        assertEquals(ShapeRelation.INTERSECTS, builder.relation());
     }
 }

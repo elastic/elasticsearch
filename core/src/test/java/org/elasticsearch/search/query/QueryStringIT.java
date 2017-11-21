@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -52,7 +51,6 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -266,10 +264,10 @@ public class QueryStringIT extends ESIntegTestCase {
             Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.filter.graphsyns.type", "synonym_graph")
-                .putArray("index.analysis.filter.graphsyns.synonyms", "wtf, what the fudge", "foo, bar baz")
+                .putList("index.analysis.filter.graphsyns.synonyms", "wtf, what the fudge", "foo, bar baz")
                 .put("index.analysis.analyzer.lower_graphsyns.type", "custom")
                 .put("index.analysis.analyzer.lower_graphsyns.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.lower_graphsyns.filter", "lowercase", "graphsyns")
+                .putList("index.analysis.analyzer.lower_graphsyns.filter", "lowercase", "graphsyns")
         );
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject(index).startObject("properties")

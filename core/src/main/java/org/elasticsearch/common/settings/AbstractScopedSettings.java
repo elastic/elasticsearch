@@ -86,7 +86,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
     protected void validateSettingKey(Setting setting) {
         if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())
-            || isValidAffixKey(setting.getKey())) == false) {
+            || isValidAffixKey(setting.getKey())) == false || setting.getKey().endsWith(".0")) {
             throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
         }
     }
@@ -207,6 +207,20 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         addSettingsUpdater(setting.newAffixUpdater(consumer, logger, validator));
     }
 
+    /**
+     * Adds a settings consumer for affix settings. Affix settings have a namespace associated to it that needs to be available to the
+     * consumer in order to be processed correctly. This consumer will get a namespace to value map instead of each individual namespace
+     * and value as in {@link #addAffixUpdateConsumer(Setting.AffixSetting, BiConsumer, BiConsumer)}
+     */
+    public synchronized <T> void addAffixMapUpdateConsumer(Setting.AffixSetting<T> setting,  Consumer<Map<String, T>> consumer,
+                                                        BiConsumer<String, T> validator, boolean omitDefaults) {
+        final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
+        if (setting != registeredSetting) {
+            throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
+        }
+        addSettingsUpdater(setting.newAffixMapUpdater(consumer, logger, validator, omitDefaults));
+    }
+
     synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
         this.settingUpdaters.add(updater);
     }
@@ -250,20 +264,16 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Validates that all settings in the builder are registered and valid
+     * Validates that all given settings are registered and valid
+     * @param settings the settings to validate
+     * @param validateDependencies if <code>true</code> settings dependencies are validated as well.
+     * @see Setting#getSettingsDependencies(String)
      */
-    public final void validate(Settings.Builder settingsBuilder) {
-        validate(settingsBuilder.build());
-    }
-
-    /**
-     * * Validates that all given settings are registered and valid
-     */
-    public final void validate(Settings settings) {
+    public final void validate(Settings settings, boolean validateDependencies) {
         List<RuntimeException> exceptions = new ArrayList<>();
         for (String key : settings.keySet()) { // settings iterate in deterministic fashion
             try {
-                validate(key, settings);
+                validate(key, settings, validateDependencies);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -271,12 +281,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-
     /**
      * Validates that the setting is valid
      */
-    public final void validate(String key, Settings settings) {
-        Setting setting = get(key);
+    void validate(String key, Settings settings, boolean validateDependencies) {
+        Setting setting = getRaw(key);
         if (setting == null) {
             LevensteinDistance ld = new LevensteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
@@ -301,6 +310,20 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                     "settings";
             }
             throw new IllegalArgumentException(msg);
+        } else  {
+            Set<String> settingsDependencies = setting.getSettingsDependencies(key);
+            if (setting.hasComplexMatcher()) {
+                setting = setting.getConcreteSetting(key);
+            }
+            if (validateDependencies && settingsDependencies.isEmpty() == false) {
+                Set<String> settingKeys = settings.keySet();
+                for (String requiredSetting : settingsDependencies) {
+                    if (settingKeys.contains(requiredSetting) == false) {
+                        throw new IllegalArgumentException("Missing required setting ["
+                            + requiredSetting + "] for setting [" + setting.getKey() + "]");
+                    }
+                }
+            }
         }
         setting.get(settings);
     }
@@ -361,7 +384,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Returns the {@link Setting} for the given key or <code>null</code> if the setting can not be found.
      */
-    public Setting<?> get(String key) {
+    public final Setting<?> get(String key) {
+        Setting<?> raw = getRaw(key);
+        if (raw == null) {
+            return null;
+        } if (raw.hasComplexMatcher()) {
+            return raw.getConcreteSetting(key);
+        } else {
+            return raw;
+        }
+    }
+
+    private Setting<?> getRaw(String key) {
         Setting<?> setting = keySettings.get(key);
         if (setting != null) {
             return setting;
@@ -369,7 +403,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
             if (entry.getValue().match(key)) {
                 assert assertMatcher(key, 1);
-                return entry.getValue().getConcreteSetting(key);
+                assert entry.getValue().hasComplexMatcher();
+                return entry.getValue();
             }
         }
         return null;
@@ -489,22 +524,25 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 (onlyDynamic && isDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
                 || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
                 || (onlyDynamic == false && get(key) != null))); // if it's not dynamic AND we have a key
-        for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
-            if (entry.getValue() == null && (canRemove.test(entry.getKey()) || entry.getKey().endsWith("*"))) {
+        for (String key : toApply.keySet()) {
+            boolean isNull = toApply.get(key) == null;
+            if (isNull && (canRemove.test(key) || key.endsWith("*"))) {
                 // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
                 // we don't validate if there is any dynamic setting with that prefix yet we could do in the future
-                toRemove.add(entry.getKey());
+                toRemove.add(key);
                 // we don't set changed here it's set after we apply deletes below if something actually changed
-            } else if (entry.getValue() != null && canUpdate.test(entry.getKey())) {
-                validate(entry.getKey(), toApply);
-                settingsBuilder.put(entry.getKey(), entry.getValue());
-                updates.put(entry.getKey(), entry.getValue());
+            } else if (get(key) == null) {
+                throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
+            } else if (isNull == false && canUpdate.test(key)) {
+                validate(key, toApply, false); // we might not have a full picture here do to a dependency validation
+                settingsBuilder.copy(key, toApply);
+                updates.copy(key, toApply);
                 changed = true;
             } else {
-                if (isFinalSetting(entry.getKey())) {
-                    throw new IllegalArgumentException("final " + type + " setting [" + entry.getKey() + "], not updateable");
+                if (isFinalSetting(key)) {
+                    throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");
                 } else {
-                    throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
+                    throw new IllegalArgumentException(type + " setting [" + key + "], not dynamically updateable");
                 }
             }
         }
@@ -517,7 +555,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         boolean changed = false;
         for (String entry : deletes) {
             Set<String> keysToRemove = new HashSet<>();
-            Set<String> keySet = builder.internalMap().keySet();
+            Set<String> keySet = builder.keys();
             for (String key : keySet) {
                 if (Regex.simpleMatch(entry, key) && canRemove.test(key)) {
                     // we have to re-check with canRemove here since we might have a wildcard expression foo.* that matches
@@ -568,35 +606,35 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         final BiConsumer<Map.Entry<String, String>, IllegalArgumentException> invalidConsumer) {
         Settings.Builder builder = Settings.builder();
         boolean changed = false;
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+        for (String key : settings.keySet()) {
             try {
-                Setting<?> setting = get(entry.getKey());
+                Setting<?> setting = get(key);
                 if (setting != null) {
                     setting.get(settings);
-                    builder.put(entry.getKey(), entry.getValue());
+                    builder.copy(key, settings);
                 } else {
-                    if (entry.getKey().startsWith(ARCHIVED_SETTINGS_PREFIX) || isPrivateSetting(entry.getKey())) {
-                        builder.put(entry.getKey(), entry.getValue());
+                    if (key.startsWith(ARCHIVED_SETTINGS_PREFIX) || isPrivateSetting(key)) {
+                        builder.copy(key, settings);
                     } else {
                         changed = true;
-                        unknownConsumer.accept(entry);
+                        unknownConsumer.accept(new Entry(key, settings));
                         /*
                          * We put them back in here such that tools can check from the outside if there are any indices with invalid
                          * settings. The setting can remain there but we want users to be aware that some of their setting are invalid and
                          * they can research why and what they need to do to replace them.
                          */
-                        builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
+                        builder.copy(ARCHIVED_SETTINGS_PREFIX + key, key, settings);
                     }
                 }
             } catch (IllegalArgumentException ex) {
                 changed = true;
-                invalidConsumer.accept(entry, ex);
+                invalidConsumer.accept(new Entry(key, settings), ex);
                 /*
                  * We put them back in here such that tools can check from the outside if there are any indices with invalid settings. The
                  * setting can remain there but we want users to be aware that some of their setting are invalid and they can research why
                  * and what they need to do to replace them.
                  */
-                builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
+                builder.copy(ARCHIVED_SETTINGS_PREFIX + key, key, settings);
             }
         }
         if (changed) {
@@ -606,12 +644,38 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
     }
 
+    private static final class Entry implements Map.Entry<String, String> {
+
+        private final String key;
+        private final Settings settings;
+
+        private Entry(String key, Settings settings) {
+            this.key = key;
+            this.settings = settings;
+        }
+
+        @Override
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public String getValue() {
+            return settings.get(key);
+        }
+
+        @Override
+        public String setValue(String value) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     /**
      * Returns <code>true</code> iff the setting is a private setting ie. it should be treated as valid even though it has no internal
      * representation. Otherwise <code>false</code>
      */
     // TODO this should be replaced by Setting.Property.HIDDEN or something like this.
-    protected boolean isPrivateSetting(String key) {
+    public boolean isPrivateSetting(String key) {
         return false;
     }
 }

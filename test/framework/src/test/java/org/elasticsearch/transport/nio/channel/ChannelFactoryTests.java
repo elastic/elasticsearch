@@ -53,18 +53,11 @@ public class ChannelFactoryTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setupFactory() throws IOException {
         rawChannelFactory = mock(TcpChannelFactory.RawChannelFactory.class);
-        Consumer contextSetter = mock(Consumer.class);
-        channelFactory = new TestChannelFactory(rawChannelFactory, contextSetter);
+        channelFactory = new TestChannelFactory(rawChannelFactory);
         socketSelector = mock(SocketSelector.class);
         acceptingSelector = mock(AcceptingSelector.class);
         rawChannel = SocketChannel.open();
         rawServerChannel = ServerSocketChannel.open();
-
-        doAnswer(invocationOnMock -> {
-            NioSocketChannel channel = (NioSocketChannel) invocationOnMock.getArguments()[0];
-            channel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
-            return null;
-        }).when(contextSetter).accept(any());
     }
 
     @After
@@ -141,13 +134,15 @@ public class ChannelFactoryTests extends ESTestCase {
 
     private static class TestChannelFactory extends ChannelFactory {
 
-        TestChannelFactory(RawChannelFactory rawChannelFactory, Consumer<NioSocketChannel> contextSetter) {
-            super(rawChannelFactory, contextSetter);
+        TestChannelFactory(RawChannelFactory rawChannelFactory) {
+            super(rawChannelFactory);
         }
 
         @Override
         public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
-            return new NioSocketChannel(channel, selector);
+            NioSocketChannel nioSocketChannel = new NioSocketChannel(channel, selector);
+            nioSocketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
+            return nioSocketChannel;
         }
 
         @Override

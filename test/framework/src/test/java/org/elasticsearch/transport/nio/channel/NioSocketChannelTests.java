@@ -72,7 +72,6 @@ public class NioSocketChannelTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
 
         NioSocketChannel socketChannel = new DoNotCloseChannel(mock(SocketChannel.class), selector);
-        openChannels.clientChannelOpened(socketChannel);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         socketChannel.addCloseListener(new ActionListener<Void>() {
             @Override
@@ -90,7 +89,6 @@ public class NioSocketChannelTests extends ESTestCase {
         assertTrue(socketChannel.isOpen());
         assertFalse(closedRawChannel.get());
         assertFalse(isClosed.get());
-        assertTrue(openChannels.getClientChannels().containsKey(socketChannel));
 
         PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
         socketChannel.addCloseListener(closeFuture);
@@ -99,7 +97,6 @@ public class NioSocketChannelTests extends ESTestCase {
 
         assertTrue(closedRawChannel.get());
         assertFalse(socketChannel.isOpen());
-        assertFalse(openChannels.getClientChannels().containsKey(socketChannel));
         latch.await();
         assertTrue(isClosed.get());
     }

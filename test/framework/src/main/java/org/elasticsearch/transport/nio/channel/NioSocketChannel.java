@@ -30,6 +30,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
@@ -38,6 +39,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     private final SocketSelector socketSelector;
     private WriteContext writeContext;
     private ReadContext readContext;
+    private BiConsumer<NioSocketChannel, Exception> exceptionHandler;
     private Exception connectException;
 
     public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
@@ -98,12 +100,20 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         this.writeContext = writeContext;
     }
 
+    public void setExceptionHandler(BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
+        this.exceptionHandler = exceptionHandler;
+    }
+
     public WriteContext getWriteContext() {
         return writeContext;
     }
 
     public ReadContext getReadContext() {
         return readContext;
+    }
+
+    public BiConsumer<NioSocketChannel, Exception> getExceptionHandler() {
+        return exceptionHandler;
     }
 
     public InetSocketAddress getRemoteAddress() {

@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.SocketSelector;
 
@@ -35,7 +34,6 @@ import java.util.function.Consumer;
 
 public abstract class ChannelFactory<SS extends NioServerSocketChannel, S extends NioSocketChannel> {
 
-    private final Consumer<NioSocketChannel> contextSetter;
     private final ChannelFactory.RawChannelFactory rawChannelFactory;
 
     /**
@@ -45,10 +43,8 @@ public abstract class ChannelFactory<SS extends NioServerSocketChannel, S extend
      * contexts. The read and write contexts handle the protocol specific encoding and decoding of messages.
      *
      * @param rawChannelFactory a factory that will construct the raw socket channels
-     * @param contextSetter a consumer that takes a channel and sets the read and write contexts
      */
-    ChannelFactory(RawChannelFactory rawChannelFactory, Consumer<NioSocketChannel> contextSetter) {
-        this.contextSetter = contextSetter;
+    ChannelFactory(RawChannelFactory rawChannelFactory) {
         this.rawChannelFactory = rawChannelFactory;
     }
 
@@ -80,7 +76,8 @@ public abstract class ChannelFactory<SS extends NioServerSocketChannel, S extend
     private S createChannel0(SocketSelector selector, SocketChannel rawChannel) throws IOException {
         try {
             S channel = createChannel(selector, rawChannel);
-            setContexts(channel);
+            assert channel.getReadContext() != null : "read context should have been set on channel";
+            assert channel.getWriteContext() != null : "write context should have been set on channel";
             return channel;
         } catch (Exception e) {
             closeRawChannel(rawChannel, e);
@@ -113,12 +110,6 @@ public abstract class ChannelFactory<SS extends NioServerSocketChannel, S extend
             closeRawChannel(channel.getRawChannel(), e);
             throw e;
         }
-    }
-
-    private void setContexts(S channel) {
-        contextSetter.accept(channel);
-        assert channel.getReadContext() != null : "read context should have been set on channel";
-        assert channel.getWriteContext() != null : "write context should have been set on channel";
     }
 
     private static void closeRawChannel(Closeable c, Exception e) {

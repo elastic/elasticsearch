@@ -121,7 +121,8 @@ public class NioTransport extends TcpTransport {
 
             Consumer<NioSocketChannel> clientContextSetter = getContextSetter("client-socket");
             clientSelectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-            clientChannelFactory = new TcpChannelFactory(new ProfileSettings(settings, "default"), clientContextSetter);
+            ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
+            clientChannelFactory = new TcpChannelFactory(clientProfileSettings, clientContextSetter, getServerContextSetter());
 
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 int acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
@@ -144,7 +145,9 @@ public class NioTransport extends TcpTransport {
                 for (ProfileSettings profileSettings : profileSettings) {
                     String profileName = profileSettings.profileName;
                     Consumer<NioSocketChannel> contextSetter = getContextSetter(profileName);
-                    profileToChannelFactory.putIfAbsent(profileName, new TcpChannelFactory(profileSettings, contextSetter));
+                    Consumer<NioServerSocketChannel> serverContextSetter = getServerContextSetter();
+                    TcpChannelFactory factory = new TcpChannelFactory(profileSettings, contextSetter, serverContextSetter);
+                    profileToChannelFactory.putIfAbsent(profileName, factory);
                     bindServer(profileSettings);
                 }
             }
@@ -174,10 +177,17 @@ public class NioTransport extends TcpTransport {
     }
 
     final void exceptionCaught(NioSocketChannel channel, Exception exception) {
-//        onException(channel, exception);
+        onException((TcpNioSocketChannel) channel, exception);
     }
 
     private Consumer<NioSocketChannel> getContextSetter(String profileName) {
-        return (c) -> c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName,this)), new TcpWriteContext(c));
+        return (c) -> {
+            c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName,this)), new TcpWriteContext(c));
+            c.setExceptionHandler(this::exceptionCaught);
+        };
+    }
+
+    private Consumer<NioServerSocketChannel> getServerContextSetter() {
+        return (c) -> c.setAcceptContext((channel) -> serverAcceptedChannel((TcpNioSocketChannel) channel));
     }
 }

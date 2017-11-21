@@ -694,9 +694,9 @@ public abstract class StreamInput extends InputStream {
      * assumed that the stream first contains a variable-length integer representing the size of the array, and then contains that many
      * elements that can be read from the stream.
      *
-     * @param reader the reader used to read individual elements
+     * @param reader        the reader used to read individual elements
      * @param arraySupplier a supplier used to construct a new array
-     * @param <T> the type of the elements of the array
+     * @param <T>           the type of the elements of the array
      * @return an array read from the stream
      * @throws IOException if an I/O exception occurs while reading the array
      */

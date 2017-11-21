@@ -29,6 +29,9 @@ setup:
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}],
                 "influencers": ["airport"]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "30mb"
+            },
             "data_description" : {
                 "format":"xcontent",
                 "time_field":"time",
@@ -203,6 +206,9 @@ setup:
                 "bucket_span": "1h",
                 "detectors" :[{"function":"count","by_field_name":"airline2"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "30mb"
+            },
             "data_description" : {
                 "time_field":"time"
             }
@@ -274,6 +280,9 @@ setup:
                 "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "30mb"
+            },
             "data_description" : {
                 "time_field":"time"
             }
@@ -288,6 +297,9 @@ setup:
                 "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "30mb"
+            },
             "data_description" : {
                 "time_field":"time"
             }
@@ -301,6 +313,9 @@ setup:
             "analysis_config" : {
                 "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "30mb"
             },
             "data_description" : {
                 "time_field":"time"

@@ -121,6 +121,7 @@ if (project == rootProject) {
     }
     mavenCentral()
   }
+  compileTestJava.enabled = false
   test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'
 }
 
@@ -146,7 +147,11 @@ if (project != rootProject) {
   thirdPartyAudit.enabled = false
 
   // test for elasticsearch.build tries to run with ES...
-  test.enabled = false
+  dependencies {
+    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+    testCompile "junit:junit:${versions.junit}"
+    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  }
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false

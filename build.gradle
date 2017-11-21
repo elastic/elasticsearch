@@ -94,8 +94,6 @@ allprojects {
 
     // for BWC testing
     versionCollection = versions
-    indexCompatVersions = versions.getVersionsIndexCompatibleWithCurrent()
-    wireCompatVersions = versions.getVersionsWireCompatibleWithCurrent()
 
     buildMetadata = buildMetadataMap
   }
@@ -120,7 +118,7 @@ task verifyVersions {
      * Versions not marked as released don't get the same testing and we want
      * to make sure that we flip all unreleased versions to released as soon
      * as possible after release. */
-    Set<Version> actualVersions = new TreeSet<>(indexCompatVersions.findAll { false == it.snapshot })
+    Set<Version> actualVersions = new TreeSet<>(versions.versionsIndexCompatibleWithCurrent.findAll { false == it.snapshot })
 
     // Finally, compare!
     if (knownVersions.equals(actualVersions) == false) {
@@ -196,30 +194,22 @@ subprojects {
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:aggs-composite-client:${version}": ':modules:aggs-composite',
   ]
-  if (indexCompatVersions[-1].snapshot) {
-    /* The last and second to last versions can be snapshots. Rather than use
-     * snapshots built by CI we connect these versions to projects that build
-     * those those versions from the HEAD of the appropriate branch. */
-    if (indexCompatVersions[-1].revision == 0) {
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
-      if (indexCompatVersions.size() > 1) {
-        ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
-        ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
-        ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
-      }
-    } else {
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
-    }
-  } else if (indexCompatVersions[-2].snapshot) {
-    /* This is a terrible hack for the bump to 6.0.1 which will be fixed by #27397 */
-    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
-    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+
+  final def bwcStableSnapshot = versionCollection.BWCSnapshotForPreviousMajor
+  if (bwcStableSnapshot != null) {
+    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-stable-snapshot'
+    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-stable-snapshot'
+    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-stable-snapshot'
   }
+  final def  bwcReleaseSnapshot = versionCollection.BWCSnapshotForCurrentMajor
+  if (bwcReleaseSnapshot != null) {
+    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${bwcReleaseSnapshot}"] = ':distribution:bwc-release-snapshot'
+    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${bwcReleaseSnapshot}"] = ':distribution:bwc-release-snapshot'
+    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${bwcReleaseSnapshot}"] = ':distribution:bwc-release-snapshot'
+  }
+  // TODO there might be another one to test: if CURRENT == 6.2.0 and 6.1.0 is not released
+  // then we need to test against 6.1.0-SNAPSHOT, 6.0.max-SNAPSHOT and 5.6.max-SNAPSHOT
+
   project.afterEvaluate {
     configurations.all {
       resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->

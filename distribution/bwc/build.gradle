@@ -19,6 +19,7 @@
 
 
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.Version
 
 /**
  * This is a dummy project which does a local checkout of the previous
@@ -26,40 +27,26 @@ import org.elasticsearch.gradle.LoggedExec
  * tests to test against the next unreleased version, closest to this version,
  * without relying on snapshots.
  */
-String bwcVersion
-boolean enabled = true
+Version bwcVersion
 if (project.name == 'bwc-stable-snapshot') {
-  /* bwc-stable is only used if the last version is on a stable branch instead
-   * of a revision branch */
-  enabled = indexCompatVersions[-1].revision == 0
-  bwcVersion = indexCompatVersions[-1]
+  bwcVersion = versionCollection.BWCSnapshotForPreviousMajor
 } else if (project.name == 'bwc-release-snapshot') {
-  if (indexCompatVersions[-1].revision == 0) {
-    /* The last version is on a stable branch so it is handled by the bwc-stable
-     * project. This project will instead handle the version before that which
-     * *should* be on a stable branch. */
-    bwcVersion = indexCompatVersions[-2]
-  } else {
-    // The last version is on a release branch so it is handled by this project
-    bwcVersion = indexCompatVersions[-1]
-  }
+  bwcVersion = versionCollection.BWCSnapshotForCurrentMajor
 } else {
   throw new InvalidUserDataException("Unsupport project name ${project.name}")
 }
 
-if (enabled) {
+if (bwcVersion != null) {
   apply plugin: 'distribution'
   // Not published so no need to assemble
   tasks.remove(assemble)
   build.dependsOn.remove('assemble')
 
-  def (String major, String minor, String revision) = bwcVersion.split('\\.')
-  def (String currentMajor, String currentMinor, String currentRevision) = version.split('\\.')
   String bwcBranch
-  if (project.name == 'bwc-stable-snapshot' && major != currentMajor) {
-    bwcBranch = "${major}.x"
+  if (project.name == 'bwc-stable-snapshot' && bwcVersion.major != versionCollection.currentVersion.major) {
+    bwcBranch = "${bwcVersion.major}.x"
   } else {
-    bwcBranch = "${major}.${minor}"
+    bwcBranch = "${bwcVersion.major}.${bwcVersion.minor}"
   }
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 

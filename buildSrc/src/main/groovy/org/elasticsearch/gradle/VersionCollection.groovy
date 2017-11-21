@@ -89,15 +89,15 @@ class VersionCollection {
     }
 
     Version getBWCSnapshotForCurrentMajor() {
-        return getLastSnapshotWithMajor(versions, getCurrentVersion().major)
+        return getLastSnapshotWithMajor(currentVersion.major)
     }
 
     Version getBWCSnapshotForPreviousMajor() {
-        return getLastSnapshotWithMajor(versions, getCurrentVersion().major - 1)
+        return getLastSnapshotWithMajor(currentVersion.major - 1)
     }
 
     private Version getLastSnapshotWithMajor(int targetMajor) {
-        final def currentVersion = getCurrentVersion().toString()
+        final def currentVersion = currentVersion.toString()
         final int snapshotIndex = versions.findLastIndexOf {
             it.major == targetMajor && it.before(currentVersion) && it.snapshot
         }
@@ -107,17 +107,16 @@ class VersionCollection {
     private List<Version> versionsOnOrAfterExceptCurrent(Version minVersion) {
         final def minVersionString = minVersion.toString();
         return Collections.unmodifiableList(versions.findAll {
-            it.onOrAfter(minVersionString) && it != getCurrentVersion()
+            it.onOrAfter(minVersionString) && it != currentVersion
         })
     }
 
     List<Version> getVersionsIndexCompatibleWithCurrent() {
-        final def firstVersionOfCurrentMajor = versions.find { it.major >= getCurrentVersion().major - 1 }
+        final def firstVersionOfCurrentMajor = versions.find { it.major >= currentVersion.major - 1 }
         return versionsOnOrAfterExceptCurrent(firstVersionOfCurrentMajor)
     }
 
     private Version getMinimumWireCompatibilityVersion() {
-        final def currentVersion = getCurrentVersion()
         final def firstIndexOfThisMajor = versions.findIndexOf { it.major == currentVersion.major }
         if (firstIndexOfThisMajor == 0) {
             return versions[0]
@@ -127,6 +126,21 @@ class VersionCollection {
     }
 
     List<Version> getVersionsWireCompatibleWithCurrent() {
-        return versionsOnOrAfterExceptCurrent(getMinimumWireCompatibilityVersion())
+        return versionsOnOrAfterExceptCurrent(minimumWireCompatibilityVersion)
+    }
+
+    List<Version> getBasicIntegrationTestVersions() {
+        // TODO these are the versions checked by `gradle check` for BWC tests. Their choice seems a litle arbitrary.
+        List<Version> result = []
+        def v1 = BWCSnapshotForCurrentMajor
+        if (v1 != null) { // TODO remove null check. Should never be null?
+            result.add(v1)
+            if (v1.revision == 0) {
+                final def v2 = BWCSnapshotForPreviousMajor
+                result.add(v2)
+            }
+        }
+
+        return Collections.unmodifiableList(result);
     }
 }

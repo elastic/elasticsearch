@@ -10,6 +10,9 @@ setup:
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
             "data_description" : {}
           }
 
@@ -23,6 +26,9 @@ setup:
             "groups": ["foo-group", "twos"],
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
             },
             "data_description" : {}
           }
@@ -38,6 +44,9 @@ setup:
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
             "data_description" : {}
           }
 
@@ -52,6 +61,9 @@ setup:
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
             "data_description" : {}
           }
 
@@ -64,6 +76,9 @@ setup:
           {
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
             },
             "data_description" : {}
           }

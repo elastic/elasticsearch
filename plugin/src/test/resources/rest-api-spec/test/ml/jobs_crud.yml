@@ -404,6 +404,9 @@
                 "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
             "data_description" : {
                 "time_field":"time"
             }
@@ -492,6 +495,9 @@
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
             "data_description" : {
                 "format":"xcontent"
             }
@@ -523,6 +529,9 @@
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
             "data_description" : {
                 "format":"xcontent"
             }
@@ -537,6 +546,9 @@
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
             },
             "data_description" : {
                 "format":"xcontent"
@@ -569,6 +581,9 @@
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
             "data_description" : {}
           }
 
@@ -580,6 +595,9 @@
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
             "data_description" : {}
           }
 
@@ -590,6 +608,9 @@
           {
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
             },
             "data_description" : {}
           }
@@ -654,6 +675,9 @@
                 "bucket_span":"1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
             "data_description" : {
                 "format":"xcontent",
                 "time_field":"time",
@@ -712,6 +736,9 @@
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
             },
             "data_description" : {
                 "format":"xcontent"

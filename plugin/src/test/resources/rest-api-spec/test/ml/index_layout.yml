@@ -12,6 +12,9 @@
                 "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
             "data_description" : {
                 "format":"xcontent",
                 "time_field":"time",
@@ -31,6 +34,9 @@
             "analysis_config" : {
                 "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
             },
             "data_description" : {
                 "format":"xcontent",
@@ -339,6 +345,9 @@
                 "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
             "data_description" : {
                 "format":"xcontent",
                 "time_field":"time",
@@ -486,6 +495,9 @@
                 "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
             "data_description" : {
                 "format":"xcontent"
             }
@@ -531,6 +543,9 @@
                 "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"mlcategory"}],
                 "categorization_field_name": "message"
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
             },
             "data_description" : {
                 "format":"xcontent"
@@ -636,6 +651,9 @@
             "analysis_config" : {
                 "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
             },
             "data_description" : {
                 "time_field":"time",

@@ -139,7 +139,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                         filter.add(roleQuery, SHOULD);
                         if (queryShardContext.getMapperService().hasNested()) {
                             // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
-                            BitSetProducer rootDocs = queryShardContext.bitsetFilter(Queries.newNonNestedFilter());
+                            BitSetProducer rootDocs = queryShardContext.bitsetFilter(
+                                    Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()));
                             ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
                             filter.add(includeNestedDocs, SHOULD);
                         }

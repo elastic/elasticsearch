@@ -13,6 +13,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -46,7 +47,7 @@ public class MlDailyManagementServiceTests extends ESTestCase {
             latch.await(1, TimeUnit.SECONDS);
         }
 
-        verify(client, org.mockito.Mockito.atLeast(triggerCount - 1)).execute(same(DeleteExpiredDataAction.INSTANCE), any());
+        verify(client, Mockito.atLeast(triggerCount - 1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
     }
 
     private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {

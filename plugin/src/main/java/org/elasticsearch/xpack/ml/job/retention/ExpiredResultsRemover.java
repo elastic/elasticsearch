@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
@@ -55,7 +56,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     }
 
     @Override
-    protected void removeDataBefore(Job job, long cutoffEpochMs, Runnable onFinish) {
+    protected void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener) {
         LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
         DeleteByQueryRequest request = createDBQRequest(job, cutoffEpochMs);
 
@@ -66,7 +67,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                     if (bulkByScrollResponse.getDeleted() > 0) {
                         auditResultsWereDeleted(job.getId(), cutoffEpochMs);
                     }
-                    onFinish.run();
+                    listener.onResponse(true);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -74,8 +75,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
             @Override
             public void onFailure(Exception e) {
-                LOGGER.error("Failed to remove expired results for job [" + job.getId() + "]", e);
-                onFinish.run();
+                listener.onFailure(new ElasticsearchException("Failed to remove expired results for job [" + job.getId() + "]", e));
             }
         });
     }

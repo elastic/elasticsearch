@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,23 +40,23 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(Runnable onFinish) {
-        removeData(newJobIterator(), onFinish);
+    public void remove(ActionListener<Boolean> listener) {
+        removeData(newJobIterator(), listener);
     }
 
-    private void removeData(Iterator<Job> jobIterator, Runnable onFinish) {
+    private void removeData(Iterator<Job> jobIterator, ActionListener<Boolean> listener) {
         if (jobIterator.hasNext() == false) {
-            onFinish.run();
+            listener.onResponse(true);
             return;
         }
         Job job = jobIterator.next();
         Long retentionDays = getRetentionDays(job);
         if (retentionDays == null) {
-            removeData(jobIterator, () -> removeData(jobIterator, onFinish));
+            removeData(jobIterator, listener);
             return;
         }
         long cutoffEpochMs = calcCutoffEpochMs(retentionDays);
-        removeDataBefore(job, cutoffEpochMs, () -> removeData(jobIterator, onFinish));
+        removeDataBefore(job, cutoffEpochMs, ActionListener.wrap(response -> removeData(jobIterator, listener), listener::onFailure));
     }
 
     private Iterator<Job> newJobIterator() {
@@ -81,9 +82,9 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
     /**
      * Template method to allow implementation details of various types of data (e.g. results, model snapshots).
-     * Implementors need to call {@code onFinish} when they are done in order to continue to the next job.
+     * Implementors need to call {@code listener.onResponse} when they are done in order to continue to the next job.
      */
-    protected abstract void removeDataBefore(Job job, long cutoffEpochMs, Runnable onFinish);
+    protected abstract void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener);
 
     protected static BoolQueryBuilder createQuery(String jobId, long cutoffEpochMs) {
         return QueryBuilders.boolQuery()

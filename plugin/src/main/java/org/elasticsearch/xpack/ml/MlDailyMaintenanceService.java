@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.lease.Releasable;
@@ -106,11 +107,9 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private void triggerTasks() {
         LOGGER.info("triggering scheduled [ML] maintenance tasks");
-        try {
-            client.execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request());
-        } catch (Exception e) {
-            LOGGER.error("An error occurred during maintenance tasks execution", e);
-        }
+        client.execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request(), ActionListener.wrap(
+                response -> LOGGER.info("Successfully completed [ML] maintenance tasks"),
+                e -> LOGGER.error("An error occurred during maintenance tasks execution", e)));
         scheduleNext();
     }
 }

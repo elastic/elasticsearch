@@ -119,7 +119,7 @@ final class Security {
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        final String[] classesThatCanExit = new String[] { ElasticsearchUncaughtExceptionHandler.class.getName(), Command.class.getName()};
+        final String[] classesThatCanExit = new String[]{ElasticsearchUncaughtExceptionHandler.class.getName(), Command.class.getName()};
         System.setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests

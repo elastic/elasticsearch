@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -44,11 +46,11 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.hasEntry;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
@@ -56,7 +58,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(4);
         ensureStableCluster(4);
 
-        Job.Builder job = createJob("fail-over-basics-job");
+        Job.Builder job = createJob("fail-over-basics-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
@@ -200,7 +202,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(3);
 
         String jobId = "dedicated-ml-node-job";
-        Job.Builder job = createJob(jobId);
+        Job.Builder job = createJob(jobId, new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
@@ -213,10 +215,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             PersistentTask task = tasks.getTask(MlMetadata.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            Map<String, String> expectedNodeAttr = new HashMap<>();
-            expectedNodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
-            expectedNodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
-            assertEquals(expectedNodeAttr, node.getAttributes());
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10"));
             JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
             assertNotNull(jobTaskStatus);
             assertEquals(JobState.OPENED, jobTaskStatus.getState());
@@ -284,7 +284,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         int numJobs = numMlNodes * 10;
         for (int i = 0; i < numJobs; i++) {
-            Job.Builder job = createJob(Integer.toString(i));
+            Job.Builder job = createJob(Integer.toString(i), new ByteSizeValue(2, ByteSizeUnit.MB));
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
             PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
             assertTrue(putJobResponse.isAcknowledged());
@@ -401,10 +401,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertNotNull(task.getExecutorNode());
             assertFalse(task.needsReassignment(clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            Map<String, String> expectedNodeAttr = new HashMap<>();
-            expectedNodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
-            expectedNodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
-            assertEquals(expectedNodeAttr, node.getAttributes());
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10"));
 
             JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
             assertNotNull(jobTaskStatus);

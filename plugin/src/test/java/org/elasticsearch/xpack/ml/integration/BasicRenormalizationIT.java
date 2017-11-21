@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.junit.After;
 
@@ -66,6 +68,13 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
         // This is the key assertion: if renormalization never happened then the record_score would
         // be the same as the initial_record_score on the anomaly record that happened earlier
         assertThat(earlierRecord.getInitialRecordScore(), greaterThan(earlierRecord.getRecordScore()));
+
+        // Since this job ran for 50 buckets, it's a good place to assert
+        // that established model memory matches model memory in the job stats
+        GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
+        ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
+        Job updatedJob = getJob(job.getId()).get(0);
+        assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
     }
 
     private Job.Builder buildAndRegisterJob(String jobId, TimeValue bucketSpan) throws Exception {

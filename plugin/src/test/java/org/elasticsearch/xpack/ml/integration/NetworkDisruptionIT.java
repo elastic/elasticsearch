@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -54,7 +56,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(5);
         ensureStableCluster(5);
 
-        Job.Builder job = createJob("relocation-job");
+        Job.Builder job = createJob("relocation-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());

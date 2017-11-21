@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -91,9 +93,10 @@ public class OpenJobActionTests extends ESTestCase {
         OpenJobAction.validate("job_id", mlBuilder.build());
     }
 
-    public void testSelectLeastLoadedMlNode() {
+    public void testSelectLeastLoadedMlNode_byCount() {
         Map<String, String> nodeAttr = new HashMap<>();
         nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        // MachineLearning.MACHINE_MEMORY_NODE_ATTR not set, so this will fall back to allocating by count
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         nodeAttr, Collections.emptySet(), Version.CURRENT))
@@ -117,8 +120,47 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, 10, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, 10, 30, logger);
+        assertEquals("", result.getExplanation());
         assertEquals("_node_id3", result.getExecutorNode());
+    }
+
+    public void testSelectLeastLoadedMlNode_byMemory() {
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "16000000000");
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .add(new DiscoveryNode("_node_name3", "_node_id3", new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .build();
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id1", "_node_id1", JobState.fromString("opened"), tasksBuilder);
+        addJobTask("job_id2", "_node_id2", JobState.fromString("opened"), tasksBuilder);
+        addJobTask("job_id3", "_node_id2", JobState.fromString("opened"), tasksBuilder);
+        addJobTask("job_id4", "_node_id3", JobState.fromString("opened"), tasksBuilder);
+        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addJobAndIndices(metaData, routingTable, jobId -> {
+            // remember we add 100MB for the process overhead, so these model memory
+            // limits correspond to estimated footprints of 102MB and 205MB
+            long jobSize = (jobId.equals("job_id2") || jobId.equals("job_id3")) ? 2 : 105;
+            return BaseMlIntegTestCase.createFareQuoteJob(jobId, new ByteSizeValue(jobSize, ByteSizeUnit.MB)).build(new Date());
+        }, "job_id1", "job_id2", "job_id3", "job_id4", "job_id5");
+        cs.nodes(nodes);
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
+        cs.metaData(metaData);
+        cs.routingTable(routingTable.build());
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id5", cs.build(), 2, 10, 30, logger);
+        assertEquals("", result.getExplanation());
+        assertEquals("_node_id2", result.getExecutorNode());
     }
 
     public void testSelectLeastLoadedMlNode_maxCapacity() {
@@ -129,13 +171,15 @@ public class OpenJobActionTests extends ESTestCase {
         nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        String[] jobIds = new String[numNodes * maxRunningJobsPerNode];
         for (int i = 0; i < numNodes; i++) {
             String nodeId = "_node_id" + i;
             TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i);
             nodes.add(new DiscoveryNode("_node_name" + i, nodeId, address, nodeAttr, Collections.emptySet(), Version.CURRENT));
             for (int j = 0; j < maxRunningJobsPerNode; j++) {
-                long id = j + (maxRunningJobsPerNode * i);
-                addJobTask("job_id" + id, nodeId, JobState.OPENED, tasksBuilder);
+                int id = j + (maxRunningJobsPerNode * i);
+                jobIds[id] = "job_id" + id;
+                addJobTask(jobIds[id], nodeId, JobState.OPENED, tasksBuilder);
             }
         }
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
@@ -143,12 +187,12 @@ public class OpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, "job_id1", "job_id2");
+        addJobAndIndices(metaData, routingTable, jobIds);
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, maxRunningJobsPerNode, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, maxRunningJobsPerNode, 30, logger);
         assertNull(result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because this node is full. Number of opened jobs [" + maxRunningJobsPerNode
                 + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
@@ -174,7 +218,7 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, 10, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, 10, 30, logger);
         assertTrue(result.getExplanation().contains("because this node isn't a ml node"));
         assertNull(result.getExecutorNode());
     }
@@ -209,7 +253,7 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id6", cs, 2, 10, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id6", cs, 2, 10, 30, logger);
         assertEquals("_node_id3", result.getExecutorNode());
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
@@ -219,7 +263,7 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, logger);
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, 30, logger);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -230,7 +274,7 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, logger);
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, 30, logger);
         assertNull("no node selected, because stale task", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -241,7 +285,7 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder = ClusterState.builder(cs);
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
-        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, logger);
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, 10, 30, logger);
         assertNull("no node selected, because null state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
@@ -276,7 +320,7 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, 30, logger);
         assertThat(result.getExplanation(), containsString("because this node does not support jobs of type [incompatible_type]"));
         assertNull(result.getExecutorNode());
     }
@@ -303,7 +347,7 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, 30, logger);
         assertThat(result.getExplanation(), containsString("because this node does not support jobs of version [" + Version.CURRENT + "]"));
         assertNull(result.getExecutorNode());
     }
@@ -402,7 +446,7 @@ public class OpenJobActionTests extends ESTestCase {
     }
 
     public void testMappingRequiresUpdateSomeVersionMix() throws IOException {
-        Map<String, Object> versionMix = new HashMap<String, Object>();
+        Map<String, Object> versionMix = new HashMap<>();
         versionMix.put("version_54", Version.V_5_4_0);
         versionMix.put("version_current", Version.CURRENT);
         versionMix.put("version_null", null);
@@ -425,7 +469,8 @@ public class OpenJobActionTests extends ESTestCase {
     }
 
     private void addJobAndIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable, String... jobIds) {
-        addJobAndIndices(metaData, routingTable, jobId -> BaseMlIntegTestCase.createFareQuoteJob(jobId).build(new Date()), jobIds);
+        addJobAndIndices(metaData, routingTable, jobId ->
+                BaseMlIntegTestCase.createFareQuoteJob(jobId, new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date()), jobIds);
     }
 
     private void addJobAndIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable, Function<String, Job> jobCreator,

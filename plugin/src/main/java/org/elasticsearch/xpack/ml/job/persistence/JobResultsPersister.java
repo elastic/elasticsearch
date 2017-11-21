@@ -234,8 +234,9 @@ public class JobResultsPersister extends AbstractComponent {
     /**
      * Persist a model snapshot description
      */
-    public void persistModelSnapshot(ModelSnapshot modelSnapshot) {
+    public void persistModelSnapshot(ModelSnapshot modelSnapshot, WriteRequest.RefreshPolicy refreshPolicy) {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.documentId(modelSnapshot));
+        persistable.setRefreshPolicy(refreshPolicy);
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId())).actionGet();
     }
 
@@ -247,8 +248,6 @@ public class JobResultsPersister extends AbstractComponent {
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
         Persistable persistable = new Persistable(jobId, modelSizeStats, modelSizeStats.getId());
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).actionGet();
-        // Don't commit as we expect masses of these updates and they're only
-        // for information at the API level
     }
 
     /**
@@ -261,8 +260,6 @@ public class JobResultsPersister extends AbstractComponent {
         Persistable persistable = new Persistable(jobId, modelSizeStats, modelSizeStats.getId());
         persistable.setRefreshPolicy(refreshPolicy);
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId), listener);
-        // Don't commit as we expect masses of these updates and they're only
-        // for information at the API level
     }
 
     /**

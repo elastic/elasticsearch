@@ -23,11 +23,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.monitor.os.OsProbe;
+import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -138,6 +141,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -161,10 +165,13 @@ public class MachineLearning implements ActionPlugin {
             Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Property.NodeScope);
     public static final String ML_ENABLED_NODE_ATTR = "ml.enabled";
     public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
+    public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
     public static final Setting<ByteSizeValue> MAX_MODEL_MEMORY_LIMIT =
             Setting.memorySizeSetting("xpack.ml.max_model_memory_limit", new ByteSizeValue(0), Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
+            Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 90, Property.Dynamic, Property.NodeScope);
 
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
 
@@ -195,6 +202,7 @@ public class MachineLearning implements ActionPlugin {
                         ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
                         MAX_MODEL_MEMORY_LIMIT,
+                        MAX_MACHINE_MEMORY_PERCENT,
                         ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
@@ -206,9 +214,10 @@ public class MachineLearning implements ActionPlugin {
     public Settings additionalSettings() {
         String mlEnabledNodeAttrName = "node.attr." + ML_ENABLED_NODE_ATTR;
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
+        String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
 
         if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
-            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName);
+            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
             return Settings.EMPTY;
         }
 
@@ -219,8 +228,10 @@ public class MachineLearning implements ActionPlugin {
             addMlNodeAttribute(additionalSettings, mlEnabledNodeAttrName, "true");
             addMlNodeAttribute(additionalSettings, maxOpenJobsPerNodeNodeAttrName,
                     String.valueOf(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings)));
+            addMlNodeAttribute(additionalSettings, machineMemoryAttrName,
+                    Long.toString(machineMemoryFromStats(OsProbe.getInstance().osStats())));
         } else {
-            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName);
+            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
         }
         return additionalSettings.build();
     }
@@ -503,5 +514,26 @@ public class MachineLearning implements ActionPlugin {
         FixedExecutorBuilder datafeed = new FixedExecutorBuilder(settings, DATAFEED_THREAD_POOL_NAME,
                 maxNumberOfJobs, 200, "xpack.ml.datafeed_thread_pool");
         return Arrays.asList(autoDetect, renormalizer, datafeed);
+    }
+
+    /**
+     * Find the memory size (in bytes) of the machine this node is running on.
+     * Takes container limits (as used by Docker for example) into account.
+     */
+    static long machineMemoryFromStats(OsStats stats) {
+        long mem = stats.getMem().getTotal().getBytes();
+        OsStats.Cgroup cgroup = stats.getCgroup();
+        if (cgroup != null) {
+            String containerLimitStr = cgroup.getMemoryLimitInBytes();
+            if (containerLimitStr != null) {
+                BigInteger containerLimit = new BigInteger(containerLimitStr);
+                if ((containerLimit.compareTo(BigInteger.valueOf(mem)) < 0 && containerLimit.compareTo(BigInteger.ZERO) > 0)
+                        // mem < 0 means the value couldn't be obtained for some reason
+                        || (mem < 0 && containerLimit.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) < 0)) {
+                    mem = containerLimit.longValue();
+                }
+            }
+        }
+        return mem;
     }
 }

@@ -381,7 +381,8 @@ public class AutodetectProcessManager extends AbstractComponent {
                 autodetectParams.quantiles(), autodetectParams.filters(), autoDetectExecutorService,
                 () -> setJobState(jobTask, JobState.FAILED));
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
-                client, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
+                client, jobId, renormalizer, jobResultsPersister, jobProvider, autodetectParams.modelSizeStats(),
+                autodetectParams.modelSnapshot() != null);
         ExecutorService autodetectWorkerExecutor;
         try {
             autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);

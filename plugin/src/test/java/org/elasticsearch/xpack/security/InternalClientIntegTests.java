@@ -75,7 +75,8 @@ public class InternalClientIntegTests extends ESSingleNodeTestCase {
         String scrollId = randomAlphaOfLength(5);
         SearchHit[] hits = new SearchHit[] {new SearchHit(1)};
         InternalSearchResponse internalResponse = new InternalSearchResponse(new SearchHits(hits, 1, 1), null, null, null, false, false, 1);
-        SearchResponse response = new SearchResponse(internalResponse, scrollId, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY);
+        SearchResponse response = new SearchResponse(internalResponse, scrollId, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY);
 
         Answer<?> returnResponse = invocation -> {
             @SuppressWarnings("unchecked")

@@ -102,7 +102,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         jobProvider = new JobProvider(client(), builder.build());
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
         resultProcessor = new AutoDetectResultProcessor(client(), JOB_ID, new NoOpRenormalizer(),
-                new JobResultsPersister(nodeSettings(), client()), new ModelSizeStats.Builder(JOB_ID).build()) {
+                new JobResultsPersister(nodeSettings(), client()), jobProvider, new ModelSizeStats.Builder(JOB_ID).build(), false) {
             @Override
             protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);

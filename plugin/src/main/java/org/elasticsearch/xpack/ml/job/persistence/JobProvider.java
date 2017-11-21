@@ -80,6 +80,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +93,7 @@ public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
 
     private static final int RECORDS_SIZE_PARAM = 10000;
-    private static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
+    public static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
     private static final double ESTABLISHED_MEMORY_CV_THRESHOLD = 0.1;
 
     private final Client client;
@@ -866,11 +867,16 @@ public class JobProvider {
      *   <code>BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE</code> buckets, which is defined as having a coefficient of variation
      *   of no more than <code>ESTABLISHED_MEMORY_CV_THRESHOLD</code>
      * @param jobId the id of the job for which established memory usage is required
+     * @param latestBucketTimestamp the latest bucket timestamp to be used for the calculation, if known, otherwise
+     *                              <code>null</code>, implying the latest bucket that exists in the results index
+     * @param latestModelSizeStats the latest model size stats for the job, if known, otherwise <code>null</code> - supplying
+     *                             these when available avoids one search
      * @param handler if the method succeeds, this will be passed the established memory usage (in bytes) of the
-     *                specified job, or <code>null</code> if memory usage is not yet established
+     *                specified job, or 0 if memory usage is not yet established
      * @param errorHandler if a problem occurs, the exception will be passed to this handler
      */
-    public void getEstablishedMemoryUsage(String jobId, Consumer<Long> handler, Consumer<Exception> errorHandler) {
+    public void getEstablishedMemoryUsage(String jobId, Date latestBucketTimestamp, ModelSizeStats latestModelSizeStats,
+                                          Consumer<Long> handler, Consumer<Exception> errorHandler) {
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
 
@@ -894,7 +900,7 @@ public class JobProvider {
                                 long count = extendedStats.getCount();
                                 if (count <= 0) {
                                     // model size stats haven't changed in the last N buckets, so the latest (older) ones are established
-                                    modelSizeStats(jobId, modelSizeStats -> handleModelBytesOrNull(handler, modelSizeStats), errorHandler);
+                                    handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
                                 } else if (count == 1) {
                                     // no need to do an extra search in the case of exactly one document being aggregated
                                     handler.accept((long) extendedStats.getAvg());
@@ -905,45 +911,46 @@ public class JobProvider {
                                     // is there sufficient stability in the latest model size stats readings?
                                     if (coefficientOfVaration <= ESTABLISHED_MEMORY_CV_THRESHOLD) {
                                         // yes, so return the latest model size as established
-                                        modelSizeStats(jobId, modelSizeStats -> handleModelBytesOrNull(handler, modelSizeStats),
-                                                errorHandler);
+                                        handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
                                     } else {
                                         // no - we don't have an established model size
-                                        handler.accept(null);
+                                        handler.accept(0L);
                                     }
                                 }
                             } else {
-                                handler.accept(null);
+                                handler.accept(0L);
                             }
                         }, errorHandler
                 ));
             } else {
-                handler.accept(null);
+                LOGGER.trace("[{}] Insufficient history to calculate established memory use", jobId);
+                handler.accept(0L);
             }
         };
 
         // Step 1. Find the time span of the most recent N bucket results, where N is the number of buckets
         //         required to consider memory usage "established"
         BucketsQueryBuilder bucketQuery = new BucketsQueryBuilder()
+                .end(latestBucketTimestamp != null ? Long.toString(latestBucketTimestamp.getTime() + 1) : null)
                 .sortField(Result.TIMESTAMP.getPreferredName())
                 .sortDescending(true).from(BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE - 1).size(1)
                 .includeInterim(false);
         bucketsViaInternalClient(jobId, bucketQuery, bucketHandler, e -> {
             if (e instanceof ResourceNotFoundException) {
-                handler.accept(null);
+                handler.accept(0L);
             } else {
                 errorHandler.accept(e);
             }
         });
     }
 
-    /**
-     * A model size of 0 implies a completely uninitialised model.  This method converts 0 to <code>null</code>
-     * before calling a handler.
-     */
-    private static void handleModelBytesOrNull(Consumer<Long> handler, ModelSizeStats modelSizeStats) {
-        long modelBytes = modelSizeStats.getModelBytes();
-        handler.accept(modelBytes > 0 ? modelBytes : null);
+    private void handleLatestModelSizeStats(String jobId, ModelSizeStats latestModelSizeStats, Consumer<Long> handler,
+                                            Consumer<Exception> errorHandler) {
+        if (latestModelSizeStats != null) {
+            handler.accept(latestModelSizeStats.getModelBytes());
+        } else {
+            modelSizeStats(jobId, modelSizeStats -> handler.accept(modelSizeStats.getModelBytes()), errorHandler);
+        }
     }
 
     /**

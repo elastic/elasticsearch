@@ -19,13 +19,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -38,6 +38,9 @@ import org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.joda.time.DateTimeZone;
 
+import java.io.IOException;
+import java.util.Objects;
+
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -45,9 +48,6 @@ import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.D
 import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_PAGE_TIMEOUT;
 import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_REQUEST_TIMEOUT;
 import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.DEFAULT_TIME_ZONE;
-
-import java.io.IOException;
-import java.util.Objects;
 
 public class SqlTranslateAction
         extends Action<SqlTranslateAction.Request, SqlTranslateAction.Response, SqlTranslateAction.RequestBuilder> {
@@ -74,8 +74,9 @@ public class SqlTranslateAction
 
         public Request() {}
 
-        public Request(String query, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-            super(query, timeZone, fetchSize, requestTimeout, pageTimeout);
+        public Request(String query, QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout,
+                       TimeValue pageTimeout) {
+            super(query, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
         }
 
         @Override
@@ -89,18 +90,18 @@ public class SqlTranslateAction
 
         @Override
         public String getDescription() {
-            return "SQL Translate [" + query() + "]";
+            return "SQL Translate [" + query() + "][" + filter() + "]";
         }
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
         public RequestBuilder(ElasticsearchClient client, SqlTranslateAction action) {
-            this(client, action, null, DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PAGE_TIMEOUT);
+            this(client, action, null, null, DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PAGE_TIMEOUT);
         }
 
-        public RequestBuilder(ElasticsearchClient client, SqlTranslateAction action, String query, DateTimeZone timeZone,
-                              int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-            super(client, action, new Request(query, timeZone, fetchSize, requestTimeout, pageTimeout));
+        public RequestBuilder(ElasticsearchClient client, SqlTranslateAction action, String query, QueryBuilder filter,
+                              DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
+            super(client, action, new Request(query, filter, timeZone, fetchSize, requestTimeout, pageTimeout));
         }
 
         public RequestBuilder query(String query) {
@@ -186,7 +187,7 @@ public class SqlTranslateAction
             String query = request.query();
 
             Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),
-                    request.requestTimeout(), request.pageTimeout());
+                    request.requestTimeout(), request.pageTimeout(), request.filter());
 
             listener.onResponse(new Response(planExecutor.searchSource(query, cfg)));
         }

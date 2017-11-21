@@ -55,7 +55,8 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
     public static void operation(PlanExecutor planExecutor, SqlRequest request, ActionListener<SqlResponse> listener) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
-        Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout());
+        Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
+                request.filter());
 
         if (request.cursor() == Cursor.EMPTY) {
             planExecutor.sql(cfg, request.query(),

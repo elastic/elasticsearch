@@ -5,17 +5,25 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
+
+import java.util.Collections;
+
+import static org.elasticsearch.xpack.sql.SqlTestUtils.randomFilter;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.randomFilterOrNull;
 
 public class SqlTranslateRequestTests extends AbstractStreamableTestCase<SqlTranslateAction.Request> {
 
     @Override
     protected SqlTranslateAction.Request createTestInstance() {
-        return new SqlTranslateAction.Request(randomAlphaOfLength(10), randomDateTimeZone(), between(1, Integer.MAX_VALUE),
-                randomTV(), randomTV());
+        return new SqlTranslateAction.Request(randomAlphaOfLength(10), randomFilterOrNull(random()), randomDateTimeZone(),
+                between(1, Integer.MAX_VALUE), randomTV(), randomTV());
     }
 
     private TimeValue randomTV() {
@@ -40,6 +48,15 @@ public class SqlTranslateRequestTests extends AbstractStreamableTestCase<SqlTran
                 request -> (SqlTranslateAction.Request) getCopyFunction().copy(request)
                         .requestTimeout(randomValueOtherThan(request.requestTimeout(), () -> randomTV())),
                 request -> (SqlTranslateAction.Request) getCopyFunction().copy(request)
-                        .pageTimeout(randomValueOtherThan(request.pageTimeout(), () -> randomTV())));
+                        .pageTimeout(randomValueOtherThan(request.pageTimeout(), () -> randomTV())),
+                request -> (SqlTranslateAction.Request) getCopyFunction().copy(request).filter(randomValueOtherThan(request.filter(),
+                        () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))));
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        // We need this for QueryBuilder serialization
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 }

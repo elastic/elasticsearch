@@ -11,9 +11,11 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -24,7 +26,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.ExecutionException;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingHitExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.DocValueExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.InnerHitExtractor;
@@ -45,7 +46,6 @@ import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TotalCountRef;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.type.Schema;
@@ -62,21 +62,24 @@ public class Scroller {
     private final TimeValue keepAlive, timeout;
     private final int size;
     private final Client client;
+    @Nullable
+    private final QueryBuilder filter;
 
     public Scroller(Client client, Configuration cfg) {
-        this(client, cfg.requestTimeout(), cfg.pageTimeout(), cfg.pageSize());
+        this(client, cfg.requestTimeout(), cfg.pageTimeout(), cfg.filter(), cfg.pageSize());
     }
 
-    public Scroller(Client client, TimeValue keepAlive, TimeValue timeout, int size) {
+    public Scroller(Client client, TimeValue keepAlive, TimeValue timeout, QueryBuilder filter, int size) {
         this.client = client;
         this.keepAlive = keepAlive;
         this.timeout = timeout;
+        this.filter = filter;
         this.size = size;
     }
 
     public void scroll(Schema schema, QueryContainer query, String index, ActionListener<SchemaRowSet> listener) {
         // prepare the request
-        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, size);
+        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, filter, size);
 
         if (log.isTraceEnabled()) {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);

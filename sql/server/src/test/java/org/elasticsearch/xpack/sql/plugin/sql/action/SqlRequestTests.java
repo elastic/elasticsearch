@@ -6,24 +6,36 @@
 package org.elasticsearch.xpack.sql.plugin.sql.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import static org.elasticsearch.xpack.sql.SqlTestUtils.randomFilter;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.randomFilterOrNull;
 import static org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponseTests.randomCursor;
 
 public class SqlRequestTests extends AbstractStreamableTestCase<SqlRequest> {
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(SqlPlugin.getNamedWriteables());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.addAll(searchModule.getNamedWriteables());
+        namedWriteables.addAll(SqlPlugin.getNamedWriteables());
+        return new NamedWriteableRegistry(namedWriteables);
     }
 
     @Override
     protected SqlRequest createTestInstance() {
-        return new SqlRequest(randomAlphaOfLength(10), randomDateTimeZone(), between(1, Integer.MAX_VALUE), 
-                randomTV(), randomTV(), randomCursor());
+        return new SqlRequest(randomAlphaOfLength(10), randomFilterOrNull(random()), randomDateTimeZone(),
+                between(1, Integer.MAX_VALUE), randomTV(), randomTV(), randomCursor());
     }
 
     private TimeValue randomTV() {
@@ -50,6 +62,8 @@ public class SqlRequestTests extends AbstractStreamableTestCase<SqlRequest> {
                 request -> (SqlRequest) getCopyFunction().copy(request)
                         .requestTimeout(randomValueOtherThan(request.requestTimeout(), () -> randomTV())),
                 request -> (SqlRequest) getCopyFunction().copy(request)
-                        .pageTimeout(randomValueOtherThan(request.pageTimeout(), () -> randomTV())));
+                        .pageTimeout(randomValueOtherThan(request.pageTimeout(), () -> randomTV())),
+                request -> (SqlRequest) getCopyFunction().copy(request).filter(randomValueOtherThan(request.filter(),
+                        () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))));
     }
 }

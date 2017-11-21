@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.joda.time.DateTimeZone;
 
@@ -25,17 +27,21 @@ public class SqlRequest extends AbstractSqlRequest {
     public static final ObjectParser<SqlRequest, Void> PARSER = objectParser(SqlRequest::new);
 
     public static final ParseField CURSOR = new ParseField("cursor");
+    public static final ParseField FILTER = new ParseField("filter");
 
     static {
         PARSER.declareString((request, nextPage) -> request.cursor(Cursor.decodeFromString(nextPage)), CURSOR);
+        PARSER.declareObject(SqlRequest::filter,
+                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
     }
 
     private Cursor cursor = Cursor.EMPTY;
 
     public SqlRequest() {}
 
-    public SqlRequest(String query, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Cursor cursor) {
-        super(query, timeZone, fetchSize, requestTimeout, pageTimeout);
+    public SqlRequest(String query, QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout,
+                      TimeValue pageTimeout, Cursor cursor) {
+        super(query, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
         this.cursor = cursor;
     }
 
@@ -93,6 +99,6 @@ public class SqlRequest extends AbstractSqlRequest {
 
     @Override
     public String getDescription() {
-        return "SQL [" + query() + "]";
+        return "SQL [" + query() + "][" + filter() + "]";
     }
 }

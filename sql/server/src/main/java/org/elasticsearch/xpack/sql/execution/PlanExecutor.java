@@ -61,7 +61,7 @@ public class PlanExecutor {
         PhysicalPlan executable = newSession(settings).executable(sql);
         if (executable instanceof EsQueryExec) {
             EsQueryExec e = (EsQueryExec) executable;
-            return SourceGenerator.sourceBuilder(e.queryContainer(), settings.pageSize());
+            return SourceGenerator.sourceBuilder(e.queryContainer(), settings.filter(), settings.pageSize());
         }
         else {
             throw new PlanningException("Cannot generate a query DSL for %s", sql);

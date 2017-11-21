@@ -255,7 +255,7 @@ setups['library'] = '''
             {"index":{"_id": "Slaughterhouse-Five"}}
             {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
             {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
-            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "", "release_date": "1979-10-12", "page_count": 180}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
             {"index":{"_id": "Snow Crash"}}
             {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
             {"index":{"_id": "Neuromancer"}}

@@ -360,7 +360,7 @@ public class QueryContainer {
     public String toString() {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.humanReadable(true).prettyPrint();
-            SourceGenerator.sourceBuilder(this, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            SourceGenerator.sourceBuilder(this, null, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
             return builder.string();
         } catch (IOException e) {
             throw new RuntimeException("error rendering", e);

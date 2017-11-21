@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.plugin.sql.action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.joda.time.DateTimeZone;
 
@@ -19,16 +20,21 @@ import static org.elasticsearch.xpack.sql.plugin.sql.action.AbstractSqlRequest.D
 public class SqlRequestBuilder extends ActionRequestBuilder<SqlRequest, SqlResponse, SqlRequestBuilder> {
 
     public SqlRequestBuilder(ElasticsearchClient client, SqlAction action) {
-        this(client, action, "", DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PAGE_TIMEOUT, Cursor.EMPTY);
+        this(client, action, "", null, DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PAGE_TIMEOUT, Cursor.EMPTY);
     }
 
-    public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, DateTimeZone timeZone, int fetchSize,
-                              TimeValue requestTimeout, TimeValue pageTimeout, Cursor nextPageInfo) {
-        super(client, action, new SqlRequest(query, timeZone, fetchSize, requestTimeout, pageTimeout, nextPageInfo));
+    public SqlRequestBuilder(ElasticsearchClient client, SqlAction action, String query, QueryBuilder filter, DateTimeZone timeZone,
+                             int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Cursor nextPageInfo) {
+        super(client, action, new SqlRequest(query, filter, timeZone, fetchSize, requestTimeout, pageTimeout, nextPageInfo));
     }
 
     public SqlRequestBuilder query(String query) {
         request.query(query);
+        return this;
+    }
+
+    public SqlRequestBuilder filter(QueryBuilder filter) {
+        request.filter(filter);
         return this;
     }
 

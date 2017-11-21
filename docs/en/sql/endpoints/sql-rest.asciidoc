@@ -80,6 +80,50 @@ scroll, receiving the last page is enough to guarantee that the
 Elasticsearch state is cleared. For now, that is the only way to
 clear the state.
 
+[[sql-rest-filtering]]
+
+You can filter the results that SQL will run on using a standard
+Elasticsearch query DSL by specifying the query in the filter
+parameter.
+
+[source,js]
+--------------------------------------------------
+POST /_sql
+{
+    "query": "SELECT * FROM library ORDER BY page_count DESC",
+    "filter": {
+        "range": {
+            "page_count": {
+                "gte" : 100,
+                "lte" : 200
+            }
+        }
+    },
+    "fetch_size": 5
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:library]
+
+Which returns:
+
+[source,js]
+--------------------------------------------------
+{
+    "columns": [
+        {"name": "author",       "type": "keyword"},
+        {"name": "name",         "type": "keyword"},
+        {"name": "page_count",   "type": "short"},
+        {"name": "release_date", "type": "date"}
+    ],
+    "size": 1,
+    "rows": [
+        ["Douglas Adams",  "The Hitchhiker's Guide to the Galaxy",       180, 308534400000]
+    ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
 [[sql-rest-fields]]
 In addition to the `query` and `cursor` fields, the request can
 contain `fetch_size` and `time_zone`. `fetch_size` is a hint for how

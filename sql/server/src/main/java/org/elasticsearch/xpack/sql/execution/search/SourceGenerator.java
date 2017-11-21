@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -49,11 +51,19 @@ public abstract class SourceGenerator {
 
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
-    public static SearchSourceBuilder sourceBuilder(QueryContainer container, Integer size) {
+    public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
         SearchSourceBuilder source = new SearchSourceBuilder();
         // add the source
         if (container.query() != null) {
-            source.query(container.query().asBuilder());
+            if (filter != null) {
+                source.query(new BoolQueryBuilder().must(container.query().asBuilder()).filter(filter));
+            } else {
+                source.query(container.query().asBuilder());
+            }
+        } else {
+            if (filter != null) {
+                source.query(new ConstantScoreQueryBuilder(filter));
+            }
         }
 
         // translate fields to source-fields or script fields

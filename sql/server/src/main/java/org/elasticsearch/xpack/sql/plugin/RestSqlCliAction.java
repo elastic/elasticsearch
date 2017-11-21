@@ -79,7 +79,7 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
 
     private Consumer<RestChannel> queryInit(Client client, QueryInitRequest request) {
         // TODO time zone support for CLI
-        SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize,
+        SqlRequest sqlRequest = new SqlRequest(request.query, null, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
                                                 TimeValue.timeValueMillis(request.timeout.pageTimeout),
                                                 Cursor.EMPTY);
@@ -100,7 +100,7 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
         } catch (IOException e) {
             throw new IllegalArgumentException("error reading the cursor");
         }
-        SqlRequest sqlRequest = new SqlRequest("", SqlRequest.DEFAULT_TIME_ZONE, 0,
+        SqlRequest sqlRequest = new SqlRequest("", null, SqlRequest.DEFAULT_TIME_ZONE, 0,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
                                                 TimeValue.timeValueMillis(request.timeout.pageTimeout),
                                                 cursor);

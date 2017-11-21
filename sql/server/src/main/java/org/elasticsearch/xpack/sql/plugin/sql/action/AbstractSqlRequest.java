@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.sql.plugin.sql.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractQueryInitRequest;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
 import org.joda.time.DateTimeZone;
@@ -28,18 +31,20 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
     public static final int DEFAULT_FETCH_SIZE = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
     public static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueMillis(TimeoutInfo.DEFAULT_REQUEST_TIMEOUT);
     public static final TimeValue DEFAULT_PAGE_TIMEOUT = TimeValue.timeValueMillis(TimeoutInfo.DEFAULT_PAGE_TIMEOUT);
-    
+
     private String query = "";
     private DateTimeZone timeZone = DEFAULT_TIME_ZONE;
     private int fetchSize = DEFAULT_FETCH_SIZE;
     private TimeValue requestTimeout = DEFAULT_REQUEST_TIMEOUT; 
     private TimeValue pageTimeout = DEFAULT_PAGE_TIMEOUT;
+    @Nullable
+    private QueryBuilder filter = null;
 
     public AbstractSqlRequest() {
         super();
     }
 
-    public AbstractSqlRequest(String query, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
+    public AbstractSqlRequest(String query, QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
         this.query = query;
         this.timeZone = timeZone;
         this.fetchSize = fetchSize;
@@ -59,6 +64,9 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
         parser.declareString(
                 (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, DEFAULT_PAGE_TIMEOUT, "page_timeout")),
                 new ParseField("page_timeout"));
+        parser.declareObject(AbstractSqlRequest::filter,
+                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), new ParseField("filter"));
+
         return parser;
     }
 
@@ -123,6 +131,22 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
         return this;
     }
 
+    /**
+     * An optional Query DSL defined query that can added as a filter on the top of the SQL query
+     */
+    public AbstractSqlRequest filter(QueryBuilder filter) {
+        this.filter = filter;
+        return this;
+    }
+
+    /**
+     * An optional Query DSL defined query that can added as a filter on the top of the SQL query
+     */
+    public QueryBuilder filter() {
+        return filter;
+    }
+
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -131,6 +155,7 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
         fetchSize = in.readVInt();
         requestTimeout = new TimeValue(in);
         pageTimeout = new TimeValue(in);
+        filter = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
     @Override
@@ -141,11 +166,12 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
         out.writeVInt(fetchSize);
         requestTimeout.writeTo(out);
         pageTimeout.writeTo(out);
+        out.writeOptionalNamedWriteable(filter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, timeZone, fetchSize, requestTimeout, pageTimeout);
+        return Objects.hash(query, timeZone, fetchSize, requestTimeout, pageTimeout, filter);
     }
 
     @Override
@@ -163,6 +189,7 @@ public abstract class AbstractSqlRequest extends ActionRequest implements Compos
                 && Objects.equals(timeZone, other.timeZone)
                 && fetchSize == other.fetchSize
                 && Objects.equals(requestTimeout, other.requestTimeout)
-                && Objects.equals(pageTimeout, other.pageTimeout);
+                && Objects.equals(pageTimeout, other.pageTimeout)
+                && Objects.equals(filter, other.filter);
     }
 }

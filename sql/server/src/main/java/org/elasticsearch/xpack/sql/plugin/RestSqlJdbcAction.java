@@ -140,7 +140,8 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     }
 
     private Consumer<RestChannel> queryInit(Client client, QueryInitRequest request) {
-        SqlRequest sqlRequest = new SqlRequest(request.query, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize,
+
+        SqlRequest sqlRequest = new SqlRequest(request.query, null, DateTimeZone.forTimeZone(request.timeZone), request.fetchSize,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
                                                 TimeValue.timeValueMillis(request.timeout.pageTimeout),
                                                 Cursor.EMPTY);
@@ -167,7 +168,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
             throw new IllegalArgumentException("error reading the cursor");
         }
         // NB: the timezone and page size are locked already by the query so pass in defaults (as they are not read anyway)
-        SqlRequest sqlRequest = new SqlRequest(EMPTY, SqlRequest.DEFAULT_TIME_ZONE, 0,
+        SqlRequest sqlRequest = new SqlRequest(EMPTY, null, SqlRequest.DEFAULT_TIME_ZONE, 0,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
                                                 TimeValue.timeValueMillis(request.timeout.pageTimeout),
                                                 cursor);

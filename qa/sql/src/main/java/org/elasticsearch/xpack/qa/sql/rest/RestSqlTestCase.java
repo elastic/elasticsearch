@@ -147,6 +147,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
         return runSql(suffix, new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
     }
 
+    private Map<String, Object> runSql(String sql, String filter, String suffix) throws IOException {
+        return runSql(suffix, new StringEntity("{\"query\":\"" + sql + "\", \"filter\":" + filter + "}", ContentType.APPLICATION_JSON));
+    }
+
     private Map<String, Object> runSql(HttpEntity sql) throws IOException {
         return runSql("", sql);
     }
@@ -183,4 +187,60 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
         assertEquals(emptyList(), source.get("excludes"));
         assertEquals(singletonList("test"), source.get("includes"));
     }
+
+    public void testBasicQueryWithFilter() throws IOException {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"test\":\"foo\"}\n");
+        bulk.append("{\"index\":{\"_id\":\"2\"}}\n");
+        bulk.append("{\"test\":\"bar\"}\n");
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo("test", "text")));
+        expected.put("rows", singletonList(singletonList("foo")));
+        expected.put("size", 1);
+        assertResponse(expected, runSql("SELECT * FROM test", "{\"match\": {\"test\": \"foo\"}}", ""));
+    }
+
+    public void testBasicTranslateQueryWithFilter() throws IOException {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"test\":\"foo\"}\n");
+        bulk.append("{\"index\":{\"_id\":\"2\"}}\n");
+        bulk.append("{\"test\":\"bar\"}\n");
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        Map<String, Object> response = runSql("SELECT * FROM test", "{\"match\": {\"test\": \"foo\"}}", "/translate/");
+        assertEquals(response.get("size"), 1000);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> source = (Map<String, Object>) response.get("_source");
+        assertNotNull(source);
+        assertEquals(emptyList(), source.get("excludes"));
+        assertEquals(singletonList("test"), source.get("includes"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> query = (Map<String, Object>) response.get("query");
+        assertNotNull(query);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> constantScore = (Map<String, Object>) query.get("constant_score");
+        assertNotNull(constantScore);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> filter = (Map<String, Object>) constantScore.get("filter");
+        assertNotNull(filter);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> match = (Map<String, Object>) filter.get("match");
+        assertNotNull(match);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> matchQuery = (Map<String, Object>) match.get("test");
+        assertNotNull(matchQuery);
+        assertEquals("foo", matchQuery.get("query"));
+    }
+
 }

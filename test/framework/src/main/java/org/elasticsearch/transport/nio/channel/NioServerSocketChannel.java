@@ -30,9 +30,9 @@ public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChann
 
     private final ChannelFactory channelFactory;
 
-    public NioServerSocketChannel(String profile, ServerSocketChannel socketChannel, ChannelFactory channelFactory,
-                                  AcceptingSelector selector) throws IOException {
-        super(profile, socketChannel, selector);
+    public NioServerSocketChannel(ServerSocketChannel socketChannel, ChannelFactory channelFactory, AcceptingSelector selector)
+        throws IOException {
+        super(socketChannel, selector);
         this.channelFactory = channelFactory;
     }
 
@@ -48,8 +48,7 @@ public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChann
     @Override
     public String toString() {
         return "NioServerSocketChannel{" +
-            "profile=" + getProfile() +
-            ", localAddress=" + getLocalAddress() +
+            "localAddress=" + getLocalAddress() +
             '}';
     }
 }

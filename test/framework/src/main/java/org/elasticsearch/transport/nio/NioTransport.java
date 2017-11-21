@@ -66,7 +66,6 @@ public class NioTransport extends TcpTransport {
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
     protected final OpenChannels openChannels = new OpenChannels(logger);
-    private final Consumer<NioSocketChannel> contextSetter;
     private final ConcurrentMap<String, ChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
@@ -77,7 +76,6 @@ public class NioTransport extends TcpTransport {
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                         NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
-        contextSetter = (c) -> c.setContexts(new TcpReadContext(c, new TcpReadHandler(this)), new TcpWriteContext(c));
     }
 
     @Override
@@ -89,7 +87,7 @@ public class NioTransport extends TcpTransport {
     protected NioServerSocketChannel bind(String name, InetSocketAddress address) throws IOException {
         ChannelFactory channelFactory = this.profileToChannelFactory.get(name);
         AcceptingSelector selector = acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings));
-        return channelFactory.openNioServerSocketChannel(name, address, selector);
+        return channelFactory.openNioServerSocketChannel(address, selector);
     }
 
     @Override
@@ -119,8 +117,9 @@ public class NioTransport extends TcpTransport {
                 }
             }
 
+            Consumer<NioSocketChannel> clientContextSetter = getContextSetter("client-socket");
             clientSelectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-            clientChannelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), contextSetter);
+            clientChannelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), clientContextSetter);
 
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 int acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
@@ -142,7 +141,9 @@ public class NioTransport extends TcpTransport {
 
                 // loop through all profiles and start them up, special handling for default one
                 for (ProfileSettings profileSettings : profileSettings) {
-                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, contextSetter));
+                    String profileName = profileSettings.profileName;
+                    Consumer<NioSocketChannel> contextSetter = getContextSetter(profileName);
+                    profileToChannelFactory.putIfAbsent(profileName, new ChannelFactory(profileSettings, contextSetter));
                     bindServer(profileSettings);
                 }
             }
@@ -173,5 +174,9 @@ public class NioTransport extends TcpTransport {
 
     final void exceptionCaught(NioSocketChannel channel, Exception exception) {
         onException(channel, exception);
+    }
+
+    private Consumer<NioSocketChannel> getContextSetter(String profileName) {
+        return (c) -> c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName,this)), new TcpWriteContext(c));
     }
 }

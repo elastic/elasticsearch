@@ -52,8 +52,6 @@ public class TcpReadContextTests extends ESTestCase {
         messageLength = randomInt(96) + 4;
         channel = mock(NioSocketChannel.class);
         readContext = new TcpReadContext(channel, handler);
-
-        when(channel.getProfile()).thenReturn(PROFILE);
     }
 
     public void testSuccessfulRead() throws IOException {

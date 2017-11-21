@@ -23,13 +23,11 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.DoNotRegisterServerChannel;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.ReadContext;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
@@ -67,7 +65,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         handler = new AcceptorEventHandler(logger, openChannels, new RoundRobinSelectorSupplier(selectors), acceptedChannelCallback);
 
         AcceptingSelector selector = mock(AcceptingSelector.class);
-        channel = new DoNotRegisterServerChannel("", mock(ServerSocketChannel.class), channelFactory, selector);
+        channel = new DoNotRegisterServerChannel(mock(ServerSocketChannel.class), channelFactory, selector);
         channel.register();
     }
 
@@ -88,7 +86,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     }
 
     public void testHandleAcceptCallsChannelFactory() throws IOException {
-        NioSocketChannel childChannel = new NioSocketChannel("", mock(SocketChannel.class), socketSelector);
+        NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class), socketSelector);
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
@@ -100,7 +98,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testHandleAcceptAddsToOpenChannelsAndIsRemovedOnClose() throws IOException {
         SocketChannel rawChannel = SocketChannel.open();
-        NioSocketChannel childChannel = new NioSocketChannel("", rawChannel, socketSelector);
+        NioSocketChannel childChannel = new NioSocketChannel(rawChannel, socketSelector);
         childChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 

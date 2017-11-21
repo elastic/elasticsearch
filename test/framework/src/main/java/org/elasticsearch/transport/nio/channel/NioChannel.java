@@ -30,11 +30,7 @@ import java.nio.channels.SelectionKey;
 
 public interface NioChannel extends TcpChannel {
 
-    String CLIENT = "client-socket";
-
     InetSocketAddress getLocalAddress();
-
-    String getProfile();
 
     void close();
 

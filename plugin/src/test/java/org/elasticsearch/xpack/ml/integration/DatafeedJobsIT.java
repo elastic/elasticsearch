@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -85,6 +87,13 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }, 60, TimeUnit.SECONDS);
 
         waitUntilJobIsClosed(job.getId());
+
+        // Since this job ran for 168 buckets, it's a good place to assert
+        // that established model memory matches model memory in the job stats
+        GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
+        ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
+        Job updatedJob = getJob(job.getId()).get(0);
+        assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
     }
 
     public void testRealtime() throws Exception {

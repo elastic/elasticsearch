@@ -24,18 +24,15 @@ import java.util.concurrent.LinkedBlockingQueue;
 import static org.elasticsearch.xpack.ml.action.UpdateProcessAction.Request;
 import static org.elasticsearch.xpack.ml.action.UpdateProcessAction.Response;
 
-public class UpdateJobProcessNotifier extends AbstractComponent
-        implements LocalNodeMasterListener {
+public class UpdateJobProcessNotifier extends AbstractComponent implements LocalNodeMasterListener {
 
     private final Client client;
     private final ThreadPool threadPool;
-    private final LinkedBlockingQueue<JobUpdate> orderedJobUpdates =
-            new LinkedBlockingQueue<>(1000);
+    private final LinkedBlockingQueue<JobUpdate> orderedJobUpdates = new LinkedBlockingQueue<>(1000);
 
     private volatile ThreadPool.Cancellable cancellable;
 
-    public UpdateJobProcessNotifier(Settings settings, Client client,
-                                    ClusterService clusterService, ThreadPool threadPool) {
+    public UpdateJobProcessNotifier(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
@@ -62,12 +59,11 @@ public class UpdateJobProcessNotifier extends AbstractComponent
         stop();
     }
 
-    void start() {
-        cancellable = threadPool.scheduleWithFixedDelay(this::processNextUpdate,
-                TimeValue.timeValueSeconds(1), ThreadPool.Names.GENERIC);
+    private void start() {
+        cancellable = threadPool.scheduleWithFixedDelay(this::processNextUpdate, TimeValue.timeValueSeconds(1), ThreadPool.Names.GENERIC);
     }
 
-    void stop() {
+    private void stop() {
         orderedJobUpdates.clear();
 
         ThreadPool.Cancellable cancellable = this.cancellable;
@@ -82,20 +78,26 @@ public class UpdateJobProcessNotifier extends AbstractComponent
         return ThreadPool.Names.SAME;
     }
 
-    void processNextUpdate() {
+    private void processNextUpdate() {
         try {
             JobUpdate jobUpdate = orderedJobUpdates.poll();
             if (jobUpdate != null) {
-                executeRemoteJob(jobUpdate);
+                executeRemoteJobIfNecessary(jobUpdate);
             }
         } catch (Exception e) {
             logger.error("Unable while processing next job update", e);
         }
     }
 
+    void executeRemoteJobIfNecessary(JobUpdate update) {
+        // Do nothing if the fields that the C++ needs aren't being updated
+        if (update.isAutodetectProcessUpdate()) {
+            executeRemoteJob(update);
+        }
+    }
+
     void executeRemoteJob(JobUpdate update) {
-        Request request = new Request(update.getJobId(), update.getModelPlotConfig(),
-                update.getDetectorUpdates());
+        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates());
         client.execute(UpdateProcessAction.INSTANCE, request,
                 new ActionListener<Response>() {
                     @Override
@@ -110,15 +112,12 @@ public class UpdateJobProcessNotifier extends AbstractComponent
                     @Override
                     public void onFailure(Exception e) {
                         if (e instanceof ResourceNotFoundException) {
-                            logger.debug("Remote job [{}] not updated as it has been deleted",
-                                    update.getJobId());
-                        } else if (e.getMessage().contains("because job [" + update.getJobId() +
-                                    "] is not open") && e instanceof ElasticsearchStatusException) {
-                            logger.debug("Remote job [{}] not updated as it is no longer open",
-                                    update.getJobId());
+                            logger.debug("Remote job [{}] not updated as it has been deleted", update.getJobId());
+                        } else if (e.getMessage().contains("because job [" + update.getJobId() + "] is not open")
+                                && e instanceof ElasticsearchStatusException) {
+                            logger.debug("Remote job [{}] not updated as it is no longer open", update.getJobId());
                         } else {
-                            logger.error("Failed to update remote job [" + update.getJobId() + "]",
-                                    e);
+                            logger.error("Failed to update remote job [" + update.getJobId() + "]", e);
                         }
                     }
                 });

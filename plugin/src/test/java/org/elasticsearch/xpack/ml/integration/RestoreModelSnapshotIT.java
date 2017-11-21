@@ -11,11 +11,13 @@ import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,12 +107,21 @@ public class RestoreModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getBuckets(splitJob.getId()).size(), equalTo(oneGoBuckets.size()));
         assertThat(getRecords(oneGoJob.getId()).isEmpty(), is(true));
         assertThat(getRecords(splitJob.getId()).isEmpty(), is(true));
+
+        // Since these jobs ran for 72 buckets, it's a good place to assert
+        // that established model memory matches model memory in the job stats
+        for (Job.Builder job : Arrays.asList(oneGoJob, splitJob)) {
+            GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
+            ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
+            Job updatedJob = getJob(job.getId()).get(0);
+            assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
+        }
     }
 
     private Job.Builder buildAndRegisterJob(String jobId, TimeValue bucketSpan) throws Exception {
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("by_field");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);
         Job.Builder job = new Job.Builder(jobId);
         job.setAnalysisConfig(analysisConfig);

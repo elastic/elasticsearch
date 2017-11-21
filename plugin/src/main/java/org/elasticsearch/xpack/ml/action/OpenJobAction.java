@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.security.InternalClient;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -573,6 +574,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
          */
         private final int fallbackMaxNumberOfOpenJobs;
         private volatile int maxConcurrentJobAllocations;
+        private volatile int maxMachineMemoryPercent;
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
                                               AutodetectProcessManager autodetectProcessManager) {
@@ -580,14 +582,17 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             this.autodetectProcessManager = autodetectProcessManager;
             this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
+            this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
+            clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
         }
 
         @Override
         public Assignment getAssignment(JobParams params, ClusterState clusterState) {
             return selectLeastLoadedMlNode(params.getJobId(), clusterState, maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs,
-                    logger);
+                    maxMachineMemoryPercent, logger);
         }
 
         @Override
@@ -597,7 +602,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
             OpenJobAction.validate(params.getJobId(), mlMetadata);
             Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState, maxConcurrentJobAllocations,
-                    fallbackMaxNumberOfOpenJobs, logger);
+                    fallbackMaxNumberOfOpenJobs, maxMachineMemoryPercent, logger);
             if (assignment.getExecutorNode() == null) {
                 String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
                         + assignment.getExplanation() + "]";
@@ -630,6 +635,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                     this.maxConcurrentJobAllocations, maxConcurrentJobAllocations);
             this.maxConcurrentJobAllocations = maxConcurrentJobAllocations;
         }
+
+        void setMaxMachineMemoryPercent(int maxMachineMemoryPercent) {
+            logger.info("Changing [{}] from [{}] to [{}]", MachineLearning.MAX_MACHINE_MEMORY_PERCENT.getKey(),
+                    this.maxMachineMemoryPercent, maxMachineMemoryPercent);
+            this.maxMachineMemoryPercent = maxMachineMemoryPercent;
+        }
     }
 
     /**
@@ -655,7 +666,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
     }
 
     static Assignment selectLeastLoadedMlNode(String jobId, ClusterState clusterState, int maxConcurrentJobAllocations,
-                                              int fallbackMaxNumberOfOpenJobs, Logger logger) {
+                                              int fallbackMaxNumberOfOpenJobs, int maxMachineMemoryPercent, Logger logger) {
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(jobId, clusterState);
         if (unavailableIndices.size() != 0) {
             String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
@@ -664,9 +675,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             return new Assignment(null, reason);
         }
 
-        long maxAvailable = Long.MIN_VALUE;
         List<String> reasons = new LinkedList<>();
-        DiscoveryNode minLoadedNode = null;
+        long maxAvailableCount = Long.MIN_VALUE;
+        long maxAvailableMemory = Long.MIN_VALUE;
+        DiscoveryNode minLoadedNodeByCount = null;
+        DiscoveryNode minLoadedNodeByMemory = null;
+        // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
+        // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
+        boolean allocateByMemory = true;
         PersistentTasksCustomMetaData persistentTasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
             Map<String, String> nodeAttributes = node.getAttributes();
@@ -697,22 +713,26 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 continue;
             }
 
-            long numberOfAssignedJobs;
-            int numberOfAllocatingJobs;
+            long numberOfAssignedJobs = 0;
+            int numberOfAllocatingJobs = 0;
+            long assignedJobMemory = 0;
             if (persistentTasks != null) {
-                numberOfAssignedJobs = persistentTasks.getNumberOfTasksOnNode(node.getId(), OpenJobAction.TASK_NAME);
-                numberOfAllocatingJobs = persistentTasks.findTasks(OpenJobAction.TASK_NAME, task -> {
-                    if (node.getId().equals(task.getExecutorNode()) == false) {
-                        return false;
+                // find all the job tasks assigned to this node
+                Collection<PersistentTask<?>> assignedTasks = persistentTasks.findTasks(OpenJobAction.TASK_NAME,
+                        task -> node.getId().equals(task.getExecutorNode()));
+                numberOfAssignedJobs = assignedTasks.size();
+                for (PersistentTask<?> assignedTask : assignedTasks) {
+                    JobTaskStatus jobTaskState = (JobTaskStatus) assignedTask.getStatus();
+                    if (jobTaskState == null || // executor node didn't have the chance to set job status to OPENING
+                            // previous executor node failed and current executor node didn't have the chance to set job status to OPENING
+                            jobTaskState.isStatusStale(assignedTask)) {
+                        ++numberOfAllocatingJobs;
                     }
-                    JobTaskStatus jobTaskState = (JobTaskStatus) task.getStatus();
-                    return jobTaskState == null || // executor node didn't have the chance to set job status to OPENING
-                           jobTaskState.isStatusStale(task); // previous executor node failed and
-                    // current executor node didn't have the chance to set job status to OPENING
-                }).size();
-            } else {
-                numberOfAssignedJobs = 0;
-                numberOfAllocatingJobs = 0;
+                    String assignedJobId = ((JobParams) assignedTask.getParams()).getJobId();
+                    Job assignedJob = mlMetadata.getJobs().get(assignedJobId);
+                    assert assignedJob != null;
+                    assignedJobMemory += assignedJob.estimateMemoryFootprint();
+                }
             }
             if (numberOfAllocatingJobs >= maxConcurrentJobAllocations) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because node exceeds [" + numberOfAllocatingJobs +
@@ -736,8 +756,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                     continue;
                 }
             }
-            long available = maxNumberOfOpenJobs - numberOfAssignedJobs;
-            if (available == 0) {
+            long availableCount = maxNumberOfOpenJobs - numberOfAssignedJobs;
+            if (availableCount == 0) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node is full. " +
                         "Number of opened jobs [" + numberOfAssignedJobs + "], " + MAX_OPEN_JOBS_PER_NODE.getKey() +
                         " [" + maxNumberOfOpenJobs + "]";
@@ -746,11 +766,55 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 continue;
             }
 
-            if (maxAvailable < available) {
-                maxAvailable = available;
-                minLoadedNode = node;
+            if (maxAvailableCount < availableCount) {
+                maxAvailableCount = availableCount;
+                minLoadedNodeByCount = node;
+            }
+
+            String machineMemoryStr = nodeAttributes.get(MachineLearning.MACHINE_MEMORY_NODE_ATTR);
+            long machineMemory = -1;
+            // TODO: remove leniency and reject the node if the attribute is null in 7.0
+            if (machineMemoryStr != null) {
+                try {
+                    machineMemory = Long.parseLong(machineMemoryStr);
+                } catch (NumberFormatException e) {
+                    String reason = "Not opening job [" + jobId + "] on node [" + node + "], because " +
+                            MachineLearning.MACHINE_MEMORY_NODE_ATTR + " attribute [" + machineMemoryStr + "] is not a long";
+                    logger.trace(reason);
+                    reasons.add(reason);
+                    continue;
+                }
+            }
+
+            if (allocateByMemory) {
+                if (machineMemory > 0) {
+                    long maxMlMemory = machineMemory * maxMachineMemoryPercent / 100;
+                    long estimatedMemoryFootprint = job.estimateMemoryFootprint();
+                    long availableMemory = maxMlMemory - assignedJobMemory;
+                    if (estimatedMemoryFootprint > availableMemory) {
+                        String reason = "Not opening job [" + jobId + "] on node [" + node +
+                                "], because this node has insufficient available memory. Available memory for ML [" + maxMlMemory +
+                                "], memory required by existing jobs [" + assignedJobMemory +
+                                "], estimated memory required for this job [" + estimatedMemoryFootprint + "]";
+                        logger.trace(reason);
+                        reasons.add(reason);
+                        continue;
+                    }
+
+                    if (maxAvailableMemory < availableMemory) {
+                        maxAvailableMemory = availableMemory;
+                        minLoadedNodeByMemory = node;
+                    }
+                } else {
+                    // If we cannot get the available memory on any machine in
+                    // the cluster, fall back to simply allocating by job count
+                    allocateByMemory = false;
+                    logger.debug("Falling back to allocating job [{}] by job counts because machine memory was not available for node [{}]",
+                            jobId, node);
+                }
             }
         }
+        DiscoveryNode minLoadedNode = allocateByMemory ? minLoadedNodeByMemory : minLoadedNodeByCount;
         if (minLoadedNode != null) {
             logger.debug("selected node [{}] for job [{}]", minLoadedNode, jobId);
             return new Assignment(minLoadedNode.getId(), "");

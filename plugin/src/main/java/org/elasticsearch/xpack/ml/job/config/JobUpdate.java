@@ -48,6 +48,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         PARSER.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
+        PARSER.declareLong(Builder::setEstablishedModelMemory, Job.ESTABLISHED_MODEL_MEMORY);
     }
 
     /**
@@ -56,7 +57,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
      * If model_memory_limit is not defined for a job then the
      * job was created before 6.1 and a value of 4GB is assumed.
      */
-    private static final long UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT = 4096;
+    static final long UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT = 4096;
 
     private final String jobId;
     private final List<String> groups;
@@ -71,13 +72,15 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final List<String> categorizationFilters;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
+    private final Long establishedModelMemory;
 
     private JobUpdate(String jobId, @Nullable List<String> groups, @Nullable String description,
                       @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
                       @Nullable AnalysisLimits analysisLimits, @Nullable TimeValue backgroundPersistInterval,
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
                       @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
-                      @Nullable  Map<String, Object> customSettings, @Nullable String modelSnapshotId) {
+                      @Nullable Map<String, Object> customSettings, @Nullable String modelSnapshotId,
+                      @Nullable Long establishedModelMemory) {
         this.jobId = jobId;
         this.groups = groups;
         this.description = description;
@@ -91,6 +94,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         this.categorizationFilters = categorisationFilters;
         this.customSettings = customSettings;
         this.modelSnapshotId = modelSnapshotId;
+        this.establishedModelMemory = establishedModelMemory;
     }
 
     public JobUpdate(StreamInput in) throws IOException {
@@ -120,6 +124,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            establishedModelMemory = in.readOptionalLong();
+        } else {
+            establishedModelMemory = null;
+        }
     }
 
     @Override
@@ -146,6 +155,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeOptionalLong(establishedModelMemory);
+        }
     }
 
     public String getJobId() {
@@ -200,6 +212,10 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return modelSnapshotId;
     }
 
+    public Long getEstablishedModelMemory() {
+        return establishedModelMemory;
+    }
+
     public boolean isAutodetectProcessUpdate() {
         return modelPlotConfig != null || detectorUpdates != null;
     }
@@ -243,6 +259,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         if (modelSnapshotId != null) {
             builder.field(Job.MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
+        }
+        if (establishedModelMemory != null) {
+            builder.field(Job.ESTABLISHED_MODEL_MEMORY.getPreferredName(), establishedModelMemory);
         }
         builder.endObject();
         return builder;
@@ -344,7 +363,14 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (modelSnapshotId != null) {
             builder.setModelSnapshotId(modelSnapshotId);
         }
-
+        if (establishedModelMemory != null) {
+            // An established model memory of zero means we don't actually know the established model memory
+            if (establishedModelMemory > 0) {
+                builder.setEstablishedModelMemory(establishedModelMemory);
+            } else {
+                builder.setEstablishedModelMemory(null);
+            }
+        }
         return builder.build();
     }
 
@@ -372,14 +398,15 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
                 && Objects.equals(this.categorizationFilters, that.categorizationFilters)
                 && Objects.equals(this.customSettings, that.customSettings)
-                && Objects.equals(this.modelSnapshotId, that.modelSnapshotId);
+                && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
+                && Objects.equals(this.establishedModelMemory, that.establishedModelMemory);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, categorizationFilters, customSettings,
-                modelSnapshotId);
+                modelSnapshotId, establishedModelMemory);
     }
 
     public static class DetectorUpdate implements Writeable, ToXContentObject {
@@ -490,6 +517,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private List<String> categorizationFilters;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
+        private Long establishedModelMemory;
 
         public Builder(String jobId) {
             this.jobId = jobId;
@@ -560,10 +588,15 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setEstablishedModelMemory(Long establishedModelMemory) {
+            this.establishedModelMemory = establishedModelMemory;
+            return this;
+        }
+
         public JobUpdate build() {
             return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
                     renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, categorizationFilters, customSettings,
-                    modelSnapshotId);
+                    modelSnapshotId, establishedModelMemory);
         }
     }
 }

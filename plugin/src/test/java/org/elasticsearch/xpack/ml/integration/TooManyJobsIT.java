@@ -9,7 +9,11 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
@@ -28,7 +32,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         startMlCluster(1, 1);
 
         // create and open first job, which succeeds:
-        Job.Builder job = createJob("close-failed-job-1");
+        Job.Builder job = createJob("close-failed-job-1", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
@@ -40,7 +44,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         });
 
         // create and try to open second job, which fails:
-        job = createJob("close-failed-job-2");
+        job = createJob("close-failed-job-2", new ByteSizeValue(2, ByteSizeUnit.MB));
         putJobRequest = new PutJobAction.Request(job);
         putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
@@ -60,18 +64,23 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
     }
 
     public void testSingleNode() throws Exception {
-        verifyMaxNumberOfJobsLimit(1, randomIntBetween(1, 32));
+        verifyMaxNumberOfJobsLimit(1, randomIntBetween(1, 100));
     }
 
     public void testMultipleNodes() throws Exception {
-        verifyMaxNumberOfJobsLimit(3, randomIntBetween(1, 32));
+        verifyMaxNumberOfJobsLimit(3, randomIntBetween(1, 100));
     }
 
     private void verifyMaxNumberOfJobsLimit(int numNodes, int maxNumberOfJobsPerNode) throws Exception {
         startMlCluster(numNodes, maxNumberOfJobsPerNode);
+        long maxMlMemoryPerNode = calculateMaxMlMemory();
+        ByteSizeValue jobModelMemoryLimit = new ByteSizeValue(2, ByteSizeUnit.MB);
+        long memoryFootprintPerJob = jobModelMemoryLimit.getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
+        long maxJobsPerNodeDueToMemoryLimit = maxMlMemoryPerNode / memoryFootprintPerJob;
         int clusterWideMaxNumberOfJobs = numNodes * maxNumberOfJobsPerNode;
+        boolean expectMemoryLimitBeforeCountLimit = maxJobsPerNodeDueToMemoryLimit < maxNumberOfJobsPerNode;
         for (int i = 1; i <= (clusterWideMaxNumberOfJobs + 1); i++) {
-            Job.Builder job = createJob("max-number-of-jobs-limit-job-" + Integer.toString(i));
+            Job.Builder job = createJob("max-number-of-jobs-limit-job-" + Integer.toString(i), jobModelMemoryLimit);
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
             PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
             assertTrue(putJobResponse.isAcknowledged());
@@ -86,9 +95,19 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 });
                 logger.info("Opened {}th job", i);
             } catch (ElasticsearchStatusException e) {
-                assertTrue(e.getMessage(), e.getMessage().startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
-                assertTrue(e.getMessage(), e.getMessage().endsWith("because this node is full. Number of opened jobs [" + maxNumberOfJobsPerNode +
-                        "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "]]"));
+                assertTrue(e.getMessage(),
+                        e.getMessage().startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
+                if (expectMemoryLimitBeforeCountLimit) {
+                    int expectedJobsAlreadyOpenOnNode = (i - 1) / numNodes;
+                    assertTrue(e.getMessage(),
+                            e.getMessage().endsWith("because this node has insufficient available memory. Available memory for ML [" +
+                                    maxMlMemoryPerNode + "], memory required by existing jobs [" +
+                                    (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob) +
+                                    "], estimated memory required for this job [" + memoryFootprintPerJob + "]]"));
+                } else {
+                    assertTrue(e.getMessage(), e.getMessage().endsWith("because this node is full. Number of opened jobs [" +
+                            maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "]]"));
+                }
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
                 // close the first job and check if the latest job gets opened:
@@ -122,4 +141,9 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(numNodes);
     }
 
+    private long calculateMaxMlMemory() {
+        Settings settings = internalCluster().getInstance(Settings.class);
+        return Long.parseLong(internalCluster().getInstance(TransportService.class).getLocalNode().getAttributes()
+                .get(MachineLearning.MACHINE_MEMORY_NODE_ATTR)) * MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings) / 100;
+    }
 }

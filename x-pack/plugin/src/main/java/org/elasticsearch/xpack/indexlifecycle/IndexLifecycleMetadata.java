@@ -32,7 +32,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     public static final ParseField POLICIES_FIELD = new ParseField("policies");
     public static final ParseField POLL_INTERVAL_FIELD = new ParseField("poll_interval");
 
-    public static final IndexLifecycleMetadata EMPTY_METADATA = new IndexLifecycleMetadata(Collections.emptySortedMap(), 300000);
+    public static final IndexLifecycleMetadata EMPTY_METADATA = new IndexLifecycleMetadata(Collections.emptySortedMap(), 3);
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<IndexLifecycleMetadata, NamedXContentRegistry> PARSER = new ConstructingObjectParser<>(
             TYPE, a -> new IndexLifecycleMetadata((SortedMap<String, LifecyclePolicy>) a[0], (long) a[1]));

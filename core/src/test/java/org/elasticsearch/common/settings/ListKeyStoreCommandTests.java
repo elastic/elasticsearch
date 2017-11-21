@@ -35,7 +35,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new ListKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+            protected Environment createEnv(Map<String, String> settings) throws UserException {
                 return env;
             }
         };

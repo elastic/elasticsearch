@@ -76,14 +76,12 @@ public class ChannelFactoryTests extends ESTestCase {
     public void testAcceptChannel() throws IOException {
         NioServerSocketChannel serverChannel = mock(NioServerSocketChannel.class);
         when(rawChannelFactory.acceptNioChannel(serverChannel)).thenReturn(rawChannel);
-        when(serverChannel.getProfile()).thenReturn("parent-profile");
 
         NioSocketChannel channel = channelFactory.acceptNioChannel(serverChannel, socketSelector);
 
         verify(socketSelector).scheduleForRegistration(channel);
 
         assertEquals(socketSelector, channel.getSelector());
-        assertEquals("parent-profile", channel.getProfile());
         assertEquals(rawChannel, channel.getRawChannel());
     }
 
@@ -106,7 +104,6 @@ public class ChannelFactoryTests extends ESTestCase {
         verify(socketSelector).scheduleForRegistration(channel);
 
         assertEquals(socketSelector, channel.getSelector());
-        assertEquals("client-socket", channel.getProfile());
         assertEquals(rawChannel, channel.getRawChannel());
     }
 
@@ -124,13 +121,11 @@ public class ChannelFactoryTests extends ESTestCase {
         InetSocketAddress address = mock(InetSocketAddress.class);
         when(rawChannelFactory.openNioServerSocketChannel(same(address))).thenReturn(rawServerChannel);
 
-        String profile = "profile";
-        NioServerSocketChannel channel = channelFactory.openNioServerSocketChannel(profile, address, acceptingSelector);
+        NioServerSocketChannel channel = channelFactory.openNioServerSocketChannel(address, acceptingSelector);
 
         verify(acceptingSelector).scheduleForRegistration(channel);
 
         assertEquals(acceptingSelector, channel.getSelector());
-        assertEquals(profile, channel.getProfile());
         assertEquals(rawServerChannel, channel.getRawChannel());
     }
 
@@ -139,7 +134,7 @@ public class ChannelFactoryTests extends ESTestCase {
         when(rawChannelFactory.openNioServerSocketChannel(same(address))).thenReturn(rawServerChannel);
         doThrow(new IllegalStateException()).when(acceptingSelector).scheduleForRegistration(any());
 
-        expectThrows(IllegalStateException.class, () -> channelFactory.openNioServerSocketChannel("", address, acceptingSelector));
+        expectThrows(IllegalStateException.class, () -> channelFactory.openNioServerSocketChannel(address, acceptingSelector));
 
         assertFalse(rawServerChannel.isOpen());
     }

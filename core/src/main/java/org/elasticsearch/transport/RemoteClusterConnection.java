@@ -61,6 +61,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -87,6 +88,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
     private volatile List<DiscoveryNode> seedNodes;
+    private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
     private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
 
@@ -117,6 +119,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         remoteProfile = builder.build();
         connectedNodes = new ConnectedNodes(clusterAlias);
         this.seedNodes = Collections.unmodifiableList(seedNodes);
+        this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
+                .getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.connectHandler = new ConnectHandler();
         transportService.addConnectionListener(this);
     }
@@ -127,6 +131,13 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     synchronized void updateSeedNodes(List<DiscoveryNode> seedNodes, ActionListener<Void> connectListener) {
         this.seedNodes = Collections.unmodifiableList(new ArrayList<>(seedNodes));
         connectHandler.connect(connectListener);
+    }
+
+    /**
+     * Updates the skipUnavailable flag that can be dynamically set for each remote cluster
+     */
+    void updateSkipUnavailable(boolean skipUnavailable) {
+        this.skipUnavailable = skipUnavailable;
     }
 
     @Override
@@ -143,16 +154,19 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      */
     public void fetchSearchShards(ClusterSearchShardsRequest searchRequest,
                                   ActionListener<ClusterSearchShardsResponse> listener) {
-        if (connectedNodes.size() == 0) {
-            // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
-            // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
-            // we can't proceed with a search on a cluster level.
-            // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the caller
-            // end since they provide the listener.
-            ensureConnected(ActionListener.wrap((x) -> fetchShardsInternal(searchRequest, listener), listener::onFailure));
+
+        final ActionListener<ClusterSearchShardsResponse> searchShardsListener;
+        final Consumer<Exception> onConnectFailure;
+        if (skipUnavailable) {
+            onConnectFailure = (exception) -> listener.onResponse(ClusterSearchShardsResponse.EMPTY);
+            searchShardsListener = ActionListener.wrap(listener::onResponse, (e) -> listener.onResponse(ClusterSearchShardsResponse.EMPTY));
         } else {
-            fetchShardsInternal(searchRequest, listener);
+            onConnectFailure = listener::onFailure;
+            searchShardsListener = listener;
         }
+        // in case we have no connected nodes we try to connect and if we fail we either notify the listener or not depending on
+        // the skip_unavailable setting
+        ensureConnected(ActionListener.wrap((x) -> fetchShardsInternal(searchRequest, searchShardsListener), onConnectFailure));
     }
 
     /**
@@ -231,16 +245,12 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                 });
         };
         try {
-            if (connectedNodes.size() == 0) {
-                // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
-                // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
-                // we can't proceed with a search on a cluster level.
-                // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the
-                // caller end since they provide the listener.
-                ensureConnected(ActionListener.wrap((x) -> runnable.run(), listener::onFailure));
-            } else {
-                runnable.run();
-            }
+            // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
+            // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
+            // we can't proceed with a search on a cluster level.
+            // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the
+            // caller end since they provide the listener.
+            ensureConnected(ActionListener.wrap((x) -> runnable.run(), listener::onFailure));
         } catch (Exception ex) {
             listener.onFailure(ex);
         }
@@ -600,7 +610,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             // not connected we return immediately
             RemoteConnectionInfo remoteConnectionStats = new RemoteConnectionInfo(clusterAlias,
                 Collections.emptyList(), Collections.emptyList(), maxNumRemoteConnections, 0,
-                RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings));
+                RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipUnavailable);
             listener.onResponse(remoteConnectionStats);
         } else {
             NodesInfoRequest request = new NodesInfoRequest();
@@ -634,9 +644,9 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                         }
                     }
                     RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(clusterAlias,
-                        seedNodes.stream().map(n -> n.getAddress()).collect(Collectors.toList()), new ArrayList<>(httpAddresses),
+                        seedNodes.stream().map(DiscoveryNode::getAddress).collect(Collectors.toList()), new ArrayList<>(httpAddresses),
                         maxNumRemoteConnections, connectedNodes.size(),
-                        RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings));
+                        RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipUnavailable);
                     listener.onResponse(remoteConnectionInfo);
                 }
 

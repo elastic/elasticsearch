@@ -34,6 +34,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -463,7 +464,6 @@ public class GeoShapeFieldMapper extends FieldMapper {
     public GeoShapeFieldType fieldType() {
         return (GeoShapeFieldType) super.fieldType();
     }
-
     @Override
     public Mapper parse(ParseContext context) throws IOException {
         try {
@@ -475,14 +475,20 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 }
                 shape = shapeBuilder.build();
             }
-            if (fieldType().pointsOnly() && !(shape instanceof Point)) {
-                throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
-                    ((shape instanceof JtsGeometry) ? ((JtsGeometry) shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
-            }
-            List<IndexableField> fields = new ArrayList<>(Arrays.asList(fieldType().defaultStrategy().createIndexableFields(shape)));
-            createFieldNamesField(context, fields);
-            for (IndexableField field : fields) {
-                context.doc().add(field);
+            if (fieldType().pointsOnly() == true) {
+                // index configured for pointsOnly
+                if (shape instanceof XShapeCollection && XShapeCollection.class.cast(shape).pointsOnly()) {
+                    // MULTIPOINT data: index each point separately
+                    List<Shape> shapes = ((XShapeCollection) shape).getShapes();
+                    for (Shape s : shapes) {
+                        indexShape(context, s);
+                    }
+                } else if (shape instanceof Point == false) {
+                    throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
+                        ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
+                }
+            } else {
+                indexShape(context, shape);
             }
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
@@ -490,6 +496,14 @@ public class GeoShapeFieldMapper extends FieldMapper {
             }
         }
         return null;
+    }
+
+    private void indexShape(ParseContext context, Shape shape) {
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(fieldType().defaultStrategy().createIndexableFields(shape)));
+        createFieldNamesField(context, fields);
+        for (IndexableField field : fields) {
+            context.doc().add(field);
+        }
     }
 
     @Override

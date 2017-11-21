@@ -68,39 +68,50 @@ public class NioSocketChannelTests extends ESTestCase {
     }
 
     public void testClose() throws Exception {
-        AtomicReference<TcpChannel> ref = new AtomicReference<>();
+        AtomicBoolean isClosed = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
 
-        NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, mock(SocketChannel.class), selector);
+        NioSocketChannel socketChannel = new DoNotCloseChannel(mock(SocketChannel.class), selector);
         openChannels.clientChannelOpened(socketChannel);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
-        Consumer<TcpChannel> listener = (c) -> {
-            ref.set(c);
-            latch.countDown();
-        };
-        socketChannel.addCloseListener(ActionListener.wrap(listener::accept, (e) -> listener.accept(socketChannel)));
+        socketChannel.addCloseListener(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void o) {
+                isClosed.set(true);
+                latch.countDown();
+            }
+            @Override
+            public void onFailure(Exception e) {
+                isClosed.set(true);
+                latch.countDown();
+            }
+        });
 
         assertTrue(socketChannel.isOpen());
         assertFalse(closedRawChannel.get());
+        assertFalse(isClosed.get());
         assertTrue(openChannels.getClientChannels().containsKey(socketChannel));
 
-        TcpChannel.closeChannel(socketChannel, true);
+        PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+        socketChannel.addCloseListener(closeFuture);
+        socketChannel.close();
+        closeFuture.actionGet();
 
         assertTrue(closedRawChannel.get());
         assertFalse(socketChannel.isOpen());
         assertFalse(openChannels.getClientChannels().containsKey(socketChannel));
         latch.await();
-        assertSame(socketChannel, ref.get());
+        assertTrue(isClosed.get());
     }
 
     public void testConnectSucceeds() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenReturn(true);
-        NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, rawChannel, selector);
+        NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         selector.scheduleForRegistration(socketChannel);
 
-        PlainActionFuture<NioChannel> connectFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
         socketChannel.addConnectListener(connectFuture);
         connectFuture.get(100, TimeUnit.SECONDS);
 
@@ -112,11 +123,11 @@ public class NioSocketChannelTests extends ESTestCase {
     public void testConnectFails() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenThrow(new ConnectException());
-        NioSocketChannel socketChannel = new DoNotCloseChannel(NioChannel.CLIENT, rawChannel, selector);
+        NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         selector.scheduleForRegistration(socketChannel);
 
-        PlainActionFuture<NioChannel> connectFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
         socketChannel.addConnectListener(connectFuture);
         ExecutionException e = expectThrows(ExecutionException.class, () -> connectFuture.get(100, TimeUnit.SECONDS));
         assertTrue(e.getCause() instanceof IOException);
@@ -128,8 +139,8 @@ public class NioSocketChannelTests extends ESTestCase {
 
     private class DoNotCloseChannel extends DoNotRegisterChannel {
 
-        private DoNotCloseChannel(String profile, SocketChannel channel, SocketSelector selector) throws IOException {
-            super(profile, channel, selector);
+        private DoNotCloseChannel(SocketChannel channel, SocketSelector selector) throws IOException {
+            super(channel, selector);
         }
 
         @Override

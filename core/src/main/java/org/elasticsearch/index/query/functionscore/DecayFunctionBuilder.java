@@ -54,6 +54,8 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.index.fielddata.FieldData.emptyNumericDouble;
+
 public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>> extends ScoreFunctionBuilder<DFB> {
 
     protected static final String ORIGIN = "origin";
@@ -197,7 +199,9 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         //the field must exist, else we cannot read the value for the doc later
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown field [{}]", fieldName);
+            return new EmptyFieldDataScoreFunction(fieldName, getDecayFunction(), mode);
+            //throw new ParsingException(parser.getTokenLocation(), "unknown " +
+            //    "field [{}]", fieldName);
         }
 
         // dates and time and geo need special handling
@@ -485,6 +489,38 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 return false;
             }
             return Objects.equals(this.origin, numericFieldDataScoreFunction.origin);
+        }
+    }
+
+    //This is the default score function if the field is not found
+    static class EmptyFieldDataScoreFunction extends
+        AbstractDistanceScoreFunction {
+
+        private final String fieldName;
+
+        EmptyFieldDataScoreFunction(String fieldName, DecayFunction func, MultiValueMode mode) {
+            super(0.1, 0.1, 0.0, func, mode);
+            this.fieldName  = fieldName;
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+
+        @Override
+        protected NumericDoubleValues distance(LeafReaderContext context) {
+            return emptyNumericDouble();
+        }
+
+        @Override
+        protected String getDistanceString(LeafReaderContext ctx, int docId) throws IOException {
+            return "[0.0]";
+        }
+
+        @Override
+        protected String getFieldName() {
+            return fieldName;
         }
     }
 

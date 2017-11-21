@@ -1,8 +1,5 @@
 ---
-"Split index via API":
-  - skip:
-      version: " - 6.0.99"
-      reason: Added in 6.1.0
+setup:
   - do:
       indices.create:
         index: source
@@ -32,6 +29,12 @@
         type:  doc
         id:    "3"
         body:  { "foo": "hello world 3" }
+
+---
+"Split index via API":
+  - skip:
+      version: " - 6.0.99"
+      reason: Added in 6.1.0
 
   # make it read-only
   - do:
@@ -96,6 +99,12 @@
   - match: { _type:    doc   }
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
+
+---
+"Create illegal split indices":
+  - skip:
+      version: " - 6.99.99"
+      reason: fixed in 7.0.0
 
   # try to do an illegal split with number_of_routing_shards set
   - do:

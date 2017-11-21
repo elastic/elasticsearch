@@ -28,7 +28,8 @@ include::sql/index.asciidoc[]
 include::monitoring/index.asciidoc[]
 include::rest-api/index.asciidoc[]
 
-# NOCOMMIT before merging SQL we need to fiddle with this to make sure it is right
+# TODO before merging SQL we need to fiddle with this to make sure it is right
+# Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3084
 
 include::commands/index.asciidoc[]
 

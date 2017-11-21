@@ -42,7 +42,8 @@ public class CliFormatter implements Writeable {
         // 2. Expand columns to fit the largest value
         for (List<Object> row : response.rows()) {
             for (int i = 0; i < width.length; i++) {
-                // NOCOMMIT are we sure toString is correct here? What about dates that come back as longs.
+                // TODO are we sure toString is correct here? What about dates that come back as longs.
+                // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
                 width[i] = Math.max(width[i], Objects.toString(row.get(i)).length());
             }
         }
@@ -115,7 +116,8 @@ public class CliFormatter implements Writeable {
                     sb.append('|');
                 }
 
-                // NOCOMMIT are we sure toString is correct here? What about dates that come back as longs.
+                // TODO are we sure toString is correct here? What about dates that come back as longs.
+                // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
                 String string = Objects.toString(row.get(i));
                 if (string.length() <= width[i]) {
                     // Pad

@@ -69,7 +69,8 @@ public class Cli {
             }
             user = parsed.getUserInfo();
             if (user != null) {
-                // NOCOMMIT just use a URI the whole time
+                // TODO just use a URI the whole time
+                // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/2882
                 hostAndPort = parsed.getScheme() + "://" + parsed.getHost() + ":" + parsed.getPort();
                 int colonIndex = user.indexOf(':');
                 if (colonIndex >= 0) {

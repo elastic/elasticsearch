@@ -19,7 +19,7 @@ dependencyLicenses {
   ignoreSha 'shared-proto'
 }
 
-// NOCOMMIT probably not a good thing to rely on.....
+// TODO probably not a good thing to rely on. See https://github.com/elastic/x-pack-elasticsearch/issues/2871
 compileJava.options.compilerArgs << "-parameters"
 compileTestJava.options.compilerArgs << "-parameters"
 

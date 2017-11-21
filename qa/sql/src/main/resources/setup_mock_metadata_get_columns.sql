@@ -24,7 +24,7 @@ CREATE TABLE mock (
   IS_GENERATEDCOLUMN VARCHAR
 ) AS
 SELECT '', 'test1', 'name', 12, 'VARCHAR', 2147483647, null, null,
-  10, -- NOCOMMIT 10 seem wrong to hard code for stuff like strings
+  10, -- TODO 10 seem wrong to hard code for non-numbers see https://github.com/elastic/x-pack-elasticsearch/issues/3085
   1, -- columnNullable
   null, null, null, null, null, 1, 'YES', null, null, null, null, '', ''
 FROM DUAL

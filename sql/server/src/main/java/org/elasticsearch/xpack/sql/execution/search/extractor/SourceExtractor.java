@@ -37,8 +37,9 @@ public class SourceExtractor implements HitExtractor {
     @Override
     public Object get(SearchHit hit) {
         Map<String, Object> source = hit.getSourceAsMap();
-        // NOCOMMIT I think this will not work with dotted field names (objects or actual dots in the names)
+        // TODO I think this will not work with dotted field names (objects or actual dots in the names)
         // confusingly, I think this is actually handled by InnerHitExtractor. This needs investigating or renaming
+        // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/2874
         return source != null ? source.get(fieldName) : null;
     }
 

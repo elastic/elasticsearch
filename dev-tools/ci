@@ -53,12 +53,11 @@ case $key in
         GRADLE_CLI_ARGS=(
             "--info"
             "check"
-            "-xforbiddenPatterns"   # NOCOMMIT this is required *for now* but will be removed when we remove the NOCOMMITs
             "-Dtests.network=true"
             "-Dtests.badapples=true"
         )
         ;;
-    smokeTestSql)  # NOCOMMIT remove this once we are ready to merge sql down
+    smokeTestSql)  # TODO remove this once we are ready to merge sql down
         GRADLE_CLI_ARGS=(
             "--info"
             "-psql"
@@ -68,10 +67,6 @@ case $key in
             ":x-pack-elasticsearch:qa:sql:multinode:check"
             ":x-pack-elasticsearch:qa:sql:no-security:check"
             ":x-pack-elasticsearch:qa:sql:security:check"
-            "-x:x-pack-elasticsearch:sql:cli:forbiddenPatterns"
-            "-x:x-pack-elasticsearch:sql:jdbc:forbiddenPatterns"
-            "-x:x-pack-elasticsearch:sql:server:forbiddenPatterns"
-            "-x:x-pack-elasticsearch:qa:sql:forbiddenPatterns"
         )
         ;;
     releaseTest)

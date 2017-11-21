@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
-import org.elasticsearch.xpack.sql.client.shared.CheckedConsumer;
 import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.jdbc.JdbcException;
@@ -37,7 +36,8 @@ class HttpClient {
         URL baseUrl = connectionInfo.asUrl();
         try {
             // the baseUrl ends up / so the suffix can be directly appended
-            // NOCOMMIT Do something with the error trace. Useful for filing bugs and debugging.
+            // TODO Do something with the error trace. Useful for filing bugs and debugging.
+            // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3079
             this.url = new URL(baseUrl, "_sql/jdbc?error_trace=true");
         } catch (MalformedURLException ex) {
             throw new JdbcException(ex, "Cannot connect to JDBC endpoint [" + baseUrl.toString() + "_sql/jdbc]");

@@ -50,7 +50,8 @@ public abstract class AbstractSqlProtocolRestAction extends BaseRestHandler {
             public RestResponse buildResponse(T response) throws Exception {
                 try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
                     try (DataOutputStream dataOutputStream = new DataOutputStream(bytesStreamOutput)) {
-                        // NOCOMMIT use the version from the client
+                        // TODO use the version from the client
+                        // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3080
                         proto.writeResponse(responseBuilder.apply(response), Proto.CURRENT_VERSION, dataOutputStream);
                     }
                     return new BytesRestResponse(OK, TEXT_CONTENT_TYPE, bytesStreamOutput.bytes());

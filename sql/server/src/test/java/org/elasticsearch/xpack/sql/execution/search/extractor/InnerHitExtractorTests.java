@@ -30,8 +30,9 @@ public class InnerHitExtractorTests extends AbstractWireSerializingTestCase<Inne
         return new InnerHitExtractor(instance.hitName() + "mustated", instance.fieldName(), true);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3082")
     public void testGet() throws IOException {
-        // NOCOMMIT implement after we're sure of the InnerHitExtractor's implementation
+        fail("implement after we're sure of the InnerHitExtractor's implementation");
     }
 
     public void testToString() {

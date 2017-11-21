@@ -40,7 +40,8 @@ public class DocValueExtractor implements HitExtractor {
 
     @Override
     public Object get(SearchHit hit) {
-        // NOCOMMIT we should think about what to do with multi-valued fields.
+        // TODO we should think about what to do with multi-valued fields.
+        // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/2874
         DocumentField field = hit.field(fieldName);
         if (field != null) {
             Object value = field.getValue();

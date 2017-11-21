@@ -41,6 +41,9 @@ setup:
                 "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
             "data_description" : {
                 "format":"xcontent",
                 "time_field":"time",
@@ -59,6 +62,9 @@ setup:
             "analysis_config" : {
                 "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
             },
             "data_description" : {
                 "time_field":"time"

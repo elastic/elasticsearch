@@ -18,12 +18,14 @@ public class ForecastParams {
 
     private final long endTime;
     private final long duration;
-    private final long id;
+    private final long expiresIn;
+    private final long forecastId;
 
-    private ForecastParams(long id, long endTime, long duration) {
-        this.id = id;
+    private ForecastParams(long forecastId, long endTime, long duration, long expiresIn) {
+        this.forecastId = forecastId;
         this.endTime = endTime;
         this.duration = duration;
+        this.expiresIn = expiresIn;
     }
 
     /**
@@ -43,17 +45,25 @@ public class ForecastParams {
     }
 
     /**
+     * The forecast expiration in seconds (duration added to start time)
+     * @return The expiration in seconds
+     */
+    public long getExpiresIn() {
+        return expiresIn;
+    }
+
+    /**
      * The forecast id
      * 
      * @return The forecast Id
      */
-    public long getId() {
-        return id;
+    public long getForecastId() {
+        return forecastId;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, endTime, duration);
+        return Objects.hash(forecastId, endTime, duration, expiresIn);
     }
 
     @Override
@@ -65,7 +75,8 @@ public class ForecastParams {
             return false;
         }
         ForecastParams other = (ForecastParams) obj;
-        return Objects.equals(id, other.id) && Objects.equals(endTime, other.endTime) && Objects.equals(duration, other.duration);
+        return Objects.equals(forecastId, other.forecastId) && Objects.equals(endTime, other.endTime) &&
+               Objects.equals(duration, other.duration) && Objects.equals(expiresIn, other.expiresIn);
     }
 
     public static Builder builder() {
@@ -75,6 +86,7 @@ public class ForecastParams {
     public static class Builder {
         private long endTimeEpochSecs;
         private long durationSecs;
+        private long expiresInSecs;
         private long startTime;
         private long forecastId;
 
@@ -83,6 +95,9 @@ public class ForecastParams {
             endTimeEpochSecs = 0;
             forecastId = generateId();
             durationSecs = 0;
+
+            // because 0 means never expire, the default is -1
+            expiresInSecs = -1;
         }
 
         private long generateId() {
@@ -107,12 +122,17 @@ public class ForecastParams {
             return this;
         }
 
+        public Builder expiresIn(TimeValue expiresIn) {
+            expiresInSecs = expiresIn.seconds();
+            return this;
+        }
+
         public ForecastParams build() {
             if (endTimeEpochSecs != 0 && durationSecs != 0) {
                 throw new ElasticsearchParseException(Messages.getMessage(Messages.REST_INVALID_DURATION_AND_ENDTIME));
             }
 
-            return new ForecastParams(forecastId, endTimeEpochSecs, durationSecs);
+            return new ForecastParams(forecastId, endTimeEpochSecs, durationSecs, expiresInSecs);
         }
     }
 }

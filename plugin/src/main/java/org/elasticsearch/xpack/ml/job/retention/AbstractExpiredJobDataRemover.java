@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
@@ -13,6 +14,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
@@ -29,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  * blocking the thread it was called at for too long. It does so by
  * chaining the steps together.
  */
-abstract class AbstractExpiredJobDataRemover {
+abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
     private final ClusterService clusterService;
 
@@ -37,23 +39,24 @@ abstract class AbstractExpiredJobDataRemover {
         this.clusterService = Objects.requireNonNull(clusterService);
     }
 
-    public void trigger(Runnable onFinish) {
-        removeData(newJobIterator(), onFinish);
+    @Override
+    public void remove(ActionListener<Boolean> listener) {
+        removeData(newJobIterator(), listener);
     }
 
-    private void removeData(Iterator<Job> jobIterator, Runnable onFinish) {
+    private void removeData(Iterator<Job> jobIterator, ActionListener<Boolean> listener) {
         if (jobIterator.hasNext() == false) {
-            onFinish.run();
+            listener.onResponse(true);
             return;
         }
         Job job = jobIterator.next();
         Long retentionDays = getRetentionDays(job);
         if (retentionDays == null) {
-            removeData(jobIterator, () -> removeData(jobIterator, onFinish));
+            removeData(jobIterator, listener);
             return;
         }
         long cutoffEpochMs = calcCutoffEpochMs(retentionDays);
-        removeDataBefore(job, cutoffEpochMs, () -> removeData(jobIterator, onFinish));
+        removeDataBefore(job, cutoffEpochMs, ActionListener.wrap(response -> removeData(jobIterator, listener), listener::onFailure));
     }
 
     private Iterator<Job> newJobIterator() {
@@ -79,33 +82,13 @@ abstract class AbstractExpiredJobDataRemover {
 
     /**
      * Template method to allow implementation details of various types of data (e.g. results, model snapshots).
-     * Implementors need to call {@code onFinish} when they are done in order to continue to the next job.
+     * Implementors need to call {@code listener.onResponse} when they are done in order to continue to the next job.
      */
-    protected abstract void removeDataBefore(Job job, long cutoffEpochMs, Runnable onFinish);
+    protected abstract void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener);
 
     protected static BoolQueryBuilder createQuery(String jobId, long cutoffEpochMs) {
         return QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
                 .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"));
-    }
-
-    private static class VolatileCursorIterator<T> implements Iterator<T> {
-        private final List<T> items;
-        private volatile int cursor;
-
-        private VolatileCursorIterator(List<T> items) {
-            this.items = items;
-            this.cursor = 0;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return cursor < items.size();
-        }
-
-        @Override
-        public T next() {
-            return items.get(cursor++);
-        }
     }
 }

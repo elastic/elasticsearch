@@ -28,10 +28,15 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
+import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 
 public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Request, DeleteExpiredDataAction.Response,
@@ -139,14 +144,24 @@ public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Requ
 
         private void deleteExpiredData(ActionListener<Response> listener) {
             Auditor auditor = new Auditor(client, clusterService);
-            ExpiredResultsRemover resultsRemover = new ExpiredResultsRemover(client, clusterService, auditor);
-            resultsRemover.trigger(() -> {
-                ExpiredModelSnapshotsRemover modelSnapshotsRemover = new ExpiredModelSnapshotsRemover(client, clusterService);
-                modelSnapshotsRemover.trigger(() -> {
-                    logger.debug("Finished deleting expired data");
-                    listener.onResponse(new Response(true));
-                });
-            });
+            List<MlDataRemover> dataRemovers = Arrays.asList(
+                    new ExpiredResultsRemover(client, clusterService, auditor),
+                    new ExpiredModelSnapshotsRemover(client, clusterService)
+            );
+            Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
+            deleteExpiredData(dataRemoversIterator, listener);
+        }
+
+        private void deleteExpiredData(Iterator<MlDataRemover> mlDataRemoversIterator, ActionListener<Response> listener) {
+            if (mlDataRemoversIterator.hasNext()) {
+                MlDataRemover remover = mlDataRemoversIterator.next();
+                remover.remove(ActionListener.wrap(
+                        booleanResponse -> deleteExpiredData(mlDataRemoversIterator, listener),
+                        listener::onFailure));
+            } else {
+                logger.info("Completed deletion of expired data");
+                listener.onResponse(new Response(true));
+            }
         }
     }
 }

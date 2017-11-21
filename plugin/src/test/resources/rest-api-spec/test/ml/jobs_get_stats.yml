@@ -12,6 +12,9 @@ setup:
                 "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
             "data_description" : {
                 "format":"xcontent",
                 "time_field":"time",
@@ -37,6 +40,9 @@ setup:
             "analysis_config" : {
                 "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
             },
             "data_description" : {
                 "format" : "xcontent",
@@ -200,6 +206,9 @@ setup:
             "analysis_config" : {
                 "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
             },
             "data_description" : {
             }

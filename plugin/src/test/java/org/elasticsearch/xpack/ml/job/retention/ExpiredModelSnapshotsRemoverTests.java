@@ -53,7 +53,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
     private List<SearchRequest> capturedSearchRequests;
     private List<DeleteModelSnapshotAction.Request> capturedDeleteModelSnapshotRequests;
     private List<SearchResponse> searchResponsesPerCall;
-    private Runnable onFinish;
+    private ActionListener<Boolean> listener;
 
     @Before
     public void setUpTests() {
@@ -64,33 +64,33 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
         client = mock(Client.class);
-        onFinish = mock(Runnable.class);
+        listener = mock(ActionListener.class);
     }
 
-    public void testTrigger_GivenJobsWithoutRetentionPolicy() {
+    public void testRemove_GivenJobsWithoutRetentionPolicy() {
         givenClientRequestsSucceed();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("foo").build(),
                 JobTests.buildJobBuilder("bar").build()
         ));
 
-        createExpiredModelSnapshotsRemover().trigger(onFinish);
+        createExpiredModelSnapshotsRemover().remove(listener);
 
-        verify(onFinish).run();
+        verify(listener).onResponse(true);
         Mockito.verifyNoMoreInteractions(client);
     }
 
-    public void testTrigger_GivenJobWithoutActiveSnapshot() {
+    public void testRemove_GivenJobWithoutActiveSnapshot() {
         givenClientRequestsSucceed();
         givenJobs(Arrays.asList(JobTests.buildJobBuilder("foo").setModelSnapshotRetentionDays(7L).build()));
 
-        createExpiredModelSnapshotsRemover().trigger(onFinish);
+        createExpiredModelSnapshotsRemover().remove(listener);
 
-        verify(onFinish).run();
+        verify(listener).onResponse(true);
         Mockito.verifyNoMoreInteractions(client);
     }
 
-    public void testTrigger_GivenJobsWithMixedRetentionPolicies() throws IOException {
+    public void testRemove_GivenJobsWithMixedRetentionPolicies() throws IOException {
         givenClientRequestsSucceed();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("none").build(),
@@ -104,7 +104,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         searchResponsesPerCall.add(createSearchResponse(snapshots1JobSnapshots));
         searchResponsesPerCall.add(createSearchResponse(snapshots2JobSnapshots));
 
-        createExpiredModelSnapshotsRemover().trigger(onFinish);
+        createExpiredModelSnapshotsRemover().remove(listener);
 
         assertThat(capturedSearchRequests.size(), equalTo(2));
         SearchRequest searchRequest = capturedSearchRequests.get(0);
@@ -123,10 +123,10 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         assertThat(deleteSnapshotRequest.getJobId(), equalTo("snapshots-2"));
         assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("snapshots-2_1"));
 
-        verify(onFinish).run();
+        verify(listener).onResponse(true);
     }
 
-    public void testTrigger_GivenClientSearchRequestsFail() throws IOException {
+    public void testRemove_GivenClientSearchRequestsFail() throws IOException {
         givenClientSearchRequestsFail();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("none").build(),
@@ -140,20 +140,18 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         searchResponsesPerCall.add(createSearchResponse(snapshots1JobSnapshots));
         searchResponsesPerCall.add(createSearchResponse(snapshots2JobSnapshots));
 
-        createExpiredModelSnapshotsRemover().trigger(onFinish);
+        createExpiredModelSnapshotsRemover().remove(listener);
 
-        assertThat(capturedSearchRequests.size(), equalTo(2));
+        assertThat(capturedSearchRequests.size(), equalTo(1));
         SearchRequest searchRequest = capturedSearchRequests.get(0);
         assertThat(searchRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("snapshots-1")}));
-        searchRequest = capturedSearchRequests.get(1);
-        assertThat(searchRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("snapshots-2")}));
 
         assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(0));
 
-        verify(onFinish).run();
+        verify(listener).onFailure(any());
     }
 
-    public void testTrigger_GivenClientDeleteSnapshotRequestsFail() throws IOException {
+    public void testRemove_GivenClientDeleteSnapshotRequestsFail() throws IOException {
         givenClientDeleteModelSnapshotRequestsFail();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("none").build(),
@@ -167,26 +165,18 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         searchResponsesPerCall.add(createSearchResponse(snapshots1JobSnapshots));
         searchResponsesPerCall.add(createSearchResponse(snapshots2JobSnapshots));
 
-        createExpiredModelSnapshotsRemover().trigger(onFinish);
+        createExpiredModelSnapshotsRemover().remove(listener);
 
-        assertThat(capturedSearchRequests.size(), equalTo(2));
+        assertThat(capturedSearchRequests.size(), equalTo(1));
         SearchRequest searchRequest = capturedSearchRequests.get(0);
         assertThat(searchRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("snapshots-1")}));
-        searchRequest = capturedSearchRequests.get(1);
-        assertThat(searchRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("snapshots-2")}));
 
-        assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(3));
+        assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(1));
         DeleteModelSnapshotAction.Request deleteSnapshotRequest = capturedDeleteModelSnapshotRequests.get(0);
         assertThat(deleteSnapshotRequest.getJobId(), equalTo("snapshots-1"));
         assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("snapshots-1_1"));
-        deleteSnapshotRequest = capturedDeleteModelSnapshotRequests.get(1);
-        assertThat(deleteSnapshotRequest.getJobId(), equalTo("snapshots-1"));
-        assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("snapshots-1_2"));
-        deleteSnapshotRequest = capturedDeleteModelSnapshotRequests.get(2);
-        assertThat(deleteSnapshotRequest.getJobId(), equalTo("snapshots-2"));
-        assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("snapshots-2_1"));
 
-        verify(onFinish).run();
+        verify(listener).onFailure(any());
     }
 
     private void givenJobs(List<Job> jobs) {

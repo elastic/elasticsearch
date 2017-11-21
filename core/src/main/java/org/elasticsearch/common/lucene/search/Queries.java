@@ -70,7 +70,7 @@ public class Queries {
      * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
      */
     public static Query newNonNestedFilter(Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexVersionCreated.onOrAfter(Version.V_6_1_0)) {
             return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
         } else {
             return new BooleanQuery.Builder()

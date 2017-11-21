@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plugin.sql.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -138,7 +139,7 @@ public class SqlResponse extends ActionResponse implements ToXContentObject {
             builder.endArray();
 
             if (cursor != Cursor.EMPTY) {
-                builder.field(SqlRequest.CURSOR.getPreferredName(), Cursor.encodeToString(cursor));
+                builder.field(SqlRequest.CURSOR.getPreferredName(), Cursor.encodeToString(Version.CURRENT, cursor));
             }
         }
         return builder.endObject();

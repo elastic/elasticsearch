@@ -30,11 +30,6 @@ class EmptyCursor implements Cursor {
     }
 
     @Override
-    public void writeTo(java.io.Writer writer) throws IOException {
-        throw new IOException("no next page should not be converted to or from a string");
-    }
-
-    @Override
     public void nextPage(Configuration cfg, Client client, ActionListener<RowSet> listener) {
         throw new IllegalArgumentException("there is no next page");
     }

@@ -5,18 +5,29 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.StringWriter;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+
+import static org.elasticsearch.xpack.sql.plugin.AbstractSqlProtocolRestAction.CURSOR_REGISTRY;
 
 /**
  * Information required to access the next page of response.
@@ -28,10 +39,6 @@ public interface Cursor extends NamedWriteable {
      * Request the next page of data.
      */
     void nextPage(Configuration cfg, Client client, ActionListener<RowSet> listener);
-    /**
-     * Write the {@linkplain Cursor} to a String for serialization over xcontent.
-     */
-    void writeTo(java.io.Writer writer) throws IOException;
 
     /**
      * The {@link NamedWriteable}s required to deserialize {@link Cursor}s.
@@ -47,37 +54,35 @@ public interface Cursor extends NamedWriteable {
     /**
      * Write a {@linkplain Cursor} to a string for serialization across xcontent.
      */
-    static String encodeToString(Cursor info) {
-        StringWriter writer = new StringWriter();
-        try {
-            writer.write(info.getWriteableName());
-            info.writeTo(writer);
-        } catch (IOException e) {
-            throw new RuntimeException("unexpected failure converting next page info to a string", e);
+    static String encodeToString(Version version, Cursor info) {
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+            try (OutputStream base64 = Base64.getEncoder().wrap(os);
+                 StreamOutput out = new OutputStreamStreamOutput(base64)) {
+                Version.writeVersion(version, out);
+                out.writeNamedWriteable(info);
+            }
+            return os.toString(StandardCharsets.UTF_8.name());
+        } catch (IOException ex) {
+            throw new RuntimeException("unexpected failure converting next page info to a string", ex);
         }
-        return writer.toString();
     }
+
 
     /**
      * Read a {@linkplain Cursor} from a string.
      */
     static Cursor decodeFromString(String info) {
-        // TODO version compatibility
-        /* We need to encode minimum version across the cluster and use that
-         * to handle changes to this protocol across versions. */
-        String name = info.substring(0, 1);
-        try (java.io.Reader reader = new FastStringReader(info)) {
-            reader.skip(1);
-            switch (name) {
-            case EmptyCursor.NAME:
-                throw new RuntimeException("empty cursor shouldn't be encoded to a string");
-            case ScrollCursor.NAME:
-                return new ScrollCursor(reader);
-            default:
-                throw new RuntimeException("unknown cursor type [" + name + "]");
+        byte[] bytes = info.getBytes(StandardCharsets.UTF_8);
+        try (StreamInput delegate = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)));
+             StreamInput in = new NamedWriteableAwareStreamInput(delegate, CURSOR_REGISTRY)) {
+            Version version = Version.readVersion(in);
+            if (version.after(Version.CURRENT)) {
+                throw new RuntimeException("Unsupported scroll version " + version);
             }
-        } catch (IOException e) {
-            throw new RuntimeException("unexpected failure deconding cursor", e);
+            in.setVersion(version);
+            return in.readNamedWriteable(Cursor.class);
+        } catch (IOException ex) {
+            throw new RuntimeException("unexpected failure deconding cursor", ex);
         }
     }
 }

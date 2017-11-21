@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plugin.sql.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -100,7 +101,21 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
         }
 
         if (testInstance.cursor() != Cursor.EMPTY) {
-            assertEquals(rootMap.get(SqlRequest.CURSOR.getPreferredName()), Cursor.encodeToString(testInstance.cursor()));
+            assertEquals(rootMap.get(SqlRequest.CURSOR.getPreferredName()), Cursor.encodeToString(Version.CURRENT, testInstance.cursor()));
         }
+    }
+
+    public void testVersionHandling() {
+        Cursor cursor = randomCursor();
+        assertEquals(cursor, Cursor.decodeFromString(Cursor.encodeToString(Version.CURRENT, cursor)));
+
+        Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);
+
+        String encodedWithWrongVersion = Cursor.encodeToString(nextMinorVersion, cursor);
+        RuntimeException exception = expectThrows(RuntimeException.class, () -> {
+            Cursor.decodeFromString(encodedWithWrongVersion);
+        });
+
+        assertEquals(exception.getMessage(), "Unsupported scroll version " + nextMinorVersion);
     }
 }

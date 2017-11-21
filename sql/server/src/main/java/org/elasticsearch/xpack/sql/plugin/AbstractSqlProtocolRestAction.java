@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -17,19 +15,11 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestRequest.Method;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
-import org.elasticsearch.xpack.sql.ClientSqlException;
-import org.elasticsearch.xpack.sql.analysis.AnalysisException;
-import org.elasticsearch.xpack.sql.analysis.catalog.MappingException;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
-import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.planner.PlanningException;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractErrorResponse;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractExceptionResponse;
 import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.session.Cursor;
@@ -37,9 +27,6 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
@@ -47,7 +34,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
 
 public abstract class AbstractSqlProtocolRestAction extends BaseRestHandler {
-    protected static final NamedWriteableRegistry CURSOR_REGISTRY = new NamedWriteableRegistry(Cursor.getNamedWriteables());
+    public static final NamedWriteableRegistry CURSOR_REGISTRY = new NamedWriteableRegistry(Cursor.getNamedWriteables());
     private final AbstractProto proto;
 
     protected AbstractSqlProtocolRestAction(Settings settings, AbstractProto proto) {

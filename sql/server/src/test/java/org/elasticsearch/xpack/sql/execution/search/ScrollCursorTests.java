@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -17,9 +16,9 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.execution.search.extractor.InnerHitExtractorTests;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ProcessingHitExtractorTests;
 import org.elasticsearch.xpack.sql.execution.search.extractor.SourceExtractorTests;
+import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -68,13 +67,6 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
         if (randomBoolean()) {
             return super.copyInstance(instance, version);
         }
-        // See comment in NextPageInfo#decodeFromString about versioning
-        assertEquals(Version.CURRENT, version);
-        try (StringWriter output = new StringWriter()) { 
-            instance.writeTo(output);
-            try (java.io.Reader in = new FastStringReader(output.toString())) {
-                return new ScrollCursor(in);
-            }
-        }
+        return (ScrollCursor)Cursor.decodeFromString(Cursor.encodeToString(version, instance));
     }
 }

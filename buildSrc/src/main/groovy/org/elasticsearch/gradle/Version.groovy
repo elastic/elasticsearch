@@ -31,9 +31,10 @@ public class Version {
 
     final int major
     final int minor
-    final int bugfix
+    final int revision
     final int id
     final boolean snapshot
+    final String branch
     /**
      * Suffix on the version name. Unlike Version.java the build does not
      * consider alphas and betas different versions, it just preserves the
@@ -41,14 +42,15 @@ public class Version {
      */
     final String suffix
 
-    public Version(int major, int minor, int bugfix,
-            String suffix, boolean snapshot) {
+    public Version(int major, int minor, int revision,
+            String suffix, boolean snapshot, String branch) {
         this.major = major
         this.minor = minor
-        this.bugfix = bugfix
+        this.revision = revision
         this.snapshot = snapshot
         this.suffix = suffix
-        this.id = major * 100000 + minor * 1000 + bugfix * 10 +
+        this.branch = branch
+        this.id = major * 100000 + minor * 1000 + revision * 10 +
             (snapshot ? 1 : 0)
     }
 
@@ -58,13 +60,13 @@ public class Version {
             throw new InvalidUserDataException("Invalid version [${s}]")
         }
         return new Version(m.group(1) as int, m.group(2) as int,
-            m.group(3) as int, m.group(4) ?: '', m.group(5) != null)
+            m.group(3) as int, m.group(4) ?: '', m.group(5) != null, null)
     }
 
     @Override
     public String toString() {
         String snapshotStr = snapshot ? '-SNAPSHOT' : ''
-        return "${major}.${minor}.${bugfix}${suffix}${snapshotStr}"
+        return "${major}.${minor}.${revision}${suffix}${snapshotStr}"
     }
 
     public boolean before(String compareTo) {
@@ -81,5 +83,44 @@ public class Version {
 
     public boolean after(String compareTo) {
         return id > fromString(compareTo).id
+    }
+
+    public boolean onOrBeforeIncludingSuffix(Version otherVersion) {
+        if (id != otherVersion.id) {
+            return id < otherVersion.id
+        }
+
+        if (suffix == '') {
+            return otherVersion.suffix == ''
+        }
+
+        return otherVersion.suffix == '' || suffix < otherVersion.suffix
+    }
+
+    boolean equals(o) {
+        if (this.is(o)) return true
+        if (getClass() != o.class) return false
+
+        Version version = (Version) o
+
+        if (id != version.id) return false
+        if (major != version.major) return false
+        if (minor != version.minor) return false
+        if (revision != version.revision) return false
+        if (snapshot != version.snapshot) return false
+        if (suffix != version.suffix) return false
+
+        return true
+    }
+
+    int hashCode() {
+        int result
+        result = major
+        result = 31 * result + minor
+        result = 31 * result + revision
+        result = 31 * result + id
+        result = 31 * result + (snapshot ? 1 : 0)
+        result = 31 * result + (suffix != null ? suffix.hashCode() : 0)
+        return result
     }
 }

@@ -40,6 +40,13 @@ default behavior.
 `xpack.ml.max_open_jobs`::
 The maximum number of jobs that can run on a node. Defaults to `10`.
 
+`xpack.ml.max_machine_memory_percent`::
+The maximum percentage of the machine's memory that {ml} may use for running
+analytics processes. (These processes are separate to the {es} JVM.) Defaults to
+`30` percent. The limit is based on the total memory of the machine, not current
+free memory. Jobs will not be allocated to a node if doing so would cause the
+estimated memory use of {ml} jobs to exceed the limit.
+
 `xpack.ml.max_model_memory_limit`::
 The maximum `model_memory_limit` property value that can be set for any job on
 this node. If you try to create a job with a `model_memory_limit` property value

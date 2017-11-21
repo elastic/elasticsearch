@@ -19,6 +19,9 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
@@ -38,6 +41,7 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -245,6 +249,7 @@ public class JobManager extends AbstractComponent {
         clusterService.submitStateUpdateTask("update-job-" + jobId,
                 new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
                     private volatile Job updatedJob;
+                    private volatile boolean changeWasRequired;
 
                     @Override
                     protected PutJobAction.Response newResponse(boolean acknowledged) {
@@ -255,16 +260,33 @@ public class JobManager extends AbstractComponent {
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         Job job = getJobOrThrowIfUnknown(jobId, currentState);
                         updatedJob = jobUpdate.mergeWithJob(job, maxModelMemoryLimit);
+                        if (updatedJob.equals(job)) {
+                            // nothing to do
+                            return currentState;
+                        }
+                        changeWasRequired = true;
                         return updateClusterState(updatedJob, true, currentState);
                     }
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        PersistentTasksCustomMetaData persistentTasks =
-                                newState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-                        JobState jobState = MlMetadata.getJobState(jobId, persistentTasks);
-                        if (jobState == JobState.OPENED) {
-                            updateJobProcessNotifier.submitJobUpdate(jobUpdate);
+                        if (changeWasRequired) {
+                            PersistentTasksCustomMetaData persistentTasks =
+                                    newState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                            JobState jobState = MlMetadata.getJobState(jobId, persistentTasks);
+                            if (jobState == JobState.OPENED) {
+                                updateJobProcessNotifier.submitJobUpdate(jobUpdate);
+                            }
+                        } else {
+                            logger.debug("[{}] Ignored job update with no changes: {}", () -> jobId, () -> {
+                                try {
+                                    XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+                                    jobUpdate.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+                                    return jsonBuilder.string();
+                                } catch (IOException e) {
+                                    return "(unprintable due to " + e.getMessage() + ")";
+                                }
+                            });
                         }
                     }
                 });
@@ -330,9 +352,10 @@ public class JobManager extends AbstractComponent {
     public void revertSnapshot(RevertModelSnapshotAction.Request request, ActionListener<RevertModelSnapshotAction.Response> actionListener,
             ModelSnapshot modelSnapshot) {
 
+        final ModelSizeStats modelSizeStats = modelSnapshot.getModelSizeStats();
         final JobResultsPersister persister = new JobResultsPersister(settings, client);
 
-        // Step 2. After the model size stats is persisted, also persist the snapshot's quantiles and respond
+        // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------
         CheckedConsumer<IndexResponse, Exception> modelSizeStatsResponseHandler = response -> {
             persister.persistQuantiles(modelSnapshot.getQuantiles(), WriteRequest.RefreshPolicy.IMMEDIATE,
@@ -344,21 +367,20 @@ public class JobManager extends AbstractComponent {
                     }, actionListener::onFailure));
         };
 
-        // Step 1. When the model_snapshot_id is updated on the job, persist the snapshot's model size stats with a touched log time
+        // Step 2. When the model_snapshot_id is updated on the job, persist the snapshot's model size stats with a touched log time
         // so that a search for the latest model size stats returns the reverted one.
         // -------
         CheckedConsumer<Boolean, Exception> updateHandler = response -> {
             if (response) {
-                ModelSizeStats revertedModelSizeStats = new ModelSizeStats.Builder(modelSnapshot.getModelSizeStats())
-                        .setLogTime(new Date()).build();
+                ModelSizeStats revertedModelSizeStats = new ModelSizeStats.Builder(modelSizeStats).setLogTime(new Date()).build();
                 persister.persistModelSizeStats(revertedModelSizeStats, WriteRequest.RefreshPolicy.IMMEDIATE, ActionListener.wrap(
                         modelSizeStatsResponseHandler::accept, actionListener::onFailure));
             }
         };
 
-        // Step 0. Kick off the chain of callbacks with the cluster state update
+        // Step 1. Do the cluster state update
         // -------
-        clusterService.submitStateUpdateTask("revert-snapshot-" + request.getJobId(),
+        Consumer<Long> clusterStateHandler = response -> clusterService.submitStateUpdateTask("revert-snapshot-" + request.getJobId(),
                 new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(updateHandler, actionListener::onFailure)) {
 
             @Override
@@ -377,9 +399,15 @@ public class JobManager extends AbstractComponent {
                 Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
                 Job.Builder builder = new Job.Builder(job);
                 builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
+                builder.setEstablishedModelMemory(response);
                 return updateClusterState(builder.build(), true, currentState);
             }
         });
+
+        // Step 0. Find the appropriate established model memory for the reverted job
+        // -------
+        jobProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, clusterStateHandler,
+                actionListener::onFailure);
     }
 
     private static MlMetadata.Builder createMlMetadataBuilder(ClusterState currentState) {

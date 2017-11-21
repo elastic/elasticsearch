@@ -21,7 +21,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.nullValue;
 
 public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
@@ -42,7 +41,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         initClusterAndJob(jobId);
 
-        assertThat(queryEstablishedMemoryUsage(jobId), nullValue());
+        assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
     }
 
     public void testEstablishedMem_givenNoStatsLongHistory() throws Exception {
@@ -53,7 +52,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createBuckets(jobId, 25);
         jobResultsPersister.commitResultWrites(jobId);
 
-        assertThat(queryEstablishedMemoryUsage(jobId), nullValue());
+        assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
     }
 
     public void testEstablishedMem_givenNoStatsShortHistory() throws Exception {
@@ -64,7 +63,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createBuckets(jobId, 5);
         jobResultsPersister.commitResultWrites(jobId);
 
-        assertThat(queryEstablishedMemoryUsage(jobId), nullValue());
+        assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
     }
 
     public void testEstablishedMem_givenHistoryTooShort() throws Exception {
@@ -74,10 +73,11 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         createBuckets(jobId, 19);
         createModelSizeStats(jobId, 1, 19000L);
-        createModelSizeStats(jobId, 10, 20000L);
+        ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 20000L);
         jobResultsPersister.commitResultWrites(jobId);
 
-        assertThat(queryEstablishedMemoryUsage(jobId), nullValue());
+        assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
+        assertThat(queryEstablishedMemoryUsage(jobId, 19, latestModelSizeStats), equalTo(0L));
     }
 
     public void testEstablishedMem_givenHistoryJustEnoughLowVariation() throws Exception {
@@ -87,10 +87,25 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         createBuckets(jobId, 20);
         createModelSizeStats(jobId, 1, 19000L);
-        createModelSizeStats(jobId, 10, 20000L);
+        ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 20000L);
         jobResultsPersister.commitResultWrites(jobId);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(20000L));
+        assertThat(queryEstablishedMemoryUsage(jobId, 20, latestModelSizeStats), equalTo(20000L));
+    }
+
+    public void testEstablishedMem_givenHistoryJustEnoughAndUninitialized() throws Exception {
+        String jobId = "just-enough-low-cv-established-mem-job";
+
+        initClusterAndJob(jobId);
+
+        createBuckets(jobId, 20);
+        createModelSizeStats(jobId, 1, 0L);
+        ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 0L);
+        jobResultsPersister.commitResultWrites(jobId);
+
+        assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
+        assertThat(queryEstablishedMemoryUsage(jobId, 20, latestModelSizeStats), equalTo(0L));
     }
 
     public void testEstablishedMem_givenHistoryJustEnoughHighVariation() throws Exception {
@@ -100,10 +115,11 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         createBuckets(jobId, 20);
         createModelSizeStats(jobId, 1, 1000L);
-        createModelSizeStats(jobId, 10, 20000L);
+        ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 20000L);
         jobResultsPersister.commitResultWrites(jobId);
 
-        assertThat(queryEstablishedMemoryUsage(jobId), nullValue());
+        assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
+        assertThat(queryEstablishedMemoryUsage(jobId, 20, latestModelSizeStats), equalTo(0L));
     }
 
     public void testEstablishedMem_givenLongEstablished() throws Exception {
@@ -113,10 +129,11 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         createBuckets(jobId, 25);
         createModelSizeStats(jobId, 1, 10000L);
-        createModelSizeStats(jobId, 2, 20000L);
+        ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 2, 20000L);
         jobResultsPersister.commitResultWrites(jobId);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(20000L));
+        assertThat(queryEstablishedMemoryUsage(jobId, 25, latestModelSizeStats), equalTo(20000L));
     }
 
     public void testEstablishedMem_givenOneRecentChange() throws Exception {
@@ -126,10 +143,24 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         createBuckets(jobId, 25);
         createModelSizeStats(jobId, 1, 10000L);
-        createModelSizeStats(jobId, 10, 20000L);
+        ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 20000L);
         jobResultsPersister.commitResultWrites(jobId);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(20000L));
+        assertThat(queryEstablishedMemoryUsage(jobId, 25, latestModelSizeStats), equalTo(20000L));
+    }
+
+    public void testEstablishedMem_givenOneRecentChangeOnlyAndUninitialized() throws Exception {
+        String jobId = "one-recent-change-established-mem-job";
+
+        initClusterAndJob(jobId);
+
+        createBuckets(jobId, 25);
+        ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 0L);
+        jobResultsPersister.commitResultWrites(jobId);
+
+        assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
+        assertThat(queryEstablishedMemoryUsage(jobId, 25, latestModelSizeStats), equalTo(0L));
     }
 
     public void testEstablishedMem_givenOneRecentChangeOnly() throws Exception {
@@ -138,10 +169,11 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         initClusterAndJob(jobId);
 
         createBuckets(jobId, 25);
-        createModelSizeStats(jobId, 10, 20000L);
+        ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 20000L);
         jobResultsPersister.commitResultWrites(jobId);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(20000L));
+        assertThat(queryEstablishedMemoryUsage(jobId, 25, latestModelSizeStats), equalTo(20000L));
     }
 
     public void testEstablishedMem_givenHistoricHighVariationRecentLowVariation() throws Exception {
@@ -155,10 +187,11 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createModelSizeStats(jobId, 10, 6000L);
         createModelSizeStats(jobId, 19, 9000L);
         createModelSizeStats(jobId, 30, 19000L);
-        createModelSizeStats(jobId, 35, 20000L);
+        ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 35, 20000L);
         jobResultsPersister.commitResultWrites(jobId);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(20000L));
+        assertThat(queryEstablishedMemoryUsage(jobId, 40, latestModelSizeStats), equalTo(20000L));
     }
 
     public void testEstablishedMem_givenHistoricLowVariationRecentHighVariation() throws Exception {
@@ -172,10 +205,11 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createModelSizeStats(jobId, 25, 21000L);
         createModelSizeStats(jobId, 27, 39000L);
         createModelSizeStats(jobId, 30, 67000L);
-        createModelSizeStats(jobId, 35, 95000L);
+        ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 35, 95000L);
         jobResultsPersister.commitResultWrites(jobId);
 
-        assertThat(queryEstablishedMemoryUsage(jobId), nullValue());
+        assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
+        assertThat(queryEstablishedMemoryUsage(jobId, 40, latestModelSizeStats), equalTo(0L));
     }
 
     private void initClusterAndJob(String jobId) {
@@ -197,21 +231,28 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         builder.executeRequest();
     }
 
-    private void createModelSizeStats(String jobId, int bucketNum, long modelBytes) {
-        ModelSizeStats.Builder modelSizeStats = new ModelSizeStats.Builder(jobId);
-        modelSizeStats.setTimestamp(new Date(bucketSpan * bucketNum));
-        modelSizeStats.setLogTime(new Date(bucketSpan * bucketNum + randomIntBetween(1, 1000)));
-        modelSizeStats.setModelBytes(modelBytes);
-        jobResultsPersister.persistModelSizeStats(modelSizeStats.build());
+    private ModelSizeStats createModelSizeStats(String jobId, int bucketNum, long modelBytes) {
+        ModelSizeStats modelSizeStats = new ModelSizeStats.Builder(jobId)
+                .setTimestamp(new Date(bucketSpan * bucketNum))
+                .setLogTime(new Date(bucketSpan * bucketNum + randomIntBetween(1, 1000)))
+                .setModelBytes(modelBytes).build();
+        jobResultsPersister.persistModelSizeStats(modelSizeStats);
+        return modelSizeStats;
     }
 
     private Long queryEstablishedMemoryUsage(String jobId) throws Exception {
+        return queryEstablishedMemoryUsage(jobId, null, null);
+    }
+
+    private Long queryEstablishedMemoryUsage(String jobId, Integer bucketNum, ModelSizeStats latestModelSizeStats)
+            throws Exception {
         AtomicReference<Long> establishedModelMemoryUsage = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
 
         CountDownLatch latch = new CountDownLatch(1);
 
-        jobProvider.getEstablishedMemoryUsage(jobId, memUse -> {
+        Date latestBucketTimestamp = (bucketNum != null) ? new Date(bucketSpan * bucketNum) : null;
+        jobProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, latestModelSizeStats, memUse -> {
                     establishedModelMemoryUsage.set(memUse);
                     latch.countDown();
                 }, e -> {

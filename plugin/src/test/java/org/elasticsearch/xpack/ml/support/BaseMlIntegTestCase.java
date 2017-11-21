@@ -16,6 +16,7 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -118,6 +120,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     protected Job.Builder createJob(String id) {
+        return createJob(id, null);
+    }
+
+    protected Job.Builder createJob(String id, ByteSizeValue modelMemoryLimit) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
@@ -127,13 +133,19 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         Job.Builder builder = new Job.Builder();
         builder.setId(id);
-
+        if (modelMemoryLimit != null) {
+            builder.setAnalysisLimits(new AnalysisLimits(modelMemoryLimit.getMb(), null));
+        }
         builder.setAnalysisConfig(analysisConfig);
         builder.setDataDescription(dataDescription);
         return builder;
     }
 
     public static Job.Builder createFareQuoteJob(String id) {
+        return createFareQuoteJob(id, null);
+    }
+
+    public static Job.Builder createFareQuoteJob(String id, ByteSizeValue modelMemoryLimit) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeFormat(DataDescription.EPOCH);
@@ -146,6 +158,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         Job.Builder builder = new Job.Builder();
         builder.setId(id);
+        if (modelMemoryLimit != null) {
+            builder.setAnalysisLimits(new AnalysisLimits(modelMemoryLimit.getMb(), null));
+        }
         builder.setAnalysisConfig(analysisConfig);
         builder.setDataDescription(dataDescription);
         return builder;

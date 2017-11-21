@@ -7,12 +7,14 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
+import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -97,6 +99,13 @@ public class OverallBucketsIT extends MlNativeAutodetectIntegTestCase {
                     GetOverallBucketsAction.INSTANCE, filteredOverallBucketsRequest).actionGet();
             assertThat(filteredOverallBucketsResponse.getOverallBuckets().count(), equalTo(2L));
         }
+
+        // Since this job ran for 3000 buckets, it's a good place to assert
+        // that established model memory matches model memory in the job stats
+        GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
+        ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
+        Job updatedJob = getJob(job.getId()).get(0);
+        assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
     }
 
     private static Map<String, Object> createRecord(long timestamp) {

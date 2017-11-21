@@ -18,6 +18,12 @@ package org.elasticsearch.test;/*
  */
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.elasticsearch.gradle.VersionCollection;
+
+import java.util.Arrays;
 
 public class VersionCollectionTests extends RandomizedTest {
+    public void testFoo() {
+        new VersionCollection(Arrays.asList("public static final Version V_5_0_0_alpha2", "public static final Version V_5_0_0_alpha1"));
+    }
 }

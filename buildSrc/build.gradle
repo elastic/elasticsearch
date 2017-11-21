@@ -163,13 +163,13 @@ if (project != rootProject) {
   }
 
   namingConventions {
-    testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
+    testClass = 'com.carrotsearch.randomizedtesting.RandomizedTest'
     integTestClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$IntegTestCase'
   }
 
   task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
     checkForTestsInMain = true
-    testClass = namingConventions.testClass
+    testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
     integTestClass = namingConventions.integTestClass
   }
   precommit.dependsOn namingConventionsMain

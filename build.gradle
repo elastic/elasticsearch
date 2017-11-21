@@ -73,7 +73,12 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
  * backwards compatibility guarantees and only keeping the latest beta or rc
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
-VersionCollection versions = new VersionCollection(file('core/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
+def versionJava = System.getProperty("path.to.version.java") // TODO get rid of this and replace with proper testing, once testing is possible
+if (versionJava == null) {
+  versionJava = 'core/src/main/java/org/elasticsearch/Version.java'
+}
+
+VersionCollection versions = new VersionCollection(file(versionJava).readLines('UTF-8'))
 
 // build metadata from previous build, contains eg hashes for bwc builds
 String buildMetadataValue = System.getenv('BUILD_METADATA')

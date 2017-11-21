@@ -78,6 +78,16 @@ class VersionCollection {
 
         this.versions = Collections.unmodifiableList(versions)
 
+        // TODO remove and replace with testing, once testing is possible
+        println "VersionCollection: ${versions}"
+        println "currentVersion: ${currentVersion}"
+        println "BWCSnapshotForCurrentMajor: ${BWCSnapshotForCurrentMajor}"
+        println "BWCSnapshotForPreviousMinorOfCurrentMajor: ${BWCSnapshotForPreviousMinorOfCurrentMajor}"
+        println "BWCSnapshotForPreviousMajor: ${BWCSnapshotForPreviousMajor}"
+        println "versionsIndexCompatibleWithCurrent: ${versionsIndexCompatibleWithCurrent}"
+        println "versionsWireCompatibleWithCurrent: ${versionsWireCompatibleWithCurrent}"
+        println "basicIntegrationTestVersions: ${basicIntegrationTestVersions}"
+
         if (getCurrentVersion().toString() != VersionProperties.elasticsearch) {
             throw new GradleException("The last version in Versions.java [${versions[-1]}] does not match " +
                     "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
@@ -93,7 +103,19 @@ class VersionCollection {
     }
 
     Version getBWCSnapshotForPreviousMajor() {
-        return getLastSnapshotWithMajor(currentVersion.major - 1)
+        def version = getLastSnapshotWithMajor(currentVersion.major - 1)
+        assert version != null : "getBWCSnapshotForPreviousMajor(): found no versions in the previous major"
+        return version
+    }
+
+    Version getBWCSnapshotForPreviousMinorOfCurrentMajor() {
+        // If we are at 6.2.0 but 6.1.0 has not yet been released then we
+        // need to test against 6.0.1-SNAPSHOT too
+        final def v = BWCSnapshotForCurrentMajor
+        if (v == null || v.revision != 0 || v.minor == 0) {
+            return null
+        }
+        return versions.find { it.major == v.major && it.minor == v.minor - 1 && it.snapshot }
     }
 
     private Version getLastSnapshotWithMajor(int targetMajor) {
@@ -112,6 +134,8 @@ class VersionCollection {
     }
 
     List<Version> getVersionsIndexCompatibleWithCurrent() {
+        // TODO this will yield 6.0.1-SNAPSHOT (etc.) on 6.x, and this will mean we're testing BWC vs 6.0.1-SNAPSHOT
+        // even after we're certain we're never going to release it. Does this need fixing?
         final def firstVersionOfCurrentMajor = versions.find { it.major >= currentVersion.major - 1 }
         return versionsOnOrAfterExceptCurrent(firstVersionOfCurrentMajor)
     }
@@ -131,16 +155,7 @@ class VersionCollection {
 
     List<Version> getBasicIntegrationTestVersions() {
         // TODO these are the versions checked by `gradle check` for BWC tests. Their choice seems a litle arbitrary.
-        List<Version> result = []
-        def v1 = BWCSnapshotForCurrentMajor
-        if (v1 != null) { // TODO remove null check. Should never be null?
-            result.add(v1)
-            if (v1.revision == 0) {
-                final def v2 = BWCSnapshotForPreviousMajor
-                result.add(v2)
-            }
-        }
-
-        return Collections.unmodifiableList(result);
+        List<Version> result = [BWCSnapshotForPreviousMajor, BWCSnapshotForCurrentMajor]
+        return Collections.unmodifiableList(result.findAll { it != null })
     }
 }

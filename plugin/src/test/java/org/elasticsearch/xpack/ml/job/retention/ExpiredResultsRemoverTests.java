@@ -68,30 +68,30 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         onFinish = mock(Runnable.class);
     }
 
-    public void testTrigger_GivenNoJobs() {
+    public void testRemove_GivenNoJobs() {
         givenClientRequestsSucceed();
         givenJobs(Collections.emptyList());
 
-        createExpiredResultsRemover().trigger(onFinish);
+        createExpiredResultsRemover().remove(onFinish);
 
         verify(onFinish).run();
         Mockito.verifyNoMoreInteractions(client);
     }
 
-    public void testTrigger_GivenJobsWithoutRetentionPolicy() {
+    public void testRemove_GivenJobsWithoutRetentionPolicy() {
         givenClientRequestsSucceed();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("foo").build(),
                 JobTests.buildJobBuilder("bar").build()
         ));
 
-        createExpiredResultsRemover().trigger(onFinish);
+        createExpiredResultsRemover().remove(onFinish);
 
         verify(onFinish).run();
         Mockito.verifyNoMoreInteractions(client);
     }
 
-    public void testTrigger_GivenJobsWithAndWithoutRetentionPolicy() throws IOException {
+    public void testRemove_GivenJobsWithAndWithoutRetentionPolicy() throws IOException {
         givenClientRequestsSucceed();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("none").build(),
@@ -99,7 +99,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
 
-        createExpiredResultsRemover().trigger(onFinish);
+        createExpiredResultsRemover().remove(onFinish);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(2));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
@@ -109,7 +109,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         verify(onFinish).run();
     }
 
-    public void testTrigger_GivenClientRequestsFailed_StillIteratesThroughJobs() throws IOException {
+    public void testRemove_GivenClientRequestsFailed_StillIteratesThroughJobs() throws IOException {
         givenClientRequestsFailed();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("none").build(),
@@ -117,7 +117,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
 
-        createExpiredResultsRemover().trigger(onFinish);
+        createExpiredResultsRemover().remove(onFinish);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(2));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);

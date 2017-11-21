@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
@@ -29,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * blocking the thread it was called at for too long. It does so by
  * chaining the steps together.
  */
-abstract class AbstractExpiredJobDataRemover {
+abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
     private final ClusterService clusterService;
 
@@ -37,7 +38,8 @@ abstract class AbstractExpiredJobDataRemover {
         this.clusterService = Objects.requireNonNull(clusterService);
     }
 
-    public void trigger(Runnable onFinish) {
+    @Override
+    public void remove(Runnable onFinish) {
         removeData(newJobIterator(), onFinish);
     }
 
@@ -87,25 +89,5 @@ abstract class AbstractExpiredJobDataRemover {
         return QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
                 .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"));
-    }
-
-    private static class VolatileCursorIterator<T> implements Iterator<T> {
-        private final List<T> items;
-        private volatile int cursor;
-
-        private VolatileCursorIterator(List<T> items) {
-            this.items = items;
-            this.cursor = 0;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return cursor < items.size();
-        }
-
-        @Override
-        public T next() {
-            return items.get(cursor++);
-        }
     }
 }

@@ -666,7 +666,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         }
     }
 
-    public void testParsingExceptionIfFieldDoesNotExist() throws Exception {
+    public void testValueIfFieldDoesNotExist() throws Exception {
         assertAcked(prepareCreate("test").addMapping(
                 "type",
                 jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
@@ -684,14 +684,15 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource()
                                 .size(numDocs)
-                                .query(functionScoreQuery(termQuery("test", "value"), linearDecayFunction("type.geo", lonlat, "1000km"))
-                                        .scoreMode(FunctionScoreQuery.ScoreMode.MULTIPLY))));
-        try {
-            response.actionGet();
-            fail("Expected SearchPhaseExecutionException");
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), is("all shards failed"));
-        }
+                                .query(functionScoreQuery(termQuery("test", "value"),
+                                    linearDecayFunction("type.geo", lonlat, "1000km"))
+                                        .scoreMode(FunctionScoreQuery
+                                            .ScoreMode.MULTIPLY))));
+        SearchResponse sr = response.actionGet();
+        assertNoFailures(sr);
+        SearchHits sh = sr.getHits();
+        assertThat(sh.getHits().length, equalTo(1));
+        assertThat(sh.getAt(0).getScore(), equalTo(0.0F));
     }
 
     public void testParsingExceptionIfFieldTypeDoesNotMatch() throws Exception {

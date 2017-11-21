@@ -154,7 +154,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
      * current value will be provided to the listener so that the listener can determine if any action
      * needs to be taken.
      */
-    public void addSecurityIndexOutOfDateListener(BiConsumer<Boolean, Boolean> listener) {
+    void addSecurityIndexOutOfDateListener(BiConsumer<Boolean, Boolean> listener) {
         securityIndex.addIndexOutOfDateListener(listener);
     }
 
@@ -206,9 +206,10 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     }
 
     /**
-     * Checks if the security index is out of date with the current version.
+     * Checks if the security index is out of date with the current version. If the index does not exist
+     * we treat the index as up to date as we expect it to be created with the current format.
      */
     public boolean isSecurityIndexOutOfDate() {
-        return securityIndex.indexExists() && !securityIndex.isIndexUpToDate();
+        return securityIndex.isIndexUpToDate() == false;
     }
 }

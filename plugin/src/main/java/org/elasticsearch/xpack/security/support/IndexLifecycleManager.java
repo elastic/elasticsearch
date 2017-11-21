@@ -62,13 +62,7 @@ public class IndexLifecycleManager extends AbstractComponent {
     private final List<BiConsumer<ClusterIndexHealth, ClusterIndexHealth>> indexHealthChangeListeners = new CopyOnWriteArrayList<>();
     private final List<BiConsumer<Boolean, Boolean>> indexOutOfDateListeners = new CopyOnWriteArrayList<>();
 
-    private volatile boolean templateIsUpToDate;
-    private volatile boolean indexExists;
-    private volatile boolean isIndexUpToDate;
-    private volatile boolean indexAvailable;
-    private volatile boolean canWriteToIndex;
-    private volatile boolean mappingIsUpToDate;
-    private volatile Version mappingVersion;
+    private volatile State indexState = new State(false, false, false, false, null);
 
     public IndexLifecycleManager(Settings settings, InternalSecurityClient client, String indexName, String templateName) {
         super(settings);
@@ -78,23 +72,29 @@ public class IndexLifecycleManager extends AbstractComponent {
     }
 
     public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
-        return this.mappingVersion == null || requiredVersion.test(this.mappingVersion);
+        // pull value into local variable for consistent view
+        final State currentIndexState = this.indexState;
+        return currentIndexState.mappingVersion == null || requiredVersion.test(currentIndexState.mappingVersion);
     }
 
     public boolean indexExists() {
-        return indexExists;
+        return this.indexState.indexExists;
     }
 
+    /**
+     * Returns whether the index is on the current format if it exists. If the index does not exist
+     * we treat the index as up to date as we expect it to be created with the current format.
+     */
     public boolean isIndexUpToDate() {
-        return isIndexUpToDate;
+        return this.indexState.isIndexUpToDate;
     }
 
     public boolean isAvailable() {
-        return indexAvailable;
+        return this.indexState.indexAvailable;
     }
 
     public boolean isWritable() {
-        return canWriteToIndex;
+        return this.indexState.canWriteToIndex;
     }
 
     /**
@@ -116,26 +116,27 @@ public class IndexLifecycleManager extends AbstractComponent {
     }
 
     public void clusterChanged(ClusterChangedEvent event) {
-        final boolean previousUpToDate = this.isIndexUpToDate;
+        final boolean previousUpToDate = this.indexState.isIndexUpToDate;
         processClusterState(event.state());
         checkIndexHealthChange(event);
-        if (previousUpToDate != this.isIndexUpToDate) {
-            notifyIndexOutOfDateListeners(previousUpToDate, this.isIndexUpToDate);
+        if (previousUpToDate != this.indexState.isIndexUpToDate) {
+            notifyIndexOutOfDateListeners(previousUpToDate, this.indexState.isIndexUpToDate);
         }
     }
 
-    private void processClusterState(ClusterState state) {
-        assert state != null;
-        final IndexMetaData securityIndex = resolveConcreteIndex(indexName, state.metaData());
-        this.indexExists = securityIndex != null;
-        this.isIndexUpToDate = (securityIndex != null
-                                  && INDEX_FORMAT_SETTING.get(securityIndex.getSettings()).intValue() == INTERNAL_INDEX_FORMAT);
-        this.indexAvailable = checkIndexAvailable(state);
-        this.templateIsUpToDate = TemplateUtils.checkTemplateExistsAndIsUpToDate(templateName,
-            SECURITY_VERSION_STRING, state, logger);
-        this.mappingIsUpToDate = checkIndexMappingUpToDate(state);
-        this.canWriteToIndex = templateIsUpToDate && (mappingIsUpToDate || isIndexUpToDate);
-        this.mappingVersion = oldestIndexMappingVersion(state);
+    private void processClusterState(ClusterState clusterState) {
+        assert clusterState != null;
+        final IndexMetaData securityIndex = resolveConcreteIndex(indexName, clusterState.metaData());
+        final boolean indexExists = securityIndex != null;
+        final boolean isIndexUpToDate = indexExists == false ||
+                INDEX_FORMAT_SETTING.get(securityIndex.getSettings()).intValue() == INTERNAL_INDEX_FORMAT;
+        final boolean indexAvailable = checkIndexAvailable(clusterState);
+        final boolean templateIsUpToDate = TemplateUtils.checkTemplateExistsAndIsUpToDate(templateName,
+            SECURITY_VERSION_STRING, clusterState, logger);
+        final boolean mappingIsUpToDate = checkIndexMappingUpToDate(clusterState);
+        final boolean canWriteToIndex = templateIsUpToDate && (mappingIsUpToDate || isIndexUpToDate);
+        final Version mappingVersion = oldestIndexMappingVersion(clusterState);
+        this.indexState = new State(indexExists, isIndexUpToDate, indexAvailable, canWriteToIndex, mappingVersion);
     }
 
     private void checkIndexHealthChange(ClusterChangedEvent event) {
@@ -285,7 +286,7 @@ public class IndexLifecycleManager extends AbstractComponent {
      * action on the security index.
      */
     public <T> void createIndexIfNeededThenExecute(final ActionListener<T> listener, final Runnable andThen) {
-        if (indexExists) {
+        if (this.indexState.indexExists) {
             andThen.run();
         } else {
             CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX);
@@ -312,6 +313,26 @@ public class IndexLifecycleManager extends AbstractComponent {
                     }
                 }
             });
+        }
+    }
+
+    /**
+     * Holder class so we can update all values at once
+     */
+    private static class State {
+        private final boolean indexExists;
+        private final boolean isIndexUpToDate;
+        private final boolean indexAvailable;
+        private final boolean canWriteToIndex;
+        private final Version mappingVersion;
+
+        private State(boolean indexExists, boolean isIndexUpToDate, boolean indexAvailable,
+                      boolean canWriteToIndex, Version mappingVersion) {
+            this.indexExists = indexExists;
+            this.isIndexUpToDate = isIndexUpToDate;
+            this.indexAvailable = indexAvailable;
+            this.canWriteToIndex = canWriteToIndex;
+            this.mappingVersion = mappingVersion;
         }
     }
 }

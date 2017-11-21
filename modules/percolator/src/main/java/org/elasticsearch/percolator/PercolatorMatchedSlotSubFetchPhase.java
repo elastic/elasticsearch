@@ -65,7 +65,8 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         for (PercolateQuery percolateQuery : percolateQueries) {
             String fieldName = singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
-            Weight weight = percolatorIndexSearcher.createNormalizedWeight(Queries.newNonNestedFilter(), false);
+            Weight weight = percolatorIndexSearcher.createNormalizedWeight(
+                Queries.newNonNestedFilter(context.mapperService().getIndexSettings().getIndexVersionCreated()), false);
             Scorer s = weight.scorer(percolatorIndexSearcher.getIndexReader().leaves().get(0));
             int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
             BitSet rootDocs = BitSet.of(s.iterator(), memoryIndexMaxDoc);

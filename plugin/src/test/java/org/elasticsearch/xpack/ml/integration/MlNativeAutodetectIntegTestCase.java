@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,8 +17,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -28,6 +35,7 @@ import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.action.GetJobsAction;
@@ -49,11 +57,15 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
+import org.elasticsearch.xpack.ml.job.results.Forecast;
+import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats;
+import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksNodeService;
@@ -72,6 +84,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Base class of ML integration tests that use a native autodetect process
@@ -275,6 +289,75 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
         PostDataAction.Request request = new PostDataAction.Request(jobId);
         request.setContent(new BytesArray(data), XContentType.JSON);
         return client().execute(PostDataAction.INSTANCE, request).actionGet().getDataCounts();
+    }
+
+    protected long forecast(String jobId, TimeValue duration, TimeValue expiresIn) {
+        ForecastJobAction.Request request = new ForecastJobAction.Request(jobId);
+        request.setDuration(duration.getStringRep());
+        if (expiresIn != null) {
+            request.setExpiresIn(expiresIn.getStringRep());
+        }
+        return client().execute(ForecastJobAction.INSTANCE, request).actionGet().getForecastId();
+    }
+
+    protected void waitForecastToFinish(String jobId, long forecastId) throws Exception {
+        assertBusy(() -> {
+            ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
+            assertThat(forecastRequestStats, is(notNullValue()));
+            assertThat(forecastRequestStats.getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.FINISHED));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    protected ForecastRequestStats getForecastStats(String jobId, long forecastId) {
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+                .setQuery(QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
+                        .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                        .filter(QueryBuilders.termQuery(ForecastRequestStats.FORECAST_ID.getPreferredName(), forecastId)))
+                .execute().actionGet();
+        SearchHits hits = searchResponse.getHits();
+        if (hits.getTotalHits() == 0) {
+            return null;
+        }
+        assertThat(hits.getTotalHits(), equalTo(1L));
+        try {
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
+                    NamedXContentRegistry.EMPTY, hits.getHits()[0].getSourceRef());
+            return ForecastRequestStats.PARSER.apply(parser, null);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    protected List<ForecastRequestStats> getForecastStats() {
+        List<ForecastRequestStats> forecastStats = new ArrayList<>();
+
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+                .setSize(1000)
+                .setQuery(QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE)))
+                .execute().actionGet();
+        SearchHits hits = searchResponse.getHits();
+        for (SearchHit hit : hits) {
+            try {
+                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
+                        NamedXContentRegistry.EMPTY, hit.getSourceRef());
+                forecastStats.add(ForecastRequestStats.PARSER.apply(parser, null));
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return forecastStats;
+    }
+
+    protected long countForecastDocs(String jobId, long forecastId) {
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+                .setQuery(QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
+                        .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                        .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId)))
+                .execute().actionGet();
+        return searchResponse.getHits().getTotalHits();
     }
 
     @Override

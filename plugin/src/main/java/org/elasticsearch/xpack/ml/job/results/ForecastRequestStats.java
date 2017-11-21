@@ -175,6 +175,10 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         return jobId;
     }
 
+    public long getForecastId() {
+        return forecastId;
+    }
+
     /**
      * Return the document ID used for indexing. As there is 1 and only 1 document
      * per forecast request, the id has no dynamic parts.

@@ -46,7 +46,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     private ClusterService clusterService;
     private ClusterState clusterState;
     private List<DeleteByQueryRequest> capturedDeleteByQueryRequests;
-    private Runnable onFinish;
+    private ActionListener<Boolean> listener;
 
     @Before
     public void setUpTests() {
@@ -55,26 +55,16 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
         client = mock(Client.class);
-        doAnswer(new Answer<Void>() {
-                 @Override
-                 public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                     capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
-                     ActionListener<BulkByScrollResponse> listener =
-                             (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
-                     listener.onResponse(null);
-                     return null;
-                 }
-             }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
-        onFinish = mock(Runnable.class);
+        listener = mock(ActionListener.class);
     }
 
     public void testRemove_GivenNoJobs() {
         givenClientRequestsSucceed();
         givenJobs(Collections.emptyList());
 
-        createExpiredResultsRemover().remove(onFinish);
+        createExpiredResultsRemover().remove(listener);
 
-        verify(onFinish).run();
+        verify(listener).onResponse(true);
         Mockito.verifyNoMoreInteractions(client);
     }
 
@@ -85,13 +75,13 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("bar").build()
         ));
 
-        createExpiredResultsRemover().remove(onFinish);
+        createExpiredResultsRemover().remove(listener);
 
-        verify(onFinish).run();
+        verify(listener).onResponse(true);
         Mockito.verifyNoMoreInteractions(client);
     }
 
-    public void testRemove_GivenJobsWithAndWithoutRetentionPolicy() throws IOException {
+    public void testRemove_GivenJobsWithAndWithoutRetentionPolicy() throws Exception {
         givenClientRequestsSucceed();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("none").build(),
@@ -99,17 +89,17 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
 
-        createExpiredResultsRemover().remove(onFinish);
+        createExpiredResultsRemover().remove(listener);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(2));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
         assertThat(dbqRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("results-1")}));
         dbqRequest = capturedDeleteByQueryRequests.get(1);
         assertThat(dbqRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("results-2")}));
-        verify(onFinish).run();
+        verify(listener).onResponse(true);
     }
 
-    public void testRemove_GivenClientRequestsFailed_StillIteratesThroughJobs() throws IOException {
+    public void testRemove_GivenClientRequestsFailed() throws IOException {
         givenClientRequestsFailed();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("none").build(),
@@ -117,14 +107,12 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
 
-        createExpiredResultsRemover().remove(onFinish);
+        createExpiredResultsRemover().remove(listener);
 
-        assertThat(capturedDeleteByQueryRequests.size(), equalTo(2));
+        assertThat(capturedDeleteByQueryRequests.size(), equalTo(1));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
         assertThat(dbqRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("results-1")}));
-        dbqRequest = capturedDeleteByQueryRequests.get(1);
-        assertThat(dbqRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("results-2")}));
-        verify(onFinish).run();
+        verify(listener).onFailure(any());
     }
 
     private void givenClientRequestsSucceed() {
@@ -143,7 +131,9 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 ActionListener<BulkByScrollResponse> listener =
                         (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
                 if (shouldSucceed) {
-                    listener.onResponse(null);
+                    BulkByScrollResponse bulkByScrollResponse = mock(BulkByScrollResponse.class);
+                    when(bulkByScrollResponse.getDeleted()).thenReturn(42L);
+                    listener.onResponse(bulkByScrollResponse);
                 } else {
                     listener.onFailure(new RuntimeException("failed"));
                 }

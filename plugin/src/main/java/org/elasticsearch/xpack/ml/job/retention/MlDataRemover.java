@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.elasticsearch.action.ActionListener;
+
 public interface MlDataRemover {
-    void remove(Runnable onFinish);
+    void remove(ActionListener<Boolean> listener);
 }

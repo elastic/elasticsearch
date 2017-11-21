@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -57,10 +58,10 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     }
 
     @Override
-    protected void removeDataBefore(Job job, long cutoffEpochMs, Runnable onFinish) {
+    protected void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener) {
         if (job.getModelSnapshotId() == null) {
             // No snapshot to remove
-            onFinish.run();
+            listener.onResponse(true);
             return;
         }
         LOGGER.debug("Removing model snapshots of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
@@ -86,7 +87,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                     for (SearchHit hit : searchResponse.getHits()) {
                         modelSnapshots.add(ModelSnapshot.fromJson(hit.getSourceRef()));
                     }
-                    deleteModelSnapshots(createVolatileCursorIterator(modelSnapshots), onFinish);
+                    deleteModelSnapshots(createVolatileCursorIterator(modelSnapshots), listener);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -94,15 +95,14 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
             @Override
             public void onFailure(Exception e) {
-                LOGGER.error("[" + job.getId() +  "] Search for expired snapshots failed", e);
-                onFinish.run();
+                listener.onFailure(new ElasticsearchException("[" + job.getId() +  "] Search for expired snapshots failed", e));
             }
         });
     }
 
-    private void deleteModelSnapshots(Iterator<ModelSnapshot> modelSnapshotIterator, Runnable onFinish) {
+    private void deleteModelSnapshots(Iterator<ModelSnapshot> modelSnapshotIterator, ActionListener<Boolean> listener) {
         if (modelSnapshotIterator.hasNext() == false) {
-            onFinish.run();
+            listener.onResponse(true);
             return;
         }
         ModelSnapshot modelSnapshot = modelSnapshotIterator.next();
@@ -112,7 +112,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                 @Override
                 public void onResponse(DeleteModelSnapshotAction.Response response) {
                     try {
-                        deleteModelSnapshots(modelSnapshotIterator, onFinish);
+                        deleteModelSnapshots(modelSnapshotIterator, listener);
                     } catch (Exception e) {
                         onFailure(e);
                     }
@@ -120,9 +120,8 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
                 @Override
                 public void onFailure(Exception e) {
-                    LOGGER.error("[" + modelSnapshot.getJobId() +  "] Failed to delete snapshot ["
-                            + modelSnapshot.getSnapshotId() + "]", e);
-                    deleteModelSnapshots(modelSnapshotIterator, onFinish);
+                    listener.onFailure(new ElasticsearchException("[" + modelSnapshot.getJobId() +  "] Failed to delete snapshot ["
+                            + modelSnapshot.getSnapshotId() + "]", e));
                 }
             });
     }

@@ -38,7 +38,6 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Request, DeleteExpiredDataAction.Response,
         DeleteExpiredDataAction.RequestBuilder> {
@@ -156,11 +155,11 @@ public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Requ
         private void deleteExpiredData(Iterator<MlDataRemover> mlDataRemoversIterator, ActionListener<Response> listener) {
             if (mlDataRemoversIterator.hasNext()) {
                 MlDataRemover remover = mlDataRemoversIterator.next();
-                remover.remove(() -> {
-                    deleteExpiredData(mlDataRemoversIterator, listener);
-                });
+                remover.remove(ActionListener.wrap(
+                        booleanResponse -> deleteExpiredData(mlDataRemoversIterator, listener),
+                        listener::onFailure));
             } else {
-                logger.debug("Finished deleting expired data");
+                logger.info("Completed deletion of expired data");
                 listener.onResponse(new Response(true));
             }
         }

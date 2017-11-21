@@ -63,7 +63,7 @@ import java.util.Objects;
  */
 public class SecureSM extends SecurityManager {
 
-  private final String[] packagesThatCanExit;
+  private final String[] classesThatCanExit;
 
   /**
    * Creates a new security manager where no packages can exit nor halt the virtual machine.
@@ -73,22 +73,24 @@ public class SecureSM extends SecurityManager {
   }
 
   /**
-   * Creates a new security manager with the specified list of packages being the only packages
-   * that can exit or halt the virtual machine.
+   * Creates a new security manager with the specified list of regular expressions as the those that class names will be tested against to
+   * check whether or not a class can exit or halt the virtual machine.
    *
-   * @param packagesThatCanExit the list of packages that can exit or halt the virtual machine
+   * @param classesThatCanExit the list of classes that can exit or halt the virtual machine
    */
-  public SecureSM(final String[] packagesThatCanExit) {
-    this.packagesThatCanExit = packagesThatCanExit;
+  public SecureSM(final String[] classesThatCanExit) {
+    this.classesThatCanExit = classesThatCanExit;
   }
 
   /**
-   * Creates a new security manager with a standard set of test packages being the only packages
-   * that can exit or halt the virtual machine. The packages that can exit are
+   * Creates a new security manager with a standard set of test packages being the only packages that can exit or halt the virtual machine.
+   * The packages that can exit are:
+   * <ul>
    *  <li><code>org.apache.maven.surefire.booter.</code></li>
    *  <li><code>com.carrotsearch.ant.tasks.junit4.</code></li>
    *  <li><code>org.eclipse.internal.junit.runner.</code></li>
    *  <li><code>com.intellij.rt.execution.junit.</code></li>
+   * </ul>
    *
    * @return an instance of SecureSM where test packages can halt or exit the virtual machine
      */
@@ -96,15 +98,15 @@ public class SecureSM extends SecurityManager {
     return new SecureSM(TEST_RUNNER_PACKAGES);
   }
 
-  private static final String[] TEST_RUNNER_PACKAGES = new String[] {
+  static final String[] TEST_RUNNER_PACKAGES = new String[] {
     // surefire test runner
-    "org.apache.maven.surefire.booter.",
+    "org\\.apache\\.maven\\.surefire\\.booter\\..*",
     // junit4 test runner
-    "com.carrotsearch.ant.tasks.junit4.",
+    "com\\.carrotsearch\\.ant\\.tasks\\.junit4\\.slave\\..*",
     // eclipse test runner
-    "org.eclipse.jdt.internal.junit.runner.",
+    "org\\.eclipse.jdt\\.internal\\.junit\\.runner\\..*",
     // intellij test runner
-    "com.intellij.rt.execution.junit."
+    "com\\.intellij\\.rt\\.execution\\.junit\\..*"
   };
 
   // java.security.debug support
@@ -203,6 +205,8 @@ public class SecureSM extends SecurityManager {
   
   /**
    * The "Uwe Schindler" algorithm.
+   *
+   * @param status the exit status
    */
   protected void innerCheckExit(final int status) {
     AccessController.doPrivileged(new PrivilegedAction<Void>() {
@@ -222,14 +226,12 @@ public class SecureSM extends SecurityManager {
           }
           
           if (exitMethodHit != null) {
-            if (packagesThatCanExit == null) {
+            if (classesThatCanExit == null) {
               break;
             }
-            for (String packageThatCanExit : packagesThatCanExit) {
-              if (className.startsWith(packageThatCanExit)) {
-                // this exit point is allowed, we return normally from closure:
-                return null;
-              }
+            if (classCanExit(className, classesThatCanExit)) {
+              // this exit point is allowed, we return normally from closure:
+              return null;
             }
             // anything else in stack trace is not allowed, break and throw SecurityException below:
             break;
@@ -246,6 +248,15 @@ public class SecureSM extends SecurityManager {
     
     // we passed the stack check, delegate to super, so default policy can still deny permission:
     super.checkExit(status);
+  }
+
+  static boolean classCanExit(final String className, final String[] classesThatCanExit) {
+    for (final String classThatCanExit : classesThatCanExit) {
+      if (className.matches(classThatCanExit)) {
+        return true;
+      }
+    }
+    return false;
   }
 
 }

@@ -103,8 +103,8 @@ setup:
 ---
 "Create illegal split indices":
   - skip:
-      version: " - 6.99.99"
-      reason: fixed in 7.0.0
+      version: " - 6.0.99"
+      reason: Added in 6.1.0
 
   # try to do an illegal split with number_of_routing_shards set
   - do:
@@ -132,6 +132,3 @@ setup:
           settings:
             index.number_of_replicas: 0
             index.number_of_shards: 3
-
-
-

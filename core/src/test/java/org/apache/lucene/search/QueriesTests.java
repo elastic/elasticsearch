@@ -28,18 +28,18 @@ import org.elasticsearch.test.VersionUtils;
 public class QueriesTests extends ESTestCase {
 
     public void testNonNestedQuery() {
-        // This is a custom query that extends AutomatonQuery and want to make sure the equals method works
-        Version version = VersionUtils.randomVersion(random());
-        assertEquals(Queries.newNonNestedFilter(version), Queries.newNonNestedFilter(version));
-        assertEquals(Queries.newNonNestedFilter(version).hashCode(), Queries.newNonNestedFilter(version).hashCode());
-
-        if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
-            assertEquals(Queries.newNonNestedFilter(version), new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME));
-        } else {
-            assertEquals(Queries.newNonNestedFilter(version), new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER)
-                .add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT)
-                .build());
+        for (Version version : VersionUtils.allVersions()) {
+            // This is a custom query that extends AutomatonQuery and want to make sure the equals method works
+            assertEquals(Queries.newNonNestedFilter(version), Queries.newNonNestedFilter(version));
+            assertEquals(Queries.newNonNestedFilter(version).hashCode(), Queries.newNonNestedFilter(version).hashCode());
+            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+                assertEquals(Queries.newNonNestedFilter(version), new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME));
+            } else {
+                assertEquals(Queries.newNonNestedFilter(version), new BooleanQuery.Builder()
+                    .add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER)
+                    .add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT)
+                    .build());
+            }
         }
     }
 

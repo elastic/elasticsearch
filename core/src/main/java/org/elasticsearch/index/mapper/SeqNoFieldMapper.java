@@ -261,6 +261,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             doc.add(seqID.seqNo);
             doc.add(seqID.seqNoDocValue);
             if (includePrimaryTerm) {
+                // primary terms are used to distinguish between parent and nested docs since 6.1.0
                 doc.add(seqID.primaryTerm);
             }
         }

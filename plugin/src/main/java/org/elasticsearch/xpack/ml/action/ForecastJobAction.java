@@ -29,6 +29,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
+import org.elasticsearch.xpack.ml.job.results.Forecast;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -157,56 +158,64 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
         private boolean acknowledged;
-        private long id;
+        private long forecastId;
 
         Response() {
             super(null, null);
         }
 
-        Response(boolean acknowledged, long id) {
+        Response(boolean acknowledged, long forecastId) {
             super(null, null);
             this.acknowledged = acknowledged;
-            this.id = id;
+            this.forecastId = forecastId;
         }
 
-        public boolean isacknowledged() {
+        public boolean isAcknowledged() {
             return acknowledged;
+        }
+
+        public long getForecastId() {
+            return forecastId;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             acknowledged = in.readBoolean();
+            forecastId = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(acknowledged);
+            out.writeLong(forecastId);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("acknowledged", acknowledged);
-            builder.field("id", id);
+            builder.field(Forecast.FORECAST_ID.getPreferredName(), forecastId);
             builder.endObject();
             return builder;
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
+        public boolean equals(Object obj) {
+            if (obj == null) {
                 return false;
-            Response response = (Response) o;
-            return acknowledged == response.acknowledged;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            Response other = (Response) obj;
+            return this.acknowledged == other.acknowledged && this.forecastId == other.forecastId;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(acknowledged);
+            return Objects.hash(acknowledged, forecastId);
         }
     }
 
@@ -219,8 +228,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             super(settings, ForecastJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, ForecastJobAction.Request::new, ForecastJobAction.Response::new, ThreadPool.Names.SAME,
                     processManager);
-            // ThreadPool.Names.SAME, because operations is executed by
-            // autodetect worker thread
+            // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         }
 
         @Override
@@ -243,7 +251,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             ForecastParams params = paramsBuilder.build();
             processManager.forecastJob(task, params, e -> {
                 if (e == null) {
-                    listener.onResponse(new Response(true, params.getId()));
+                    listener.onResponse(new Response(true, params.getForecastId()));
                 } else {
                     listener.onFailure(e);
                 }

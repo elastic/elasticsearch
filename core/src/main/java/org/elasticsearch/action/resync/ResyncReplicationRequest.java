@@ -55,8 +55,6 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
              * Resync replication request serialization was broken in 6.0.0 due to the elements of the stream not being prefixed with a
              * byte indicating the type of the operation.
              */
-            // TODO: remove this check in 8.0.0 which provides no BWC guarantees with 6.x.
-            assert Version.CURRENT.major <= 7;
             throw new IllegalStateException("resync replication request serialization is broken in 6.0.0");
         }
         super.readFrom(in);

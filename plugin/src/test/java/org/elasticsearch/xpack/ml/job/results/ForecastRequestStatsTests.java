@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.ml.job.results.ForecastRequestStats.ForecastReque
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ForecastRequestStatsTests extends AbstractSerializingTestCase<ForecastRequestStats> {
 
@@ -32,7 +34,12 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
             forecastRequestStats.setRecordCount(randomLong());
         }
         if (randomBoolean()) {
-            forecastRequestStats.setMessage(randomAlphaOfLengthBetween(1, 20));
+            int size = scaledRandomIntBetween(1, 20);
+            List<String> list = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                list.add(randomAlphaOfLength(40));
+            }
+            forecastRequestStats.setMessages(list);
         }
         if (randomBoolean()) {
             forecastRequestStats.setStartTimeStamp(Instant.ofEpochMilli(randomNonNegativeLong()));
@@ -65,5 +72,4 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
     protected ForecastRequestStats doParseInstance(XContentParser parser) throws IOException {
         return ForecastRequestStats.PARSER.apply(parser, null);
     }
-
 }

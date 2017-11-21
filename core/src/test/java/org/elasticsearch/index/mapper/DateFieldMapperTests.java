@@ -410,4 +410,20 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                 MapperService.MergeReason.MAPPING_UPDATE, randomBoolean()));
         assertThat(e.getMessage(), containsString("[mapper [release_date] has different [format] values]"));
     }
+
+    public void testMergeText() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .startObject("properties").startObject("date").field("type", "date").endObject()
+                .endObject().endObject().endObject().string();
+        DocumentMapper mapper = indexService.mapperService().parse("doc", new CompressedXContent(mapping), false);
+
+        String mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .startObject("properties").startObject("date").field("type", "text").endObject()
+                .endObject().endObject().endObject().string();
+        DocumentMapper update = indexService.mapperService().parse("doc", new CompressedXContent(mappingUpdate), false);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> mapper.merge(update.mapping(), randomBoolean()));
+        assertEquals("mapper [date] of different type, current_type [date], merged_type [text]", e.getMessage());
+    }
 }

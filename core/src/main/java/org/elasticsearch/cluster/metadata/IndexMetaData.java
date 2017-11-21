@@ -1338,8 +1338,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             throw new IllegalArgumentException("the number of target shards (" + numTargetShards + ") must be greater than the shard id: "
                 + shardId);
         }
-        assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
         final int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
+        assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
         return new ShardId(sourceIndexMetadata.getIndex(), shardId/routingFactor);
     }
 

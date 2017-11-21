@@ -175,6 +175,9 @@ public class IndexMetaDataTests extends ESTestCase {
 
         assertEquals("the number of source shards [2] must be a must be a factor of [3]",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 3)).getMessage());
+
+        assertEquals("the number of routing shards [4] must be a multiple of the target shards [8]",
+            expectThrows(IllegalStateException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 8)).getMessage());
     }
 
     public void testIndexFormat() {

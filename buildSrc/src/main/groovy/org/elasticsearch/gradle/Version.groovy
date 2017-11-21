@@ -82,4 +82,16 @@ public class Version {
     public boolean after(String compareTo) {
         return id > fromString(compareTo).id
     }
+
+    public boolean onOrBeforeIncludingSuffix(Version otherVersion) {
+        if (id != otherVersion.id) {
+            return id < otherVersion.id
+        }
+
+        if (suffix == '') {
+            return otherVersion.suffix == ''
+        }
+
+        return otherVersion.suffix == '' || suffix < otherVersion.suffix
+    }
 }

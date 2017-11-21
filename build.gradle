@@ -17,13 +17,15 @@
  * under the License.
  */
 
-import java.nio.file.Path
-import java.util.regex.Matcher
-import org.gradle.plugins.ide.eclipse.model.SourceFolder
+
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.VersionUtils
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+
+import java.nio.file.Path
 
 // common maven publishing configuration
 subprojects {
@@ -71,67 +73,8 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
  * backwards compatibility guarantees and only keeping the latest beta or rc
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
-Version currentVersion = Version.fromString(VersionProperties.elasticsearch.minus('-SNAPSHOT'))
-int prevMajor = currentVersion.major - 1
-File versionFile = file('core/src/main/java/org/elasticsearch/Version.java')
-List<String> versionLines = versionFile.readLines('UTF-8')
-List<Version> versions = []
-// keep track of the previous major version's last minor, so we know where wire compat begins
-int prevMinorIndex = -1 // index in the versions list of the last minor from the prev major
-int lastPrevMinor = -1 // the minor version number from the prev major we most recently seen
-int prevRevisionIndex = -1 // index in the versions list of the last release from the prev major
-for (String line : versionLines) {
-  /* Note that this skips alphas and betas which is fine because they aren't
-   * compatible with anything. */
-  Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+)(_beta\d+|_rc\d+)? .*/
-  if (match.matches()) {
-    int major = Integer.parseInt(match.group(1))
-    int minor = Integer.parseInt(match.group(2))
-    int revision = Integer.parseInt(match.group(3))
-    String suffix = (match.group(4) ?: '').replace('_', '-')
-    Version foundVersion = new Version(major, minor, revision, suffix, false)
-    if (currentVersion != foundVersion
-        && (major == prevMajor || major == currentVersion.major)) {
-      if (versions.isEmpty() || versions.last() != foundVersion) {
-        versions.add(foundVersion)
-      } else {
-        // Replace the earlier betas with later ones
-        Version last = versions.set(versions.size() - 1, foundVersion)
-        if (last.suffix == '') {
-          throw new InvalidUserDataException("Found two equal versions but"
-              + " the first one [$last] wasn't a beta.")
-        }
-      }
-      if (major == prevMajor && minor > lastPrevMinor) {
-        prevMinorIndex = versions.size() - 1
-        lastPrevMinor = minor
-      }
-    }
-    if (major == prevMajor) {
-      prevRevisionIndex = versions.size() - 1
-    }
-  }
-}
-if (versions.toSorted { it.id } != versions) {
-  println "Versions: ${versions}"
-  throw new GradleException("Versions.java contains out of order version constants")
-}
-if (prevRevisionIndex != -1) {
-  versions[prevRevisionIndex] = new Version(versions[prevRevisionIndex].major, versions[prevRevisionIndex].minor,
-                                          versions[prevRevisionIndex].revision, versions[prevRevisionIndex].suffix, true)
-}
-if (currentVersion.revision == 0) {
-  // If on a release branch, after the initial release of that branch, the revision version will
-  // be bumped, and will be != 0. On master and N.x branches, we want to test against the
-  // unreleased version of closest branch. So for those cases, the version includes -SNAPSHOT,
-  // and the bwc distribution will checkout and build that version.
-  Version last = versions[-1]
-  versions[-1] = new Version(last.major, last.minor, last.revision, last.suffix, true)
-  if (last.revision == 0) {
-    versions[-2] = new Version(
-        versions[-2].major, versions[-2].minor, versions[-2].revision, versions[-2].suffix, true)
-  }
-}
+List<Version> versions = VersionUtils.parseVersions(file('core/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
+Version currentVersion = versions[-1]
 
 // build metadata from previous build, contains eg hashes for bwc builds
 String buildMetadataValue = System.getenv('BUILD_METADATA')
@@ -149,9 +92,14 @@ allprojects {
     // for ide hacks...
     isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
-    // for backcompat testing
-    indexCompatVersions = versions
-    wireCompatVersions = versions.subList(prevMinorIndex, versions.size())
+
+    // for BWC testing
+    final String minimumIndexCompatibilityVersion = VersionUtils.getMinimumIndexCompatibilityVersion(versions).toString()
+    indexCompatVersions = versions.findAll { it.onOrAfter(minimumIndexCompatibilityVersion) && it != currentVersion }
+
+    final String minimumWireCompatibilityVersion = VersionUtils.getMinimumWireCompatibilityVersion(versions).toString()
+    wireCompatVersions = versions.findAll { it.onOrAfter(minimumWireCompatibilityVersion) && it != currentVersion }
+
     buildMetadata = buildMetadataMap
   }
 }
@@ -169,7 +117,7 @@ task verifyVersions {
     Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ }.collect { Version.fromString(it) })
 
     // Limit the known versions to those that should be index compatible, and are not future versions
-    knownVersions = knownVersions.findAll { it.major >= prevMajor && it.before(VersionProperties.elasticsearch) }
+    knownVersions = knownVersions.findAll { it.major >= currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
 
     /* Limit the listed versions to those that have been marked as released.
      * Versions not marked as released don't get the same testing and we want

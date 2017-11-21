@@ -293,7 +293,7 @@ public class SearchResponseTests extends ESTestCase {
 
     public void testSerializationBwc() throws IOException {
         final byte[] data = Base64.getDecoder().decode("AAAAAAAAAAAAAgABBQUAAAoAAAAAAAAA");
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_6_0_0_rc2);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_5, Version.V_6_0_0);
         try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(data), namedWriteableRegistry)) {
             in.setVersion(version);
             SearchResponse deserialized = new SearchResponse();

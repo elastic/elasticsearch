@@ -55,7 +55,7 @@ dependencies {
   compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
-  compile 'org.elasticsearch:securesm:1.1'
+  compile 'org.elasticsearch:securesm:1.2'
 
   // utilities
   compile 'net.sf.jopt-simple:jopt-simple:5.0.2'

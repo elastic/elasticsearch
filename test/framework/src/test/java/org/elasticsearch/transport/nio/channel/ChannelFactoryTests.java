@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.function.BiConsumer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
@@ -136,10 +137,12 @@ public class ChannelFactoryTests extends ESTestCase {
             super(rawChannelFactory);
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
             NioSocketChannel nioSocketChannel = new NioSocketChannel(channel, selector);
             nioSocketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
+            nioSocketChannel.setExceptionHandler(mock(BiConsumer.class));
             return nioSocketChannel;
         }
 

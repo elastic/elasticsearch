@@ -37,10 +37,7 @@ public abstract class ChannelFactory<SS extends NioServerSocketChannel, S extend
     private final ChannelFactory.RawChannelFactory rawChannelFactory;
 
     /**
-     * This will create a {@link ChannelFactory} using the profile settings and context setter passed to this
-     * constructor. The context setter must be a {@link Consumer} that calls
-     * {@link NioSocketChannel#setContexts(ReadContext, WriteContext)} with the appropriate read and write
-     * contexts. The read and write contexts handle the protocol specific encoding and decoding of messages.
+     * This will create a {@link ChannelFactory} using the raw channel factory passed to the constructor.
      *
      * @param rawChannelFactory a factory that will construct the raw socket channels
      */
@@ -69,8 +66,27 @@ public abstract class ChannelFactory<SS extends NioServerSocketChannel, S extend
         return serverChannel;
     }
 
+    /**
+     * This method should return a new {@link NioSocketChannel} implementation. When this method has
+     * returned, the channel should be fully created and setup. Read and write contexts and the channel
+     * exception handler should have been set.
+     *
+     * @param selector the channel will be registered with
+     * @param channel the raw channel
+     * @return the channel
+     * @throws IOException related to the creation of the channel
+     */
     public abstract S createChannel(SocketSelector selector, SocketChannel channel) throws IOException;
 
+    /**
+     * This method should return a new {@link NioServerSocketChannel} implementation. When this method has
+     * returned, the channel should be fully created and setup.
+     *
+     * @param selector the channel will be registered with
+     * @param channel the raw channel
+     * @return the server channel
+     * @throws IOException related to the creation of the channel
+     */
     public abstract SS createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException;
 
     private S createChannel0(SocketSelector selector, SocketChannel rawChannel) throws IOException {
@@ -78,6 +94,7 @@ public abstract class ChannelFactory<SS extends NioServerSocketChannel, S extend
             S channel = createChannel(selector, rawChannel);
             assert channel.getReadContext() != null : "read context should have been set on channel";
             assert channel.getWriteContext() != null : "write context should have been set on channel";
+            assert channel.getExceptionHandler() != null : "exception handler should have been set on channel";
             return channel;
         } catch (Exception e) {
             closeRawChannel(rawChannel, e);

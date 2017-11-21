@@ -33,7 +33,6 @@ import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -861,7 +860,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      */
-    public interface Operation extends Writeable {
+    public interface Operation {
         enum Type {
             @Deprecated
             CREATE((byte) 1),
@@ -890,7 +889,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 4:
                         return NO_OP;
                     default:
-                        throw new IllegalArgumentException("No type mapped for [" + id + "]");
+                        throw new IllegalArgumentException("no type mapped for [" + id + "]");
                 }
             }
         }
@@ -907,31 +906,44 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         /**
          * Reads the type and the operation from the given stream. The operation must be written with
-         * {@link Operation#writeType(Operation, StreamOutput)}
+         * {@link Operation#writeOperation(StreamOutput, Operation)}
          */
-        static Operation readType(StreamInput input) throws IOException {
-            Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
+        static Operation readOperation(final StreamInput input) throws IOException {
+            final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
             switch (type) {
                 case CREATE:
-                    // the deserialization logic in Index was identical to that of Create when create was deprecated
+                    // the de-serialization logic in Index was identical to that of Create when create was deprecated
+                case INDEX:
                     return new Index(input);
                 case DELETE:
                     return new Delete(input);
-                case INDEX:
-                    return new Index(input);
                 case NO_OP:
                     return new NoOp(input);
                 default:
-                    throw new IOException("No type for [" + type + "]");
+                    throw new AssertionError("no case for [" + type + "]");
             }
         }
 
         /**
          * Writes the type and translog operation to the given stream
          */
-        static void writeType(Translog.Operation operation, StreamOutput output) throws IOException {
+        static void writeOperation(final StreamOutput output, final Operation operation) throws IOException {
             output.writeByte(operation.opType().id());
-            operation.writeTo(output);
+            switch(operation.opType()) {
+                case CREATE:
+                    // the serialization logic in Index was identical to that of Create when create was deprecated
+                case INDEX:
+                    ((Index) operation).write(output);
+                    break;
+                case DELETE:
+                    ((Delete) operation).write(output);
+                    break;
+                case NO_OP:
+                    ((NoOp) operation).write(output);
+                    break;
+                default:
+                    throw new AssertionError("no case for [" + operation.opType() + "]");
+            }
         }
 
     }
@@ -968,7 +980,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private final String routing;
         private final String parent;
 
-        public Index(StreamInput in) throws IOException {
+        private Index(final StreamInput in) throws IOException {
             final int format = in.readVInt(); // SERIALIZATION_FORMAT
             assert format >= FORMAT_2_X : "format was: " + format;
             id = in.readString();
@@ -1081,8 +1093,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return new Source(source, routing, parent);
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        private void write(final StreamOutput out) throws IOException {
             out.writeVInt(SERIALIZATION_FORMAT);
             out.writeString(id);
             out.writeString(type);
@@ -1170,7 +1181,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private final long version;
         private final VersionType versionType;
 
-        public Delete(StreamInput in) throws IOException {
+        private Delete(final StreamInput in) throws IOException {
             final int format = in.readVInt();// SERIALIZATION_FORMAT
             assert format >= FORMAT_5_0 : "format was: " + format;
             if (format >= FORMAT_SINGLE_TYPE) {
@@ -1265,8 +1276,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             throw new IllegalStateException("trying to read doc source from delete operation");
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        private void write(final StreamOutput out) throws IOException {
             out.writeVInt(SERIALIZATION_FORMAT);
             out.writeString(type);
             out.writeString(id);
@@ -1336,7 +1346,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return reason;
         }
 
-        NoOp(final StreamInput in) throws IOException {
+        private NoOp(final StreamInput in) throws IOException {
             seqNo = in.readLong();
             primaryTerm = in.readLong();
             reason = in.readString();
@@ -1351,8 +1361,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.reason = reason;
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        private void write(final StreamOutput out) throws IOException {
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
             out.writeString(reason);
@@ -1454,7 +1463,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 verifyChecksum(in);
                 in.reset();
             }
-            operation = Translog.Operation.readType(in);
+            operation = Translog.Operation.readOperation(in);
             verifyChecksum(in);
         } catch (TranslogCorruptedException e) {
             throw e;
@@ -1497,7 +1506,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         // because closing it closes the underlying stream, which we don't
         // want to do here.
         out.resetDigest();
-        Translog.Operation.writeType(op, out);
+        Translog.Operation.writeOperation(out, op);
         long checksum = out.getChecksum();
         out.writeInt((int) checksum);
     }

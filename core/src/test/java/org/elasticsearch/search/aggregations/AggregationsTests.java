@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrixTests;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalCompositeTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGridTests;
@@ -144,6 +145,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalScriptedMetricTests());
         aggsTests.add(new InternalBinaryRangeTests());
         aggsTests.add(new InternalTopHitsTests());
+        aggsTests.add(new InternalCompositeTests());
         return Collections.unmodifiableList(aggsTests);
     }
 

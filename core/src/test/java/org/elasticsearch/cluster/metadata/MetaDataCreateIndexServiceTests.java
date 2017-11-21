@@ -55,8 +55,7 @@ import static org.hamcrest.Matchers.endsWith;
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
-        int numRoutingShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(settings) ? IndexMetaData
-            .INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(settings) : numShards;
+        int numRoutingShards = settings.getAsInt(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), numShards);
         MetaData.Builder metaBuilder = MetaData.builder();
         IndexMetaData indexMetaData = IndexMetaData.builder(name).settings(settings(Version.CURRENT)
             .put(settings))

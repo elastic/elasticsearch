@@ -733,8 +733,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("2"));
         searchResponse = client().prepareSearch().setQuery(matchQuery("double", "2 3 4")).get();
         assertHitCount(searchResponse, 2L);
-        assertFirstHit(searchResponse, hasId("2"));
-        assertSecondHit(searchResponse, hasId("3"));
+        assertSearchHits(searchResponse, "2", "3");
     }
 
     public void testMultiMatchQuery() throws Exception {

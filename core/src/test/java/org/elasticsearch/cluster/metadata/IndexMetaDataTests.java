@@ -118,6 +118,8 @@ public class IndexMetaDataTests extends ESTestCase {
     }
 
     public void testSelectResizeShards() {
+        int numTargetShards = randomFrom(4, 6, 8, 12);
+
         IndexMetaData split = IndexMetaData.builder("foo")
             .settings(Settings.builder()
                 .put("index.version.created", 1)
@@ -125,6 +127,7 @@ public class IndexMetaDataTests extends ESTestCase {
                 .put("index.number_of_replicas", 0)
                 .build())
             .creationDate(randomLong())
+            .setRoutingNumShards(numTargetShards * 2)
             .build();
 
         IndexMetaData shrink = IndexMetaData.builder("foo")
@@ -135,7 +138,6 @@ public class IndexMetaDataTests extends ESTestCase {
                 .build())
             .creationDate(randomLong())
             .build();
-        int numTargetShards = randomFrom(4, 6, 8, 12);
         int shard = randomIntBetween(0, numTargetShards-1);
         assertEquals(Collections.singleton(IndexMetaData.selectSplitShard(shard, split, numTargetShards)),
             IndexMetaData.selectRecoverFromShards(shard, split, numTargetShards));

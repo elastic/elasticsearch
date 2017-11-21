@@ -1343,6 +1343,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                  + "] must be less that the number of target shards [" + numTargetShards + "]");
         }
         int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
+        // now we verify that the numRoutingShards is valid in the source index
+        int routingNumShards = sourceIndexMetadata.getRoutingNumShards();
+        int factor = routingNumShards / numTargetShards;
+        if (factor * numTargetShards != routingNumShards) {
+            throw new IllegalStateException("the number of routingShards ["
+                + routingNumShards + "] must be a multiple of the target shards [" + numTargetShards + "]");
+        }
         // this is just an additional assertion that ensures we are a factor of the routing num shards.
         assert getRoutingFactor(numTargetShards, sourceIndexMetadata.getRoutingNumShards()) >= 0;
         return new ShardId(sourceIndexMetadata.getIndex(), shardId/routingFactor);

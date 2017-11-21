@@ -22,7 +22,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.VersionUtils
+import org.elasticsearch.gradle.VersionCollection
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 import java.nio.file.Path
@@ -73,8 +73,7 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
  * backwards compatibility guarantees and only keeping the latest beta or rc
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
-List<Version> versions = VersionUtils.parseVersions(file('core/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-Version currentVersion = versions[-1]
+VersionCollection versions = new VersionCollection(file('core/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
 
 // build metadata from previous build, contains eg hashes for bwc builds
 String buildMetadataValue = System.getenv('BUILD_METADATA')
@@ -94,11 +93,9 @@ allprojects {
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
 
     // for BWC testing
-    final String minimumIndexCompatibilityVersion = VersionUtils.getMinimumIndexCompatibilityVersion(versions).toString()
-    indexCompatVersions = versions.findAll { it.onOrAfter(minimumIndexCompatibilityVersion) && it != currentVersion }
-
-    final String minimumWireCompatibilityVersion = VersionUtils.getMinimumWireCompatibilityVersion(versions).toString()
-    wireCompatVersions = versions.findAll { it.onOrAfter(minimumWireCompatibilityVersion) && it != currentVersion }
+    versionCollection = versions
+    indexCompatVersions = versions.getVersionsIndexCompatibleWithCurrent()
+    wireCompatVersions = versions.getVersionsWireCompatibleWithCurrent()
 
     buildMetadata = buildMetadataMap
   }
@@ -117,7 +114,7 @@ task verifyVersions {
     Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ }.collect { Version.fromString(it) })
 
     // Limit the known versions to those that should be index compatible, and are not future versions
-    knownVersions = knownVersions.findAll { it.major >= currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
+    knownVersions = knownVersions.findAll { it.major >= versions.getCurrentVersion().major - 1 && it.before(VersionProperties.elasticsearch) }
 
     /* Limit the listed versions to those that have been marked as released.
      * Versions not marked as released don't get the same testing and we want

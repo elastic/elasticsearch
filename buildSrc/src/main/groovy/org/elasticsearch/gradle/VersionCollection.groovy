@@ -23,16 +23,17 @@ import org.gradle.api.GradleException
 
 import java.util.regex.Matcher
 
-class VersionUtils {
+/**
+ * The collection of version constants declared in Version.java, for use in BWC testing.
+ */
+class VersionCollection {
 
-    /**
-     * Extract the declared version constants from Version.java, for use in BWC testing.
-     * @param versionLines The lines of Version.java
-     * @return The collection of versions found, in ascending order, excluding any superseded _alpha, _beta or _rc versions.
-     * Unreleased versions are marked as -SNAPSHOT versions.
-     */
-    static List<Version> parseVersions(List<String> versionLines) {
-        final List<Version> versions = []
+    private final List<Version> versions
+
+    VersionCollection(List<String> versionLines) {
+
+        List<Version> versions = []
+
         for (final String line : versionLines) {
             final Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+)(_alpha\d+|_beta\d+|_rc\d+)? .*/
             if (match.matches()) {
@@ -74,42 +75,58 @@ class VersionUtils {
 
             prevConsideredVersion = currConsideredVersion
         }
-        if (versions[-1].toString() != VersionProperties.elasticsearch) {
+
+        this.versions = Collections.unmodifiableList(versions)
+
+        if (getCurrentVersion().toString() != VersionProperties.elasticsearch) {
             throw new GradleException("The last version in Versions.java [${versions[-1]}] does not match " +
                     "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
         }
-
-        return versions
     }
 
-    static Version getMinimumIndexCompatibilityVersion(List<Version> versions) {
-        final Version currentVersion = versions[-1]
-        return versions.find { it.major >= currentVersion.major - 1 }
+    Version getCurrentVersion() {
+        return versions[-1]
     }
 
-    static Version getMinimumWireCompatibilityVersion(List<Version> versions) {
-        final Version currentVersion = versions[-1]
-        final int firstIndexOfThisMajor = versions.findIndexOf { it.major == currentVersion.major }
-        if (firstIndexOfThisMajor == 0) {
-            return versions[0]
-        }
-        final Version lastVersionOfEarlierMajor = versions[firstIndexOfThisMajor - 1]
-        return versions.find { it.major == lastVersionOfEarlierMajor.major && it.minor == lastVersionOfEarlierMajor.minor }
+    Version getBWCSnapshotForCurrentMajor() {
+        return getLastSnapshotWithMajor(versions, getCurrentVersion().major)
     }
 
-    static Version getBWCSnapshotForCurrentMajor(List<Version> versions) {
-        return getLastSnapshotWithMajor(versions, versions[-1].major)
+    Version getBWCSnapshotForPreviousMajor() {
+        return getLastSnapshotWithMajor(versions, getCurrentVersion().major - 1)
     }
 
-    static Version getBWCSnapshotForPreviousMajor(List<Version> versions) {
-        return getLastSnapshotWithMajor(versions, versions[-1].major - 1)
-    }
-
-    static Version getLastSnapshotWithMajor(List<Version> versions, int targetMajor) {
-        def currentVersion = versions[-1].toString()
+    private Version getLastSnapshotWithMajor(int targetMajor) {
+        final def currentVersion = getCurrentVersion().toString()
         final int snapshotIndex = versions.findLastIndexOf {
             it.major == targetMajor && it.before(currentVersion) && it.snapshot
         }
         return snapshotIndex == -1 ? null : versions[snapshotIndex]
+    }
+
+    private List<Version> versionsOnOrAfterExceptCurrent(Version minVersion) {
+        final def minVersionString = minVersion.toString();
+        return Collections.unmodifiableList(versions.findAll {
+            it.onOrAfter(minVersionString) && it != getCurrentVersion()
+        })
+    }
+
+    List<Version> getVersionsIndexCompatibleWithCurrent() {
+        final def firstVersionOfCurrentMajor = versions.find { it.major >= getCurrentVersion().major - 1 }
+        return versionsOnOrAfterExceptCurrent(firstVersionOfCurrentMajor)
+    }
+
+    private Version getMinimumWireCompatibilityVersion() {
+        final def currentVersion = getCurrentVersion()
+        final def firstIndexOfThisMajor = versions.findIndexOf { it.major == currentVersion.major }
+        if (firstIndexOfThisMajor == 0) {
+            return versions[0]
+        }
+        final def lastVersionOfEarlierMajor = versions[firstIndexOfThisMajor - 1]
+        return versions.find { it.major == lastVersionOfEarlierMajor.major && it.minor == lastVersionOfEarlierMajor.minor }
+    }
+
+    List<Version> getVersionsWireCompatibleWithCurrent() {
+        return versionsOnOrAfterExceptCurrent(getMinimumWireCompatibilityVersion())
     }
 }

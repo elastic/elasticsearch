@@ -156,7 +156,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                         .anyMatch(indexType::equals)) {
                     if (context.getMapperService().hasNested()) {
                         // type filters are expected not to match nested docs
-                        return Queries.newNonNestedFilter();
+                        return Queries.newNonNestedFilter(context.indexVersionCreated());
                     } else {
                         return new MatchAllDocsQuery();
                     }

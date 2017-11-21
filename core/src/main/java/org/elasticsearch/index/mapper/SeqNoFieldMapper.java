@@ -28,6 +28,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -252,11 +253,16 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         // we share the parent docs fields to ensure good compression
         SequenceIDFields seqID = context.seqID();
         assert seqID != null;
-        for (int i = 1; i < context.docs().size(); i++) {
+        int numDocs = context.docs().size();
+        final Version versionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        final boolean includePrimaryTerm = versionCreated.before(Version.V_7_0_0_alpha1);
+        for (int i = 1; i < numDocs; i++) {
             final Document doc = context.docs().get(i);
             doc.add(seqID.seqNo);
             doc.add(seqID.seqNoDocValue);
-            doc.add(seqID.primaryTerm);
+            if (includePrimaryTerm) {
+                doc.add(seqID.primaryTerm);
+            }
         }
     }
 

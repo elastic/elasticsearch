@@ -105,7 +105,7 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 task integTest {
   if (project.bwc_tests_enabled) {
     dependsOn "v${indexCompatVersions[-1]}#bwcTest"
-    if (indexCompatVersions[-1].bugfix == 0) {
+    if (indexCompatVersions[-1].revision == 0) {
       dependsOn "v${indexCompatVersions[-2]}#bwcTest"
     }
   }

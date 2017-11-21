@@ -31,7 +31,7 @@ public class Version {
 
     final int major
     final int minor
-    final int bugfix
+    final int revision
     final int id
     final boolean snapshot
     /**
@@ -41,14 +41,14 @@ public class Version {
      */
     final String suffix
 
-    public Version(int major, int minor, int bugfix,
+    public Version(int major, int minor, int revision,
             String suffix, boolean snapshot) {
         this.major = major
         this.minor = minor
-        this.bugfix = bugfix
+        this.revision = revision
         this.snapshot = snapshot
         this.suffix = suffix
-        this.id = major * 100000 + minor * 1000 + bugfix * 10 +
+        this.id = major * 100000 + minor * 1000 + revision * 10 +
             (snapshot ? 1 : 0)
     }
 
@@ -64,7 +64,7 @@ public class Version {
     @Override
     public String toString() {
         String snapshotStr = snapshot ? '-SNAPSHOT' : ''
-        return "${major}.${minor}.${bugfix}${suffix}${snapshotStr}"
+        return "${major}.${minor}.${revision}${suffix}${snapshotStr}"
     }
 
     public boolean before(String compareTo) {

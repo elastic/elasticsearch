@@ -1,6 +1,8 @@
 description = 'SQL for Elasticsearch'
 
 subprojects {
+  group = 'org.elasticsearch.sql'
+
   apply plugin: 'elasticsearch.build'
 
   dependencies {

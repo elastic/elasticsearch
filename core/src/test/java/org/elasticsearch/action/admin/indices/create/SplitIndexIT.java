@@ -90,7 +90,7 @@ public class SplitIndexIT extends ESIntegTestCase {
     public void testCreateSplitIndexToN() throws IOException {
         int[][] possibleShardSplits = new int[][]{{2, 4, 8}, {3, 6, 12}, {1, 2, 4}};
         int[] shardSplits = randomFrom(possibleShardSplits);
-        splitToN(shardSplits);
+        splitToN(shardSplits[0], shardSplits[1], shardSplits[2]);
     }
 
     public void testSplitFromOneToN() {
@@ -100,19 +100,26 @@ public class SplitIndexIT extends ESIntegTestCase {
         splitToN(1, randomSplit, randomSplit * 2);
     }
 
-    private void splitToN(int... shardSplits) {
-        assertEquals(3, shardSplits.length);
-        assertEquals(shardSplits[0], (shardSplits[0] * shardSplits[1]) / shardSplits[1]);
-        assertEquals(shardSplits[1], (shardSplits[1] * shardSplits[2]) / shardSplits[2]);
+    private void splitToN(int sourceShards, int firstSplitShards, int secondSplitShards) {
+
+        assertEquals(sourceShards, (sourceShards * firstSplitShards) / firstSplitShards);
+        assertEquals(firstSplitShards, (firstSplitShards * secondSplitShards) / secondSplitShards);
         internalCluster().ensureAtLeastNumDataNodes(2);
         final boolean useRouting =  randomBoolean();
         final boolean useNested = randomBoolean();
         final boolean useMixedRouting = useRouting ? randomBoolean() : false;
         CreateIndexRequestBuilder createInitialIndex = prepareCreate("source");
-        Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", shardSplits[0]);
+        Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", sourceShards);
+        final int routingShards;
+        if (randomBoolean()) {
+            // randomly set the value manually
+            routingShards = secondSplitShards * randomIntBetween(1, 10);
+            settings.put("index.number_of_routing_shards", routingShards);
+        } else {
+            routingShards = MetaDataCreateIndexService.calculateNumRoutingShards(sourceShards, Version.CURRENT);
+        }
         if (useRouting && useMixedRouting == false && randomBoolean()) {
-            settings.put("index.routing_partition_size", randomIntBetween(1,  MetaDataCreateIndexService.calculateNumRoutingShards
-                (shardSplits[0], Version.CURRENT) -1));
+            settings.put("index.routing_partition_size", randomIntBetween(1, routingShards-1));
             if (useNested) {
                 createInitialIndex.addMapping("t1", "_routing", "required=true", "nested1", "type=nested");
             } else {
@@ -182,11 +189,15 @@ public class SplitIndexIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put("index.blocks.write", true)).get();
         ensureGreen();
+        Settings.Builder firstSplitSettingsBuilder = Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .put("index.number_of_shards", firstSplitShards);
+        if (sourceShards == 1 && randomBoolean()) { // try to set it if we have a source index with 1 shard
+            firstSplitSettingsBuilder.put("index.number_of_routing_shards", routingShards);
+        }
         assertAcked(client().admin().indices().prepareResizeIndex("source", "first_split")
             .setResizeType(ResizeType.SPLIT)
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", shardSplits[1]).build()).get());
+            .setSettings(firstSplitSettingsBuilder.build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
 
@@ -214,7 +225,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             .setResizeType(ResizeType.SPLIT)
             .setSettings(Settings.builder()
                 .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", shardSplits[2]).build()).get());
+                .put("index.number_of_shards", secondSplitShards).build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         // let it be allocated anywhere and bump replicas

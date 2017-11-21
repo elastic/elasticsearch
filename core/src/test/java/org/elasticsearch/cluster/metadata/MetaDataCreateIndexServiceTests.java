@@ -299,19 +299,11 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
 
-    public void testShouldAutoCalculateNumRoutingShards() {
-        assertTrue(MetaDataCreateIndexService.shouldAutoCalculateNumRoutingShards(2, 1, 1));
-        assertFalse(MetaDataCreateIndexService.shouldAutoCalculateNumRoutingShards(10, 1, 20));
-        assertTrue(MetaDataCreateIndexService.shouldAutoCalculateNumRoutingShards(10, 1, 5));
-        assertTrue(MetaDataCreateIndexService.shouldAutoCalculateNumRoutingShards(10, 1, 16));
-        assertFalse(MetaDataCreateIndexService.shouldAutoCalculateNumRoutingShards(2, 1, 8));
-    }
-
     public void testCalculateNumRoutingShards() {
-        assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(1, Version.CURRENT));
-        assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(2, Version.CURRENT));
-        assertEquals(1536, MetaDataCreateIndexService.calculateNumRoutingShards(3, Version.CURRENT));
-        assertEquals(1152, MetaDataCreateIndexService.calculateNumRoutingShards(9, Version.CURRENT));
+        assertEquals(512, MetaDataCreateIndexService.calculateNumRoutingShards(1, Version.CURRENT));
+        assertEquals(512, MetaDataCreateIndexService.calculateNumRoutingShards(2, Version.CURRENT));
+        assertEquals(768, MetaDataCreateIndexService.calculateNumRoutingShards(3, Version.CURRENT));
+        assertEquals(576, MetaDataCreateIndexService.calculateNumRoutingShards(9, Version.CURRENT));
         assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(512, Version.CURRENT));
         assertEquals(2048, MetaDataCreateIndexService.calculateNumRoutingShards(1024, Version.CURRENT));
         assertEquals(4096, MetaDataCreateIndexService.calculateNumRoutingShards(2048, Version.CURRENT));
@@ -331,6 +323,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             assertTrue(1 < ratio);
             assertTrue(ratio <= 1024);
             assertEquals(0, intRatio % 2);
+            assertEquals("ration is not a power of two", intRatio, Integer.highestOneBit(intRatio));
         }
     }
 }

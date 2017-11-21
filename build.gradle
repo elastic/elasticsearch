@@ -1,6 +1,8 @@
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
+import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 if (project.projectDir.name != 'x-pack-elasticsearch') {
   throw new GradleException('You must checkout x-pack-elasticsearch in the following directory: <path to Elasticsearch checkout>/../elasticsearch-extra/x-pack-elasticsearch')
@@ -51,17 +53,11 @@ subprojects {
   }
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin']
 
-  if (wireCompatVersions[-1].snapshot) {
-    /* The last and second to last versions can be snapshots. Rather than use
-     * snapshots built by CI we connect these versions to projects that build
-     * those versions from the HEAD of the appropriate branch. */
-    if (indexCompatVersions[-1].bugfix == 0) {
-      ext.projectSubstitutions += [
-        "org.elasticsearch.plugin:x-pack:${indexCompatVersions[-1]}": ':x-pack-elasticsearch:plugin:bwc:stable-snapshot',
-        "org.elasticsearch.plugin:x-pack:${indexCompatVersions[-2]}": ':x-pack-elasticsearch:plugin:bwc:release-snapshot']
-    } else {
-      ext.projectSubstitutions += [
-        "org.elasticsearch.plugin:x-pack:${indexCompatVersions[-1]}": ':x-pack-elasticsearch:plugin:bwc:release-snapshot']
+  for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
+    if (version.branch != null) {
+      final String snapshotProject = ":x-pack-elasticsearch:plugin:bwc-snapshot-dummy-projects:bwc-snapshot-${version.branch}"
+      project(snapshotProject).ext.bwcVersion = version
+      ext.projectSubstitutions["org.elasticsearch.plugin:x-pack:${version}"] = snapshotProject
     }
   }
 }

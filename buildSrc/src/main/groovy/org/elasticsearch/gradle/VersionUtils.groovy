@@ -96,4 +96,20 @@ class VersionUtils {
         final Version lastVersionOfEarlierMajor = versions[firstIndexOfThisMajor - 1]
         return versions.find { it.major == lastVersionOfEarlierMajor.major && it.minor == lastVersionOfEarlierMajor.minor }
     }
+
+    static Version getBWCSnapshotForCurrentMajor(List<Version> versions) {
+        return getLastSnapshotWithMajor(versions, versions[-1].major)
+    }
+
+    static Version getBWCSnapshotForPreviousMajor(List<Version> versions) {
+        return getLastSnapshotWithMajor(versions, versions[-1].major - 1)
+    }
+
+    static Version getLastSnapshotWithMajor(List<Version> versions, int targetMajor) {
+        def currentVersion = versions[-1].toString()
+        final int snapshotIndex = versions.findLastIndexOf {
+            it.major == targetMajor && it.before(currentVersion) && it.snapshot
+        }
+        return snapshotIndex == -1 ? null : versions[snapshotIndex]
+    }
 }

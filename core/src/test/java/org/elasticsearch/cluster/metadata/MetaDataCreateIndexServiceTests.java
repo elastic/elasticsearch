@@ -205,12 +205,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 }
             ).getMessage());
 
-        assertEquals("mappings are not allowed when resizing indices, all mappings are copied from the source index",
-            expectThrows(IllegalArgumentException.class, () -> {
-                    MetaDataCreateIndexService.validateSplitIndex(state, "source", Collections.singleton("foo"),
-                        "target", targetSettings);
-                }
-            ).getMessage());
         int targetShards;
         do {
             targetShards = randomIntBetween(numShards+1, 100);

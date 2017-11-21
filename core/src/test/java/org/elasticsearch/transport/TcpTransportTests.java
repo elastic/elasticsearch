@@ -185,8 +185,8 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected FakeChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout,
-                                                      ActionListener<TcpChannel> connectListener) throws IOException {
+                protected FakeChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
+                    throws IOException {
                     return new FakeChannel(messageCaptor);
                 }
 
@@ -251,7 +251,7 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
-        public void addCloseListener(ActionListener<TcpChannel> listener) {
+        public void addCloseListener(ActionListener<Void> listener) {
         }
 
         @Override
@@ -269,7 +269,7 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
-        public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
+        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
             messageCaptor.set(reference);
         }
     }

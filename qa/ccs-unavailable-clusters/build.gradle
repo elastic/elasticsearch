@@ -16,25 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.test-with-dependencies'
 
-package org.elasticsearch.transport.nio.channel;
-
-import org.elasticsearch.transport.nio.AcceptingSelector;
-import org.elasticsearch.transport.nio.utils.TestSelectionKey;
-
-import java.io.IOException;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.ServerSocketChannel;
-
-public class DoNotRegisterServerChannel extends NioServerSocketChannel {
-
-    public DoNotRegisterServerChannel(ServerSocketChannel channel, ChannelFactory channelFactory, AcceptingSelector selector)
-        throws IOException {
-        super(channel, channelFactory, selector);
-    }
-
-    @Override
-    public void register() throws ClosedChannelException {
-        setSelectionKey(new TestSelectionKey(0));
-    }
+dependencies {
+    testCompile project(path: ':client:rest-high-level', configuration: 'runtime')
 }

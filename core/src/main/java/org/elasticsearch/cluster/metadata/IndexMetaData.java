@@ -1348,9 +1348,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         // this is important to special case here since we use this to validate this in various places in the code but allow to split form
         // 1 to N but we never modify the sourceIndexMetadata to accommodate for that
         int routingNumShards = numSourceShards == 1 ? numTargetShards : sourceIndexMetadata.getRoutingNumShards();
-        int factor = routingNumShards / numTargetShards;
-        if (factor * numTargetShards != routingNumShards) {
-            throw new IllegalStateException("the number of routingShards ["
+        if (routingNumShards % numTargetShards != 0) {
+            throw new IllegalStateException("the number of routing shards ["
                 + routingNumShards + "] must be a multiple of the target shards [" + numTargetShards + "]");
         }
         // this is just an additional assertion that ensures we are a factor of the routing num shards.

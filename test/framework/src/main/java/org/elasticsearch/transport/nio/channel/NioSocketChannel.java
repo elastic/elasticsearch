@@ -21,7 +21,6 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 
@@ -36,32 +35,21 @@ import java.util.concurrent.CompletableFuture;
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
-    private final CompletableFuture<NioChannel> connectContext = new CompletableFuture<>();
+    private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
     private WriteContext writeContext;
     private ReadContext readContext;
     private Exception connectException;
 
-    public NioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
-        super(profile, socketChannel, selector);
+    public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
+        super(socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
         this.socketSelector = selector;
     }
 
     @Override
-    public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
-        // TODO: Temporary conversion due to types
-        writeContext.sendMessage(reference, new ActionListener<NioChannel>() {
-            @Override
-            public void onResponse(NioChannel nioChannel) {
-                listener.onResponse(nioChannel);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+        writeContext.sendMessage(reference, listener);
     }
 
     @Override
@@ -169,20 +157,19 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
             isConnected = internalFinish();
         }
         if (isConnected) {
-            connectContext.complete(this);
+            connectContext.complete(null);
         }
         return isConnected;
     }
 
-    public void addConnectListener(ActionListener<NioChannel> listener) {
+    public void addConnectListener(ActionListener<Void> listener) {
         connectContext.whenComplete(ActionListener.toBiConsumer(listener));
     }
 
     @Override
     public String toString() {
         return "NioSocketChannel{" +
-            "profile=" + getProfile() +
-            ", localAddress=" + getLocalAddress() +
+            "localAddress=" + getLocalAddress() +
             ", remoteAddress=" + remoteAddress +
             '}';
     }

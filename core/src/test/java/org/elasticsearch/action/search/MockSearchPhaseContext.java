@@ -84,7 +84,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     @Override
     public SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
         return new SearchResponse(internalSearchResponse, scrollId, numShards, numSuccess.get(), 0, 0,
-            failures.toArray(new ShardSearchFailure[0]));
+            failures.toArray(new ShardSearchFailure[failures.size()]), SearchResponse.Clusters.EMPTY);
     }
 
     @Override

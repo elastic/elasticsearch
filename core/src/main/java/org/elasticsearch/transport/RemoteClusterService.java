@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -53,6 +54,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 /**
  * Basic service for accessing remote clusters via gateway nodes
@@ -88,6 +91,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     public static final Setting<Boolean> ENABLE_REMOTE_CLUSTERS = Setting.boolSetting("search.remote.connect", true,
         Setting.Property.NodeScope);
+
+    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =
+            Setting.affixKeySetting("search.remote.", "skip_unavailable",
+                    key -> boolSetting(key, false, Setting.Property.NodeScope, Setting.Property.Dynamic), REMOTE_CLUSTERS_SEEDS);
 
     private final TransportService transportService;
     private final int numRemoteConnections;
@@ -231,7 +238,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     @Override
                     public void onFailure(Exception e) {
                         TransportException exception = new TransportException("unable to communicate with remote cluster [" +
-                            clusterName + "]", e);
+                                clusterName + "]", e);
                         if (transportException.compareAndSet(null, exception) == false) {
                             exception = transportException.accumulateAndGet(exception, (previous, current) -> {
                                 current.addSuppressed(previous);
@@ -281,6 +288,20 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     protected Set<String> getRemoteClusterNames() {
         return this.remoteClusters.keySet();
+    }
+
+    @Override
+    public void listenForUpdates(ClusterSettings clusterSettings) {
+        super.listenForUpdates(clusterSettings);
+        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable,
+                (clusterAlias, value) -> {});
+    }
+
+    synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
+        RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
+        if (remote != null) {
+            remote.updateSkipUnavailable(skipUnavailable);
+        }
     }
 
     protected void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {

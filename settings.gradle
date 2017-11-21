@@ -66,6 +66,7 @@ List projects = [
   'plugins:jvm-example',
   'plugins:store-smb',
   'qa:auto-create-index',
+  'qa:ccs-unavailable-clusters',
   'qa:evil-tests',
   'qa:full-cluster-restart',
   'qa:integration-bwc',

@@ -56,3 +56,52 @@
   - match: { my_remote_cluster.initial_connect_timeout: "30s" }
   - match: { test_remote_cluster.initial_connect_timeout: "30s" }
 
+---
+"skip_unavailable is returned as part of _remote/info response":
+  - skip:
+      #TODO update versions once backported
+      version: " - 7.0.0"
+      reason: "skip_unavailable is only returned from 7.0.0 on"
+
+  - do:
+      remote.info: {}
+  - is_false: my_remote_cluster.skip_unavailable
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.remote.my_remote_cluster.skip_unavailable: true
+
+  - is_true: transient.search.remote.my_remote_cluster.skip_unavailable
+
+  - do:
+      remote.info: {}
+
+  - is_true: my_remote_cluster.skip_unavailable
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.remote.my_remote_cluster.skip_unavailable: false
+
+  - is_false: transient.search.remote.my_remote_cluster.skip_unavailable
+
+  - do:
+      remote.info: {}
+
+  - is_false: my_remote_cluster.skip_unavailable
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.remote.my_remote_cluster.skip_unavailable: null
+
+  - match: {transient: {}}
+
+  - do:
+      remote.info: {}
+
+  - is_false: my_remote_cluster.skip_unavailable

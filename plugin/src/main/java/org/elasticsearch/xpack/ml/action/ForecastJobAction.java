@@ -59,6 +59,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
 
         public static final ParseField END_TIME = new ParseField("end");
         public static final ParseField DURATION = new ParseField("duration");
+        public static final ParseField EXPIRES_IN = new ParseField("expires_in");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -66,6 +67,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareString(Request::setEndTime, END_TIME);
             PARSER.declareString(Request::setDuration, DURATION);
+            PARSER.declareString(Request::setExpiresIn, EXPIRES_IN);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -78,6 +80,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
 
         private String endTime;
         private TimeValue duration;
+        private TimeValue expiresIn;
 
         Request() {
         }
@@ -102,11 +105,20 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             this.duration = TimeValue.parseTimeValue(duration, DURATION.getPreferredName());
         }
 
+        public TimeValue getExpiresIn() {
+            return expiresIn;
+        }
+
+        public void setExpiresIn(String expiration) {
+            this.expiresIn = TimeValue.parseTimeValue(expiration, EXPIRES_IN.getPreferredName());
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             this.endTime = in.readOptionalString();
             this.duration = in.readOptionalWriteable(TimeValue::new);
+            this.expiresIn = in.readOptionalWriteable(TimeValue::new);
         }
 
         @Override
@@ -114,11 +126,12 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             super.writeTo(out);
             out.writeOptionalString(endTime);
             out.writeOptionalWriteable(duration);
+            out.writeOptionalWriteable(expiresIn);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, endTime, duration);
+            return Objects.hash(jobId, endTime, duration, expiresIn);
         }
 
         @Override
@@ -130,7 +143,8 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(endTime, other.endTime) && Objects.equals(duration, other.duration);
+            return Objects.equals(jobId, other.jobId) && Objects.equals(endTime, other.endTime) &&
+                   Objects.equals(duration, other.duration) && Objects.equals(expiresIn, other.expiresIn);
         }
 
         @Override
@@ -142,6 +156,9 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             }
             if (duration != null) {
                 builder.field(DURATION.getPreferredName(), duration.getStringRep());
+            }
+            if (expiresIn != null) {
+                builder.field(EXPIRES_IN.getPreferredName(), expiresIn.getStringRep());
             }
             builder.endObject();
             return builder;
@@ -246,6 +263,9 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             }
             if (request.getDuration() != null) {
                 paramsBuilder.duration(request.getDuration());
+            }
+            if (request.getExpiresIn() != null) {
+                paramsBuilder.expiresIn(request.getExpiresIn());
             }
 
             ForecastParams params = paramsBuilder.build();

@@ -42,10 +42,13 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
             forecastRequestStats.setMessages(list);
         }
         if (randomBoolean()) {
-            forecastRequestStats.setStartTimeStamp(Instant.ofEpochMilli(randomNonNegativeLong()));
+            forecastRequestStats.setTimeStamp(Instant.ofEpochMilli(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             forecastRequestStats.setEndTimeStamp(Instant.ofEpochMilli(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            forecastRequestStats.setExpiryTimeStamp(Instant.ofEpochMilli(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             forecastRequestStats.setProgress(randomDouble());

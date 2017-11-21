@@ -131,8 +131,9 @@ public final class ReservedFieldNames {
             Forecast.FORECAST_PREDICTION.getPreferredName(),
             Forecast.FORECAST_ID.getPreferredName(),
 
-            ForecastRequestStats.START_TIME.getPreferredName(),
+            //re-use: ForecastRequestStats.TIMESTAMP
             ForecastRequestStats.END_TIME.getPreferredName(),
+            ForecastRequestStats.EXPIRY_TIME.getPreferredName(),
             ForecastRequestStats.MESSAGES.getPreferredName(),
             ForecastRequestStats.PROGRESS.getPreferredName(),
             ForecastRequestStats.STATUS.getPreferredName(),

@@ -340,11 +340,11 @@ public class ElasticsearchMappings {
         .endObject();
 
         // Forecast Stats Output
-        // re-used: PROCESSING_TIME_MS, PROCESSED_RECORD_COUNT, LATEST_RECORD_TIME
-        builder.startObject(ForecastRequestStats.START_TIME.getPreferredName())
+        // re-used: TIMESTAMP, PROCESSING_TIME_MS, PROCESSED_RECORD_COUNT, LATEST_RECORD_TIME
+        builder.startObject(ForecastRequestStats.END_TIME.getPreferredName())
             .field(TYPE, DATE)
         .endObject()
-        .startObject(ForecastRequestStats.END_TIME.getPreferredName())
+        .startObject(ForecastRequestStats.EXPIRY_TIME.getPreferredName())
             .field(TYPE, DATE)
         .endObject()
         .startObject(ForecastRequestStats.MESSAGES.getPreferredName())

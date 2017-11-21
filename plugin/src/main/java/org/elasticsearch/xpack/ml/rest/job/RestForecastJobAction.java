@@ -46,6 +46,9 @@ public class RestForecastJobAction extends BaseRestHandler {
             if (restRequest.hasParam(ForecastJobAction.Request.DURATION.getPreferredName())) {
                 request.setDuration(restRequest.param(ForecastJobAction.Request.DURATION.getPreferredName()));
             }
+            if (restRequest.hasParam(ForecastJobAction.Request.EXPIRES_IN.getPreferredName())) {
+                request.setExpiresIn(restRequest.param(ForecastJobAction.Request.EXPIRES_IN.getPreferredName()));
+            }
         }
 
         return channel -> client.execute(ForecastJobAction.INSTANCE, request, new RestToXContentListener<>(channel));

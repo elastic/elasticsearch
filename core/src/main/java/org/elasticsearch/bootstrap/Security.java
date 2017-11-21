@@ -19,9 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.SecureSM;
-import org.elasticsearch.Version;
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
@@ -120,7 +119,8 @@ final class Security {
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap.", "org.elasticsearch.cli" }));
+        final String[] classesThatCanExit = new String[] { ElasticsearchUncaughtExceptionHandler.class.getName(), Command.class.getName()};
+        System.setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
         selfTest();

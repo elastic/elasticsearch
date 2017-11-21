@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.AcceptorEventHandler;
-import org.elasticsearch.transport.nio.OpenChannels;
 import org.junit.After;
 import org.junit.Before;
 

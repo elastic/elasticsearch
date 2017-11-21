@@ -20,6 +20,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -73,6 +74,7 @@ public final class EngineConfig {
     private final Sort indexSort;
     private final boolean forceNewHistoryUUID;
     private final TranslogRecoveryRunner translogRecoveryRunner;
+    private final RecoveryConfig recoveryConfig;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -118,7 +120,7 @@ public final class EngineConfig {
                         QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                         boolean forceNewHistoryUUID, TranslogConfig translogConfig, TimeValue flushMergesAfter,
                         List<ReferenceManager.RefreshListener> refreshListeners, Sort indexSort,
-                        TranslogRecoveryRunner translogRecoveryRunner) {
+                        TranslogRecoveryRunner translogRecoveryRunner, RecoveryConfig recoveryConfig) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -147,6 +149,7 @@ public final class EngineConfig {
         this.refreshListeners = refreshListeners;
         this.indexSort = indexSort;
         this.translogRecoveryRunner = translogRecoveryRunner;
+        this.recoveryConfig = recoveryConfig;
     }
 
     /**
@@ -357,5 +360,42 @@ public final class EngineConfig {
      */
     public Sort getIndexSort() {
         return indexSort;
+    }
+
+    /**
+     * This configuration is used in conjunction with {@link OpenMode} to specific how the engine should be started.
+     */
+    public RecoveryConfig getRecoveryConfig() {
+        return recoveryConfig;
+    }
+
+    public static class RecoveryConfig {
+        private final IndexCommit startingCommit;
+        private final long maxRecoveringSeqNo;
+
+        // Starts an engine with the last commit and recover all possible translog operations.
+        public static final RecoveryConfig MOST_RECENT = new RecoveryConfig(null, Long.MAX_VALUE);
+
+        public RecoveryConfig(IndexCommit startingCommit, long maxRecoveringSeqNo) {
+            this.startingCommit = startingCommit;
+            this.maxRecoveringSeqNo = maxRecoveringSeqNo;
+        }
+
+        /**
+         * Returns a starting index commit that an {@link org.apache.lucene.index.IndexWriter} should open with.
+         * See {@link org.apache.lucene.index.IndexWriterConfig#setIndexCommit(IndexCommit)}
+         */
+        public IndexCommit getStartingCommit() {
+            return startingCommit;
+        }
+
+        /**
+         * Returns the maximum sequence number that an engine should recover from the local translog.
+         * Translog operations with a higher sequence number will be skipped.
+         * See {@link Engine#recoverFromTranslog()}
+         */
+        public long getMaxRecoveringSeqNo() {
+            return maxRecoveringSeqNo;
+        }
     }
 }

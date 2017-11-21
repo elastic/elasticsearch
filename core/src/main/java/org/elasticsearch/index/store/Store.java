@@ -181,9 +181,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IOException if the index is corrupted or the segments file is not present
      */
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
+        return readCommittedSegmentsInfo(null);
+    }
+
+    /**
+     * Returns the segments info for a given commit or for the latest commit if the given commit is null.
+     */
+    public SegmentInfos readCommittedSegmentsInfo(final IndexCommit commit) throws IOException {
         failIfCorrupted();
         try {
-            return readSegmentsInfo(null, directory());
+            return readSegmentsInfo(commit, directory());
         } catch (CorruptIndexException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -219,9 +226,26 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @return an instance of {@link SeqNoStats} populated with the local and global checkpoints, and the maximum sequence number
      * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
      */
-    public SeqNoStats loadSeqNoStats(final long globalCheckpoint) throws IOException {
+    public SeqNoStats loadSeqNoStatsFromLatestCommit(final long globalCheckpoint) throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(directory).getUserData();
         return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, userData.entrySet());
+    }
+
+    /**
+     * Loads the local checkpoint and the maximum sequence number from the given Lucene commit point and returns the triplet of local and
+     * global checkpoints, and maximum sequence number as an instance of {@link SeqNoStats}. The global checkpoint must be provided
+     * externally as it is not stored in the commit point.
+     *
+     * @param globalCheckpoint the provided global checkpoint
+     * @param commit if the provided commit is null, the latest commit in the store will be used.
+     * @return an instance of {@link SeqNoStats} populated with the local and global checkpoints, and the maximum sequence number
+     * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
+     */
+    public SeqNoStats loadSeqNoStatsFromCommit(final long globalCheckpoint, final IndexCommit commit) throws IOException {
+        if (commit == null) {
+            return loadSeqNoStatsFromLatestCommit(globalCheckpoint);
+        }
+        return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, commit.getUserData().entrySet());
     }
 
     final void ensureOpen() {

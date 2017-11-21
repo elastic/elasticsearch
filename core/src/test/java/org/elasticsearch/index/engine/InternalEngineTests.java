@@ -34,6 +34,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -105,7 +106,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -160,6 +160,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -2483,7 +2484,7 @@ public class InternalEngineTests extends EngineTestCase {
                 threadPool, config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig, TimeValue.timeValueMinutes(5),
-                config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+                config.getRefreshListeners(), null, config.getTranslogRecoveryRunner(), EngineConfig.RecoveryConfig.MOST_RECENT);
 
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
@@ -2537,7 +2538,7 @@ public class InternalEngineTests extends EngineTestCase {
             threadPool, indexSettings, null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(), false, config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
-            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner(), EngineConfig.RecoveryConfig.MOST_RECENT);
         engine = new InternalEngine(newConfig);
         if (newConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             engine.recoverFromTranslog();
@@ -2567,7 +2568,7 @@ public class InternalEngineTests extends EngineTestCase {
             threadPool, config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(), true, config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
-            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner(), EngineConfig.RecoveryConfig.MOST_RECENT);
         engine = new InternalEngine(newConfig);
         if (newConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             engine.recoverFromTranslog();
@@ -4023,6 +4024,108 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(deleteResult.getSeqNo(), equalTo(seqNo + 1));
             assertThat(seqNoGenerator.get(), equalTo(seqNo + 2));
         }
+    }
+
+    static class KeepAllIndexCommit extends IndexDeletionPolicy {
+        @Override
+        public void onInit(List<? extends IndexCommit> commits) throws IOException {
+
+        }
+
+        @Override
+        public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+
+        }
+    }
+
+    static class KeepAllIndexWriterFactory implements IndexWriterFactory {
+        @Override
+        public IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+            iwc.setIndexDeletionPolicy(new KeepAllIndexCommit());
+            return new IndexWriter(directory, iwc);
+        }
+    }
+
+    public void testRecoveringFromStartingCommit() throws Exception {
+        IOUtils.close(engine, store);
+        final Path translogPath = createTempDir();
+        try (Store store = createStore()) {
+            final int initDocs = scaledRandomIntBetween(10, 1000);
+            try (Engine engine =
+                     openEngine(store, translogPath, new KeepAllIndexWriterFactory(), EngineConfig.RecoveryConfig.MOST_RECENT)) {
+                addDocs(engine, 0, initDocs);
+            }
+            final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            assertThat(commits, not(empty()));
+
+            try (Engine engine = openEngine(store, translogPath,
+                new KeepAllIndexWriterFactory(), new EngineConfig.RecoveryConfig(randomFrom(commits), Long.MAX_VALUE))) {
+                try (Searcher searcher = engine.acquireSearcher("test")) {
+                    assertThat(searcher.reader().numDocs(), equalTo(initDocs));
+                }
+                final int moreDocs = scaledRandomIntBetween(10, 1000);
+                addDocs(engine, initDocs, moreDocs);
+                engine.refresh("test");
+                try (Searcher searcher = engine.acquireSearcher("test")) {
+                    assertThat(searcher.reader().numDocs(), equalTo(initDocs + moreDocs));
+                }
+            }
+        }
+    }
+
+    public void testRecoveringUpToMaxSeqNo() throws Exception {
+        IOUtils.close(engine, store);
+        final Path translogPath = createTempDir();
+        try (Store store = createStore()) {
+            final int initDocs = scaledRandomIntBetween(10, 1000);
+            final int moreDocs = scaledRandomIntBetween(10, 1000);
+            final int extraDocs = scaledRandomIntBetween(10, 1000);
+            final List<IndexCommit> initCommits;
+            try (Engine engine =
+                     openEngine(store, translogPath, new KeepAllIndexWriterFactory(), EngineConfig.RecoveryConfig.MOST_RECENT)) {
+                addDocs(engine, 0, initDocs);
+                initCommits = DirectoryReader.listCommits(store.directory());
+                assertThat(initCommits, not(empty()));
+                addDocs(engine, initDocs, moreDocs);
+            }
+            final int maxRecoveringSeqNo = between(initDocs, initDocs + moreDocs - 1);
+            try (Engine engine = openEngine(store, translogPath, new KeepAllIndexWriterFactory(),
+                new EngineConfig.RecoveryConfig(randomFrom(initCommits), maxRecoveringSeqNo - 1))) {
+                try (Searcher searcher = engine.acquireSearcher("test")) {
+                    assertThat(searcher.reader().numDocs(), equalTo(maxRecoveringSeqNo));
+                }
+                addDocs(engine, initDocs + moreDocs, extraDocs);
+                engine.flush(true, true);
+            }
+            try (Engine engine =
+                     openEngine(store, translogPath, new KeepAllIndexWriterFactory(), EngineConfig.RecoveryConfig.MOST_RECENT)) {
+                try (Searcher searcher = engine.acquireSearcher("test")) {
+                    assertThat(searcher.reader().numDocs(), equalTo(maxRecoveringSeqNo + extraDocs));
+                }
+            }
+        }
+    }
+
+    void addDocs(Engine engine, int startIndex, int numDocs) throws IOException {
+        for (int i = 0; i < numDocs; i++) {
+            engine.index(indexForDoc(createParsedDoc(Integer.toString(startIndex + i), null)));
+            if (frequently()) {
+                engine.flush(true, true);
+            }
+            if (rarely()) {
+                engine.rollTranslogGeneration();
+            }
+        }
+    }
+
+    private InternalEngine openEngine(Store store, Path translogPath, IndexWriterFactory indexWriterFactory,
+                                        EngineConfig.RecoveryConfig recoveryConfig) throws IOException {
+        final EngineConfig config = config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, recoveryConfig);
+        InternalEngine internalEngine = createInternalEngine(indexWriterFactory, null, null, config);
+        if (config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+            internalEngine.recoverFromTranslog();
+        }
+        return internalEngine;
     }
 
 }

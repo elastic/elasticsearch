@@ -51,12 +51,7 @@ public enum Recyclers {
      * Return a recycler based on a deque.
      */
     public static <T> Recycler.Factory<T> dequeFactory(final Recycler.C<T> c, final int limit) {
-        return new Recycler.Factory<T>() {
-            @Override
-            public Recycler<T> build() {
-                return deque(c, limit);
-            }
-        };
+        return () -> deque(c, limit);
     }
 
     /**

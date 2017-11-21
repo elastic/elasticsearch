@@ -120,6 +120,19 @@ public class MockBigArrays extends BigArrays {
     }
 
     @Override
+    public ByteArray dropFromHead(ByteArray array, long numberToDrop) {
+        ByteArrayWrapper arr = (ByteArrayWrapper) array;
+        array = super.dropFromHead(arr.in, numberToDrop);
+        ACQUIRED_ARRAYS.remove(arr);
+        if (array instanceof ByteArrayWrapper) {
+            arr = (ByteArrayWrapper) array;
+        } else {
+            arr = new ByteArrayWrapper(array, arr.clearOnResize);
+        }
+        return arr;
+    }
+
+    @Override
     public IntArray newIntArray(long size, boolean clearOnResize) {
         final IntArrayWrapper array = new IntArrayWrapper(super.newIntArray(size, clearOnResize), clearOnResize);
         if (!clearOnResize) {

@@ -81,7 +81,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 0, 1234,
-                ShardSearchFailure.EMPTY_ARRAY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
@@ -104,7 +104,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 0, 1234,
-                ShardSearchFailure.EMPTY_ARRAY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
@@ -146,7 +146,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 0, 1234,
-                ShardSearchFailure.EMPTY_ARRAY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 

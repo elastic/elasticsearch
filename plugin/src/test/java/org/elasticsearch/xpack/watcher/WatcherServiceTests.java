@@ -140,7 +140,7 @@ public class WatcherServiceTests extends ESTestCase {
         // empty scroll response, no further scrolling needed
         SearchResponseSections scrollSearchSections = new SearchResponseSections(SearchHits.empty(), null, null, false, false, null, 1);
         SearchResponse scrollSearchResponse = new SearchResponse(scrollSearchSections, "scrollId", 1, 1, 0, 10,
-                ShardSearchFailure.EMPTY_ARRAY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
 
         // one search response containing active and inactive watches
         int count = randomIntBetween(2, 200);
@@ -166,7 +166,8 @@ public class WatcherServiceTests extends ESTestCase {
         }
         SearchHits searchHits = new SearchHits(hits, count, 1.0f);
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
-        SearchResponse searchResponse = new SearchResponse(sections, "scrollId", 1, 1, 0, 10, ShardSearchFailure.EMPTY_ARRAY);
+        SearchResponse searchResponse = new SearchResponse(sections, "scrollId", 1, 1, 0, 10, ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY);
 
         // we do need to to use this kind of mocking because of the internal client, which calls doExecute at the end on the supplied
         // client instance

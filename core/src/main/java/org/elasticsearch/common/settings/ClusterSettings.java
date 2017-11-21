@@ -263,6 +263,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                     RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
+                    RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                     RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
                     RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
                     RemoteClusterService.REMOTE_NODE_ATTRIBUTE,

@@ -28,6 +28,7 @@
         body: "{ \"query\": { \"match_all\": {} } }"
 
   - gte: { took: 0 }
+  - is_false: _clusters
   - is_true: _shards.total
   - is_true: hits.total
   - is_true: hits.hits.0._index

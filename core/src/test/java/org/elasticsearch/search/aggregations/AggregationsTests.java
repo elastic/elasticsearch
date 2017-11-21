@@ -220,12 +220,15 @@ public class AggregationsTests extends ESTestCase {
              * - we cannot insert randomly into VALUE or VALUES objects e.g. in Percentiles, the keys need to be numeric there
              *
              * - we cannot insert into ExtendedMatrixStats "covariance" or "correlation" fields, their syntax is strict
+             *
+             * - exclude "key", it can be an array of objects and we need strict values
              */
             Predicate<String> excludes = path -> (path.isEmpty() || path.endsWith("aggregations")
                     || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
                     || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
                     || path.endsWith(CommonFields.VALUES.getPreferredName()) || path.endsWith("covariance") || path.endsWith("correlation")
-                    || path.contains(CommonFields.VALUE.getPreferredName()));
+                    || path.contains(CommonFields.VALUE.getPreferredName())
+                    || path.endsWith(CommonFields.KEY.getPreferredName()));
             mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
         } else {
             mutated = originalBytes;

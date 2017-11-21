@@ -161,6 +161,9 @@ public class ControlMsgToProcessWriter {
         if (params.getDuration() != 0) {
             builder.field("duration", params.getDuration());
         }
+        if (params.getExpiresIn() != -1) {
+            builder.field("expires_in", params.getExpiresIn());
+        }
         builder.endObject();
         
         writeMessage(FORECAST_MESSAGE_CODE + builder.string());

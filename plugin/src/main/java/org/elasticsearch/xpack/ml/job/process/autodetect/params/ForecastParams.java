@@ -18,10 +18,10 @@ public class ForecastParams {
 
     private final long endTime;
     private final long duration;
-    private final long id;
+    private final long forecastId;
 
-    private ForecastParams(long id, long endTime, long duration) {
-        this.id = id;
+    private ForecastParams(long forecastId, long endTime, long duration) {
+        this.forecastId = forecastId;
         this.endTime = endTime;
         this.duration = duration;
     }
@@ -47,13 +47,13 @@ public class ForecastParams {
      * 
      * @return The forecast Id
      */
-    public long getId() {
-        return id;
+    public long getForecastId() {
+        return forecastId;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, endTime, duration);
+        return Objects.hash(forecastId, endTime, duration);
     }
 
     @Override
@@ -65,7 +65,9 @@ public class ForecastParams {
             return false;
         }
         ForecastParams other = (ForecastParams) obj;
-        return Objects.equals(id, other.id) && Objects.equals(endTime, other.endTime) && Objects.equals(duration, other.duration);
+        return Objects.equals(forecastId, other.forecastId)
+                && Objects.equals(endTime, other.endTime)
+                && Objects.equals(duration, other.duration);
     }
 
     public static Builder builder() {

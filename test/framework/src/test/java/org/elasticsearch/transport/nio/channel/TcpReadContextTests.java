@@ -143,5 +143,4 @@ public class TcpReadContextTests extends ESTestCase {
         }
         return bytes;
     }
-
 }

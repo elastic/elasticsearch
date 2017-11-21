@@ -24,7 +24,7 @@
 
 #### Classes
 
-class java.math.BigDecimal import {
+class java.math.BigDecimal {
   BigDecimal ONE
   BigDecimal TEN
   BigDecimal ZERO
@@ -77,7 +77,7 @@ class java.math.BigDecimal import {
   BigDecimal valueOf(double)
 }
 
-class java.math.BigInteger import {
+class java.math.BigInteger {
   BigInteger ONE
   BigInteger TEN
   BigInteger ZERO
@@ -123,7 +123,7 @@ class java.math.BigInteger import {
   BigInteger xor(BigInteger)
 }
 
-class java.math.MathContext import {
+class java.math.MathContext {
   MathContext DECIMAL128
   MathContext DECIMAL32
   MathContext DECIMAL64
@@ -136,7 +136,7 @@ class java.math.MathContext import {
 
 #### Enums
 
-class java.math.RoundingMode import {
+class java.math.RoundingMode {
   RoundingMode CEILING
   RoundingMode DOWN
   RoundingMode FLOOR

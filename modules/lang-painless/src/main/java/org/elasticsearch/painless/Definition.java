@@ -33,12 +33,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Stack;
+import java.util.regex.Pattern;
 
 /**
  * The entire API for Painless.  Also used as a whitelist for checking for legal
  * methods and fields during at both compile-time and runtime.
  */
 public final class Definition {
+
+    private static final Pattern TYPE_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
 
     private static final String[] DEFINITION_FILES = new String[] {
             "org.elasticsearch.txt",
@@ -707,7 +710,7 @@ public final class Definition {
         String painlessTypeName = whitelistStruct.javaClassName.replace('$', '.');
         String importedPainlessTypeName = painlessTypeName;
 
-        if (painlessTypeName.matches("^[_a-zA-Z][._a-zA-Z0-9]*") == false) {
+        if (TYPE_NAME_PATTERN.matcher(painlessTypeName).matches() == false) {
             throw new IllegalArgumentException("invalid struct type name [" + painlessTypeName + "]");
         }
 
@@ -752,7 +755,7 @@ public final class Definition {
                     "[" + existingStruct.clazz.getName() + "]");
         }
 
-        if (whitelistStruct.importJavaClassName) {
+        if (whitelistStruct.onlyFQNJavaClassName == false) {
             existingStruct = structsMap.get(importedPainlessTypeName);
 
             if (existingStruct == null) {
@@ -763,9 +766,9 @@ public final class Definition {
                     simpleTypesMap.put(importedPainlessTypeName, painlessType);
                 }
             } else if (existingStruct.clazz.equals(javaClass) == false) {
-                throw new IllegalArgumentException("imported name [" + painlessTypeName + "] is used to " +
-                    "illegally represent multiple java classes [" + whitelistStruct.javaClassName + "] " +
-                    "and [" + existingStruct.clazz.getName() + "]");
+                throw new IllegalArgumentException("simple type name [" + painlessTypeName + "] found for types " +
+                    "[" + whitelistStruct.javaClassName + "] and [" + existingStruct.clazz.getName() + "]; " +
+                    "at least one must require fully qualified name using 'only_fqn'");
             }
         }
     }
@@ -837,7 +840,7 @@ public final class Definition {
                     "name [" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
         }
 
-        if (!whitelistMethod.javaMethodName.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
+        if (TYPE_NAME_PATTERN.matcher(whitelistMethod.javaMethodName).matches() == false) {
             throw new IllegalArgumentException("invalid method name" +
                     " [" + whitelistMethod.javaMethodName + "] for owner struct [" + ownerStructName + "].");
         }
@@ -967,7 +970,7 @@ public final class Definition {
                     "name [" + whitelistField.javaFieldName + "] and type " + whitelistField.painlessFieldTypeName);
         }
 
-        if (!whitelistField.javaFieldName.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
+        if (TYPE_NAME_PATTERN.matcher(whitelistField.javaFieldName).matches() == false) {
             throw new IllegalArgumentException("invalid field name " +
                     "[" + whitelistField.painlessFieldTypeName + "] for owner struct [" + ownerStructName + "].");
         }

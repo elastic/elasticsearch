@@ -24,7 +24,7 @@
 
 #### Classes
 
-class java.time.zone.ZoneOffsetTransition import {
+class java.time.zone.ZoneOffsetTransition {
   int compareTo(ZoneOffsetTransition)
   LocalDateTime getDateTimeAfter()
   LocalDateTime getDateTimeBefore()
@@ -39,7 +39,7 @@ class java.time.zone.ZoneOffsetTransition import {
   long toEpochSecond()
 }
 
-class java.time.zone.ZoneOffsetTransitionRule import {
+class java.time.zone.ZoneOffsetTransitionRule {
   ZoneOffsetTransition createTransition(int)
   int getDayOfMonthIndicator()
   DayOfWeek getDayOfWeek()
@@ -53,7 +53,7 @@ class java.time.zone.ZoneOffsetTransitionRule import {
   ZoneOffsetTransitionRule of(Month,int,DayOfWeek,LocalTime,boolean,ZoneOffsetTransitionRule.TimeDefinition,ZoneOffset,ZoneOffset,ZoneOffset)
 }
 
-class java.time.zone.ZoneRules import {
+class java.time.zone.ZoneRules {
   Duration getDaylightSavings(Instant)
   ZoneOffset getOffset(Instant)
   ZoneOffset getStandardOffset(Instant)
@@ -70,7 +70,7 @@ class java.time.zone.ZoneRules import {
   ZoneOffsetTransition previousTransition(Instant)
 }
 
-class java.time.zone.ZoneRulesProvider import {
+class java.time.zone.ZoneRulesProvider {
   Set getAvailableZoneIds()
   ZoneRules getRules(String,boolean)
   NavigableMap getVersions(String)
@@ -78,7 +78,7 @@ class java.time.zone.ZoneRulesProvider import {
 
 #### Enums
 
-class java.time.zone.ZoneOffsetTransitionRule$TimeDefinition import {
+class java.time.zone.ZoneOffsetTransitionRule$TimeDefinition {
   ZoneOffsetTransitionRule.TimeDefinition STANDARD
   ZoneOffsetTransitionRule.TimeDefinition UTC
   ZoneOffsetTransitionRule.TimeDefinition WALL
@@ -89,6 +89,6 @@ class java.time.zone.ZoneOffsetTransitionRule$TimeDefinition import {
 
 #### Exceptions
 
-class java.time.zone.ZoneRulesException import {
+class java.time.zone.ZoneRulesException {
   (String)
 }

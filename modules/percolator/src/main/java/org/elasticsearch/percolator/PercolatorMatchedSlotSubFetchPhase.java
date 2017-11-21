@@ -67,7 +67,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             String fieldName = singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
             // there is a bug in lucene's MemoryIndex that doesn't allow us to use docValues here...
-            // TODO add bug URL
+            // See https://issues.apache.org/jira/browse/LUCENE-8055
             // for now we just use version 6.0 version to find nested parent
             final Version version = Version.V_6_0_0; //context.mapperService().getIndexSettings().getIndexVersionCreated();
             Weight weight = percolatorIndexSearcher.createNormalizedWeight(Queries.newNonNestedFilter(version), false);

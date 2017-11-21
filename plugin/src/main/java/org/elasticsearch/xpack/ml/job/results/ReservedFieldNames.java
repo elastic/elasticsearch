@@ -133,7 +133,7 @@ public final class ReservedFieldNames {
 
             ForecastRequestStats.START_TIME.getPreferredName(),
             ForecastRequestStats.END_TIME.getPreferredName(),
-            ForecastRequestStats.MESSAGE.getPreferredName(),
+            ForecastRequestStats.MESSAGES.getPreferredName(),
             ForecastRequestStats.PROGRESS.getPreferredName(),
             ForecastRequestStats.STATUS.getPreferredName(),
 

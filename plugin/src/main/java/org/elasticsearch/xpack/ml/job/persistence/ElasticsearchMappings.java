@@ -347,7 +347,7 @@ public class ElasticsearchMappings {
         .startObject(ForecastRequestStats.END_TIME.getPreferredName())
             .field(TYPE, DATE)
         .endObject()
-        .startObject(ForecastRequestStats.MESSAGE.getPreferredName())
+        .startObject(ForecastRequestStats.MESSAGES.getPreferredName())
             .field(TYPE, KEYWORD)
         .endObject()
         .startObject(ForecastRequestStats.PROGRESS.getPreferredName())

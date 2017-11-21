@@ -34,13 +34,21 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase {
 
@@ -182,6 +190,26 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
         }
     }
 
+    public void testLegacyIndex() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(randomInt(10));
+        KeepUntilGlobalCheckpointDeletionPolicy deletionPolicy = new KeepUntilGlobalCheckpointDeletionPolicy(globalCheckpoint::get);
+        final IndexCommit firstCommit = mockIndexCommit(Collections.emptyMap());
+        deletionPolicy.onInit(Collections.singletonList(firstCommit));
+        verify(firstCommit, times(0)).delete();
+
+        final IndexCommit secondCommit = mockIndexCommit(Collections.emptyMap());
+        deletionPolicy.onCommit(Arrays.asList(firstCommit, secondCommit));
+        verify(firstCommit, times(1)).delete();
+        verify(secondCommit, times(0)).delete();
+        reset(firstCommit, secondCommit);
+
+        final IndexCommit thirdCommit = mockIndexCommit(
+            Collections.singletonMap(SequenceNumbers.MAX_SEQ_NO, Long.toString(between(1, 1000))));
+        deletionPolicy.onCommit(Arrays.asList(secondCommit, thirdCommit));
+        verify(secondCommit, times(1)).delete();
+        verify(thirdCommit, times(0)).delete();
+    }
+
     List<IndexCommit> reservedCommits(long currentGlobalCheckpoint) throws IOException {
         List<IndexCommit> reservedCommits = new ArrayList<>();
         List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
@@ -221,5 +249,11 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
                 }
             }
         );
+    }
+
+    IndexCommit mockIndexCommit(Map<String, String> userData) throws IOException {
+        final IndexCommit commit = mock(IndexCommit.class);
+        when(commit.getUserData()).thenReturn(userData);
+        return commit;
     }
 }

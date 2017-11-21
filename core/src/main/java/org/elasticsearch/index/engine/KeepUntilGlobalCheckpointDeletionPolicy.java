@@ -25,6 +25,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.LongSupplier;
 
 /**
@@ -42,23 +43,32 @@ public final class KeepUntilGlobalCheckpointDeletionPolicy extends IndexDeletion
 
     @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        onCommit(commits);
+        if (commits.isEmpty() == false) {
+            onCommit(commits);
+        }
     }
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+        assert commits.isEmpty() == false;
         final int keptIndex = indexOfKeptCommits(commits);
         for (int i = 0; i < keptIndex; i++) {
             commits.get(i).delete();
         }
+        assert commits.get(commits.size() - 1).isDeleted() == false : "The last commit must not be deleted";
     }
 
     private int indexOfKeptCommits(List<? extends IndexCommit> commits) throws IOException {
         final long currentGlobalCheckpoint = globalCheckpointSupplier.getAsLong();
         // Commits are sorted by age (the 0th one is the oldest commit).
         for (int i = commits.size() - 1; i >= 0; i--) {
-            final IndexCommit commit = commits.get(i);
-            long maxSeqNoFromCommit = Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+            final Map<String, String> commitUserData = commits.get(i).getUserData();
+            // Index from 5.x does not contain MAX_SEQ_NO, we should keep either the more recent commit with MAX_SEQ_NO,
+            // or the last commit.
+            if (commitUserData.containsKey(SequenceNumbers.MAX_SEQ_NO) == false) {
+                return Math.min(i + 1, commits.size() - 1);
+            }
+            final long maxSeqNoFromCommit = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));
             if (maxSeqNoFromCommit <= currentGlobalCheckpoint) {
                 return i;
             }

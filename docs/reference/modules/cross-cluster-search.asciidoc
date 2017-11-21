@@ -320,7 +320,7 @@ PUT _cluster/settings
 
 [source,js]
 --------------------------------------------------
-GET /cluster_one:twitter, cluster_two:twitter,twitter/tweet/_search <1>
+GET /cluster_one:twitter,cluster_two:twitter,twitter/tweet/_search <1>
 {
   "query": {
     "match": {

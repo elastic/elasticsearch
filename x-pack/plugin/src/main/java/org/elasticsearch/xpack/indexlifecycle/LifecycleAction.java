@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.index.Index;
 
-public abstract class Action implements ToXContentObject {
+public abstract class LifecycleAction implements ToXContentObject, NamedWriteable {
 
-    protected abstract void execute(Client client);
+    protected abstract void execute(Client client, Index index);
 
 }

@@ -65,7 +65,7 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
   }
 }
 
-/* Introspect all versions of ES that may be tested agains for backwards
+/* Introspect all versions of ES that may be tested against for backwards
  * compatibility. It is *super* important that this logic is the same as the
  * logic in VersionUtils.java, throwing out alphas because they don't have any
  * backwards compatibility guarantees and only keeping the latest beta or rc

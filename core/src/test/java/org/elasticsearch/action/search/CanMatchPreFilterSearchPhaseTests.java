@@ -87,7 +87,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     public void run() throws IOException {
                         result.set(iter);
                         latch.countDown();
-                    }}, null);
+                    }}, SearchResponse.Clusters.EMPTY);
 
         canMatchPhase.start();
         latch.await();
@@ -164,7 +164,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 public void run() throws IOException {
                     result.set(iter);
                     latch.countDown();
-                }}, null);
+                }}, SearchResponse.Clusters.EMPTY);
 
         canMatchPhase.start();
         latch.await();
@@ -247,7 +247,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                             listener.onFailure(new Exception("failure"));
                         }
                     }
-                }, null);
+                }, SearchResponse.Clusters.EMPTY);
 
         canMatchPhase.start();
         latch.await();

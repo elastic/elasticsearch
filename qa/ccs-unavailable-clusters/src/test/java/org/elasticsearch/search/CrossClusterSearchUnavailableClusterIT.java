@@ -138,7 +138,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
             {
                 SearchResponse response = restHighLevelClient.search(new SearchRequest("index"));
-                assertNull(response.getClusters());
+                assertSame(SearchResponse.Clusters.EMPTY, response.getClusters());
                 assertEquals(10, response.getHits().totalHits);
                 assertEquals(10, response.getHits().getHits().length);
             }
@@ -167,13 +167,12 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
                 SearchResponse scrollResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(scrollId));
-                assertNull(scrollResponse.getClusters());
+                assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
                 assertEquals(10, scrollResponse.getHits().totalHits);
                 assertEquals(0, scrollResponse.getHits().getHits().length);
             }
 
             remoteTransport.close();
-            assertSearchConnectFailure();
 
             updateRemoteClusterSettings(Collections.singletonMap("skip_unavailable", true));
 
@@ -202,7 +201,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
                 SearchResponse scrollResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(scrollId));
-                assertNull(scrollResponse.getClusters());
+                assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
                 assertEquals(10, scrollResponse.getHits().totalHits);
                 assertEquals(0, scrollResponse.getHits().getHits().length);
             }

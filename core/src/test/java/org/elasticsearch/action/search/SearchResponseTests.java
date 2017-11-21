@@ -126,7 +126,7 @@ public class SearchResponseTests extends ESTestCase {
         }
 
         return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, skippedShards, tookInMillis,
-            shardSearchFailures, randomBoolean() ? randomClusters() : null);
+            shardSearchFailures, randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY);
     }
 
     private static SearchResponse.Clusters randomClusters() {
@@ -216,7 +216,7 @@ public class SearchResponseTests extends ESTestCase {
         {
             SearchResponse response = new SearchResponse(
                     new InternalSearchResponse(new SearchHits(hits, 100, 1.5f), null, null, null, false, null, 1), null, 0, 0, 0, 0,
-                    ShardSearchFailure.EMPTY_ARRAY, null);
+                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -298,7 +298,7 @@ public class SearchResponseTests extends ESTestCase {
             in.setVersion(version);
             SearchResponse deserialized = new SearchResponse();
             deserialized.readFrom(in);
-            assertNull(deserialized.getClusters());
+            assertSame(SearchResponse.Clusters.EMPTY, deserialized.getClusters());
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(version);
@@ -308,7 +308,7 @@ public class SearchResponseTests extends ESTestCase {
                     in2.setVersion(version);
                     SearchResponse deserialized2 = new SearchResponse();
                     deserialized2.readFrom(in2);
-                    assertNull(deserialized2.getClusters());
+                    assertSame(SearchResponse.Clusters.EMPTY, deserialized2.getClusters());
                 }
             }
         }

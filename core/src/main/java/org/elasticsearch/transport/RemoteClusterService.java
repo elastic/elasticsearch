@@ -299,8 +299,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
-        assert remote != null : "remote cluster [" + clusterAlias + "] not registered";
-        remote.updateSkipUnavailable(skipUnavailable);
+        if (remote != null) {
+            remote.updateSkipUnavailable(skipUnavailable);
+        }
     }
 
     protected void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {

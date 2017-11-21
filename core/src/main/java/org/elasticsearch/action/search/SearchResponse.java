@@ -82,7 +82,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
-                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, @Nullable Clusters clusters) {
+                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.clusters = clusters;
@@ -236,9 +236,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getSkippedShards(),
             getFailedShards(), getShardFailures());
-        if (clusters != null) {
-            clusters.toXContent(builder, params);
-        }
+        clusters.toXContent(builder, params);
         internalResponse.toXContent(builder, params);
         return builder;
     }
@@ -260,7 +258,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         int skippedShards = 0; // 0 for BWC
         String scrollId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
-        Clusters clusters = null;
+        Clusters clusters = Clusters.EMPTY;
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -365,7 +363,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         //TODO update version once backported
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            clusters = in.readOptionalWriteable(Clusters::new);
+            clusters = new Clusters(in);
+        } else {
+            clusters = Clusters.EMPTY;
         }
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
@@ -387,7 +387,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         //TODO update version once backported
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeOptionalWriteable(clusters);
+            clusters.writeTo(out);
         }
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
@@ -406,6 +406,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * and how many of them were skipped.
      */
     public static class Clusters implements ToXContent, Writeable {
+
+        public static final Clusters EMPTY = new Clusters(0, 0, 0);
 
         static final ParseField _CLUSTERS_FIELD = new ParseField("_clusters");
         static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
@@ -441,11 +443,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(_CLUSTERS_FIELD.getPreferredName());
-            builder.field(TOTAL_FIELD.getPreferredName(), total);
-            builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
-            builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
-            builder.endObject();
+            if (this != EMPTY) {
+                builder.startObject(_CLUSTERS_FIELD.getPreferredName());
+                builder.field(TOTAL_FIELD.getPreferredName(), total);
+                builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
+                builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
+                builder.endObject();
+            }
             return builder;
         }
 

@@ -63,6 +63,8 @@ public class IndexLifecycle extends Plugin {
         Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> LIFECYCLE_TIMESERIES_PHASE_SETTING = Setting.simpleString("index.lifecycle.phase",
         Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<String> LIFECYCLE_TIMESERIES_ACTION_SETTING = Setting.simpleString("index.lifecycle.action",
+            Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
@@ -84,7 +86,10 @@ public class IndexLifecycle extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(LIFECYCLE_TIMESERIES_NAME_SETTING, LIFECYCLE_TIMESERIES_PHASE_SETTING);
+        return Arrays.asList(
+                LIFECYCLE_TIMESERIES_NAME_SETTING, 
+                LIFECYCLE_TIMESERIES_PHASE_SETTING,
+                LIFECYCLE_TIMESERIES_ACTION_SETTING);
     }
 
     public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, Clock clock,

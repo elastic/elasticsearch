@@ -22,8 +22,6 @@ package org.elasticsearch.transport.nio.channel;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.nio.OpenChannels;
 import org.elasticsearch.transport.nio.SocketEventHandler;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.junit.After;
@@ -36,9 +34,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,13 +44,11 @@ public class NioSocketChannelTests extends ESTestCase {
     private SocketSelector selector;
     private AtomicBoolean closedRawChannel;
     private Thread thread;
-    private OpenChannels openChannels;
 
     @Before
     @SuppressWarnings("unchecked")
     public void startSelector() throws IOException {
-        openChannels = new OpenChannels(logger);
-        selector = new SocketSelector(new SocketEventHandler(logger, mock(BiConsumer.class), openChannels));
+        selector = new SocketSelector(new SocketEventHandler(logger));
         thread = new Thread(selector::runLoop);
         closedRawChannel = new AtomicBoolean(false);
         thread.start();
@@ -117,11 +111,13 @@ public class NioSocketChannelTests extends ESTestCase {
         assertFalse(closedRawChannel.get());
     }
 
+    @SuppressWarnings("unchecked")
     public void testConnectFails() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenThrow(new ConnectException());
         NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
         socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
+        socketChannel.setExceptionHandler(mock(BiConsumer.class));
         selector.scheduleForRegistration(socketChannel);
 
         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();

@@ -35,11 +35,9 @@ import java.util.function.Supplier;
 public class AcceptorEventHandler extends EventHandler {
 
     private final Supplier<SocketSelector> selectorSupplier;
-    private final OpenChannels openChannels;
 
-    public AcceptorEventHandler(Logger logger, OpenChannels openChannels, Supplier<SocketSelector> selectorSupplier) {
-        super(logger, openChannels);
-        this.openChannels = openChannels;
+    public AcceptorEventHandler(Logger logger, Supplier<SocketSelector> selectorSupplier) {
+        super(logger);
         this.selectorSupplier = selectorSupplier;
     }
 
@@ -51,7 +49,6 @@ public class AcceptorEventHandler extends EventHandler {
      */
     void serverChannelRegistered(NioServerSocketChannel nioServerSocketChannel) {
         SelectionKeyUtils.setAcceptInterested(nioServerSocketChannel);
-//        openChannels.serverChannelOpened(nioServerSocketChannel);
     }
 
     /**

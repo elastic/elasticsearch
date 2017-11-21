@@ -31,12 +31,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.transport.nio.channel.TcpChannelFactory;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.channel.TcpChannelFactory;
 import org.elasticsearch.transport.nio.channel.TcpNioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.TcpNioSocketChannel;
 import org.elasticsearch.transport.nio.channel.TcpReadContext;
@@ -67,7 +68,7 @@ public class NioTransport extends TcpTransport {
     public static final Setting<Integer> NIO_ACCEPTOR_COUNT =
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
-    protected final OpenChannels openChannels = new OpenChannels(logger);
+    private final OpenChannels openChannels = new OpenChannels(logger);
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
@@ -89,7 +90,10 @@ public class NioTransport extends TcpTransport {
     protected TcpNioServerSocketChannel bind(String name, InetSocketAddress address) throws IOException {
         TcpChannelFactory channelFactory = this.profileToChannelFactory.get(name);
         AcceptingSelector selector = acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings));
-        return channelFactory.openNioServerSocketChannel(address, selector);
+        TcpNioServerSocketChannel serverChannel = channelFactory.openNioServerSocketChannel(address, selector);
+        openChannels.serverChannelOpened(serverChannel);
+        serverChannel.addCloseListener(new RemoveClosedChannelListener(serverChannel));
+        return serverChannel;
     }
 
     @Override
@@ -97,6 +101,7 @@ public class NioTransport extends TcpTransport {
         throws IOException {
         TcpNioSocketChannel channel = clientChannelFactory.openNioChannel(node.getAddress().address(), clientSelectorSupplier.get());
         openChannels.clientChannelOpened(channel);
+        channel.addCloseListener(new RemoveClosedChannelListener(channel));
         channel.addConnectListener(connectListener);
         return channel;
     }
@@ -128,7 +133,7 @@ public class NioTransport extends TcpTransport {
                 int acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
                 for (int i = 0; i < acceptorCount; ++i) {
                     Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-                    AcceptorEventHandler eventHandler = new AcceptorEventHandler(logger, openChannels, selectorSupplier);
+                    AcceptorEventHandler eventHandler = new AcceptorEventHandler(logger, selectorSupplier);
                     AcceptingSelector acceptor = new AcceptingSelector(eventHandler);
                     acceptors.add(acceptor);
                 }
@@ -145,8 +150,7 @@ public class NioTransport extends TcpTransport {
                 for (ProfileSettings profileSettings : profileSettings) {
                     String profileName = profileSettings.profileName;
                     Consumer<NioSocketChannel> contextSetter = getContextSetter(profileName);
-                    Consumer<NioServerSocketChannel> serverContextSetter = getServerContextSetter();
-                    TcpChannelFactory factory = new TcpChannelFactory(profileSettings, contextSetter, serverContextSetter);
+                    TcpChannelFactory factory = new TcpChannelFactory(profileSettings, contextSetter, getServerContextSetter());
                     profileToChannelFactory.putIfAbsent(profileName, factory);
                     bindServer(profileSettings);
                 }
@@ -173,7 +177,7 @@ public class NioTransport extends TcpTransport {
     }
 
     protected SocketEventHandler getSocketEventHandler() {
-        return new SocketEventHandler(logger, this::exceptionCaught, openChannels);
+        return new SocketEventHandler(logger);
     }
 
     final void exceptionCaught(NioSocketChannel channel, Exception exception) {
@@ -187,7 +191,34 @@ public class NioTransport extends TcpTransport {
         };
     }
 
+    private void acceptChannel(NioSocketChannel channel) {
+        TcpNioSocketChannel tcpChannel = (TcpNioSocketChannel) channel;
+        openChannels.acceptedChannelOpened(tcpChannel);
+        tcpChannel.addCloseListener(new RemoveClosedChannelListener(channel));
+        serverAcceptedChannel(tcpChannel);
+
+    }
+
     private Consumer<NioServerSocketChannel> getServerContextSetter() {
-        return (c) -> c.setAcceptContext((channel) -> serverAcceptedChannel((TcpNioSocketChannel) channel));
+        return (c) -> c.setAcceptContext(this::acceptChannel);
+    }
+
+    private class RemoveClosedChannelListener implements ActionListener<Void> {
+
+        private final NioChannel channel;
+
+        private RemoveClosedChannelListener(NioChannel channel) {
+            this.channel = channel;
+        }
+
+        @Override
+        public void onResponse(Void aVoid) {
+            openChannels.channelClosed(channel);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            openChannels.channelClosed(channel);
+        }
     }
 }

@@ -26,7 +26,9 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
@@ -462,7 +464,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             assertBusy(() -> {
                 ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-                assertTrue("security index mapping and template not sufficient to read:\n" + clusterState.toString(),
+                XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
+                assertTrue("security index mapping and template not sufficient to read:\n" +
+                                clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject().string(),
                         securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
@@ -484,7 +488,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             assertBusy(() -> {
                 ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-                assertTrue("security index mapping and template not up to date:\n" + clusterState.toString(),
+                XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
+                assertTrue("security index mapping and template not up to date:\n" +
+                                clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject().string(),
                         securityIndexMappingAndTemplateUpToDate(clusterState, logger));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {

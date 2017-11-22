@@ -300,8 +300,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testCalculateNumRoutingShards() {
-        assertEquals(512, MetaDataCreateIndexService.calculateNumRoutingShards(1, Version.CURRENT));
-        assertEquals(512, MetaDataCreateIndexService.calculateNumRoutingShards(2, Version.CURRENT));
+        assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(1, Version.CURRENT));
+        assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(2, Version.CURRENT));
         assertEquals(768, MetaDataCreateIndexService.calculateNumRoutingShards(3, Version.CURRENT));
         assertEquals(576, MetaDataCreateIndexService.calculateNumRoutingShards(9, Version.CURRENT));
         assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(512, Version.CURRENT));
@@ -317,6 +317,13 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             int randomNumShards = randomIntBetween(1, 10000);
             int numRoutingShards = MetaDataCreateIndexService.calculateNumRoutingShards(randomNumShards, Version.CURRENT);
+            if (numRoutingShards <= 1024) {
+                assertTrue("numShards: " + randomNumShards, randomNumShards < 513);
+                assertTrue("numRoutingShards: " + numRoutingShards, numRoutingShards > 512);
+            } else {
+                assertEquals("numShards: " + randomNumShards, numRoutingShards / 2, randomNumShards);
+            }
+
             double ratio = numRoutingShards / randomNumShards;
             int intRatio = (int) ratio;
             assertEquals(ratio, (double)(intRatio), 0.0d);

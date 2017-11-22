@@ -120,15 +120,17 @@ class VersionCollection {
     }
 
     private List<Version> versionsOnOrAfterExceptCurrent(Version minVersion) {
-        final def minVersionString = minVersion.toString();
+        final def minVersionString = minVersion.toString()
+        final def snapshot1 = BWCSnapshotForCurrentMajor
+        final def snapshot2 = BWCSnapshotForPreviousMinorOfCurrentMajor
+        final def snapshot3 = BWCSnapshotForPreviousMajor
         return Collections.unmodifiableList(versions.findAll {
-            it.onOrAfter(minVersionString) && it != currentVersion
+            it.onOrAfter(minVersionString) && it != currentVersion &&
+                (false == it.snapshot || it == snapshot1 || it == snapshot2 || it == snapshot3)
         })
     }
 
     List<Version> getVersionsIndexCompatibleWithCurrent() {
-        // TODO this will yield 6.0.1-SNAPSHOT (etc.) on 6.x, and this will mean we're testing BWC vs 6.0.1-SNAPSHOT
-        // even after we're certain we're never going to release it. Does this need fixing?
         final def firstVersionOfCurrentMajor = versions.find { it.major >= currentVersion.major - 1 }
         return versionsOnOrAfterExceptCurrent(firstVersionOfCurrentMajor)
     }

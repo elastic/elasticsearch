@@ -113,7 +113,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1516,16 +1515,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.trace("no files to recover, all exists within the local store");
                 }
 
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] [{}] recovering_files [{}] with total_size [{}], reusing_files [{}] with reused_size [{}]", shardId, snapshotId,
-                        index.totalRecoverFiles(), new ByteSizeValue(index.totalRecoverBytes()), index.reusedFileCount(), new ByteSizeValue(index.reusedFileCount()));
-                }
                 try {
-                    // list of all existing store files without the identical ones
-                    final Set<String> deleteIfExistFiles = Sets.difference(
-                        new HashSet<>(Arrays.asList(store.directory().listAll())),
-                        diff.identical.stream().map(StoreFileMetaData::name).collect(Collectors.toSet())
-                    );
+                    // list of all existing store files
+                    final List<String> deleteIfExistFiles = Arrays.asList(store.directory().listAll());
 
                     // restore the files from the snapshot to the Lucene store
                     for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
@@ -1622,5 +1614,4 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         }
     }
-
 }

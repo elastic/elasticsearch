@@ -257,3 +257,21 @@
             /^ foo \s+ 0\n
                bar \s+ 1\n
             $/
+
+---
+"Test cat shards help with params":
+  - skip:
+      version: " - 6.2.99"
+      reason: until 6.3.0 '/_cat/shards/index?help' was throwing IllegalArgumentException
+  - do:
+      indices.create:
+        index: index
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 0
+
+  - do:
+      cat.shards:
+        index: index
+        help: true

@@ -29,11 +29,9 @@ import java.nio.channels.Selector;
 public abstract class EventHandler {
 
     protected final Logger logger;
-    private final OpenChannels openChannels;
 
-    public EventHandler(Logger logger, OpenChannels openChannels) {
+    public EventHandler(Logger logger) {
         this.logger = logger;
-        this.openChannels = openChannels;
     }
 
     /**
@@ -71,7 +69,6 @@ public abstract class EventHandler {
      * @param channel that should be closed
      */
     void handleClose(NioChannel channel) {
-        openChannels.channelClosed(channel);
         try {
             channel.closeFromSelector();
         } catch (IOException e) {

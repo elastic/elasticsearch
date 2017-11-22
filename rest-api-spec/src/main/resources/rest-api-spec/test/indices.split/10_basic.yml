@@ -1,0 +1,134 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+            index.number_of_routing_shards: 2
+  - do:
+      index:
+        index: source
+        type:  doc
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      index:
+        index: source
+        type:  doc
+        id:    "2"
+        body:  { "foo": "hello world 2" }
+
+  - do:
+      index:
+        index: source
+        type:  doc
+        id:    "3"
+        body:  { "foo": "hello world 3" }
+
+---
+"Split index via API":
+  - skip:
+      version: " - 6.0.99"
+      reason: Added in 6.1.0
+
+  # make it read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  # now we do the actual split
+  - do:
+      indices.split:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 2
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: target
+        type:  doc
+        id:    "1"
+
+  - match: { _index:   target }
+  - match: { _type:    doc   }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+
+  - do:
+      get:
+        index: target
+        type:  doc
+        id:    "2"
+
+  - match: { _index:   target }
+  - match: { _type:    doc   }
+  - match: { _id:      "2"     }
+  - match: { _source:  { foo: "hello world 2" } }
+
+
+  - do:
+      get:
+        index: target
+        type:  doc
+        id:    "3"
+
+  - match: { _index:   target }
+  - match: { _type:    doc   }
+  - match: { _id:      "3"     }
+  - match: { _source:  { foo: "hello world 3" } }
+
+---
+"Create illegal split indices":
+  - skip:
+      version: " - 6.0.99"
+      reason: Added in 6.1.0
+
+  # try to do an illegal split with number_of_routing_shards set
+  - do:
+      catch: /illegal_argument_exception/
+      indices.split:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 2
+            index.number_of_routing_shards: 4
+
+  # try to do an illegal split with illegal number_of_shards
+  - do:
+      catch: /illegal_state_exception/
+      indices.split:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 3

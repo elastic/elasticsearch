@@ -735,7 +735,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         final ClusterState newClusterState = pendingStatesQueue.getNextClusterStateToProcess();
         final ClusterState currentState = committedState.get();
-        final ClusterState adaptedNewClusterState;
         // all pending states have been processed
         if (newClusterState == null) {
             return false;
@@ -773,54 +772,23 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
             // its a fresh update from the master as we transition from a start of not having a master to having one
             logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
-            adaptedNewClusterState = newClusterState;
-        } else if (newClusterState.nodes().isLocalNodeElectedMaster() == false) {
-            // some optimizations to make sure we keep old objects where possible
-            ClusterState.Builder builder = ClusterState.builder(newClusterState);
-
-            // if the routing table did not change, use the original one
-            if (newClusterState.routingTable().version() == currentState.routingTable().version()) {
-                builder.routingTable(currentState.routingTable());
-            }
-            // same for metadata
-            if (newClusterState.metaData().version() == currentState.metaData().version()) {
-                builder.metaData(currentState.metaData());
-            } else {
-                // if its not the same version, only copy over new indices or ones that changed the version
-                MetaData.Builder metaDataBuilder = MetaData.builder(newClusterState.metaData()).removeAllIndices();
-                for (IndexMetaData indexMetaData : newClusterState.metaData()) {
-                    IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.getIndex());
-                    if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.getIndexUUID()) &&
-                        currentIndexMetaData.getVersion() == indexMetaData.getVersion()) {
-                        // safe to reuse
-                        metaDataBuilder.put(currentIndexMetaData, false);
-                    } else {
-                        metaDataBuilder.put(indexMetaData, false);
-                    }
-                }
-                builder.metaData(metaDataBuilder);
-            }
-
-            adaptedNewClusterState = builder.build();
-        } else {
-            adaptedNewClusterState = newClusterState;
         }
 
-        if (currentState == adaptedNewClusterState) {
+        if (currentState == newClusterState) {
             return false;
         }
 
-        committedState.set(adaptedNewClusterState);
+        committedState.set(newClusterState);
 
         // update failure detection only after the state has been updated to prevent race condition with handleLeaveRequest
         // and handleNodeFailure as those check the current state to determine whether the failure is to be handled by this node
-        if (adaptedNewClusterState.nodes().isLocalNodeElectedMaster()) {
+        if (newClusterState.nodes().isLocalNodeElectedMaster()) {
             // update the set of nodes to ping
-            nodesFD.updateNodesAndPing(adaptedNewClusterState);
+            nodesFD.updateNodesAndPing(newClusterState);
         } else {
             // check to see that we monitor the correct master of the cluster
-            if (masterFD.masterNode() == null || !masterFD.masterNode().equals(adaptedNewClusterState.nodes().getMasterNode())) {
-                masterFD.restart(adaptedNewClusterState.nodes().getMasterNode(),
+            if (masterFD.masterNode() == null || !masterFD.masterNode().equals(newClusterState.nodes().getMasterNode())) {
+                masterFD.restart(newClusterState.nodes().getMasterNode(),
                     "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
             }
         }

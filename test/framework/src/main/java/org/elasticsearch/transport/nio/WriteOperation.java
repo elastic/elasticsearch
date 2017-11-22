@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
@@ -33,10 +32,10 @@ import java.util.ArrayList;
 public class WriteOperation {
 
     private final NioSocketChannel channel;
-    private final ActionListener<NioChannel> listener;
+    private final ActionListener<Void> listener;
     private final NetworkBytesReference[] references;
 
-    public WriteOperation(NioSocketChannel channel, BytesReference bytesReference, ActionListener<NioChannel> listener) {
+    public WriteOperation(NioSocketChannel channel, BytesReference bytesReference, ActionListener<Void> listener) {
         this.channel = channel;
         this.listener = listener;
         this.references = toArray(bytesReference);
@@ -46,7 +45,7 @@ public class WriteOperation {
         return references;
     }
 
-    public ActionListener<NioChannel> getListener() {
+    public ActionListener<Void> getListener() {
         return listener;
     }
 

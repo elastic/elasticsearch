@@ -24,12 +24,14 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -58,7 +60,7 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
-        return new PluginsService(settings, null, null, new Environment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
+        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
     }
 
     public void testAdditionalSettings() {
@@ -145,7 +147,11 @@ public class PluginsServiceTests extends ESTestCase {
             assertThat(e, hasToString(containsString("Could not load plugin descriptor for existing plugin [.DS_Store]")));
             assertNotNull(e.getCause());
             assertThat(e.getCause(), instanceOf(FileSystemException.class));
-            assertThat(e.getCause(), hasToString(containsString("Not a directory")));
+            if (Constants.WINDOWS) {
+                assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
+            } else {
+                assertThat(e.getCause(), hasToString(containsString("Not a directory")));
+            }
         }
     }
 

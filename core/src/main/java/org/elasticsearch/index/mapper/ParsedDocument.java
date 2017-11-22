@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -35,7 +34,6 @@ public class ParsedDocument {
     private final Field version;
 
     private final String id, type;
-    private final BytesRef uid;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
 
     private final String routing;
@@ -62,7 +60,6 @@ public class ParsedDocument {
         this.seqID = seqID;
         this.id = id;
         this.type = type;
-        this.uid = Uid.createUidAsBytes(type, id);
         this.routing = routing;
         this.documents = documents;
         this.source = source;
@@ -140,9 +137,7 @@ public class ParsedDocument {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Document ").append("uid[").append(uid).append("] doc [").append(documents).append("]");
-        return sb.toString();
+        return "Document uid[" + Uid.createUidAsBytes(type, id) + "] doc [" + documents + ']';
     }
 
 }

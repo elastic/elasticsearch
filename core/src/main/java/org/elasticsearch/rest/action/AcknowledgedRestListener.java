@@ -36,6 +36,7 @@ public class AcknowledgedRestListener<T extends AcknowledgedResponse> extends Re
 
     @Override
     public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
+        // TODO - Once AcknowledgedResponse implements ToXContent, this method should be updated to call response.toXContent.
         builder.startObject()
                 .field(Fields.ACKNOWLEDGED, response.isAcknowledged());
         addCustomFields(builder, response);

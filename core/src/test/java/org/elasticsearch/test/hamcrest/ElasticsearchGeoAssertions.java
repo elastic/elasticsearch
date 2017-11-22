@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.hamcrest;
 
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.ShapeCollection;
 import org.locationtech.spatial4j.shape.impl.GeoCircle;
@@ -34,7 +35,6 @@ import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.hamcrest.Matcher;
@@ -256,7 +256,7 @@ public class ElasticsearchGeoAssertions {
 
     public static void assertValidException(XContentParser parser, Class expectedException) {
         try {
-            ShapeBuilder.parse(parser).build();
+            ShapeParser.parse(parser).build();
             Assert.fail("process completed successfully when " + expectedException.getName() + " expected");
         } catch (Exception e) {
             assert(e.getClass().equals(expectedException)):

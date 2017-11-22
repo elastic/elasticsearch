@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -123,6 +124,17 @@ public final class Request {
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
+    static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
+        String endpoint = endpoint(deleteIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(deleteIndexRequest.timeout());
+        parameters.withMasterTimeout(deleteIndexRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(deleteIndexRequest.indicesOptions());
+
+        return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
     static Request info() {
         return new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
     }
@@ -179,23 +191,23 @@ public final class Request {
                         metadata.field("_id", request.id());
                     }
                     if (Strings.hasLength(request.routing())) {
-                        metadata.field("_routing", request.routing());
+                        metadata.field("routing", request.routing());
                     }
                     if (Strings.hasLength(request.parent())) {
-                        metadata.field("_parent", request.parent());
+                        metadata.field("parent", request.parent());
                     }
                     if (request.version() != Versions.MATCH_ANY) {
-                        metadata.field("_version", request.version());
+                        metadata.field("version", request.version());
                     }
 
                     VersionType versionType = request.versionType();
                     if (versionType != VersionType.INTERNAL) {
                         if (versionType == VersionType.EXTERNAL) {
-                            metadata.field("_version_type", "external");
+                            metadata.field("version_type", "external");
                         } else if (versionType == VersionType.EXTERNAL_GTE) {
-                            metadata.field("_version_type", "external_gte");
+                            metadata.field("version_type", "external_gte");
                         } else if (versionType == VersionType.FORCE) {
-                            metadata.field("_version_type", "force");
+                            metadata.field("version_type", "force");
                         }
                     }
 
@@ -207,7 +219,7 @@ public final class Request {
                     } else if (opType == DocWriteRequest.OpType.UPDATE) {
                         UpdateRequest updateRequest = (UpdateRequest) request;
                         if (updateRequest.retryOnConflict() > 0) {
-                            metadata.field("_retry_on_conflict", updateRequest.retryOnConflict());
+                            metadata.field("retry_on_conflict", updateRequest.retryOnConflict());
                         }
                         if (updateRequest.fetchSource() != null) {
                             metadata.field("_source", updateRequest.fetchSource());
@@ -447,6 +459,10 @@ public final class Request {
                 }
             }
             return this;
+        }
+
+        Params withMasterTimeout(TimeValue masterTimeout) {
+            return putParam("master_timeout", masterTimeout);
         }
 
         Params withParent(String parent) {

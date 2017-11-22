@@ -18,10 +18,11 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
@@ -29,11 +30,14 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,10 +48,14 @@ import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_MALFORMED;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -91,6 +99,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public static final Orientation ORIENTATION = Orientation.RIGHT;
         public static final double LEGACY_DISTANCE_ERROR_PCT = 0.025d;
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
 
         public static final MappedFieldType FIELD_TYPE = new GeoShapeFieldType();
 
@@ -110,6 +119,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, GeoShapeFieldMapper> {
 
         private Boolean coerce;
+        private Boolean ignoreMalformed;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -125,6 +135,11 @@ public class GeoShapeFieldMapper extends FieldMapper {
             return builder;
         }
 
+        @Override
+        protected boolean defaultDocValues(Version indexCreated) {
+            return false;
+        }
+
         protected Explicit<Boolean> coerce(BuilderContext context) {
             if (coerce != null) {
                 return new Explicit<>(coerce, true);
@@ -133,6 +148,21 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 return new Explicit<>(COERCE_SETTING.get(context.indexSettings()), false);
             }
             return Defaults.COERCE;
+        }
+
+        public Builder ignoreMalformed(boolean ignoreMalformed) {
+            this.ignoreMalformed = ignoreMalformed;
+            return builder;
+        }
+
+        protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
+            if (ignoreMalformed != null) {
+                return new Explicit<>(ignoreMalformed, true);
+            }
+            if (context.indexSettings() != null) {
+                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
+            }
+            return Defaults.IGNORE_MALFORMED;
         }
 
         @Override
@@ -144,8 +174,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
 
-            return new GeoShapeFieldMapper(name, fieldType, coerce(context), context.indexSettings(), multiFieldsBuilder.build(this,
-                    context), copyTo);
+            return new GeoShapeFieldMapper(name, fieldType, ignoreMalformed(context), coerce(context), context.indexSettings(),
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -175,6 +205,9 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     iterator.remove();
                 } else if (Names.STRATEGY.equals(fieldName)) {
                     builder.fieldType().setStrategyName(fieldNode.toString());
+                    iterator.remove();
+                } else if (IGNORE_MALFORMED.equals(fieldName)) {
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(fieldName, "ignore_malformed", fieldNode, parserContext));
                     iterator.remove();
                 } else if (Names.COERCE.equals(fieldName)) {
                     builder.coerce(TypeParsers.nodeBooleanValue(fieldName, Names.COERCE, fieldNode, parserContext));
@@ -407,50 +440,70 @@ public class GeoShapeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead");
         }
     }
 
     protected Explicit<Boolean> coerce;
+    protected Explicit<Boolean> ignoreMalformed;
 
-    public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, Explicit<Boolean> coerce, Settings indexSettings,
-                               MultiFields multiFields, CopyTo copyTo) {
+    public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, Explicit<Boolean> ignoreMalformed,
+                               Explicit<Boolean> coerce, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
         this.coerce = coerce;
+        this.ignoreMalformed = ignoreMalformed;
     }
 
     @Override
     public GeoShapeFieldType fieldType() {
         return (GeoShapeFieldType) super.fieldType();
     }
-
     @Override
     public Mapper parse(ParseContext context) throws IOException {
         try {
             Shape shape = context.parseExternalValue(Shape.class);
             if (shape == null) {
-                ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser(), this);
+                ShapeBuilder shapeBuilder = ShapeParser.parse(context.parser(), this);
                 if (shapeBuilder == null) {
                     return null;
                 }
                 shape = shapeBuilder.build();
             }
-            if (fieldType().pointsOnly() && !(shape instanceof Point)) {
-                throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
+            if (fieldType().pointsOnly() == true) {
+                // index configured for pointsOnly
+                if (shape instanceof XShapeCollection && XShapeCollection.class.cast(shape).pointsOnly()) {
+                    // MULTIPOINT data: index each point separately
+                    List<Shape> shapes = ((XShapeCollection) shape).getShapes();
+                    for (Shape s : shapes) {
+                        indexShape(context, s);
+                    }
+                } else if (shape instanceof Point == false) {
+                    throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
                         ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
-            }
-            Field[] fields = fieldType().defaultStrategy().createIndexableFields(shape);
-            if (fields == null || fields.length == 0) {
-                return null;
-            }
-            for (Field field : fields) {
-                context.doc().add(field);
+                }
+            } else {
+                indexShape(context, shape);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
+            if (ignoreMalformed.value() == false) {
+                throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
+            }
         }
         return null;
+    }
+
+    private void indexShape(ParseContext context, Shape shape) {
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(fieldType().defaultStrategy().createIndexableFields(shape)));
+        createFieldNamesField(context, fields);
+        for (IndexableField field : fields) {
+            context.doc().add(field);
+        }
     }
 
     @Override
@@ -464,6 +517,9 @@ public class GeoShapeFieldMapper extends FieldMapper {
         GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper)mergeWith;
         if (gsfm.coerce.explicit()) {
             this.coerce = gsfm.coerce;
+        }
+        if (gsfm.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = gsfm.ignoreMalformed;
         }
     }
 
@@ -493,12 +549,19 @@ public class GeoShapeFieldMapper extends FieldMapper {
             builder.field(Names.STRATEGY_POINTS_ONLY, fieldType().pointsOnly());
         }
         if (includeDefaults || coerce.explicit()) {
-            builder.field("coerce", coerce.value());
+            builder.field(Names.COERCE, coerce.value());
+        }
+        if (includeDefaults || ignoreMalformed.explicit()) {
+            builder.field(IGNORE_MALFORMED, ignoreMalformed.value());
         }
     }
 
     public Explicit<Boolean> coerce() {
         return coerce;
+    }
+
+    public Explicit<Boolean> ignoreMalformed() {
+        return ignoreMalformed;
     }
 
     @Override

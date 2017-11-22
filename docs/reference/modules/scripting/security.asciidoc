@@ -35,6 +35,7 @@ possible for a sufficiently determined malicious user to write searches that
 overwhelm the Elasticsearch cluster and bring it down. For example:
 
 Good:
+
 * Users type text into a search box and the text is sent directly to a
 <<query-dsl-match-query>>, <<query-dsl-match-query-phrase>>,
 <<query-dsl-simple-query-string-query>>, or any of the <<search-suggesters>>.
@@ -44,6 +45,7 @@ the application development process.
 * User actions makes documents with a fixed structure.
 
 Bad:
+
 * Users can write arbitrary scripts, queries, `_search` requests.
 * User actions make documents with structure defined by users.
 

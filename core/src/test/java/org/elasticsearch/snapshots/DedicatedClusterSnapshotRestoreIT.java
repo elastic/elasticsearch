@@ -950,7 +950,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> shrink the index");
         assertAcked(client.admin().indices().prepareUpdateSettings(sourceIdx)
             .setSettings(Settings.builder().put("index.blocks.write", true)).get());
-        assertAcked(client.admin().indices().prepareShrinkIndex(sourceIdx, shrunkIdx).get());
+        assertAcked(client.admin().indices().prepareResizeIndex(sourceIdx, shrunkIdx).get());
 
         logger.info("--> snapshot the shrunk index");
         CreateSnapshotResponse createResponse = client.admin().cluster()

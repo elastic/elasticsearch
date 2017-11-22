@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.List;
 
 public class Phase implements ToXContentObject, Writeable {
-    private static final String PHASE_COMPLETED = "PHASE COMPLETED";
+    public static final String PHASE_COMPLETED = "ACTIONS COMPLETED";
 
     private static final Logger logger = ESLoggerFactory.getLogger(Phase.class);
 
@@ -88,30 +88,40 @@ public class Phase implements ToXContentObject, Writeable {
         return actions;
     }
 
+    protected boolean canExecute(IndexMetaData idxMeta) {
+        long now = System.currentTimeMillis(); // NOCOMMIT use ES way for
+                                               // getting current time.
+        long indexCreated = idxMeta.getCreationDate();
+        logger.error("canExecute: now: " + now + ", indexCreated: " + indexCreated + ", (indexCreated + after.millis()): "
+                + (indexCreated + after.millis()) + ", (indexCreated + after.millis()) >= now: "
+                + ((indexCreated + after.millis()) >= now));
+        return (indexCreated + after.millis()) <= now;
+    }
+
     protected void execute(IndexMetaData idxMeta, InternalClient client) {
         String currentActionName = IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.get(idxMeta.getSettings());
         String indexName = idxMeta.getIndex().getName();
         if (Strings.isNullOrEmpty(currentActionName)) {
-            String firstPhaseName;
+            String firstActionName;
             if (actions.isEmpty()) {
-                firstPhaseName = PHASE_COMPLETED;
+                firstActionName = PHASE_COMPLETED;
             } else {
-                firstPhaseName = actions.get(0).getWriteableName();
+                firstActionName = actions.get(0).getWriteableName();
             }
             client.admin().indices().prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), firstPhaseName))
+                    .setSettings(Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), firstActionName))
                     .execute(new ActionListener<UpdateSettingsResponse>() {
 
                         @Override
                         public void onResponse(UpdateSettingsResponse response) {
                             if (response.isAcknowledged() == false) {
-                                logger.info("Successfully initialised phase [" + firstPhaseName + "] for index [" + indexName + "]");
+                                logger.error("Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
                             }
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.error("Failed to initialised phase [" + firstPhaseName + "] for index [" + indexName + "]", e);
+                            logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]", e);
                         }
                     });
         } else if (currentActionName.equals(PHASE_COMPLETED) == false) {

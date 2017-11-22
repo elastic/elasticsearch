@@ -80,17 +80,8 @@ both index and query time.
   },
   "hits": {
     "total": 2,
-    "max_score": 0.6931472,
+    "max_score": 0.2876821,
     "hits": [
-      {
-        "_index": "index",
-        "_type": "type",
-        "_id": "1",
-        "_score": 0.6931472,
-        "_source": {
-          "foo": "BÀR"
-        }
-      },
       {
         "_index": "index",
         "_type": "type",
@@ -98,6 +89,15 @@ both index and query time.
         "_score": 0.2876821,
         "_source": {
           "foo": "bar"
+        }
+      },
+      {
+        "_index": "index",
+        "_type": "type",
+        "_id": "1",
+        "_score": 0.2876821,
+        "_source": {
+          "foo": "BÀR"
         }
       }
     ]

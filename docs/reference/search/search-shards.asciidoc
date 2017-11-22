@@ -100,7 +100,7 @@ And specifying the same request, this time with a routing value:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/_search_shards?routing=foo,baz
+GET /twitter/_search_shards?routing=foo,bar
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT twitter\n/]
@@ -120,7 +120,7 @@ This will yield the following result:
         "index": "twitter",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
-        "shard": 1,
+        "shard": 2,
         "state": "STARTED",
         "allocation_id": {"id":"fMju3hd1QHWmWrIgFnI4Ww"},
         "relocating_node": null

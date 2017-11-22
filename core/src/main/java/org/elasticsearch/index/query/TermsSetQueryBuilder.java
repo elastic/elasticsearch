@@ -291,7 +291,6 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
         @Override
         public int hashCode() {
-            // CoveringQuery with this field value source cannot be cachable
             return System.identityHashCode(this);
         }
 
@@ -378,12 +377,12 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
         @Override
         public boolean isCacheable(LeafReaderContext ctx) {
-            return false;
+            return true;
         }
 
         @Override
         public LongValuesSource rewrite(IndexSearcher searcher) throws IOException {
-            return null;
+            return this;
         }
     }
 

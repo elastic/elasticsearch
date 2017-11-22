@@ -92,6 +92,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final String DEFAULT_MAPPING = "_default_";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, Property.Dynamic, Property.IndexScope);
+    // maximum allowed number of nested json objects across all fields in a single document
+    public static final Setting<Long> INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.nested_objects.limit", 10000L, 0, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.total_fields.limit", 1000L, 0, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING =

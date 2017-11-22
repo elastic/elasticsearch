@@ -39,7 +39,7 @@ final class MultiSnapshot implements Translog.Snapshot {
     private int overriddenOperations;
     private final Closeable onClose;
     private int index;
-    private final SeqNumSet seenSeqNo;
+    private final SeqNoSet seenSeqNo;
 
     /**
      * Creates a new point in time snapshot of the given snapshots. Those snapshots are always iterated in-order.
@@ -49,7 +49,7 @@ final class MultiSnapshot implements Translog.Snapshot {
         this.totalOperations = Arrays.stream(translogs).mapToInt(TranslogSnapshot::totalOperations).sum();
         this.overriddenOperations = 0;
         this.onClose = onClose;
-        this.seenSeqNo = new SeqNumSet();
+        this.seenSeqNo = new SeqNoSet();
         this.index = translogs.length - 1;
     }
 
@@ -115,7 +115,7 @@ final class MultiSnapshot implements Translog.Snapshot {
      * Sequence numbers from translog are likely to form contiguous ranges,
      * thus collapsing a completed bitset into a single entry will reduce memory usage.
      */
-    static final class SeqNumSet {
+    static final class SeqNoSet {
         static final short BIT_SET_SIZE = 1024;
         private final LongSet completedSets = new LongHashSet();
         private final LongObjectHashMap<CountedBitSet> ongoingSets = new LongObjectHashMap<>();

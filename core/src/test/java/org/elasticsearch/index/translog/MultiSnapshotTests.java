@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MultiSnapshotTests extends ESTestCase {
 
-    public void testTrackSimpleSeqNoRanges() throws Exception {
-        final MultiSnapshot.SeqNumSet bitSet = new MultiSnapshot.SeqNumSet();
+    public void testTrackSeqNoSimpleRange() throws Exception {
+        final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
         final List<Long> values = LongStream.range(0, 1024).boxed().collect(Collectors.toList());
         Randomness.shuffle(values);
         for (int i = 0; i < 1023; i++) {
@@ -52,29 +52,29 @@ public class MultiSnapshotTests extends ESTestCase {
         assertThat(bitSet.getAndSet(between(1024, Integer.MAX_VALUE)), equalTo(false));
     }
 
-    public void testTrackSeqNumDenseRanges() throws Exception {
-        final MultiSnapshot.SeqNumSet bitSet = new MultiSnapshot.SeqNumSet();
+    public void testTrackSeqNoDenseRanges() throws Exception {
+        final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
         final LongSet normalSet = new LongHashSet();
         IntStream.range(0, scaledRandomIntBetween(5_000, 10_000)).forEach(i -> {
             long seq = between(0, 5000);
             boolean existed = normalSet.add(seq) == false;
-            assertThat("SeqNumSet != Set" + seq, bitSet.getAndSet(seq), equalTo(existed));
+            assertThat("SeqNoSet != Set" + seq, bitSet.getAndSet(seq), equalTo(existed));
             assertThat(bitSet.ongoingSetsSize() + bitSet.completeSetsSize(), lessThanOrEqualTo(5L));
         });
     }
 
-    public void testTrackSeqNumSparseRanges() throws Exception {
-        final MultiSnapshot.SeqNumSet bitSet = new MultiSnapshot.SeqNumSet();
+    public void testTrackSeqNoSparseRanges() throws Exception {
+        final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
         final LongSet normalSet = new LongHashSet();
         IntStream.range(0, scaledRandomIntBetween(5_000, 10_000)).forEach(i -> {
             long seq = between(i * 10_000, i * 30_000);
             boolean existed = normalSet.add(seq) == false;
-            assertThat("SeqNumSet != Set", bitSet.getAndSet(seq), equalTo(existed));
+            assertThat("SeqNoSet != Set", bitSet.getAndSet(seq), equalTo(existed));
         });
     }
 
-    public void testSequenceNumMimicTranslog() throws Exception {
-        final MultiSnapshot.SeqNumSet bitSet = new MultiSnapshot.SeqNumSet();
+    public void testTrackSeqNoMimicTranslogRanges() throws Exception {
+        final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
         final LongSet normalSet = new LongHashSet();
         long currentSeq = between(10_000_000, 1_000_000_000);
         final int iterations = scaledRandomIntBetween(100, 2000);
@@ -91,7 +91,7 @@ public class MultiSnapshotTests extends ESTestCase {
             Randomness.shuffle(batch);
             batch.forEach(seq -> {
                 boolean existed = normalSet.add(seq) == false;
-                assertThat("SeqNumSet != Set", bitSet.getAndSet(seq), equalTo(existed));
+                assertThat("SeqNoSet != Set", bitSet.getAndSet(seq), equalTo(existed));
                 assertThat(bitSet.ongoingSetsSize(), lessThanOrEqualTo(4L));
             });
             assertThat(bitSet.ongoingSetsSize(), lessThanOrEqualTo(2L));

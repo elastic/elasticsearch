@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -72,7 +73,6 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,6 +85,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE;
 
 public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response, OpenJobAction.RequestBuilder> {
@@ -387,12 +389,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         private final XPackLicenseState licenseState;
         private final PersistentTasksService persistentTasksService;
-        private final InternalClient client;
+        private final Client client;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                ClusterService clusterService, PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, InternalClient client) {
+                               IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
             this.persistentTasksService = persistentTasksService;
@@ -507,8 +509,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                     PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
                     putMappingRequest.type(ElasticsearchMappings.DOC_TYPE);
                     putMappingRequest.source(mapping);
-                    client.execute(PutMappingAction.INSTANCE, putMappingRequest, ActionListener.wrap(
-                            response -> {
+                    executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
+                            ActionListener.wrap(response -> {
                                 if (response.isAcknowledged()) {
                                     listener.onResponse(true);
                                 } else {

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -17,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
@@ -35,6 +35,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.clientWithOrigin;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -51,7 +53,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
 
     @After
     public void stopWatcher() throws Exception {
-        InternalClient client = internalCluster().getInstance(InternalClient.class, internalCluster().getMasterName());
+        Client client = clientWithOrigin(internalCluster().getInstance(Client.class, internalCluster().getMasterName()), WATCHER_ORIGIN);
         WatcherClient watcherClient = new WatcherClient(client);
         if (allNodesWithState(WatcherState.STOPPED, watcherClient) == false) {
             assertAcked(watcherClient.prepareWatchService().stop().get());
@@ -70,7 +72,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
     public void testPreWatchesUpgrade() throws Exception {
         // use the internal client from the master, instead of client(), so we dont have to deal with remote transport exceptions
         // and it works like the real implementation
-        InternalClient client = internalCluster().getInstance(InternalClient.class, internalCluster().getMasterName());
+        Client client = clientWithOrigin(internalCluster().getInstance(Client.class, internalCluster().getMasterName()), WATCHER_ORIGIN);
         Settings templateSettings = Settings.builder().put("index.number_of_shards", 2).build();
         WatcherClient watcherClient = new WatcherClient(client);
 
@@ -154,7 +156,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
     public void testPreTriggeredWatchesUpgrade() throws Exception {
         // use the internal client from the master, instead of client(), so we dont have to deal with remote transport exceptions
         // and it works like the real implementation
-        InternalClient client = internalCluster().getInstance(InternalClient.class, internalCluster().getMasterName());
+        Client client = clientWithOrigin(internalCluster().getInstance(Client.class, internalCluster().getMasterName()), WATCHER_ORIGIN);
         WatcherClient watcherClient = new WatcherClient(client);
 
         Settings templateSettings = Settings.builder().put("index.number_of_shards", 2).build();
@@ -217,7 +219,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
         }
         ensureGreen(Watch.INDEX, TriggeredWatchStore.INDEX_NAME);
 
-        InternalClient client = internalCluster().getInstance(InternalClient.class, internalCluster().getMasterName());
+        Client client = clientWithOrigin(internalCluster().getInstance(Client.class, internalCluster().getMasterName()), WATCHER_ORIGIN);
         WatcherClient watcherClient = new WatcherClient(client);
 
         // most users will have watcher started, so let's make sure we have as well
@@ -299,7 +301,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
 
     private void triggerClusterStateEvent() {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
-        InternalClient client = internalCluster().getInstance(InternalClient.class, internalCluster().getMasterName());
+        Client client = clientWithOrigin(internalCluster().getInstance(Client.class, internalCluster().getMasterName()), WATCHER_ORIGIN);
         Settings settings = internalCluster().getInstance(Settings.class, internalCluster().getMasterName());
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
         WatcherIndexTemplateRegistry registry =

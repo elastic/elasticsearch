@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -66,6 +69,9 @@ public class DatafeedJobTests extends ESTestCase {
         dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         postDataFuture = mock(ActionFuture.class);
@@ -225,6 +231,9 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testPostAnalysisProblem() throws Exception {
         client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenThrow(new RuntimeException());
 
@@ -248,6 +257,9 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testPostAnalysisProblemIsConflict() throws Exception {
         client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenThrow(ExceptionsHelper.conflictStatusException("conflict"));
 

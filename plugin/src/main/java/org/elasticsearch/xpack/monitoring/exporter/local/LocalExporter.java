@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRespo
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -44,12 +46,12 @@ import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
+import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -69,6 +71,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
+import static org.elasticsearch.xpack.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
@@ -82,7 +87,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     public static final String TYPE = "local";
 
-    private final InternalClient client;
+    private final Client client;
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final CleanerService cleanerService;
@@ -94,7 +99,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private final AtomicBoolean waitedForSetup = new AtomicBoolean(false);
     private final AtomicBoolean watcherSetup = new AtomicBoolean(false);
 
-    public LocalExporter(Exporter.Config config, InternalClient client, CleanerService cleanerService) {
+    public LocalExporter(Exporter.Config config, Client client, CleanerService cleanerService) {
         super(config);
         this.client = client;
         this.clusterService = config.clusterService();
@@ -306,14 +311,16 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             if (watches != null && watches.allPrimaryShardsActive() == false) {
                 logger.trace("cannot manage cluster alerts because [.watches] index is not allocated");
             } else if ((watches == null || indexExists) && watcherSetup.compareAndSet(false, true)) {
-                installClusterAlerts(indexExists, asyncActions, pendingResponses);
+                getClusterAlertsInstallationAsyncActions(indexExists, asyncActions, pendingResponses);
             }
         }
 
         if (asyncActions.size() > 0) {
             if (installingSomething.compareAndSet(false, true)) {
                 pendingResponses.set(asyncActions.size());
-                asyncActions.forEach(Runnable::run);
+                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN)) {
+                    asyncActions.forEach(Runnable::run);
+                }
             } else {
                 // let the cluster catch up since requested installations may be ongoing
                 return false;
@@ -383,7 +390,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         logger.debug("installing ingest pipeline [{}]", pipelineName);
 
-        client.admin().cluster().putPipeline(request, listener);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request, listener,
+                client.admin().cluster()::putPipeline);
     }
 
     private boolean hasTemplate(final ClusterState clusterState, final String templateName) {
@@ -392,14 +400,15 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         return template != null && hasValidVersion(template.getVersion(), LAST_UPDATED_VERSION);
     }
 
+    // FIXME this should use the IndexTemplateMetaDataUpgrader
     private void putTemplate(String template, String source, ActionListener<PutIndexTemplateResponse> listener) {
         logger.debug("installing template [{}]", template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
         assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
 
-        // async call, so we won't block cluster event thread
-        client.admin().indices().putTemplate(request, listener);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request, listener,
+                client.admin().indices()::putTemplate);
     }
 
     /**
@@ -419,7 +428,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * @param asyncActions Asynchronous actions are added to for each Watch.
      * @param pendingResponses Pending response countdown we use to track completion.
      */
-    private void installClusterAlerts(final boolean indexExists, final List<Runnable> asyncActions, final AtomicInteger pendingResponses) {
+    private void getClusterAlertsInstallationAsyncActions(final boolean indexExists, final List<Runnable> asyncActions,
+                                                          final AtomicInteger pendingResponses) {
         final XPackClient xpackClient = new XPackClient(client);
         final WatcherClient watcher = xpackClient.watcher();
         final boolean canAddWatches = licenseState.isMonitoringClusterAlertsAllowed();
@@ -453,8 +463,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         logger.trace("adding monitoring watch [{}]", uniqueWatchId);
 
-        watcher.putWatch(new PutWatchRequest(uniqueWatchId, new BytesArray(watch), XContentType.JSON),
-                         new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses, watcherSetup));
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN,
+                new PutWatchRequest(uniqueWatchId, new BytesArray(watch), XContentType.JSON),
+                new ResponseActionListener<PutWatchResponse>("watch", uniqueWatchId, pendingResponses, watcherSetup),
+                watcher::putWatch);
     }
 
     /**
@@ -533,24 +545,25 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private void deleteIndices(Set<String> indices) {
         logger.trace("deleting {} indices: [{}]", indices.size(), collectionToCommaDelimitedString(indices));
-        client.admin().indices().delete(new DeleteIndexRequest(indices.toArray(new String[indices.size()])),
+        final DeleteIndexRequest request = new DeleteIndexRequest(indices.toArray(new String[indices.size()]));
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request,
                 new ActionListener<DeleteIndexResponse>() {
-            @Override
-            public void onResponse(DeleteIndexResponse response) {
-                if (response.isAcknowledged()) {
-                    logger.debug("{} indices deleted", indices.size());
-                } else {
-                    // Probably means that the delete request has timed out,
-                    // the indices will survive until the next clean up.
-                    logger.warn("deletion of {} indices wasn't acknowledged", indices.size());
-                }
-            }
+                    @Override
+                    public void onResponse(DeleteIndexResponse response) {
+                        if (response.isAcknowledged()) {
+                            logger.debug("{} indices deleted", indices.size());
+                        } else {
+                            // Probably means that the delete request has timed out,
+                            // the indices will survive until the next clean up.
+                            logger.warn("deletion of {} indices wasn't acknowledged", indices.size());
+                        }
+                    }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("failed to delete indices", e);
-            }
-        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("failed to delete indices", e);
+                    }
+                }, client.admin().indices()::delete);
     }
 
     enum State {

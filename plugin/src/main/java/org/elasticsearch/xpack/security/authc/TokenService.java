@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
@@ -22,6 +21,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.AckedRequest;
@@ -49,8 +49,6 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 
 import javax.crypto.Cipher;
@@ -89,6 +87,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Service responsible for the creation, validation, and other management of {@link UserToken}
@@ -135,7 +135,7 @@ public final class TokenService extends AbstractComponent {
     private final Clock clock;
     private final TimeValue expirationDelay;
     private final TimeValue deleteInterval;
-    private final InternalSecurityClient internalClient;
+    private final Client client;
     private final SecurityLifecycleService lifecycleService;
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
@@ -149,9 +149,9 @@ public final class TokenService extends AbstractComponent {
      * Creates a new token service
      * @param settings the node settings
      * @param clock the clock that will be used for comparing timestamps
-     * @param internalClient the client to use when checking for revocations
+     * @param client the client to use when checking for revocations
      */
-    public TokenService(Settings settings, Clock clock, InternalSecurityClient internalClient,
+    public TokenService(Settings settings, Clock clock, Client client,
                         SecurityLifecycleService lifecycleService, ClusterService clusterService) throws GeneralSecurityException {
         super(settings);
         byte[] saltArr = new byte[SALT_BYTES];
@@ -167,12 +167,12 @@ public final class TokenService extends AbstractComponent {
 
         this.clock = clock.withZone(ZoneOffset.UTC);
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
-        this.internalClient = internalClient;
+        this.client = client;
         this.lifecycleService = lifecycleService;
-        this.lastExpirationRunMs = internalClient.threadPool().relativeTimeInMillis();
+        this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
-        this.expiredTokenRemover = new ExpiredTokenRemover(settings, internalClient);
+        this.expiredTokenRemover = new ExpiredTokenRemover(settings, client);
         this.currentVersionBytes = ByteBuffer.allocate(4).putInt(TOKEN_SERVICE_VERSION.id).array();
         ensureEncryptionCiphersSupported();
         KeyAndCache keyAndCache = new KeyAndCache(new KeyAndTimestamp(tokenPassphrase.clone(), createdTimeStamps.incrementAndGet()),
@@ -266,7 +266,7 @@ public final class TokenService extends AbstractComponent {
                          * request(s) that require a key computation will be delayed and there will be
                          * some additional latency.
                          */
-                        internalClient.threadPool().executor(THREAD_POOL_NAME)
+                        client.threadPool().executor(THREAD_POOL_NAME)
                                 .submit(new KeyComputingRunnable(in, iv, version, decodedSalt, listener, keyAndCache));
                     }
                 } else {
@@ -311,26 +311,27 @@ public final class TokenService extends AbstractComponent {
                     } else {
                         final String id = getDocumentId(userToken);
                         lifecycleService.createIndexIfNeededThenExecute(listener, () -> {
-                            internalClient.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, id)
-                                .setOpType(OpType.CREATE)
-                                .setSource("doc_type", DOC_TYPE, "expiration_time", getExpirationTime().toEpochMilli())
-                                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-                                .execute(new ActionListener<IndexResponse>() {
-                                    @Override
-                                    public void onResponse(IndexResponse indexResponse) {
-                                        listener.onResponse(indexResponse.getResult() == Result.CREATED);
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        if (e instanceof VersionConflictEngineException) {
-                                            // doc already exists
-                                            listener.onResponse(false);
-                                        } else {
-                                            listener.onFailure(e);
+                            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                                    client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, id)
+                                        .setOpType(OpType.CREATE)
+                                        .setSource("doc_type", DOC_TYPE, "expiration_time", getExpirationTime().toEpochMilli())
+                                        .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
+                                    new ActionListener<IndexResponse>() {
+                                        @Override
+                                        public void onResponse(IndexResponse indexResponse) {
+                                            listener.onResponse(indexResponse.getResult() == Result.CREATED);
                                         }
-                                    }
-                                });
+
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            if (e instanceof VersionConflictEngineException) {
+                                                // doc already exists
+                                                listener.onResponse(false);
+                                            } else {
+                                                listener.onFailure(e);
+                                            }
+                                        }
+                                    }, client::index);
                         });
                     }
                 }, listener::onFailure));
@@ -363,8 +364,9 @@ public final class TokenService extends AbstractComponent {
                     "the upgrade API is run on the security index"));
                 return;
             }
-            internalClient.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, getDocumentId(userToken))
-                    .execute(new ActionListener<GetResponse>() {
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, getDocumentId(userToken)).request(),
+                    new ActionListener<GetResponse>() {
 
                         @Override
                         public void onResponse(GetResponse response) {
@@ -388,7 +390,7 @@ public final class TokenService extends AbstractComponent {
                                 listener.onFailure(e);
                             }
                         }
-                    });
+                    }, client::get);
         } else if (lifecycleService.isSecurityIndexExisting()) {
             // index exists but the index isn't available, do not trust the token
             logger.warn("could not validate token as the security index is not available");
@@ -409,9 +411,9 @@ public final class TokenService extends AbstractComponent {
 
     private void maybeStartTokenRemover() {
         if (lifecycleService.isSecurityIndexAvailable()) {
-            if (internalClient.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
-                expiredTokenRemover.submit(internalClient.threadPool());
-                lastExpirationRunMs = internalClient.threadPool().relativeTimeInMillis();
+            if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
+                expiredTokenRemover.submit(client.threadPool());
+                lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
             }
         }
     }

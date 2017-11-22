@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -41,7 +43,6 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.ArrayList;
@@ -130,7 +131,7 @@ public class Monitoring implements ActionPlugin {
         return modules;
     }
 
-    public Collection<Object> createComponents(InternalClient client, ThreadPool threadPool, ClusterService clusterService,
+    public Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                                LicenseService licenseService, SSLService sslService) {
         if (enabled == false || tribeNode) {
             return Collections.emptyList();

@@ -8,14 +8,9 @@ package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -23,12 +18,14 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
-import org.junit.Before;
+
+import org.elasticsearch.xpack.ml.MlMetaIndex;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -57,7 +54,7 @@ public abstract class XPackRestTestCase extends ESClientYamlSuiteTestCase {
     }
 
     /**
-     * Waits for the Machine Learning templates to be created by {@link MachineLearningTemplateRegistry}.
+     * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetaDataUpgrader}.
      */
     public static void waitForMlTemplates() throws InterruptedException {
         AtomicReference<Version> masterNodeVersion = new AtomicReference<>();
@@ -78,7 +75,9 @@ public abstract class XPackRestTestCase extends ESClientYamlSuiteTestCase {
             return false;
         });
 
-        for (String template : MachineLearningTemplateRegistry.TEMPLATE_NAMES) {
+        final List<String> templateNames = Arrays.asList(Auditor.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
+                AnomalyDetectorsIndex.jobStateIndexName(), AnomalyDetectorsIndex.jobResultsIndexPrefix());
+        for (String template : templateNames) {
             awaitBusy(() -> {
                 Map<?, ?> response;
                 try {

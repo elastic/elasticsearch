@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
-import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -23,6 +22,7 @@ import org.joda.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTestCase {
@@ -200,7 +200,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
      * Creates a watcher history index from the current version.
      */
     protected void createWatcherHistoryIndex(final DateTime creationDate) {
-        createWatcherHistoryIndex(creationDate, WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+        createWatcherHistoryIndex(creationDate, INDEX_TEMPLATE_VERSION);
     }
 
     /**

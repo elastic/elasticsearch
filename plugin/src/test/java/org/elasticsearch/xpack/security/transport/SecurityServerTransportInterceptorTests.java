@@ -192,67 +192,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         verifyNoMoreInteractions(xPackLicenseState);
     }
 
-    public void testSendWithKibanaUser() throws Exception {
-        final User user = new KibanaUser(true);
-        final Authentication authentication = new Authentication(user, new RealmRef("reserved", "reserved", "node1"), null);
-        authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
-
-        SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
-                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
-                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))));
-
-        AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
-        AtomicReference<User> sendingUser = new AtomicReference<>();
-        AsyncSender intercepted = new AsyncSender() {
-            @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
-                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                if (calledWrappedSender.compareAndSet(false, true) == false) {
-                    fail("sender called more than once!");
-                }
-                sendingUser.set(securityContext.getUser());
-            }
-        };
-        AsyncSender sender = interceptor.interceptSender(intercepted);
-        Transport.Connection connection = mock(Transport.Connection.class);
-        final Version version = Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID - 100));
-        when(connection.getVersion()).thenReturn(version);
-        sender.sendRequest(connection, "indices:foo[s]", null, null, null);
-        assertTrue(calledWrappedSender.get());
-        assertNotEquals(user, sendingUser.get());
-        assertEquals(KibanaUser.NAME, sendingUser.get().principal());
-        assertThat(sendingUser.get().roles(), arrayContaining("kibana"));
-        assertEquals(user, securityContext.getUser());
-
-        // reset and test with version that was changed
-        calledWrappedSender.set(false);
-        sendingUser.set(null);
-        when(connection.getVersion()).thenReturn(Version.V_5_2_0);
-        sender.sendRequest(connection, "indices:foo[s]", null, null, null);
-        assertTrue(calledWrappedSender.get());
-        assertEquals(user, sendingUser.get());
-
-        // reset and disable reserved realm
-        calledWrappedSender.set(false);
-        sendingUser.set(null);
-        when(connection.getVersion()).thenReturn(Version.V_5_0_0);
-        settings = Settings.builder().put(settings).put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
-        interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
-                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
-                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))));
-        sender = interceptor.interceptSender(intercepted);
-        sender.sendRequest(connection, "indices:foo[s]", null, null, null);
-        assertTrue(calledWrappedSender.get());
-        assertEquals(user, sendingUser.get());
-
-        verify(xPackLicenseState, times(3)).isAuthAllowed();
-        verify(securityContext, times(1)).executeAsUser(any(User.class), any(Consumer.class), eq(version));
-        verifyNoMoreInteractions(xPackLicenseState);
-    }
-
     public void testSendToNewerVersionSetsCorrectVersion() throws Exception {
         final User authUser = randomBoolean() ? new User("authenticator") : null;
         final User user = new User("joe", randomRoles(), authUser);

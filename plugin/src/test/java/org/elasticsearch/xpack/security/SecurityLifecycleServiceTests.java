@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -64,11 +65,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
 
         threadPool = new TestThreadPool("security template service tests");
         transportClient = new MockTransportClient(Settings.EMPTY);
-        class IClient extends InternalSecurityClient {
-            IClient(Client transportClient) {
-                super(Settings.EMPTY, null, transportClient);
-            }
-
+        Client client = new FilterClient(transportClient) {
             @Override
             protected <Request extends ActionRequest,
                     Response extends ActionResponse,
@@ -77,9 +74,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
                            ActionListener<Response> listener) {
                 listeners.add(listener);
             }
-        }
-
-        InternalSecurityClient client = new IClient(transportClient);
+        };
         securityLifecycleService = new SecurityLifecycleService(Settings.EMPTY, clusterService,
                 threadPool, client, mock(IndexAuditTrail.class));
         listeners = new CopyOnWriteArrayList<>();

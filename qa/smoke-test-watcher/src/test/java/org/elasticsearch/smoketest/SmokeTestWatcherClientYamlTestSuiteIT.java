@@ -16,6 +16,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -37,11 +39,12 @@ public class SmokeTestWatcherClientYamlTestSuiteIT extends ESClientYamlSuiteTest
 
     @Before
     public void startWatcher() throws Exception {
+        final List<String> watcherTemplates = Arrays.asList(WatcherIndexTemplateRegistry.TEMPLATE_NAMES);
         assertBusy(() -> {
             try {
                 getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
 
-                for (String template : WatcherIndexTemplateRegistry.TEMPLATE_NAMES) {
+                for (String template : watcherTemplates) {
                     ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi("indices.exists_template",
                             singletonMap("name", template), emptyList(), emptyMap());
                     assertThat(templateExistsResponse.getStatusCode(), is(200));

@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.ScrollHelper;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -140,7 +140,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         return eventsRef.get();
     }
     private Collection<Map<String, Object>> getAuditEvents() throws Exception {
-        final InternalClient client = internalSecurityClient();
+        final Client client = client();
         DateTime now = new DateTime(DateTimeZone.UTC);
         String indexName = IndexNameResolver.resolve(IndexAuditTrail.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY);
 
@@ -157,7 +157,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         request.indicesOptions().ignoreUnavailable();
 
         PlainActionFuture<Collection<Map<String, Object>>> listener = new PlainActionFuture();
-        InternalClient.fetchAllByEntity(client, request, listener, SearchHit::getSourceAsMap);
+        ScrollHelper.fetchAllByEntity(client, request, listener, SearchHit::getSourceAsMap);
 
         return listener.get();
     }

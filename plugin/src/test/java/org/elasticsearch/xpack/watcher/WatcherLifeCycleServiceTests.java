@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
-import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -44,6 +43,9 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -86,9 +88,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(new Index(Watch.INDEX, "foo")).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .metaData(MetaData.builder()
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME))
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME))
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME))
                         .build())
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
                 .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
@@ -123,9 +125,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
                 .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
                 .metaData(MetaData.builder()
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME))
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME))
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME))
                         .build())
                 .build();
 
@@ -152,9 +154,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         clusterState  = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
                 .metaData(MetaData.builder()
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME))
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME))
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME))
                         .build())
                 .build();
         when(watcherService.state()).thenReturn(WatcherState.STARTED);
@@ -165,9 +167,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterState previousClusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
                 .metaData(MetaData.builder()
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME))
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME))
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME))
                         .build())
                 .build();
         when(watcherService.validate(clusterState)).thenReturn(true);
@@ -476,9 +478,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes)
                 .metaData(MetaData.builder()
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME))
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME))
-                        .put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME))
+                        .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME))
                         .build())
                 .build();
         when(watcherService.validate(eq(state))).thenReturn(true);
@@ -520,17 +522,17 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         MetaData.Builder metaDataBuilder = MetaData.builder();
         boolean isHistoryTemplateAdded = randomBoolean();
         if (isHistoryTemplateAdded) {
-            metaDataBuilder.put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME));
+            metaDataBuilder.put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME));
         }
         boolean isTriggeredTemplateAdded = randomBoolean();
         if (isTriggeredTemplateAdded) {
-            metaDataBuilder.put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME));
+            metaDataBuilder.put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME));
         }
         boolean isWatchesTemplateAdded = randomBoolean();
         if (isWatchesTemplateAdded) {
             // ensure not all templates are added, otherwise life cycle service would start
             if ((isHistoryTemplateAdded || isTriggeredTemplateAdded) == false) {
-                metaDataBuilder.put(IndexTemplateMetaData.builder(WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME));
+                metaDataBuilder.put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME));
             }
         }
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).metaData(metaDataBuilder).build();

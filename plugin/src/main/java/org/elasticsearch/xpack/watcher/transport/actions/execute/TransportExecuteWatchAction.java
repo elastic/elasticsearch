@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.watcher.transport.actions.execute;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,7 +25,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
@@ -45,6 +44,8 @@ import java.io.IOException;
 import java.time.Clock;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
 /**
@@ -62,7 +63,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     public TransportExecuteWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        ExecutionService executionService, Clock clock, XPackLicenseState licenseState,
-                                       Watch.Parser watchParser, InternalClient client, TriggerService triggerService,
+                                       Watch.Parser watchParser, Client client, TriggerService triggerService,
                                        ClusterService clusterService) {
         super(settings, ExecuteWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, clusterService, ExecuteWatchRequest::new, ExecuteWatchResponse::new);
@@ -80,16 +81,18 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId())
                     .preference(Preference.LOCAL.type()).realtime(true);
 
-            client.get(getRequest, ActionListener.wrap(response -> {
-                if (response.isExists()) {
-                    Watch watch = watchParser.parse(request.getId(), true, response.getSourceAsBytesRef(), request.getXContentType());
-                    watch.version(response.getVersion());
-                    watch.status().version(response.getVersion());
-                    executeWatch(request, listener, watch, true);
-                } else {
-                    listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getId()));
-                }
-            }, listener::onFailure));
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
+                    ActionListener.<GetResponse>wrap(response -> {
+                        if (response.isExists()) {
+                            Watch watch =
+                                    watchParser.parse(request.getId(), true, response.getSourceAsBytesRef(), request.getXContentType());
+                            watch.version(response.getVersion());
+                            watch.status().version(response.getVersion());
+                            executeWatch(request, listener, watch, true);
+                        } else {
+                            listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getId()));
+                        }
+                    }, listener::onFailure), client::get);
         } else if (request.getWatchSource() != null) {
             try {
                 assert !request.isRecordExecution();
@@ -97,7 +100,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 request.getXContentType());
                 executeWatch(request, listener, watch, false);
             } catch (IOException e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to parse [{}]", request.getId()), e);
+                logger.error(new ParameterizedMessage("failed to parse [{}]", request.getId()), e);
                 listener.onFailure(e);
             }
         } else {

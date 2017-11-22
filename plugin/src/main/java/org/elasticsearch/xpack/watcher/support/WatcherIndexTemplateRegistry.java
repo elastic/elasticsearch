@@ -9,6 +9,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -29,6 +29,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
 
@@ -56,12 +59,12 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
             TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY, TEMPLATE_CONFIG_WATCHES
     };
 
-    private final InternalClient client;
+    private final Client client;
     private final ThreadPool threadPool;
     private final TemplateConfig[] indexTemplates;
     private final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
 
-    public WatcherIndexTemplateRegistry(Settings settings, ClusterService clusterService, ThreadPool threadPool, InternalClient client) {
+    public WatcherIndexTemplateRegistry(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
@@ -112,21 +115,22 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
 
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(config.load(), XContentType.JSON);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
-                @Override
-                public void onResponse(PutIndexTemplateResponse response) {
-                    creationCheck.set(false);
-                    if (response.isAcknowledged() == false) {
-                        logger.error("Error adding watcher template [{}], request was not acknowledged", templateName);
-                    }
-                }
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, request,
+                    new ActionListener<PutIndexTemplateResponse>() {
+                        @Override
+                        public void onResponse(PutIndexTemplateResponse response) {
+                            creationCheck.set(false);
+                            if (response.isAcknowledged() == false) {
+                                logger.error("Error adding watcher template [{}], request was not acknowledged", templateName);
+                            }
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    creationCheck.set(false);
-                    logger.error(new ParameterizedMessage("Error adding watcher template [{}]", templateName), e);
-                }
-            });
+                        @Override
+                        public void onFailure(Exception e) {
+                            creationCheck.set(false);
+                            logger.error(new ParameterizedMessage("Error adding watcher template [{}]", templateName), e);
+                        }
+                    }, client.admin().indices()::putTemplate);
         });
     }
 

@@ -1,5 +1,5 @@
 {
-  "index_patterns": ".monitoring-beats-${monitoring.template.version}-*",
+  "index_patterns": [ ".monitoring-beats-${monitoring.template.version}-*" ],
   "version": 6010099,
   "settings": {
     "index.number_of_shards": 1,

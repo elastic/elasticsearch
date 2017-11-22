@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.transport.actions.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,7 +22,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Watch;
@@ -30,6 +30,8 @@ import org.joda.time.DateTime;
 import java.time.Clock;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequest, GetWatchResponse> {
@@ -41,7 +43,7 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
     @Inject
     public TransportGetWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, XPackLicenseState licenseState,
-                                   Watch.Parser parser, Clock clock, InternalClient client, ClusterService clusterService) {
+                                   Watch.Parser parser, Clock clock, Client client, ClusterService clusterService) {
         super(settings, GetWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, clusterService, GetWatchRequest::new, GetWatchResponse::new);
         this.parser = parser;
@@ -55,32 +57,35 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
         GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId())
                 .preference(Preference.LOCAL.type()).realtime(true);
 
-        client.get(getRequest, ActionListener.wrap(getResponse -> {
-            if (getResponse.isExists()) {
-                try (XContentBuilder builder = jsonBuilder()) {
-                    // When we return the watch via the Get Watch REST API, we want to return the watch as was specified in the put api,
-                    // we don't include the status in the watch source itself, but as a separate top level field, so that
-                    // it indicates the the status is managed by watcher itself.
-                    DateTime now = new DateTime(clock.millis(), UTC);
-                    Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now, XContentType.JSON);
-                    watch.toXContent(builder, WatcherParams.builder()
-                            .hideSecrets(true)
-                            .put(Watch.INCLUDE_STATUS_KEY, false)
-                            .build());
-                    watch.version(getResponse.getVersion());
-                    watch.status().version(getResponse.getVersion());
-                    listener.onResponse(new GetWatchResponse(watch.id(), watch.status(), builder.bytes(), XContentType.JSON));
-                }
-            } else {
-                listener.onResponse(new GetWatchResponse(request.getId()));
-            }
-        }, e -> {
-            // special case. This API should not care if the index is missing or not, it should respond with the watch not being found
-            if (e instanceof IndexNotFoundException) {
-                listener.onResponse(new GetWatchResponse(request.getId()));
-            } else {
-                listener.onFailure(e);
-            }
-        }));
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
+                ActionListener.<GetResponse>wrap(getResponse -> {
+                    if (getResponse.isExists()) {
+                        try (XContentBuilder builder = jsonBuilder()) {
+                            // When we return the watch via the Get Watch REST API, we want to return the watch as was specified in
+                            // the put api, we don't include the status in the watch source itself, but as a separate top level field,
+                            // so that it indicates the the status is managed by watcher itself.
+                            DateTime now = new DateTime(clock.millis(), UTC);
+                            Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now,
+                                    XContentType.JSON);
+                            watch.toXContent(builder, WatcherParams.builder()
+                                    .hideSecrets(true)
+                                    .put(Watch.INCLUDE_STATUS_KEY, false)
+                                    .build());
+                            watch.version(getResponse.getVersion());
+                            watch.status().version(getResponse.getVersion());
+                            listener.onResponse(new GetWatchResponse(watch.id(), watch.status(), builder.bytes(), XContentType.JSON));
+                        }
+                    } else {
+                        listener.onResponse(new GetWatchResponse(request.getId()));
+                    }
+                }, e -> {
+                    // special case. This API should not care if the index is missing or not,
+                    // it should respond with the watch not being found
+                    if (e instanceof IndexNotFoundException) {
+                        listener.onResponse(new GetWatchResponse(request.getId()));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }), client::get);
     }
 }

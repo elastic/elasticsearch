@@ -6,20 +6,20 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -28,6 +28,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -35,8 +36,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
+import org.elasticsearch.xpack.security.ScrollHelper;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
@@ -58,6 +58,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 
 /**
  * NativeUsersStore is a store for users that reads from an Elasticsearch index. This store is responsible for fetching the full
@@ -74,12 +79,12 @@ public class NativeUsersStore extends AbstractComponent {
 
 
     private final Hasher hasher = Hasher.BCRYPT;
-    private final InternalSecurityClient client;
+    private final Client client;
     private final boolean isTribeNode;
 
     private volatile SecurityLifecycleService securityLifecycleService;
 
-    public NativeUsersStore(Settings settings, InternalSecurityClient client, SecurityLifecycleService securityLifecycleService) {
+    public NativeUsersStore(Settings settings, Client client, SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
         this.isTribeNode = XPackPlugin.isTribeNode(settings);
@@ -129,19 +134,22 @@ public class NativeUsersStore extends AbstractComponent {
                         .map(s -> getIdForUser(USER_DOC_TYPE, s)).toArray(String[]::new);
                     query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(INDEX_TYPE).addIds(users));
                 }
-                SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                        .setScroll(TimeValue.timeValueSeconds(10L))
-                        .setQuery(query)
-                        .setSize(1000)
-                        .setFetchSource(true)
-                        .request();
-                request.indicesOptions().ignoreUnavailable();
-                InternalClient.fetchAllByEntity(client, request, listener, (hit) -> {
-                    UserAndPassword u = transformUser(hit.getId(), hit.getSourceAsMap());
-                    return u != null ? u.user() : null;
-                });
+                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
+                    SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                            .setScroll(TimeValue.timeValueSeconds(10L))
+                            .setQuery(query)
+                            .setSize(1000)
+                            .setFetchSource(true)
+                            .request();
+                    request.indicesOptions().ignoreUnavailable();
+                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), (hit) -> {
+                        UserAndPassword u = transformUser(hit.getId(), hit.getSourceAsMap());
+                        return u != null ? u.user() : null;
+                    });
+                }
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve users {}", Arrays.toString(userNames)), e);
+                logger.error(new ParameterizedMessage("unable to retrieve users {}", Arrays.toString(userNames)), e);
                 listener.onFailure(e);
             }
         }
@@ -158,33 +166,35 @@ public class NativeUsersStore extends AbstractComponent {
             return;
         }
         try {
-            GetRequest request = client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME,
-                INDEX_TYPE, getIdForUser(USER_DOC_TYPE, user)).request();
-            client.get(request, new ActionListener<GetResponse>() {
-                @Override
-                public void onResponse(GetResponse response) {
-                    listener.onResponse(transformUser(response.getId(), response.getSource()));
-                }
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME,
+                            INDEX_TYPE, getIdForUser(USER_DOC_TYPE, user)).request(),
+                    new ActionListener<GetResponse>() {
+                        @Override
+                        public void onResponse(GetResponse response) {
+                            listener.onResponse(transformUser(response.getId(), response.getSource()));
+                        }
 
-                @Override
-                public void onFailure(Exception t) {
-                    if (t instanceof IndexNotFoundException) {
-                        logger.trace(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                        "could not retrieve user [{}] because security index does not exist", user), t);
-                    } else {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve user [{}]", user), t);
-                    }
-                    // We don't invoke the onFailure listener here, instead
-                    // we call the response with a null user
-                    listener.onResponse(null);
-                }
-            });
+                        @Override
+                        public void onFailure(Exception t) {
+                            if (t instanceof IndexNotFoundException) {
+                                logger.trace(
+                                        (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                                                "could not retrieve user [{}] because security index does not exist", user), t);
+                            } else {
+                                logger.error(new ParameterizedMessage("failed to retrieve user [{}]", user), t);
+                            }
+                            // We don't invoke the onFailure listener here, instead
+                            // we call the response with a null user
+                            listener.onResponse(null);
+                        }
+                    }, client::get);
         } catch (IndexNotFoundException infe) {
-            logger.trace("could not retrieve user [{}] because security index does not exist", user);
+            logger.trace((org.apache.logging.log4j.util.Supplier<?>)
+                    () -> new ParameterizedMessage("could not retrieve user [{}] because security index does not exist", user));
             listener.onResponse(null);
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve user [{}]", user), e);
+            logger.error(new ParameterizedMessage("unable to retrieve user [{}]", user), e);
             listener.onFailure(e);
         }
     }
@@ -217,34 +227,36 @@ public class NativeUsersStore extends AbstractComponent {
             docType = USER_DOC_TYPE;
         }
 
-        securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
-            client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(docType, username))
-                .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()))
-                .setRefreshPolicy(request.getRefreshPolicy())
-                .execute(new ActionListener<UpdateResponse>() {
-                    @Override
-                    public void onResponse(UpdateResponse updateResponse) {
-                        assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                        clearRealmCache(request.username(), listener, null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (isIndexNotFoundOrDocumentMissing(e)) {
-                            if (docType.equals(RESERVED_USER_TYPE)) {
-                                createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
-                            } else {
-                                logger.debug((Supplier<?>) () ->
-                                        new ParameterizedMessage("failed to change password for user [{}]", request.username()), e);
-                                ValidationException validationException = new ValidationException();
-                                validationException.addValidationError("user must exist in order to change password");
-                                listener.onFailure(validationException);
-                            }
-                        } else {
-                            listener.onFailure(e);
+        securityLifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(docType, username))
+                            .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()))
+                            .setRefreshPolicy(request.getRefreshPolicy()).request(),
+                    new ActionListener<UpdateResponse>() {
+                        @Override
+                        public void onResponse(UpdateResponse updateResponse) {
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            clearRealmCache(request.username(), listener, null);
                         }
-                    }
-                }));
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (isIndexNotFoundOrDocumentMissing(e)) {
+                                if (docType.equals(RESERVED_USER_TYPE)) {
+                                    createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
+                                } else {
+                                    logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->
+                                            new ParameterizedMessage("failed to change password for user [{}]", request.username()), e);
+                                    ValidationException validationException = new ValidationException();
+                                    validationException.addValidationError("user must exist in order to change password");
+                                    listener.onFailure(validationException);
+                                }
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    }, client::update);
+        });
     }
 
     /**
@@ -258,22 +270,26 @@ public class NativeUsersStore extends AbstractComponent {
                 "the upgrade API is run on the security index"));
             return;
         }
-        securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
-            client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(RESERVED_USER_TYPE, username))
-                .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(), true,
-                           Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
-                .setRefreshPolicy(refresh)
-                .execute(new ActionListener<IndexResponse>() {
-                    @Override
-                    public void onResponse(IndexResponse indexResponse) {
-                        clearRealmCache(username, listener, null);
-                    }
+        securityLifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE,
+                            getIdForUser(RESERVED_USER_TYPE, username))
+                            .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash),
+                                    Fields.ENABLED.getPreferredName(), true,
+                                    Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
+                            .setRefreshPolicy(refresh).request(),
+                    new ActionListener<IndexResponse>() {
+                        @Override
+                        public void onResponse(IndexResponse indexResponse) {
+                            clearRealmCache(username, listener, null);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                }));
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, client::index);
+        });
     }
 
     /**
@@ -304,7 +320,7 @@ public class NativeUsersStore extends AbstractComponent {
                 indexUser(request, listener);
             }
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to put user [{}]", request.username()), e);
+            logger.error(new ParameterizedMessage("unable to put user [{}]", request.username()), e);
             listener.onFailure(e);
         }
     }
@@ -316,68 +332,77 @@ public class NativeUsersStore extends AbstractComponent {
         assert putUserRequest.passwordHash() == null;
         assert !securityLifecycleService.isSecurityIndexOutOfDate() : "security index should be up to date";
         // We must have an existing document
-        securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
-            client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE,
-                             getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
-                .setDoc(Requests.INDEX_CONTENT_TYPE,
-                        Fields.USERNAME.getPreferredName(), putUserRequest.username(),
-                        Fields.ROLES.getPreferredName(), putUserRequest.roles(),
-                        Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
-                        Fields.EMAIL.getPreferredName(), putUserRequest.email(),
-                        Fields.METADATA.getPreferredName(), putUserRequest.metadata(),
-                        Fields.ENABLED.getPreferredName(), putUserRequest.enabled(),
-                        Fields.TYPE.getPreferredName(), USER_DOC_TYPE)
-                .setRefreshPolicy(putUserRequest.getRefreshPolicy())
-                .execute(new ActionListener<UpdateResponse>() {
-                    @Override
-                    public void onResponse(UpdateResponse updateResponse) {
-                        assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                        clearRealmCache(putUserRequest.username(), listener, false);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        Exception failure = e;
-                        if (isIndexNotFoundOrDocumentMissing(e)) {
-                            // if the index doesn't exist we can never update a user
-                            // if the document doesn't exist, then this update is not valid
-                            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to update user document with username [{}]",
-                                    putUserRequest.username()), e);
-                            ValidationException validationException = new ValidationException();
-                            validationException.addValidationError("password must be specified unless you are updating an existing user");
-                            failure = validationException;
+        securityLifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE,
+                            getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
+                            .setDoc(Requests.INDEX_CONTENT_TYPE,
+                                    Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                                    Fields.ROLES.getPreferredName(), putUserRequest.roles(),
+                                    Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
+                                    Fields.EMAIL.getPreferredName(), putUserRequest.email(),
+                                    Fields.METADATA.getPreferredName(), putUserRequest.metadata(),
+                                    Fields.ENABLED.getPreferredName(), putUserRequest.enabled(),
+                                    Fields.TYPE.getPreferredName(), USER_DOC_TYPE)
+                            .setRefreshPolicy(putUserRequest.getRefreshPolicy())
+                            .request(),
+                    new ActionListener<UpdateResponse>() {
+                        @Override
+                        public void onResponse(UpdateResponse updateResponse) {
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            clearRealmCache(putUserRequest.username(), listener, false);
                         }
-                        listener.onFailure(failure);
-                    }
-                }));
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            Exception failure = e;
+                            if (isIndexNotFoundOrDocumentMissing(e)) {
+                                // if the index doesn't exist we can never update a user
+                                // if the document doesn't exist, then this update is not valid
+                                logger.debug((org.apache.logging.log4j.util.Supplier<?>)
+                                        () -> new ParameterizedMessage("failed to update user document with username [{}]",
+                                                putUserRequest.username()), e);
+                                ValidationException validationException = new ValidationException();
+                                validationException
+                                        .addValidationError("password must be specified unless you are updating an existing user");
+                                failure = validationException;
+                            }
+                            listener.onFailure(failure);
+                        }
+                    }, client::update);
+        });
     }
 
     private void indexUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() != null;
         assert !securityLifecycleService.isSecurityIndexOutOfDate() : "security index should be up to date";
-        securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
-            client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE,
+        securityLifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
-                .setSource(Fields.USERNAME.getPreferredName(), putUserRequest.username(),
-                        Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
-                        Fields.ROLES.getPreferredName(), putUserRequest.roles(),
-                        Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
-                        Fields.EMAIL.getPreferredName(), putUserRequest.email(),
-                        Fields.METADATA.getPreferredName(), putUserRequest.metadata(),
-                        Fields.ENABLED.getPreferredName(), putUserRequest.enabled(),
-                        Fields.TYPE.getPreferredName(), USER_DOC_TYPE)
-                .setRefreshPolicy(putUserRequest.getRefreshPolicy())
-                .execute(new ActionListener<IndexResponse>() {
-                    @Override
-                    public void onResponse(IndexResponse updateResponse) {
-                        clearRealmCache(putUserRequest.username(), listener, updateResponse.getResult() == DocWriteResponse.Result.CREATED);
-                    }
+                            .setSource(Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                                    Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
+                                    Fields.ROLES.getPreferredName(), putUserRequest.roles(),
+                                    Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
+                                    Fields.EMAIL.getPreferredName(), putUserRequest.email(),
+                                    Fields.METADATA.getPreferredName(), putUserRequest.metadata(),
+                                    Fields.ENABLED.getPreferredName(), putUserRequest.enabled(),
+                                    Fields.TYPE.getPreferredName(), USER_DOC_TYPE)
+                            .setRefreshPolicy(putUserRequest.getRefreshPolicy())
+                            .request(),
+                    new ActionListener<IndexResponse>() {
+                        @Override
+                        public void onResponse(IndexResponse updateResponse) {
+                            clearRealmCache(putUserRequest.username(), listener,
+                                    updateResponse.getResult() == DocWriteResponse.Result.CREATED);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                }));
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, client::index);
+        });
     }
 
     /**
@@ -411,31 +436,37 @@ public class NativeUsersStore extends AbstractComponent {
                             final ActionListener<Void> listener) {
         assert !securityLifecycleService.isSecurityIndexOutOfDate() : "security index should be up to date";
         try {
-            securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
-                client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(USER_DOC_TYPE, username))
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
-                    .setRefreshPolicy(refreshPolicy)
-                    .execute(new ActionListener<UpdateResponse>() {
-                        @Override
-                        public void onResponse(UpdateResponse updateResponse) {
-                            clearRealmCache(username, listener, null);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            Exception failure = e;
-                            if (isIndexNotFoundOrDocumentMissing(e)) {
-                                // if the index doesn't exist we can never update a user
-                                // if the document doesn't exist, then this update is not valid
-                                logger.debug((Supplier<?>) () ->
-                                        new ParameterizedMessage("failed to {} user [{}]", enabled ? "enable" : "disable", username), e);
-                                ValidationException validationException = new ValidationException();
-                                validationException.addValidationError("only existing users can be " + (enabled ? "enabled" : "disabled"));
-                                failure = validationException;
+            securityLifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                        client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE,
+                                getIdForUser(USER_DOC_TYPE, username))
+                                .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
+                                .setRefreshPolicy(refreshPolicy)
+                                .request(),
+                        new ActionListener<UpdateResponse>() {
+                            @Override
+                            public void onResponse(UpdateResponse updateResponse) {
+                                clearRealmCache(username, listener, null);
                             }
-                            listener.onFailure(failure);
-                        }
-                    }));
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                Exception failure = e;
+                                if (isIndexNotFoundOrDocumentMissing(e)) {
+                                    // if the index doesn't exist we can never update a user
+                                    // if the document doesn't exist, then this update is not valid
+                                    logger.debug((org.apache.logging.log4j.util.Supplier<?>)
+                                            () -> new ParameterizedMessage("failed to {} user [{}]",
+                                                    enabled ? "enable" : "disable", username), e);
+                                    ValidationException validationException = new ValidationException();
+                                    validationException.addValidationError("only existing users can be " +
+                                            (enabled ? "enabled" : "disabled"));
+                                    failure = validationException;
+                                }
+                                listener.onFailure(failure);
+                            }
+                        }, client::update);
+            });
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -445,29 +476,33 @@ public class NativeUsersStore extends AbstractComponent {
                                         boolean clearCache, final ActionListener<Void> listener) {
         assert !securityLifecycleService.isSecurityIndexOutOfDate() : "security index should be up to date";
         try {
-            securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
-                client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(RESERVED_USER_TYPE, username))
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
-                    .setUpsert(XContentType.JSON,
-                               Fields.PASSWORD.getPreferredName(), "",
-                               Fields.ENABLED.getPreferredName(), enabled,
-                               Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
-                    .setRefreshPolicy(refreshPolicy)
-                    .execute(new ActionListener<UpdateResponse>() {
-                        @Override
-                        public void onResponse(UpdateResponse updateResponse) {
-                            if (clearCache) {
-                                clearRealmCache(username, listener, null);
-                            } else {
-                                listener.onResponse(null);
+            securityLifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                        client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE,
+                                getIdForUser(RESERVED_USER_TYPE, username))
+                                .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
+                                .setUpsert(XContentType.JSON,
+                                        Fields.PASSWORD.getPreferredName(), "",
+                                        Fields.ENABLED.getPreferredName(), enabled,
+                                        Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
+                                .setRefreshPolicy(refreshPolicy)
+                                .request(),
+                        new ActionListener<UpdateResponse>() {
+                            @Override
+                            public void onResponse(UpdateResponse updateResponse) {
+                                if (clearCache) {
+                                    clearRealmCache(username, listener, null);
+                                } else {
+                                    listener.onResponse(null);
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }));
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
+                        }, client::update);
+            });
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -493,7 +528,7 @@ public class NativeUsersStore extends AbstractComponent {
                     INDEX_TYPE, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username())).request();
             request.indicesOptions().ignoreUnavailable();
             request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
-            client.delete(request, new ActionListener<DeleteResponse>() {
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
                     clearRealmCache(deleteUserRequest.username(), listener,
@@ -504,7 +539,7 @@ public class NativeUsersStore extends AbstractComponent {
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
-            });
+            }, client::delete);
         } catch (Exception e) {
             logger.error("unable to remove user", e);
             listener.onFailure(e);
@@ -539,8 +574,10 @@ public class NativeUsersStore extends AbstractComponent {
                 "the upgrade API is run on the security index"));
             return;
         }
-        client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(RESERVED_USER_TYPE, username))
-                .execute(new ActionListener<GetResponse>() {
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(RESERVED_USER_TYPE, username))
+                        .request(),
+                new ActionListener<GetResponse>() {
                     @Override
                     public void onResponse(GetResponse getResponse) {
                         if (getResponse.isExists()) {
@@ -565,17 +602,15 @@ public class NativeUsersStore extends AbstractComponent {
                     @Override
                     public void onFailure(Exception e) {
                         if (e instanceof IndexNotFoundException) {
-                            logger.trace((Supplier<?>) () -> new ParameterizedMessage(
+                            logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                                     "could not retrieve built in user [{}] info since security index does not exist", username), e);
                             listener.onResponse(null);
                         } else {
-                            logger.error(
-                                    (Supplier<?>) () -> new ParameterizedMessage(
-                                            "failed to retrieve built in user [{}] info", username), e);
+                            logger.error(new ParameterizedMessage("failed to retrieve built in user [{}] info", username), e);
                             listener.onFailure(null);
                         }
                     }
-                });
+                }, client::get);
     }
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
@@ -585,22 +620,23 @@ public class NativeUsersStore extends AbstractComponent {
                 "the upgrade API is run on the security index"));
             return;
         }
-        client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
-                .setFetchSource(true)
-                .execute(new ActionListener<SearchResponse>() {
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                        .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
+                        .setFetchSource(true).request(),
+                new ActionListener<SearchResponse>() {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         Map<String, ReservedUserInfo> userInfos = new HashMap<>();
-                        assert searchResponse.getHits().getTotalHits() <= 10 : "there are more than 10 reserved users we need to change " +
-                                "this to retrieve them all!";
+                        assert searchResponse.getHits().getTotalHits() <= 10 :
+                                "there are more than 10 reserved users we need to change this to retrieve them all!";
                         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
                             Map<String, Object> sourceMap = searchHit.getSourceAsMap();
                             String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
                             Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
                             final String id = searchHit.getId();
                             assert id != null && id.startsWith(RESERVED_USER_TYPE) :
-                                "id [" + id + "] does not start with reserved-user prefix";
+                                    "id [" + id + "] does not start with reserved-user prefix";
                             final String username = id.substring(RESERVED_USER_TYPE.length() + 1);
                             if (password == null) {
                                 listener.onFailure(new IllegalStateException("password hash must not be null!"));
@@ -625,27 +661,28 @@ public class NativeUsersStore extends AbstractComponent {
                             listener.onFailure(e);
                         }
                     }
-                });
+                }, client::search);
     }
 
     private <Response> void clearRealmCache(String username, ActionListener<Response> listener, Response response) {
         SecurityClient securityClient = new SecurityClient(client);
         ClearRealmCacheRequest request = securityClient.prepareClearRealmCache()
                 .usernames(username).request();
-        securityClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
-            @Override
-            public void onResponse(ClearRealmCacheResponse nodes) {
-                listener.onResponse(response);
-            }
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                new ActionListener<ClearRealmCacheResponse>() {
+                    @Override
+                    public void onResponse(ClearRealmCacheResponse nodes) {
+                        listener.onResponse(response);
+                    }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to clear realm cache for user [{}]", username), e);
-                ElasticsearchException exception = new ElasticsearchException("clearing the cache for [" + username
-                        + "] failed. please clear the realm cache manually", e);
-                listener.onFailure(exception);
-            }
-        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(new ParameterizedMessage("unable to clear realm cache for user [{}]", username), e);
+                        ElasticsearchException exception = new ElasticsearchException("clearing the cache for [" + username
+                                + "] failed. please clear the realm cache manually", e);
+                        listener.onFailure(exception);
+                    }
+                }, securityClient::clearRealmCache);
     }
 
     @Nullable
@@ -668,7 +705,7 @@ public class NativeUsersStore extends AbstractComponent {
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("error in the format of data for user [{}]", username), e);
+            logger.error(new ParameterizedMessage("error in the format of data for user [{}]", username), e);
             return null;
         }
     }

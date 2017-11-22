@@ -87,6 +87,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -185,10 +186,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @Override
     protected Set<String> excludeTemplates() {
         Set<String> excludes = new HashSet<>();
-        for (WatcherIndexTemplateRegistry.TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
-            excludes.add(templateConfig.getTemplateName());
-        }
-        return excludes;
+        excludes.addAll(Arrays.asList(WatcherIndexTemplateRegistry.TEMPLATE_NAMES));
+        return Collections.unmodifiableSet(excludes);
     }
 
     @Override

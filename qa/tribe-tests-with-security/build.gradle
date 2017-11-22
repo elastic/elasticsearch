@@ -15,6 +15,8 @@ dependencies {
 
 namingConventions.skipIntegTestInDisguise = true
 
+compileTestJava.options.compilerArgs << "-Xlint:-try"
+
 String xpackPath = project(':x-pack-elasticsearch:plugin').projectDir.toPath().resolve('src/test/resources').toString()
 sourceSets {
     test {

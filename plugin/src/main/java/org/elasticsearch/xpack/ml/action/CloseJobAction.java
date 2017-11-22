@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -53,7 +54,6 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,6 +65,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response, CloseJobAction.RequestBuilder> {
 
@@ -305,7 +308,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
     public static class TransportAction extends TransportTasksAction<OpenJobAction.JobTask, Request, Response, Response> {
 
-        private final InternalClient client;
+        private final Client client;
         private final ClusterService clusterService;
         private final Auditor auditor;
         private final PersistentTasksService persistentTasksService;
@@ -313,7 +316,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, InternalClient client,
+                               ClusterService clusterService, Client client,
                                Auditor auditor, PersistentTasksService persistentTasksService) {
             // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
             super(settings, CloseJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
@@ -548,18 +551,8 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 public void onResponse(Boolean result) {
                     FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(
                             waitForCloseRequest.jobsToFinalize.toArray(new String[0]));
-                    client.execute(FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
-                            new ActionListener<FinalizeJobExecutionAction.Response>() {
-                                @Override
-                                public void onResponse(FinalizeJobExecutionAction.Response r) {
-                                    listener.onResponse(response);
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    listener.onFailure(e);
-                                }
-                            });
+                    executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
+                            ActionListener.wrap(r -> listener.onResponse(response), listener::onFailure));
                 }
 
                 @Override

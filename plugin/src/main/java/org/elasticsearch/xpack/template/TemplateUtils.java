@@ -17,13 +17,15 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -36,6 +38,20 @@ import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 public class TemplateUtils {
 
     private TemplateUtils() {}
+
+    /**
+     * Loads a JSON template as a resource and puts it into the provided map
+     */
+    public static void loadTemplateIntoMap(String resource, Map<String, IndexTemplateMetaData> map, String templateName, String version,
+                                           String versionProperty, Logger logger) {
+        final String template = loadTemplate(resource, version, versionProperty);
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, template)) {
+            map.put(templateName, IndexTemplateMetaData.Builder.fromXContent(parser, templateName));
+        } catch (IOException e) {
+            // TODO: should we handle this with a thrown exception?
+            logger.error("Error loading template [{}] as part of metadata upgrading", templateName);
+        }
+    }
 
     /**
      * Loads a built-in template and returns its source.
@@ -87,6 +103,20 @@ public class TemplateUtils {
         return Pattern.compile(versionProperty)
                 .matcher(source.utf8ToString())
                 .replaceAll(version);
+    }
+
+    /**
+     * Checks if a versioned template exists, and if it exists checks if the version is greater than or equal to the current version.
+     * @param templateName Name of the index template
+     * @param state Cluster state
+     */
+    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state) {
+        IndexTemplateMetaData templateMetaData = state.metaData().templates().get(templateName);
+        if (templateMetaData == null) {
+            return false;
+        }
+
+        return templateMetaData.version() != null && templateMetaData.version() >= Version.CURRENT.id;
     }
 
     /**

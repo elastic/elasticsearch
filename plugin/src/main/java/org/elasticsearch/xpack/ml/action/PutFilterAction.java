@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
@@ -36,11 +38,13 @@ import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 
 public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAction.Response, PutFilterAction.RequestBuilder> {
@@ -160,13 +164,13 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final InternalClient client;
+        private final Client client;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
                                TransportService transportService, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver,
-                               InternalClient client) {
+                               Client client) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.client = client;
@@ -186,17 +190,19 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
             bulkRequestBuilder.add(indexRequest);
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
-                @Override
-                public void onResponse(BulkResponse indexResponse) {
-                    listener.onResponse(new Response());
-                }
+            executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(),
+                    new ActionListener<BulkResponse>() {
+                        @Override
+                        public void onResponse(BulkResponse indexResponse) {
+                            listener.onResponse(new Response());
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(new ResourceNotFoundException("Could not create filter with ID [" + filter.getId() + "]", e));
-                }
-            });
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(
+                                    new ResourceNotFoundException("Could not create filter with ID [" + filter.getId() + "]", e));
+                        }
+                    });
         }
     }
 }

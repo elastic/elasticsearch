@@ -157,6 +157,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         final String action = "internal:foo";
         if (hasExistingAuthentication) {
             threadContext.putTransient(Authentication.AUTHENTICATION_KEY, authentication);
+            threadContext.putHeader(Authentication.AUTHENTICATION_KEY, "foo");
             threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
         } else {
             assertNull(threadContext.getTransient(Authentication.AUTHENTICATION_KEY));

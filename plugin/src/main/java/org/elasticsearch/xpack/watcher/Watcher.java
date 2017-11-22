@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -58,7 +59,6 @@ import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.notification.jira.JiraService;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.notification.slack.SlackService;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
@@ -78,7 +78,6 @@ import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackActionFactory;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
@@ -226,7 +225,7 @@ public class Watcher implements ActionPlugin {
         }
     }
 
-    public Collection<Object> createComponents(Clock clock, ScriptService scriptService, InternalClient internalClient,
+    public Collection<Object> createComponents(Clock clock, ScriptService scriptService, Client client,
                                                XPackLicenseState licenseState,
                                                HttpClient httpClient, HttpRequestTemplate.Parser httpTemplateParser,
                                                ThreadPool threadPool, ClusterService clusterService, CryptoService cryptoService,
@@ -234,6 +233,8 @@ public class Watcher implements ActionPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
+
+        new WatcherIndexTemplateRegistry(settings, clusterService, threadPool, client);
 
         final Map<String, ConditionFactory> parsers = new HashMap<>();
         parsers.put(AlwaysCondition.TYPE, (c, id, p) -> AlwaysCondition.parse(id, p));
@@ -245,7 +246,7 @@ public class Watcher implements ActionPlugin {
         final ConditionRegistry conditionRegistry = new ConditionRegistry(Collections.unmodifiableMap(parsers), clock);
         final Map<String, TransformFactory> transformFactories = new HashMap<>();
         transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
-        transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, internalClient, xContentRegistry, scriptService));
+        transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService));
         final TransformRegistry transformRegistry = new TransformRegistry(settings, Collections.unmodifiableMap(transformFactories));
 
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
@@ -254,7 +255,7 @@ public class Watcher implements ActionPlugin {
                 getService(EmailAttachmentsParser.class, components)));
         actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient,
                 getService(HttpRequestTemplate.Parser.class, components), templateEngine));
-        actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, internalClient));
+        actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
         actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine,
                 getService(HipChatService.class, components)));
@@ -268,16 +269,16 @@ public class Watcher implements ActionPlugin {
 
         final Map<String, InputFactory> inputFactories = new HashMap<>();
         inputFactories.put(SearchInput.TYPE,
-                new SearchInputFactory(settings, internalClient, xContentRegistry, scriptService));
+                new SearchInputFactory(settings, client, xContentRegistry, scriptService));
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
         inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine, httpTemplateParser));
         inputFactories.put(NoneInput.TYPE, new NoneInputFactory(settings));
         final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(settings, inputRegistry));
 
-        final WatcherClient watcherClient = new WatcherClient(internalClient);
+        final HistoryStore historyStore = new HistoryStore(settings, client);
 
-        final HistoryStore historyStore = new HistoryStore(settings, internalClient);
+        // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
         scheduleParsers.add(new CronSchedule.Parser());
         scheduleParsers.add(new DailySchedule.Parser());
@@ -297,7 +298,7 @@ public class Watcher implements ActionPlugin {
         final TriggerService triggerService = new TriggerService(settings, triggerEngines);
 
         final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(settings, triggerService);
-        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, internalClient, triggeredWatchParser);
+        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
                 new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
@@ -305,16 +306,13 @@ public class Watcher implements ActionPlugin {
         final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                clock, threadPool, watchParser, clusterService, internalClient);
+                clock, threadPool, watchParser, clusterService, client);
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
 
-        final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = new WatcherIndexTemplateRegistry(settings, clusterService,
-                threadPool, internalClient);
-
         WatcherService watcherService = new WatcherService(settings, triggerService, triggeredWatchStore, executionService,
-                watchParser, internalClient);
+                watchParser, client);
 
         final WatcherLifeCycleService watcherLifeCycleService =
                 new WatcherLifeCycleService(settings, threadPool, clusterService, watcherService);
@@ -322,9 +320,9 @@ public class Watcher implements ActionPlugin {
         listener = new WatcherIndexingListener(settings, watchParser, clock, triggerService);
         clusterService.addListener(listener);
 
-        return Arrays.asList(registry, watcherClient, inputRegistry, historyStore, triggerService, triggeredWatchParser,
+        return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, watcherIndexTemplateRegistry);
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {

@@ -40,11 +40,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.template.TemplateUtils;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeAction;
@@ -70,6 +68,9 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.INDEX_TYPE;
 import static org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.RESERVED_USER_TYPE;
@@ -83,7 +84,7 @@ public class Upgrade implements ActionPlugin {
     private static final int EXPECTED_INDEX_FORMAT_VERSION = 6;
 
     private final Settings settings;
-    private final List<BiFunction<InternalClient, ClusterService, IndexUpgradeCheck>> upgradeCheckFactories;
+    private final List<BiFunction<Client, ClusterService, IndexUpgradeCheck>> upgradeCheckFactories;
 
     public Upgrade(Settings settings) {
         this.settings = settings;
@@ -96,10 +97,9 @@ public class Upgrade implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
-        final InternalSecurityClient internalSecurityClient = new InternalSecurityClient(settings, threadPool, client);
         List<IndexUpgradeCheck> upgradeChecks = new ArrayList<>(upgradeCheckFactories.size());
-        for (BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> checkFactory : upgradeCheckFactories) {
-            upgradeChecks.add(checkFactory.apply(internalSecurityClient, clusterService));
+        for (BiFunction<Client, ClusterService, IndexUpgradeCheck> checkFactory : upgradeCheckFactories) {
+            upgradeChecks.add(checkFactory.apply(client, clusterService));
         }
         return Collections.singletonList(new IndexUpgradeService(settings, Collections.unmodifiableList(upgradeChecks)));
     }
@@ -130,9 +130,10 @@ public class Upgrade implements ActionPlugin {
         return indexMetaData.getSettings().getAsInt(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 0) == EXPECTED_INDEX_FORMAT_VERSION;
     }
 
-    static BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> getSecurityUpgradeCheckFactory(Settings settings) {
-        return (internalClient, clusterService) ->
-               new IndexUpgradeCheck<Void>("security",
+    static BiFunction<Client, ClusterService, IndexUpgradeCheck> getSecurityUpgradeCheckFactory(Settings settings) {
+        return (client, clusterService) -> {
+            final Client clientWithOrigin = clientWithOrigin(client, SECURITY_ORIGIN);
+            return new IndexUpgradeCheck<Void>("security",
                     settings,
                     indexMetaData -> {
                         if (".security".equals(indexMetaData.getIndex().getName())
@@ -147,18 +148,19 @@ public class Upgrade implements ActionPlugin {
                             return UpgradeActionRequired.NOT_APPLICABLE;
                         }
                     },
-                    internalClient,
+                    clientWithOrigin,
                     clusterService,
-                    new String[] { "user", "reserved-user", "role", "doc" },
+                    new String[]{"user", "reserved-user", "role", "doc"},
                     new Script(ScriptType.INLINE, "painless",
-                        "ctx._source.type = ctx._type;\n" +
-                        "if (!ctx._type.equals(\"doc\")) {\n" +
-                        "   ctx._id = ctx._type + \"-\" + ctx._id;\n" +
-                        "   ctx._type = \"doc\";" +
-                        "}\n",
-                        new HashMap<>()),
-                        listener -> listener.onResponse(null),
-                        (success, listener) -> postSecurityUpgrade(internalClient, listener));
+                            "ctx._source.type = ctx._type;\n" +
+                                    "if (!ctx._type.equals(\"doc\")) {\n" +
+                                    "   ctx._id = ctx._type + \"-\" + ctx._id;\n" +
+                                    "   ctx._type = \"doc\";" +
+                                    "}\n",
+                            new HashMap<>()),
+                    listener -> listener.onResponse(null),
+                    (success, listener) -> postSecurityUpgrade(clientWithOrigin, listener));
+        };
     }
 
     private static void postSecurityUpgrade(Client client, ActionListener<TransportResponse.Empty> listener) {
@@ -228,54 +230,58 @@ public class Upgrade implements ActionPlugin {
         }
     }
 
-    static BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> getWatchesIndexUpgradeCheckFactory(Settings settings) {
-        return (internalClient, clusterService) ->
-                new IndexUpgradeCheck<Boolean>("watches",
-                        settings,
-                        indexMetaData -> {
-                            if (indexOrAliasExists(indexMetaData, ".watches")) {
-                                if (checkInternalIndexFormat(indexMetaData)) {
-                                    return UpgradeActionRequired.UP_TO_DATE;
-                                } else {
-                                    return UpgradeActionRequired.UPGRADE;
-                                }
+    static BiFunction<Client, ClusterService, IndexUpgradeCheck> getWatchesIndexUpgradeCheckFactory(Settings settings) {
+        return (client, clusterService) -> {
+            final Client clientWithOrigin = clientWithOrigin(client, WATCHER_ORIGIN);
+            return new IndexUpgradeCheck<Boolean>("watches",
+                    settings,
+                    indexMetaData -> {
+                        if (indexOrAliasExists(indexMetaData, ".watches")) {
+                            if (checkInternalIndexFormat(indexMetaData)) {
+                                return UpgradeActionRequired.UP_TO_DATE;
                             } else {
-                                return UpgradeActionRequired.NOT_APPLICABLE;
+                                return UpgradeActionRequired.UPGRADE;
                             }
-                        }, internalClient,
-                        clusterService,
-                        new String[]{"watch"},
-                        new Script(ScriptType.INLINE, "painless", "ctx._type = \"doc\";\n" +
-                                "if (ctx._source.containsKey(\"_status\") && !ctx._source.containsKey(\"status\")  ) {\n" +
-                                "  ctx._source.status = ctx._source.remove(\"_status\");\n" +
-                                "}",
-                                new HashMap<>()),
-                        booleanActionListener -> preWatchesIndexUpgrade(internalClient, booleanActionListener),
-                        (shouldStartWatcher, listener) -> postWatchesIndexUpgrade(internalClient, shouldStartWatcher, listener)
-                );
+                        } else {
+                            return UpgradeActionRequired.NOT_APPLICABLE;
+                        }
+                    }, clientWithOrigin,
+                    clusterService,
+                    new String[]{"watch"},
+                    new Script(ScriptType.INLINE, "painless", "ctx._type = \"doc\";\n" +
+                            "if (ctx._source.containsKey(\"_status\") && !ctx._source.containsKey(\"status\")  ) {\n" +
+                            "  ctx._source.status = ctx._source.remove(\"_status\");\n" +
+                            "}",
+                            new HashMap<>()),
+                    booleanActionListener -> preWatchesIndexUpgrade(clientWithOrigin, booleanActionListener),
+                    (shouldStartWatcher, listener) -> postWatchesIndexUpgrade(clientWithOrigin, shouldStartWatcher, listener)
+            );
+        };
     }
 
-    static BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> getTriggeredWatchesIndexUpgradeCheckFactory(Settings settings) {
-        return (internalClient, clusterService) ->
-                new IndexUpgradeCheck<Boolean>("triggered-watches",
-                        settings,
-                        indexMetaData -> {
-                            if (indexOrAliasExists(indexMetaData, TriggeredWatchStore.INDEX_NAME)) {
-                                if (checkInternalIndexFormat(indexMetaData)) {
-                                    return UpgradeActionRequired.UP_TO_DATE;
-                                } else {
-                                    return UpgradeActionRequired.UPGRADE;
-                                }
+    static BiFunction<Client, ClusterService, IndexUpgradeCheck> getTriggeredWatchesIndexUpgradeCheckFactory(Settings settings) {
+        return (client, clusterService) -> {
+            final Client clientWithOrigin = clientWithOrigin(client, WATCHER_ORIGIN);
+            return new IndexUpgradeCheck<Boolean>("triggered-watches",
+                    settings,
+                    indexMetaData -> {
+                        if (indexOrAliasExists(indexMetaData, TriggeredWatchStore.INDEX_NAME)) {
+                            if (checkInternalIndexFormat(indexMetaData)) {
+                                return UpgradeActionRequired.UP_TO_DATE;
                             } else {
-                                return UpgradeActionRequired.NOT_APPLICABLE;
+                                return UpgradeActionRequired.UPGRADE;
                             }
-                        }, internalClient,
-                        clusterService,
-                        new String[]{"triggered-watch"},
-                        new Script(ScriptType.INLINE, "painless", "ctx._type = \"doc\";\n", new HashMap<>()),
-                        booleanActionListener -> preTriggeredWatchesIndexUpgrade(internalClient, booleanActionListener),
-                        (shouldStartWatcher, listener) -> postWatchesIndexUpgrade(internalClient, shouldStartWatcher, listener)
-                );
+                        } else {
+                            return UpgradeActionRequired.NOT_APPLICABLE;
+                        }
+                    }, clientWithOrigin,
+                    clusterService,
+                    new String[]{"triggered-watch"},
+                    new Script(ScriptType.INLINE, "painless", "ctx._type = \"doc\";\n", new HashMap<>()),
+                    booleanActionListener -> preTriggeredWatchesIndexUpgrade(clientWithOrigin, booleanActionListener),
+                    (shouldStartWatcher, listener) -> postWatchesIndexUpgrade(clientWithOrigin, shouldStartWatcher, listener)
+            );
+        };
     }
 
     private static boolean indexOrAliasExists(IndexMetaData indexMetaData, String name) {

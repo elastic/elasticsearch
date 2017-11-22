@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.watcher.transport.actions.put;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -21,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -32,19 +33,21 @@ import org.joda.time.DateTime;
 import java.time.Clock;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequest, PutWatchResponse> {
 
     private final Clock clock;
     private final Watch.Parser parser;
-    private final InternalClient client;
     private final TriggerService triggerService;
+    private final Client client;
 
     @Inject
     public TransportPutWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
-                                   Watch.Parser parser, InternalClient client, ClusterService clusterService,
+                                   Watch.Parser parser, Client client, ClusterService clusterService,
                                    TriggerService triggerService) {
         super(settings, PutWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, clusterService, PutWatchRequest::new, PutWatchResponse::new);
@@ -71,13 +74,15 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 indexRequest.source(bytesReference, XContentType.JSON);
 
-                client.index(indexRequest, ActionListener.wrap(indexResponse -> {
-                    boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
-                    if (localExecute(request) == false && watch.status().state().isActive()) {
-                        triggerService.add(watch);
-                    }
-                    listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), created));
-                }, listener::onFailure));
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, indexRequest,
+                        ActionListener.<IndexResponse>wrap(indexResponse -> {
+                            boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            if (localExecute(request) == false && watch.status().state().isActive()) {
+                                triggerService.add(watch);
+                            }
+                            listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), created));
+                        }, listener::onFailure),
+                        client::index);
             }
         } catch (Exception e) {
             listener.onFailure(e);

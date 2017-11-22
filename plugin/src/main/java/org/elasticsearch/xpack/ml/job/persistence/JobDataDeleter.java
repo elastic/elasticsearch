@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -15,10 +16,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -28,6 +29,10 @@ import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 
 public class JobDataDeleter {
 
@@ -105,8 +110,7 @@ public class JobDataDeleter {
 
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         try {
-            // TODO: change docDeleteListener to listener in 7.0
-            bulkRequestBuilder.execute(docDeleteListener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(), docDeleteListener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -127,17 +131,8 @@ public class JobDataDeleter {
                 .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
         deleteByQueryHolder.searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         deleteByQueryHolder.searchRequest.source(new SearchSourceBuilder().query(query));
-        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest, new ActionListener<BulkByScrollResponse>() {
-                @Override
-                public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                    listener.onResponse(true);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-        });
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest,
+                ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure));
     }
 
     /**
@@ -151,7 +146,7 @@ public class JobDataDeleter {
         QueryBuilder qb = QueryBuilders.termQuery(Result.IS_INTERIM.getPreferredName(), true);
         deleteByQueryHolder.searchRequest.source(new SearchSourceBuilder().query(new ConstantScoreQueryBuilder(qb)));
 
-        try {
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
             client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest).get();
         } catch (Exception e) {
             LOGGER.error("[" + jobId + "] An error occurred while deleting interim results", e);

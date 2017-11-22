@@ -55,7 +55,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
@@ -331,7 +330,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         when(nodes.isLocalNodeElectedMaster()).thenReturn(true);
         threadPool = new TestThreadPool("index audit trail tests");
         enqueuedMessage = new SetOnce<>();
-        auditor = new IndexAuditTrail(settings, internalSecurityClient(), threadPool, clusterService) {
+        auditor = new IndexAuditTrail(settings, client(), threadPool, clusterService) {
             @Override
             void enqueue(Message message, String type) {
                 enqueuedMessage.set(message);

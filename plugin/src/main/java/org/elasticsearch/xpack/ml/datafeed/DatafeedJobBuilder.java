@@ -26,6 +26,9 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.clientWithOrigin;
+
 public class DatafeedJobBuilder {
 
     private final Client client;
@@ -34,7 +37,7 @@ public class DatafeedJobBuilder {
     private final Supplier<Long> currentTimeSupplier;
 
     public DatafeedJobBuilder(Client client, JobProvider jobProvider, Auditor auditor, Supplier<Long> currentTimeSupplier) {
-        this.client = Objects.requireNonNull(client);
+        this.client = clientWithOrigin(client, ML_ORIGIN);
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.auditor = Objects.requireNonNull(auditor);
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);

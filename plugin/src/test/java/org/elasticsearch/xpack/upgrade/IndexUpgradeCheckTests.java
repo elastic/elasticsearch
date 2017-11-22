@@ -6,20 +6,37 @@
 package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Before;
 
 import java.io.IOException;
 
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexUpgradeCheckTests extends ESTestCase {
 
+    private Client client;
+
+    @Before
+    public void setupClient() {
+        client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+    }
+
     public void testWatchesIndexUpgradeCheck() throws Exception {
-        IndexUpgradeCheck check = Upgrade.getWatchesIndexUpgradeCheckFactory(Settings.EMPTY).apply(null, null);
+        IndexUpgradeCheck check = Upgrade.getWatchesIndexUpgradeCheckFactory(Settings.EMPTY).apply(client, null);
         assertThat(check.getName(), equalTo("watches"));
 
         IndexMetaData goodKibanaIndex = newTestIndexMeta(".kibana", Settings.EMPTY);
@@ -37,7 +54,7 @@ public class IndexUpgradeCheckTests extends ESTestCase {
     }
 
     public void testTriggeredWatchesIndexUpgradeCheck() throws Exception {
-        IndexUpgradeCheck check = Upgrade.getTriggeredWatchesIndexUpgradeCheckFactory(Settings.EMPTY).apply(null, null);
+        IndexUpgradeCheck check = Upgrade.getTriggeredWatchesIndexUpgradeCheckFactory(Settings.EMPTY).apply(client, null);
         assertThat(check.getName(), equalTo("triggered-watches"));
 
         IndexMetaData goodKibanaIndex = newTestIndexMeta(".kibana", Settings.EMPTY);
@@ -55,7 +72,7 @@ public class IndexUpgradeCheckTests extends ESTestCase {
     }
 
     public void testSecurityIndexUpgradeCheck() throws Exception{
-        IndexUpgradeCheck check = Upgrade.getSecurityUpgradeCheckFactory(Settings.EMPTY).apply(null, null);
+        IndexUpgradeCheck check = Upgrade.getSecurityUpgradeCheckFactory(Settings.EMPTY).apply(client, null);
         assertThat(check.getName(), equalTo("security"));
 
         IndexMetaData securityIndex = newTestIndexMeta(".security", Settings.EMPTY);

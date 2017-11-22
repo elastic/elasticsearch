@@ -7,19 +7,19 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -37,8 +38,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
+import org.elasticsearch.xpack.security.ScrollHelper;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.security.action.role.ClearRolesCacheResponse;
@@ -57,9 +57,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.authz.RoleDescriptor.ROLE_TYPE;
 
@@ -80,14 +84,14 @@ public class NativeRolesStore extends AbstractComponent {
             TimeValue.timeValueMinutes(20), Property.NodeScope, Property.Deprecated);
     private static final String ROLE_DOC_TYPE = "doc";
 
-    private final InternalSecurityClient client;
+    private final Client client;
     private final XPackLicenseState licenseState;
     private final boolean isTribeNode;
 
     private SecurityClient securityClient;
     private final SecurityLifecycleService securityLifecycleService;
 
-    public NativeRolesStore(Settings settings, InternalSecurityClient client, XPackLicenseState licenseState,
+    public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState,
                             SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
@@ -118,15 +122,18 @@ public class NativeRolesStore extends AbstractComponent {
                     final String[] roleNames = Arrays.stream(names).map(s -> getIdForUser(s)).toArray(String[]::new);
                     query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(ROLE_DOC_TYPE).addIds(roleNames));
                 }
-                SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                        .setScroll(TimeValue.timeValueSeconds(10L))
-                        .setQuery(query)
-                        .setSize(1000)
-                        .setFetchSource(true)
-                        .request();
-                request.indicesOptions().ignoreUnavailable();
-                InternalClient.fetchAllByEntity(client, request, listener,
-                        (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState));
+                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
+                    SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                            .setScroll(TimeValue.timeValueSeconds(10L))
+                            .setQuery(query)
+                            .setSize(1000)
+                            .setFetchSource(true)
+                            .request();
+                    request.indicesOptions().ignoreUnavailable();
+                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
+                            (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState));
+                }
             } catch (Exception e) {
                 logger.error(new ParameterizedMessage("unable to retrieve roles {}", Arrays.toString(names)), e);
                 listener.onFailure(e);
@@ -153,18 +160,20 @@ public class NativeRolesStore extends AbstractComponent {
             DeleteRequest request = client.prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME,
                     ROLE_DOC_TYPE, getIdForUser(deleteRoleRequest.name())).request();
             request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
-            client.delete(request, new ActionListener<DeleteResponse>() {
-                @Override
-                public void onResponse(DeleteResponse deleteResponse) {
-                    clearRoleCache(deleteRoleRequest.name(), listener, deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                }
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                    new ActionListener<DeleteResponse>() {
+                        @Override
+                        public void onResponse(DeleteResponse deleteResponse) {
+                            clearRoleCache(deleteRoleRequest.name(), listener,
+                                    deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("failed to delete role from the index", e);
-                    listener.onFailure(e);
-                }
-            });
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("failed to delete role from the index", e);
+                            listener.onFailure(e);
+                        }
+                    }, client::delete);
         } catch (IndexNotFoundException e) {
             logger.trace("security index does not exist", e);
             listener.onResponse(false);
@@ -206,25 +215,27 @@ public class NativeRolesStore extends AbstractComponent {
                     listener.onFailure(e);
                     return;
                 }
-                client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
-                    .setSource(xContentBuilder)
-                    .setRefreshPolicy(request.getRefreshPolicy())
-                    .execute(new ActionListener<IndexResponse>() {
-                        @Override
-                        public void onResponse(IndexResponse indexResponse) {
-                            final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
-                            clearRoleCache(role.getName(), listener, created);
-                        }
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                        client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
+                                .setSource(xContentBuilder)
+                                .setRefreshPolicy(request.getRefreshPolicy())
+                                .request(),
+                        new ActionListener<IndexResponse>() {
+                            @Override
+                            public void onResponse(IndexResponse indexResponse) {
+                                final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                                clearRoleCache(role.getName(), listener, created);
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to put role [{}]", request.name()), e);
-                            listener.onFailure(e);
-                        }
-                });
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.error(new ParameterizedMessage("failed to put role [{}]", request.name()), e);
+                                listener.onFailure(e);
+                            }
+                        }, client::index);
             });
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to put role [{}]", request.name()), e);
+            logger.error(new ParameterizedMessage("unable to put role [{}]", request.name()), e);
             listener.onFailure(e);
         }
     }
@@ -243,27 +254,29 @@ public class NativeRolesStore extends AbstractComponent {
                     "the upgrade API is run on the security index"));
                 return;
             }
-            client.prepareMultiSearch()
-                    .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                            .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                            .setSize(0))
-                    .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                        .setQuery(QueryBuilders.boolQuery()
-                                  .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                  .must(QueryBuilders.boolQuery()
-                                        .should(existsQuery("indices.field_security.grant"))
-                                        .should(existsQuery("indices.field_security.except"))
-                                        // for backwardscompat with 2.x
-                                        .should(existsQuery("indices.fields"))))
-                        .setSize(0)
-                        .setTerminateAfter(1))
-                    .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                        .setQuery(QueryBuilders.boolQuery()
-                                    .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                    .filter(existsQuery("indices.query")))
-                        .setSize(0)
-                        .setTerminateAfter(1))
-                    .execute(new ActionListener<MultiSearchResponse>() {
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareMultiSearch()
+                            .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                                    .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                    .setSize(0))
+                            .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                                    .setQuery(QueryBuilders.boolQuery()
+                                            .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                            .must(QueryBuilders.boolQuery()
+                                                    .should(existsQuery("indices.field_security.grant"))
+                                                    .should(existsQuery("indices.field_security.except"))
+                                                    // for backwardscompat with 2.x
+                                                    .should(existsQuery("indices.fields"))))
+                                    .setSize(0)
+                                    .setTerminateAfter(1))
+                            .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                                    .setQuery(QueryBuilders.boolQuery()
+                                            .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                            .filter(existsQuery("indices.query")))
+                                    .setSize(0)
+                                    .setTerminateAfter(1))
+                            .request(),
+                    new ActionListener<MultiSearchResponse>() {
                         @Override
                         public void onResponse(MultiSearchResponse items) {
                             Item[] responses = items.getResponses();
@@ -291,7 +304,7 @@ public class NativeRolesStore extends AbstractComponent {
                         public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
-                    });
+                    }, client::multiSearch);
         }
     }
 
@@ -310,11 +323,11 @@ public class NativeRolesStore extends AbstractComponent {
                 public void onFailure(Exception e) {
                     // if the index or the shard is not there / available we just claim the role is not there
                     if (TransportActions.isShardNotAvailableException(e)) {
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}] index not available",
-                                roleId), e);
+                        logger.warn((org.apache.logging.log4j.util.Supplier<?>) () ->
+                                new ParameterizedMessage("failed to load role [{}] index not available", roleId), e);
                         roleActionListener.onResponse(null);
                     } else {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}]", roleId), e);
+                        logger.error(new ParameterizedMessage("failed to load role [{}]", roleId), e);
                         roleActionListener.onFailure(e);
                     }
                 }
@@ -329,13 +342,16 @@ public class NativeRolesStore extends AbstractComponent {
                 "the upgrade API is run on the security index"));
             return;
         }
+
         try {
-            GetRequest request = client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME,
-                ROLE_DOC_TYPE, getIdForUser(role)).request();
-            client.get(request, listener);
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME,
+                            ROLE_DOC_TYPE, getIdForUser(role)).request(),
+                    listener,
+                    client::get);
         } catch (IndexNotFoundException e) {
             logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                             "unable to retrieve role [{}] since security index does not exist", role), e);
             listener.onResponse(new GetResponse(
                     new GetResult(SecurityLifecycleService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE,
@@ -348,20 +364,21 @@ public class NativeRolesStore extends AbstractComponent {
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {
         ClearRolesCacheRequest request = new ClearRolesCacheRequest().names(role);
-        securityClient.clearRolesCache(request, new ActionListener<ClearRolesCacheResponse>() {
-            @Override
-            public void onResponse(ClearRolesCacheResponse nodes) {
-                listener.onResponse(response);
-            }
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                new ActionListener<ClearRolesCacheResponse>() {
+                    @Override
+                    public void onResponse(ClearRolesCacheResponse nodes) {
+                        listener.onResponse(response);
+                    }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to clear cache for role [{}]", role), e);
-                ElasticsearchException exception = new ElasticsearchException("clearing the cache for [" + role
-                        + "] failed. please clear the role cache manually", e);
-                listener.onFailure(exception);
-            }
-        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(new ParameterizedMessage("unable to clear cache for role [{}]", role), e);
+                        ElasticsearchException exception = new ElasticsearchException("clearing the cache for [" + role
+                                + "] failed. please clear the role cache manually", e);
+                        listener.onFailure(exception);
+                    }
+                }, securityClient::clearRolesCache);
     }
 
     @Nullable
@@ -407,7 +424,7 @@ public class NativeRolesStore extends AbstractComponent {
 
             }
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("error in the format of data for role [{}]", name), e);
+            logger.error(new ParameterizedMessage("error in the format of data for role [{}]", name), e);
             return null;
         }
     }

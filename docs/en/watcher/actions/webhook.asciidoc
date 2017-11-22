@@ -1,9 +1,9 @@
 [[actions-webhook]]
 === Webhook Action
 
-Use the `webhook` action to send a request to any web service. The 
-webhook action supports both HTTP and HTTPS connections. See 
-<<webhook-action-attributes, Webhook Action Attributes>> for the supported 
+Use the `webhook` action to send a request to any web service. The
+webhook action supports both HTTP and HTTPS connections. See
+<<webhook-action-attributes, Webhook Action Attributes>> for the supported
 attributes.
 
 [[configuring-webook-actions]]
@@ -58,17 +58,17 @@ For example, the following `webhook` action creates a new issue in GitHub:
       "auth" : {
         "basic" : {
           "username" : "<username>", <1>
-          "password" : "<password>" 
+          "password" : "<password>"
         }
       }
     }
   }
 }
 --------------------------------------------------
-<1> The username and passwword for the user creating the issue
+<1> The username and password for the user creating the issue
 
 NOTE: By default, both the username and the password are stored in the `.watches`
-      index in plain text. When {security} is enabled, {watcher} can encrypt the    
+      index in plain text. When {security} is enabled, {watcher} can encrypt the
       password before storing it.
 
 You can also use PKI-based authentication when submitting requests to a cluster
@@ -169,11 +169,11 @@ the values serve as the header values:
 
 | `connection_timeout`  | no        | 10s         | The timeout for setting up the http connection. If the connection
                                                     could not be set up within this time, the action will timeout and
-                                                    fail. 
+                                                    fail.
 
 | `read_timeout`        | no        | 10s         | The timeout for reading data from http connection. If no response
                                                     was received within this time, the action will timeout and fail.
-                                                    
+
 
 | `url`                 | no        | -           | A shortcut for specifying the request scheme, host, port, and
                                                     path as a single string. For example, `http://example.org/foo/my-service`.

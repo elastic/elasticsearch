@@ -151,9 +151,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareSearch().setSize(0).setRouting(routingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(1L));
         }
 
-        String secondRouting = findNonMatchingRoutingValue("test", "2");
-        logger.info("--> indexing with id [2], and routing [{}]", secondRouting);
-        client().prepareIndex("test", "type1", "2").setRouting(secondRouting).setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        String secondRoutingValue = "1";
+        logger.info("--> indexing with id [{}], and routing [{}]", routingValue, secondRoutingValue);
+        client().prepareIndex("test", "type1", routingValue).setRouting(secondRoutingValue).setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         logger.info("--> search with no routing, should fine two");
         for (int i = 0; i < 5; i++) {
@@ -167,22 +167,22 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareSearch().setSize(0).setRouting(routingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(1L));
         }
 
-        logger.info("--> search with {} routing, should find one", secondRouting);
+        logger.info("--> search with {} routing, should find one", secondRoutingValue);
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareSearch().setRouting(secondRouting).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(1L));
-            assertThat(client().prepareSearch().setSize(0).setRouting(secondRouting).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(1L));
+            assertThat(client().prepareSearch().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(1L));
+            assertThat(client().prepareSearch().setSize(0).setRouting(secondRoutingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(1L));
         }
 
-        logger.info("--> search with {},{} routings , should find two", routingValue, secondRouting);
+        logger.info("--> search with {},{} routings , should find two", routingValue, "1");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareSearch().setRouting(routingValue, secondRouting).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
-            assertThat(client().prepareSearch().setSize(0).setRouting(routingValue, secondRouting).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
+            assertThat(client().prepareSearch().setRouting(routingValue, secondRoutingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
+            assertThat(client().prepareSearch().setSize(0).setRouting(routingValue, secondRoutingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
         }
 
-        logger.info("--> search with {},{},{} routings , should find two", routingValue, secondRouting, routingValue);
+        logger.info("--> search with {},{},{} routings , should find two", routingValue, secondRoutingValue, routingValue);
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareSearch().setRouting(routingValue, secondRouting, routingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
-            assertThat(client().prepareSearch().setSize(0).setRouting(routingValue, secondRouting,routingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
+            assertThat(client().prepareSearch().setRouting(routingValue, secondRoutingValue, routingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
+            assertThat(client().prepareSearch().setSize(0).setRouting(routingValue, secondRoutingValue,routingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
         }
     }
 
@@ -345,7 +345,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
     public void testRequiredRoutingMappingVariousAPIs() throws Exception {
 
         client().admin().indices().prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
+                    .startObject("_routing").field("required", true).endObject().endObject().endObject())
                 .execute().actionGet();
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
@@ -429,8 +430,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         assertThat(multiGetResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
 
         MultiTermVectorsResponse multiTermVectorsResponse = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").routing("0"))
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").routing("0")).get();
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").routing(routingValue))
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").routing(routingValue)).get();
         assertThat(multiTermVectorsResponse.getResponses().length, equalTo(2));
         assertThat(multiTermVectorsResponse.getResponses()[0].getId(), equalTo("1"));
         assertThat(multiTermVectorsResponse.getResponses()[0].isFailed(), equalTo(false));

@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
@@ -61,6 +64,9 @@ import java.util.regex.Pattern;
  * </ul>
  */
 public class JobManager extends AbstractComponent {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+            new DeprecationLogger(Loggers.getLogger(JobManager.class));
 
     private final JobProvider jobProvider;
     private final ClusterService clusterService;
@@ -159,6 +165,9 @@ public class JobManager extends AbstractComponent {
 
 
         Job job = request.getJobBuilder().build(new Date());
+        if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
+            DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use JSON instead.");
+        }
 
         MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
         if (currentMlMetadata != null && currentMlMetadata.getJobs().containsKey(job.getId())) {

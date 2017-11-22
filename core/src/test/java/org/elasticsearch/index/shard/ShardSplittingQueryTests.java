@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
@@ -51,6 +52,7 @@ import java.util.List;
 public class ShardSplittingQueryTests extends ESTestCase {
 
     public void testSplitOnID() throws IOException {
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
@@ -76,13 +78,15 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 }
                 docs.add(Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                    new SortedNumericDocValuesField("shard_id", shardId)
+                    new SortedNumericDocValuesField("shard_id", shardId),
+                    sequenceIDFields.primaryTerm
                 ));
                 writer.addDocuments(docs);
             } else {
                 writer.addDocument(Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                    new SortedNumericDocValuesField("shard_id", shardId)
+                    new SortedNumericDocValuesField("shard_id", shardId),
+                    sequenceIDFields.primaryTerm
                 ));
             }
         }
@@ -95,6 +99,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
     }
 
     public void testSplitOnRouting() throws IOException {
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
@@ -122,14 +127,16 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 docs.add(Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
-                    new SortedNumericDocValuesField("shard_id", shardId)
+                    new SortedNumericDocValuesField("shard_id", shardId),
+                    sequenceIDFields.primaryTerm
                 ));
                 writer.addDocuments(docs);
             } else {
                 writer.addDocument(Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
-                    new SortedNumericDocValuesField("shard_id", shardId)
+                    new SortedNumericDocValuesField("shard_id", shardId),
+                    sequenceIDFields.primaryTerm
                 ));
             }
         }
@@ -140,6 +147,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
     }
 
     public void testSplitOnIdOrRouting() throws IOException {
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
@@ -160,13 +168,15 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 rootDoc = Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
-                    new SortedNumericDocValuesField("shard_id", shardId)
+                    new SortedNumericDocValuesField("shard_id", shardId),
+                    sequenceIDFields.primaryTerm
                 );
             } else {
                 shardId = OperationRouting.generateShardId(metaData, Integer.toString(j), null);
                 rootDoc = Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                    new SortedNumericDocValuesField("shard_id", shardId)
+                    new SortedNumericDocValuesField("shard_id", shardId),
+                    sequenceIDFields.primaryTerm
                 );
             }
 
@@ -194,6 +204,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
 
 
     public void testSplitOnRoutingPartitioned() throws IOException {
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
@@ -223,14 +234,16 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 docs.add(Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
-                    new SortedNumericDocValuesField("shard_id", shardId)
+                    new SortedNumericDocValuesField("shard_id", shardId),
+                    sequenceIDFields.primaryTerm
                 ));
                 writer.addDocuments(docs);
             } else {
                 writer.addDocument(Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
-                    new SortedNumericDocValuesField("shard_id", shardId)
+                    new SortedNumericDocValuesField("shard_id", shardId),
+                    sequenceIDFields.primaryTerm
                 ));
             }
         }

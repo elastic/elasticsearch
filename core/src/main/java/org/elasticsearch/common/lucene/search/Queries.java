@@ -25,13 +25,16 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.util.List;
@@ -62,12 +65,19 @@ public class Queries {
         return new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
     }
 
-    public static Query newNonNestedFilter() {
-        // TODO: this is slow, make it a positive query
-        return new BooleanQuery.Builder()
+    /**
+     * Creates a new non-nested docs query
+     * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
+     */
+    public static Query newNonNestedFilter(Version indexVersionCreated) {
+        if (indexVersionCreated.onOrAfter(Version.V_6_1_0)) {
+            return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        } else {
+            return new BooleanQuery.Builder()
                 .add(new MatchAllDocsQuery(), Occur.FILTER)
                 .add(newNestedFilter(), Occur.MUST_NOT)
                 .build();
+        }
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {

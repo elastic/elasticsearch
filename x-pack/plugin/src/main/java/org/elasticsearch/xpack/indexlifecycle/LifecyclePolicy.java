@@ -90,6 +90,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
 
     public void execute(IndexMetaData idxMeta, InternalClient client) {
         String currentPhaseName = IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.get(idxMeta.getSettings());
+        boolean currentPhaseActionsComplete = IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.get(idxMeta.getSettings())
+                .equals(Phase.PHASE_COMPLETED);
         String indexName = idxMeta.getIndex().getName();
         if (Strings.isNullOrEmpty(currentPhaseName)) {
             String firstPhaseName = phases.get(0).getName();
@@ -109,6 +111,39 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
                             logger.error("Failed to initialised phase [" + firstPhaseName + "] for index [" + indexName + "]", e);
                         }
                     });
+        } else if (currentPhaseActionsComplete) {
+            int currentPhaseIndex = -1;
+            for (int i = 0; i < phases.size(); i++) {
+                if (phases.get(i).getName().equals(currentPhaseName)) {
+                    currentPhaseIndex = i;
+                    break;
+                }
+            }
+            if (currentPhaseIndex < phases.size() - 1) {
+                Phase nextPhase = phases.get(currentPhaseIndex + 1);
+                if (nextPhase.canExecute(idxMeta)) {
+                    String nextPhaseName = nextPhase.getName();
+                    client.admin().indices().prepareUpdateSettings(indexName)
+                            .setSettings(Settings.builder()
+                                    .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), nextPhaseName)
+                                    .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), ""))
+                            .execute(new ActionListener<UpdateSettingsResponse>() {
+
+                                @Override
+                                public void onResponse(UpdateSettingsResponse response) {
+                                    if (response.isAcknowledged() == false) {
+                                        logger.error(
+                                                "Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.error("Failed to initialised phase [" + nextPhaseName + "] for index [" + indexName + "]", e);
+                                }
+                    });
+                }
+            }
         } else {
             Phase currentPhase = phases.stream().filter(phase -> phase.getName().equals(currentPhaseName)).findAny()
                     .orElseThrow(() -> new IllegalStateException("Current phase [" + currentPhaseName + "] not found in lifecycle ["

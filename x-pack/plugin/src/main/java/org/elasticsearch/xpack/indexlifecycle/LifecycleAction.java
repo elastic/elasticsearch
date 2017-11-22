@@ -12,6 +12,6 @@ import org.elasticsearch.index.Index;
 
 public abstract class LifecycleAction implements ToXContentObject, NamedWriteable {
 
-    protected abstract void execute(Client client, Index index);
+    protected abstract void execute(Index index, Client client);
 
 }

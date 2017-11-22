@@ -52,7 +52,7 @@ public class DeleteAction extends LifecycleAction {
     }
 
     @Override
-    protected void execute(Client client, Index index) {
+    protected void execute(Index index, Client client) {
         client.admin().indices().prepareDelete(index.getName()).execute(new ActionListener<DeleteIndexResponse>() {
             @Override
             public void onResponse(DeleteIndexResponse deleteIndexResponse) {

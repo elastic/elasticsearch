@@ -58,6 +58,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
@@ -703,6 +704,23 @@ public abstract class StreamOutput extends OutputStream {
         writeVInt(values.length);
         for (double value : values) {
             writeDouble(value);
+        }
+    }
+
+    /**
+     * Writes the specified array to the stream using the specified {@link Writer} for each element in the array. This method can be seen as
+     * writer version of {@link StreamInput#readArray(Writeable.Reader, IntFunction)}. The length of array encoded as a variable-length
+     * integer is first written to the stream, and then the elements of the array are written to the stream.
+     *
+     * @param writer the writer used to write individual elements
+     * @param array  the array
+     * @param <T>    the type of the elements of the array
+     * @throws IOException if an I/O exception occurs while writing the array
+     */
+    public <T> void writeArray(final Writer<T> writer, final T[] array) throws IOException {
+        writeVInt(array.length);
+        for (T value : array) {
+            writer.write(this, value);
         }
     }
 

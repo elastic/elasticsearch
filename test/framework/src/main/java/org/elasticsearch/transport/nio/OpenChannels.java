@@ -21,15 +21,17 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.transport.nio.channel.CloseFuture;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -75,6 +77,10 @@ public class OpenChannels implements Releasable {
         }
     }
 
+    public Map<NioSocketChannel, Long> getClientChannels() {
+        return openClientChannels;
+    }
+
     public void channelClosed(NioChannel channel) {
         boolean removed;
         if (channel instanceof NioServerSocketChannel) {
@@ -92,40 +98,17 @@ public class OpenChannels implements Releasable {
     }
 
     public void closeServerChannels() {
-        List<CloseFuture> futures = new ArrayList<>();
-        for (NioServerSocketChannel channel : openServerChannels.keySet()) {
-            CloseFuture closeFuture = channel.closeAsync();
-            futures.add(closeFuture);
-        }
-        ensureChannelsClosed(futures);
+        TcpChannel.closeChannels(new ArrayList<>(openServerChannels.keySet()), true);
 
         openServerChannels.clear();
     }
 
     @Override
     public void close() {
-        List<CloseFuture> futures = new ArrayList<>();
-        for (NioSocketChannel channel : openClientChannels.keySet()) {
-            CloseFuture closeFuture = channel.closeAsync();
-            futures.add(closeFuture);
-        }
-        for (NioSocketChannel channel : openAcceptedChannels.keySet()) {
-            CloseFuture closeFuture = channel.closeAsync();
-            futures.add(closeFuture);
-        }
-        ensureChannelsClosed(futures);
+        Stream<NioChannel> channels = Stream.concat(openClientChannels.keySet().stream(), openAcceptedChannels.keySet().stream());
+        TcpChannel.closeChannels(channels.collect(Collectors.toList()), true);
 
         openClientChannels.clear();
         openAcceptedChannels.clear();
-    }
-
-    private void ensureChannelsClosed(List<CloseFuture> futures) {
-        for (CloseFuture future : futures) {
-            try {
-                future.get();
-            } catch (Exception e) {
-                logger.debug("exception while closing channels", e);
-            }
-        }
     }
 }

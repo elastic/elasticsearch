@@ -51,7 +51,7 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
             final AtomicBoolean init = new AtomicBoolean();
             final int status = Elasticsearch.main(args, new Elasticsearch() {
                 @Override
-                protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) throws UserException {
+                protected Environment createEnv(final Map<String, String> settings) throws UserException {
                     Settings.Builder builder = Settings.builder().put("path.home", home);
                     settings.forEach((k,v) -> builder.put(k, v));
                     final Settings realSettings = builder.build();

@@ -22,13 +22,9 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 
 import java.io.IOException;
-import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.Iterator;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -93,7 +89,6 @@ public class AcceptingSelector extends ESSelector {
                     newChannel.register();
                     SelectionKey selectionKey = newChannel.getSelectionKey();
                     selectionKey.attach(newChannel);
-                    addRegisteredChannel(newChannel);
                     eventHandler.serverChannelRegistered(newChannel);
                 } else {
                     eventHandler.registrationException(newChannel, new ClosedChannelException());

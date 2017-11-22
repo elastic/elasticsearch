@@ -498,7 +498,7 @@ public class IndexSettingsTests extends ESTestCase {
             assertTrue(index.isSingleType());
             expectThrows(IllegalArgumentException.class, () -> {
                 index.getScopedSettings()
-                    .validate(Settings.builder().put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, randomBoolean()).build());
+                    .validate(Settings.builder().put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, randomBoolean()).build(), false);
             });
         }
         {

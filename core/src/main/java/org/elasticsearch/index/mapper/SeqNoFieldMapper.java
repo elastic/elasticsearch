@@ -28,6 +28,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -245,15 +246,24 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        // In the case of nested docs, let's fill nested docs with seqNo=1 and
-        // primaryTerm=0 so that Lucene doesn't write a Bitset for documents
-        // that don't have the field. This is consistent with the default value
+        // In the case of nested docs, let's fill nested docs with the original
+        // so that Lucene doesn't write a Bitset for documents that
+        // don't have the field. This is consistent with the default value
         // for efficiency.
-        for (int i = 1; i < context.docs().size(); i++) {
+        // we share the parent docs fields to ensure good compression
+        SequenceIDFields seqID = context.seqID();
+        assert seqID != null;
+        int numDocs = context.docs().size();
+        final Version versionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        final boolean includePrimaryTerm = versionCreated.before(Version.V_6_1_0);
+        for (int i = 1; i < numDocs; i++) {
             final Document doc = context.docs().get(i);
-            doc.add(new LongPoint(NAME, 1));
-            doc.add(new NumericDocValuesField(NAME, 1L));
-            doc.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0L));
+            doc.add(seqID.seqNo);
+            doc.add(seqID.seqNoDocValue);
+            if (includePrimaryTerm) {
+                // primary terms are used to distinguish between parent and nested docs since 6.1.0
+                doc.add(seqID.primaryTerm);
+            }
         }
     }
 

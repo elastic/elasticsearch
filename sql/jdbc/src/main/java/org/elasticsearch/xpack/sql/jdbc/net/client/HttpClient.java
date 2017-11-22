@@ -7,14 +7,11 @@ package org.elasticsearch.xpack.sql.jdbc.net.client;
 
 import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
+import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection.ResponseOrException;
 import org.elasticsearch.xpack.sql.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ErrorResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.RequestType;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 
@@ -67,28 +64,14 @@ class HttpClient {
 
     Response put(Request request) throws SQLException {
         try {
-            return AccessController.doPrivileged((PrivilegedAction<Response>) () ->
+            return AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Response>>) () ->
                 JreHttpUrlConnection.http(url, cfg, con ->
                     con.post(
                         out -> Proto.INSTANCE.writeRequest(request, out),
-                        in -> Proto.INSTANCE.readResponse(request, in),
-                        (status, failure) -> {
-                            if (status >= 500) {
-                                return new ErrorResponse((RequestType) request.requestType(), failure.reason(),
-                                    failure.type(), failure.remoteTrace());
-                            }
-                            SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
-                            if (type == null) {
-                                return new ErrorResponse((RequestType) request.requestType(),
-                                    "Sent bad type [" + failure.type() + "]. Original message is [" + failure.reason() + "]",
-                                    failure.type(), failure.remoteTrace());
-                            }
-                            return new ExceptionResponse((RequestType) request.requestType(), failure.reason(),
-                                failure.type(), type);
-                        }
+                        in -> Proto.INSTANCE.readResponse(request, in)
                     )
                 )
-            );
+            ).getResponseOrThrowException();
         } catch (ClientException ex) {
             throw new JdbcSQLException(ex, "Transport failure");
         }

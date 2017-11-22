@@ -8,18 +8,6 @@ package org.elasticsearch.xpack.sql.protocol.shared;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.sql.SQLClientInfoException;
-import java.sql.SQLDataException;
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLRecoverableException;
-import java.sql.SQLSyntaxErrorException;
-import java.sql.SQLTimeoutException;
-import java.util.function.Function;
-
-import javax.sql.rowset.serial.SerialException;
-
-import static java.util.Collections.emptyMap;
 
 /**
  * Base implementation for the binary protocol for the CLI and JDBC.
@@ -72,64 +60,6 @@ public abstract class AbstractProto {
                     + "] but was [" + response.requestType() + "]. Server is busted.");
         }
         return response;
-    }
-
-    /**
-     * Exception type.
-     */
-    public enum SqlExceptionType {
-        UNKNOWN(SQLException::new),
-        SERIAL(SerialException::new),
-        CLIENT_INFO(message -> new SQLClientInfoException(message, emptyMap())),
-        DATA(SQLDataException::new),
-        SYNTAX(SQLSyntaxErrorException::new),
-        RECOVERABLE(SQLRecoverableException::new),
-        TIMEOUT(SQLTimeoutException::new),
-        NOT_SUPPORTED(SQLFeatureNotSupportedException::new);
-
-        public static SqlExceptionType fromRemoteFailureType(String type) {
-            switch (type) {
-            case "analysis_exception":
-            case "resource_not_found_exception":
-            case "verification_exception":
-                return DATA;
-            case "planning_exception":
-            case "mapping_exception":
-                return NOT_SUPPORTED;
-            case "parsing_exception":
-                return SYNTAX;
-            case "timeout_exception":
-                return TIMEOUT;
-            default:
-                return null;
-            }
-        }
-
-        private final Function<String, SQLException> toException;
-
-        SqlExceptionType(Function<String, SQLException> toException) {
-            this.toException = toException;
-        }
-
-        public static SqlExceptionType read(DataInput in) throws IOException {
-            byte b = in.readByte();
-            try {
-                return values()[b];
-            } catch (ArrayIndexOutOfBoundsException e) {
-                throw new IllegalArgumentException("Unknown request type [" + b + "]", e);
-            }
-        }
-
-        public void writeTo(DataOutput out) throws IOException {
-            out.writeByte(ordinal());
-        }
-
-        SQLException asException(String message) {
-            if (message == null) {
-                throw new IllegalArgumentException("[message] cannot be null");
-            }
-            return toException.apply(message);
-        }
     }
 
     protected abstract RequestType readRequestType(DataInput in) throws IOException;

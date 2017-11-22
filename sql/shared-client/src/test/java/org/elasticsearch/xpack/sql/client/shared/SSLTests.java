@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.client.shared;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection.ResponseOrException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -70,7 +71,7 @@ public class SSLTests extends ESTestCase {
                 PathUtils.get(getClass().getResource("/ssl/client.keystore").toURI()).toRealPath().toString());
         prop.setProperty("ssl.truststore.pass", "password");
         //prop.setProperty("ssl.accept.self.signed.certs", "true");
-        
+
         cfg = new ConnectionConfiguration(prop);
     }
 
@@ -106,16 +107,15 @@ public class SSLTests extends ESTestCase {
 
     public void testSslPost() throws Exception {
         String message = UUID.randomUUID().toString();
-        String received = AccessController.doPrivileged((PrivilegedAction<String>) () ->
+        String received = AccessController.doPrivileged((PrivilegedAction<ResponseOrException<String>>) () ->
             JreHttpUrlConnection.http(sslServer, cfg, c ->
                 c.post(
                     out -> out.writeUTF(message),
-                    DataInput::readUTF,
-                    (status, failure) -> "failure: [" + status + "][" + failure + "]"
+                    DataInput::readUTF
                 )
             )
-        );
-        
+        ).getResponseOrThrowException();
+
         assertEquals(message, received);
     }
 }

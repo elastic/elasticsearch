@@ -5,22 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageRequest;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
+import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
+import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection.ResponseOrException;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.TimeZone;
 
@@ -31,21 +30,20 @@ public class CliHttpClient {
         this.cfg = cfg;
     }
 
-    public InfoResponse serverInfo() {
+    public InfoResponse serverInfo() throws SQLException {
         InfoRequest request = new InfoRequest();
-        // TODO think about error handling here
         return (InfoResponse) sendRequest(request);
     }
 
-    public Response queryInit(String query, int fetchSize) {
+    public QueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         QueryInitRequest request = new QueryInitRequest(query, fetchSize, TimeZone.getTimeZone("UTC"), timeout());
-        return sendRequest(request);
+        return (QueryResponse) sendRequest(request);
     }
 
-    public Response nextPage(byte[] cursor) {
+    public QueryResponse nextPage(byte[] cursor) throws SQLException {
         QueryPageRequest request = new QueryPageRequest(cursor, timeout());
-        return sendRequest(request);
+        return (QueryResponse) sendRequest(request);
     }
 
     private TimeoutInfo timeout() {
@@ -53,28 +51,14 @@ public class CliHttpClient {
         return new TimeoutInfo(clientTime, cfg.queryTimeout(), cfg.pageTimeout());
     }
 
-    private Response sendRequest(Request request) {
-        return AccessController.doPrivileged((PrivilegedAction<Response>) () ->
+    private Response sendRequest(Request request) throws SQLException {
+        return AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Response>>) () ->
             JreHttpUrlConnection.http(cfg.asUrl(), cfg, con ->
                 con.post(
                     out -> Proto.INSTANCE.writeRequest(request, out),
-                    in -> Proto.INSTANCE.readResponse(request, in),
-                    (status, failure) -> {
-                        if (status >= 500) {
-                            return new ErrorResponse((RequestType) request.requestType(), failure.reason(),
-                                failure.type(), failure.remoteTrace());
-                        }
-                        SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
-                        if (type == null) {
-                            return new ErrorResponse((RequestType) request.requestType(),
-                                "Sent bad type [" + failure.type() + "]. Original message is [" + failure.reason() + "]",
-                                failure.type(), failure.remoteTrace());
-                        }
-                        return new ExceptionResponse((RequestType) request.requestType(), failure.reason(),
-                            failure.type(), type);
-                    }
+                    in -> Proto.INSTANCE.readResponse(request, in)
                 )
             )
-        );
+        ).getResponseOrThrowException();
     }
 }

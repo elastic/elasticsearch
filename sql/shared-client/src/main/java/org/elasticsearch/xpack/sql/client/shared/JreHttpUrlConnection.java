@@ -18,15 +18,32 @@ import java.net.Proxy;
 import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.sql.SQLClientInfoException;
+import java.sql.SQLDataException;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLInvalidAuthorizationSpecException;
+import java.sql.SQLRecoverableException;
+import java.sql.SQLSyntaxErrorException;
+import java.sql.SQLTimeoutException;
 import java.util.Base64;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
+
+import javax.sql.rowset.serial.SerialException;
+
+import static java.util.Collections.emptyMap;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLSocketFactory;
 
 public class JreHttpUrlConnection implements Closeable {
+    /**
+     * State added to {@link SQLException}s when the server encounters an
+     * error.
+     */
+    public static final String SQL_STATE_BAD_SERVER = "bad_server";
+
     public static <R> R http(URL url, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
         try (JreHttpUrlConnection con = new JreHttpUrlConnection(url, cfg)) {
             return handler.apply(con);
@@ -102,10 +119,9 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    public <R> R post(
+    public <R> ResponseOrException<R> post(
                 CheckedConsumer<DataOutput, IOException> doc,
-                CheckedFunction<DataInput, R, IOException> parser,
-                BiFunction<Integer, RemoteFailure, R> failureConverter
+                CheckedFunction<DataInput, R, IOException> parser
             ) throws ClientException {
         try {
             con.setRequestMethod("POST");
@@ -116,16 +132,55 @@ public class JreHttpUrlConnection implements Closeable {
             }
             if (con.getResponseCode() < 300) {
                 try (InputStream stream = getStream(con, con.getInputStream())) {
-                    return parser.apply(new DataInputStream(stream));
+                    return new ResponseOrException<>(parser.apply(new DataInputStream(stream)));
                 }
             }
             RemoteFailure failure;
             try (InputStream stream = getStream(con, con.getErrorStream())) {
                 failure = RemoteFailure.parseFromResponse(stream);
             }
-            return failureConverter.apply(con.getResponseCode(), failure);
+            if (con.getResponseCode() >= 500) {
+                /*
+                 * Borrowing a page from the HTTP spec, we throw a "transient"
+                 * exception if the server responded with a 500, not because
+                 * we think that the application should retry, but because we
+                 * think that the failure is not the fault of the application.
+                 */
+                return new ResponseOrException<>(new SQLException("Server encountered an error ["
+                    + failure.reason() + "]. [" + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
+            }
+            SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
+            if (type == null) {
+                return new ResponseOrException<>(new SQLException("Server sent bad type ["
+                    + failure.type() + "]. Original type was [" + failure.reason() + "]. ["
+                    + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
+            }
+            return new ResponseOrException<>(type.asException(failure.reason()));
         } catch (IOException ex) {
             throw new ClientException(ex, "Cannot POST address %s (%s)", url, ex.getMessage());
+        }
+    }
+
+    public static class ResponseOrException<R> {
+        private final R response;
+        private final SQLException exception;
+
+        private ResponseOrException(R response) {
+            this.response = response;
+            this.exception = null;
+        }
+
+        private ResponseOrException(SQLException exception) {
+            this.response = null;
+            this.exception = exception;
+        }
+
+        public R getResponseOrThrowException() throws SQLException {
+            if (exception != null) {
+                throw exception;
+            }
+            assert response != null;
+            return response;
         }
     }
 
@@ -179,6 +234,54 @@ public class JreHttpUrlConnection implements Closeable {
             } catch (IOException ex) {
                 // keep on ignoring
             }
+        }
+    }
+
+    /**
+     * Exception type.
+     */
+    public enum SqlExceptionType {
+        UNKNOWN(SQLException::new),
+        SERIAL(SerialException::new),
+        CLIENT_INFO(message -> new SQLClientInfoException(message, emptyMap())),
+        DATA(SQLDataException::new),
+        SYNTAX(SQLSyntaxErrorException::new),
+        RECOVERABLE(SQLRecoverableException::new),
+        TIMEOUT(SQLTimeoutException::new),
+        SECURITY(SQLInvalidAuthorizationSpecException::new),
+        NOT_SUPPORTED(SQLFeatureNotSupportedException::new);
+
+        public static SqlExceptionType fromRemoteFailureType(String type) {
+            switch (type) {
+            case "analysis_exception":
+            case "resource_not_found_exception":
+            case "verification_exception":
+                return DATA;
+            case "planning_exception":
+            case "mapping_exception":
+                return NOT_SUPPORTED;
+            case "parsing_exception":
+                return SYNTAX;
+            case "security_exception":
+                return SECURITY;
+            case "timeout_exception":
+                return TIMEOUT;
+            default:
+                return null;
+            }
+        }
+
+        private final Function<String, SQLException> toException;
+
+        SqlExceptionType(Function<String, SQLException> toException) {
+            this.toException = toException;
+        }
+
+        SQLException asException(String message) {
+            if (message == null) {
+                throw new IllegalArgumentException("[message] cannot be null");
+            }
+            return toException.apply(message);
         }
     }
 }

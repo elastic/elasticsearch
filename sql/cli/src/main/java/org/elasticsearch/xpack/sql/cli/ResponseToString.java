@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.ResponseType;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
@@ -19,12 +17,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static org.jline.utils.AttributedStyle.BOLD;
 import static org.jline.utils.AttributedStyle.BRIGHT;
 import static org.jline.utils.AttributedStyle.DEFAULT;
-import static org.jline.utils.AttributedStyle.RED;
 import static org.jline.utils.AttributedStyle.WHITE;
-import static org.jline.utils.AttributedStyle.YELLOW;
 
 abstract class ResponseToString {
 
@@ -54,23 +49,9 @@ abstract class ResponseToString {
             sb.append(" Version:", DEFAULT.foreground(BRIGHT));
             sb.append(info.versionString, DEFAULT.foreground(WHITE));
             return sb;
-        case ERROR:
-            ErrorResponse err = (ErrorResponse) response;
-            error("Server error", err.message, sb);
-            return sb;
-        case EXCEPTION:
-            ExceptionResponse ex = (ExceptionResponse) response;
-            error("Bad request", ex.message, sb);
-            return sb;
         default:
             throw new IllegalArgumentException("Unsupported response: " + response);
         }
-    }
-
-    private static void error(String type, String message, AttributedStringBuilder sb) {
-        sb.append(type + " [", BOLD.foreground(RED));
-        sb.append(message, DEFAULT.boldOff().italic().foreground(YELLOW));
-        sb.append("]", BOLD.underlineOff().foreground(RED));
     }
 
     private static String handleGraphviz(String str) {

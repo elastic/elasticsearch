@@ -13,7 +13,7 @@ import java.io.IOException;
 
 /**
  * Binary protocol for the CLI. All backwards compatibility is done using the
- * version number sent in the header. 
+ * version number sent in the header.
  */
 public final class Proto extends AbstractProto {
     public static final Proto INSTANCE = new Proto();
@@ -62,8 +62,6 @@ public final class Proto extends AbstractProto {
     }
 
     public enum ResponseType implements AbstractProto.ResponseType {
-        EXCEPTION(ExceptionResponse::new),
-        ERROR(ErrorResponse::new),
         INFO(InfoResponse::new),
         QUERY_INIT(QueryInitResponse::new),
         QUERY_PAGE(QueryPageResponse::new);

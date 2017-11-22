@@ -6,11 +6,8 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageResponse;
-import org.elasticsearch.xpack.sql.protocol.shared.AbstractProto.SqlExceptionType;
 import org.jline.terminal.Terminal;
 import org.jline.utils.AttributedStringBuilder;
 
@@ -28,13 +25,6 @@ public class ResponseToStringTests extends ESTestCase {
         AttributedStringBuilder s = ResponseToString.toAnsi(new QueryPageResponse(123, new byte[0], "some command response"));
         assertEquals("some command response", unstyled(s));
         assertEquals("[37msome command response[0m", fullyStyled(s));
-    }
-
-    public void testExceptionResponse() {
-        AttributedStringBuilder s = ResponseToString.toAnsi(new ExceptionResponse(RequestType.INFO, "test message", "test cause",
-                randomFrom(SqlExceptionType.values())));
-        assertEquals("Bad request [test message]", unstyled(s));
-        assertEquals("[1;31mBad request [[22;3;33mtest message[1;23;31m][0m", fullyStyled(s));
     }
 
     private String unstyled(AttributedStringBuilder s) {

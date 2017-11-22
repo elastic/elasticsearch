@@ -52,8 +52,8 @@ import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialBasicS
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialOrPlatinumMode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.core.IsEqual.equalTo;
 
 public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     @Override
@@ -163,6 +163,8 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
         Request request = new MetaTableRequest("test");
         ResponseException responseException = expectThrows(ResponseException.class, () -> jdbc(request));
         assertThat(responseException.getMessage(), containsString("current license is non-compliant for [jdbc]"));
+        assertThat(responseException.getMessage(), containsString("security_exception"));
+
 
         enableJdbcLicensing();
         Response response = jdbc(request);

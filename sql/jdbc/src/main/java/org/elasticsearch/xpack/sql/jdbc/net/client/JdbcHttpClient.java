@@ -5,10 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
-import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ErrorResponse;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnInfo;
@@ -17,18 +14,13 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Page;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.ResponseType;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageResponse;
-import org.elasticsearch.xpack.sql.protocol.shared.Request;
-import org.elasticsearch.xpack.sql.protocol.shared.Response;
 import org.elasticsearch.xpack.sql.protocol.shared.TimeoutInfo;
 
 import java.io.DataInput;
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -64,7 +56,7 @@ public class JdbcHttpClient {
     public Cursor query(String sql, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
         QueryInitRequest request = new QueryInitRequest(sql, fetch, conCfg.timeZone(), timeout(meta));
-        QueryInitResponse response = (QueryInitResponse) checkResponse(http.put(request));
+        QueryInitResponse response = (QueryInitResponse) http.put(request);
         return new DefaultCursor(this, response.cursor(), (Page) response.data, meta);
     }
 
@@ -74,7 +66,7 @@ public class JdbcHttpClient {
      */
     public byte[] nextPage(byte[] cursor, Page page, RequestMeta meta) throws SQLException {
         QueryPageRequest request = new QueryPageRequest(cursor, timeout(meta), page);
-        return ((QueryPageResponse) checkResponse(http.put(request))).cursor();
+        return ((QueryPageResponse) http.put(request)).cursor();
     }
 
     public InfoResponse serverInfo() throws SQLException {
@@ -86,17 +78,17 @@ public class JdbcHttpClient {
 
     private InfoResponse fetchServerInfo() throws SQLException {
         InfoRequest request = new InfoRequest();
-        return (InfoResponse) checkResponse(http.put(request));
+        return (InfoResponse) http.put(request);
     }
 
     public List<String> metaInfoTables(String pattern) throws SQLException {
         MetaTableRequest request = new MetaTableRequest(pattern);
-        return ((MetaTableResponse) checkResponse(http.put(request))).tables;
+        return ((MetaTableResponse) http.put(request)).tables;
     }
 
     public List<MetaColumnInfo> metaInfoColumns(String tablePattern, String columnPattern) throws SQLException {
         MetaColumnRequest request = new MetaColumnRequest(tablePattern, columnPattern);
-        return ((MetaColumnResponse) checkResponse(http.put(request))).columns;
+        return ((MetaColumnResponse) http.put(request)).columns;
     }
 
     public void setNetworkTimeout(long millis) {
@@ -105,19 +97,6 @@ public class JdbcHttpClient {
 
     public long getNetworkTimeout() {
         return http.getNetworkTimeout();
-    }
-
-    private static Response checkResponse(Response response) throws SQLException {
-        if (response.responseType() == ResponseType.EXCEPTION) {
-            ExceptionResponse ex = (ExceptionResponse) response;
-            throw ex.asException();
-        }
-        if (response.responseType() == ResponseType.ERROR) {
-            ErrorResponse error = (ErrorResponse) response;
-            // TODO: this could be made configurable to switch between message to error
-            throw new JdbcSQLException("Server returned error: [" + error.message + "][" + error.stack + "]");
-        }
-        return response;
     }
 
     private TimeoutInfo timeout(RequestMeta meta) {

@@ -330,7 +330,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             assertTrue(1 < ratio);
             assertTrue(ratio <= 1024);
             assertEquals(0, intRatio % 2);
-            assertEquals("ration is not a power of two", intRatio, Integer.highestOneBit(intRatio));
+            assertEquals("ratio is not a power of two", intRatio, Integer.highestOneBit(intRatio));
         }
     }
 }

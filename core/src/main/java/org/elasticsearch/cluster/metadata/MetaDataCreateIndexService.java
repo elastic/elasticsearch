@@ -734,7 +734,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
         if (indexVersionCreated.onOrAfter(Version.V_7_0_0_alpha1)) {
             // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
-            // until we have a fully upgraded cluster see {@link IndexMetaDataE#
+            // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
+            // will always have the behavior of the min node in the cluster.
+            //
             // We use as a default number of routing shards the higher number that can be expressed
             // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
             int log2MaxNumShards = 10; // logBase2(1024)

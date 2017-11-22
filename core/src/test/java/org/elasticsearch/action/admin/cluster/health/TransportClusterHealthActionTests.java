@@ -28,10 +28,15 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -56,19 +61,39 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
     }
 
-    ClusterState randomClusterStateWithInitializingShards(String index, int initializingShards) {
+    ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards) {
         final IndexMetaData indexMetaData = IndexMetaData
             .builder(index)
             .settings(settings(Version.CURRENT))
             .numberOfShards(between(1, 10))
             .numberOfReplicas(randomInt(20))
             .build();
+
+        final List<ShardRoutingState> shardRoutingStates = new ArrayList<>();
+        IntStream.range(0, between(1, 30)).forEach(i -> shardRoutingStates.add(randomFrom(
+            ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.RELOCATING)));
+        IntStream.range(0, initializingShards).forEach(i -> shardRoutingStates.add(ShardRoutingState.INITIALIZING));
+        Randomness.shuffle(shardRoutingStates);
+
         final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
-        final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(indexMetaData.getIndex())
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-0", true, ShardRoutingState.STARTED));
-        for (int i = 0; i < initializingShards; i++) {
-            routingTable.addShard(TestShardRouting.newShardRouting(shardId, "node" + i, randomBoolean(), ShardRoutingState.INITIALIZING));
+        final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(indexMetaData.getIndex());
+
+        // Primary
+        {
+            ShardRoutingState state = shardRoutingStates.remove(0);
+            String node = state == ShardRoutingState.UNASSIGNED ? null : "node";
+            routingTable.addShard(
+                TestShardRouting.newShardRouting(shardId, node, "relocating", true, state)
+            );
         }
+
+        // Replicas
+        for (int i = 0; i < shardRoutingStates.size(); i++) {
+            ShardRoutingState state = shardRoutingStates.get(i);
+            String node = state == ShardRoutingState.UNASSIGNED ? null : "node" + i;
+            routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, "relocating"+i, randomBoolean(), state));
+        }
+
         return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(MetaData.builder().put(indexMetaData, true))
             .routingTable(RoutingTable.builder().add(routingTable.build()).build())

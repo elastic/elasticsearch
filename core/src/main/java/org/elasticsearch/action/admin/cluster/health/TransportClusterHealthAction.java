@@ -149,6 +149,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForNoRelocatingShards()) {
             waitFor++;
         }
+        if (request.waitForNoInitializingShards()) {
+            waitFor++;
+        }
         if (request.waitForActiveShards().equals(ActiveShardCount.NONE) == false) {
             waitFor++;
         }
@@ -156,10 +159,6 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             waitFor++;
         }
         if (request.indices() != null && request.indices().length > 0) { // check that they actually exists in the meta data
-            waitFor++;
-        }
-
-        if (request.waitForNoInitializingShards()) {
             waitFor++;
         }
 

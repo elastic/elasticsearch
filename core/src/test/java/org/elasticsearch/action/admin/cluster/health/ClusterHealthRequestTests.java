@@ -48,11 +48,12 @@ public class ClusterHealthRequestTests extends ESTestCase {
     ClusterHealthRequest randomRequest() {
         ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForStatus(randomFrom(ClusterHealthStatus.values()));
-        request.waitForNodes(randomAlphaOfLengthBetween(5, 10));
+        request.waitForNodes(randomFrom("", "<", "<=", ">", ">=") + between(0, 1000));
         request.waitForNoInitializingShards(randomBoolean());
         request.waitForNoRelocatingShards(randomBoolean());
         request.waitForActiveShards(randomIntBetween(0, 10));
         request.waitForEvents(randomFrom(Priority.values()));
         return request;
     }
+
 }

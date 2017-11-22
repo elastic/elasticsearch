@@ -33,6 +33,25 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MultiSnapshotTests extends ESTestCase {
+
+    public void testTrackSimpleSeqNoRanges() throws Exception {
+        final MultiSnapshot.SeqNumSet bitSet = new MultiSnapshot.SeqNumSet();
+        final List<Long> values = LongStream.range(0, 1024).boxed().collect(Collectors.toList());
+        Randomness.shuffle(values);
+        for (int i = 0; i < 1023; i++) {
+            assertThat(bitSet.getAndSet(values.get(i)), equalTo(false));
+            assertThat(bitSet.ongoingSetsSize(), equalTo(1L));
+            assertThat(bitSet.completeSetsSize(), equalTo(0L));
+        }
+
+        assertThat(bitSet.getAndSet(values.get(1023)), equalTo(false));
+        assertThat(bitSet.ongoingSetsSize(), equalTo(0L));
+        assertThat(bitSet.completeSetsSize(), equalTo(1L));
+
+        assertThat(bitSet.getAndSet(between(0, 1023)), equalTo(true));
+        assertThat(bitSet.getAndSet(between(1024, Integer.MAX_VALUE)), equalTo(false));
+    }
+
     public void testTrackSeqNumDenseRanges() throws Exception {
         final MultiSnapshot.SeqNumSet bitSet = new MultiSnapshot.SeqNumSet();
         final LongSet normalSet = new LongHashSet();

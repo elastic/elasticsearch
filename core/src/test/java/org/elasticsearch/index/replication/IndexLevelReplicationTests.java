@@ -306,13 +306,14 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
-    public void testTranslogDedupOperations() throws Exception {
+    public void testSeqNoCollision() throws Exception {
         try (ReplicationGroup shards = createGroup(2)) {
             shards.startAll();
             int initDocs = shards.indexDocs(randomInt(10));
             List<IndexShard> replicas = shards.getReplicas();
             IndexShard replica1 = replicas.get(0);
             IndexShard replica2 = replicas.get(1);
+            shards.syncGlobalCheckpoint();
 
             logger.info("--> Isolate replica1");
             IndexRequest indexDoc1 = new IndexRequest(index.getName(), "type", "d1").source("{}", XContentType.JSON);
@@ -335,19 +336,18 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(snapshot.next(), nullValue());
                 assertThat(snapshot.overriddenOperations(), equalTo(0));
             }
-
             // Make sure that replica2 receives translog ops (eg. op2) from replica1 and overwrites its stale operation (op1).
             logger.info("--> Promote replica1 as the primary");
-            shards.promoteReplicaToPrimary(replica1);
+            shards.promoteReplicaToPrimary(replica1).get(); // wait until resync completed.
             shards.index(new IndexRequest(index.getName(), "type", "d2").source("{}", XContentType.JSON));
             final Translog.Operation op2;
             try (Translog.Snapshot snapshot = replica2.getTranslog().newSnapshot()) {
-                assertThat(snapshot.totalOperations(), greaterThanOrEqualTo(initDocs + 2));
+                assertThat(snapshot.totalOperations(), equalTo(initDocs + 2));
                 op2 = snapshot.next();
                 assertThat(op2.seqNo(), equalTo(op1.seqNo()));
                 assertThat(op2.primaryTerm(), greaterThan(op1.primaryTerm()));
                 assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
-                assertThat(snapshot.overriddenOperations(), greaterThanOrEqualTo(1));
+                assertThat(snapshot.overriddenOperations(), equalTo(1));
             }
 
             // Make sure that peer-recovery transfers all but non-overridden operations.

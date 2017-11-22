@@ -26,12 +26,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
-import java.util.function.BiConsumer;
 
 public class TestingSocketEventHandler extends SocketEventHandler {
 
-    public TestingSocketEventHandler(Logger logger, BiConsumer<NioSocketChannel, Exception> exceptionHandler, OpenChannels openChannels) {
-        super(logger, exceptionHandler, openChannels);
+    public TestingSocketEventHandler(Logger logger) {
+        super(logger);
     }
 
     private Set<NioSocketChannel> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());

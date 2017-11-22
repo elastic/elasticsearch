@@ -56,3 +56,80 @@
   - match: { my_remote_cluster.initial_connect_timeout: "30s" }
   - match: { test_remote_cluster.initial_connect_timeout: "30s" }
 
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.remote.test_remote_cluster.seeds: null
+
+---
+"skip_unavailable is returned as part of _remote/info response":
+  - skip:
+      version: " - 6.0.99"
+      reason: "skip_unavailable is only returned from 6.1.0 on"
+
+  - do:
+      cluster.get_settings:
+        include_defaults: true
+
+  - set: { defaults.search.remote.my_remote_cluster.seeds.0: remote_ip }
+
+  - do:
+      cluster.put_settings:
+        flat_settings: true
+        body:
+          transient:
+            search.remote.remote1.seeds: $remote_ip
+
+  - match: {transient: {search.remote.remote1.seeds: $remote_ip}}
+
+  - do:
+      cluster.remote_info: {}
+  - is_false: remote1.skip_unavailable
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.remote.remote1.skip_unavailable: true
+
+  - is_true: transient.search.remote.remote1.skip_unavailable
+
+  - do:
+      cluster.remote_info: {}
+
+  - is_true: remote1.skip_unavailable
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.remote.remote1.skip_unavailable: false
+
+  - is_false: transient.search.remote.remote1.skip_unavailable
+
+  - do:
+      cluster.remote_info: {}
+
+  - is_false: remote1.skip_unavailable
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.remote.remote1.skip_unavailable: null
+
+  - match: {transient: {}}
+
+  - do:
+      cluster.remote_info: {}
+
+  - is_false: remote1.skip_unavailable
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.remote.remote1.seeds: null
+            search.remote.remote1.skip_unavailable: null
+

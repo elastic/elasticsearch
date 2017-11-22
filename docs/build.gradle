@@ -110,9 +110,10 @@ buildRestTests.setups['host'] = '''
   - set: { master_node: master }
   - do:
       nodes.info:
-        metric: [ http ]
+        metric: [ http, transport ]
   - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
+  - set: {nodes.$master.transport.publish_address: transport_host}
 '''
 
 buildRestTests.setups['node'] = '''

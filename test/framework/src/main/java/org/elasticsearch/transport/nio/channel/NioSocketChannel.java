@@ -20,8 +20,6 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 
@@ -32,36 +30,24 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
-    private final CompletableFuture<NioChannel> connectContext = new CompletableFuture<>();
+    private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
+    private final AtomicBoolean contextsSet = new AtomicBoolean(false);
     private WriteContext writeContext;
     private ReadContext readContext;
+    private BiConsumer<NioSocketChannel, Exception> exceptionContext;
     private Exception connectException;
 
-    public NioSocketChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
-        super(profile, socketChannel, selector);
+    public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
+        super(socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
         this.socketSelector = selector;
-    }
-
-    @Override
-    public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
-        // TODO: Temporary conversion due to types
-        writeContext.sendMessage(reference, new ActionListener<NioChannel>() {
-            @Override
-            public void onResponse(NioChannel nioChannel) {
-                listener.onResponse(nioChannel);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
     }
 
     @Override
@@ -111,9 +97,14 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return bytesRead;
     }
 
-    public void setContexts(ReadContext readContext, WriteContext writeContext) {
-        this.readContext = readContext;
-        this.writeContext = writeContext;
+    public void setContexts(ReadContext readContext, WriteContext writeContext, BiConsumer<NioSocketChannel, Exception> exceptionContext) {
+        if (contextsSet.compareAndSet(false, true)) {
+            this.readContext = readContext;
+            this.writeContext = writeContext;
+            this.exceptionContext = exceptionContext;
+        } else {
+            throw new IllegalStateException("Contexts on this channel were already set. They should only be once.");
+        }
     }
 
     public WriteContext getWriteContext() {
@@ -122,6 +113,10 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     public ReadContext getReadContext() {
         return readContext;
+    }
+
+    public BiConsumer<NioSocketChannel, Exception> getExceptionContext() {
+        return exceptionContext;
     }
 
     public InetSocketAddress getRemoteAddress() {
@@ -169,20 +164,19 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
             isConnected = internalFinish();
         }
         if (isConnected) {
-            connectContext.complete(this);
+            connectContext.complete(null);
         }
         return isConnected;
     }
 
-    public void addConnectListener(ActionListener<NioChannel> listener) {
+    public void addConnectListener(ActionListener<Void> listener) {
         connectContext.whenComplete(ActionListener.toBiConsumer(listener));
     }
 
     @Override
     public String toString() {
         return "NioSocketChannel{" +
-            "profile=" + getProfile() +
-            ", localAddress=" + getLocalAddress() +
+            "localAddress=" + getLocalAddress() +
             ", remoteAddress=" + remoteAddress +
             '}';
     }

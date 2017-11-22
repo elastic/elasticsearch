@@ -19,28 +19,23 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.DoNotRegisterServerChannel;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.ReadContext;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -51,7 +46,6 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     private AcceptorEventHandler handler;
     private SocketSelector socketSelector;
     private ChannelFactory channelFactory;
-    private OpenChannels openChannels;
     private NioServerSocketChannel channel;
     private Consumer acceptedChannelCallback;
 
@@ -61,22 +55,14 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         channelFactory = mock(ChannelFactory.class);
         socketSelector = mock(SocketSelector.class);
         acceptedChannelCallback = mock(Consumer.class);
-        openChannels = new OpenChannels(logger);
         ArrayList<SocketSelector> selectors = new ArrayList<>();
         selectors.add(socketSelector);
-        handler = new AcceptorEventHandler(logger, openChannels, new RoundRobinSelectorSupplier(selectors), acceptedChannelCallback);
+        handler = new AcceptorEventHandler(logger, new RoundRobinSelectorSupplier(selectors));
 
         AcceptingSelector selector = mock(AcceptingSelector.class);
-        channel = new DoNotRegisterServerChannel("", mock(ServerSocketChannel.class), channelFactory, selector);
+        channel = new DoNotRegisterServerChannel(mock(ServerSocketChannel.class), channelFactory, selector);
+        channel.setAcceptContext(acceptedChannelCallback);
         channel.register();
-    }
-
-    public void testHandleRegisterAdjustsOpenChannels() {
-        assertEquals(0, openChannels.serverChannelsCount());
-
-        handler.serverChannelRegistered(channel);
-
-        assertEquals(1, openChannels.serverChannelsCount());
     }
 
     public void testHandleRegisterSetsOP_ACCEPTInterest() {
@@ -88,7 +74,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     }
 
     public void testHandleAcceptCallsChannelFactory() throws IOException {
-        NioSocketChannel childChannel = new NioSocketChannel("", mock(SocketChannel.class), socketSelector);
+        NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class), socketSelector);
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
@@ -98,18 +84,13 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testHandleAcceptAddsToOpenChannelsAndIsRemovedOnClose() throws IOException {
-        SocketChannel rawChannel = SocketChannel.open();
-        NioSocketChannel childChannel = new NioSocketChannel("", rawChannel, socketSelector);
-        childChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
+    public void testHandleAcceptCallsServerAcceptCallback() throws IOException {
+        NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class), socketSelector);
+        childChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class), mock(BiConsumer.class));
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
 
         verify(acceptedChannelCallback).accept(childChannel);
-
-        assertEquals(new HashSet<>(Collections.singletonList(childChannel)), openChannels.getAcceptedChannels());
-
-        IOUtils.closeWhileHandlingException(rawChannel);
     }
 }

@@ -39,10 +39,9 @@ import static org.mockito.Mockito.when;
 
 public class TcpReadContextTests extends ESTestCase {
 
-    private static String PROFILE = "profile";
     private TcpReadHandler handler;
     private int messageLength;
-    private NioSocketChannel channel;
+    private TcpNioSocketChannel channel;
     private TcpReadContext readContext;
 
     @Before
@@ -50,10 +49,8 @@ public class TcpReadContextTests extends ESTestCase {
         handler = mock(TcpReadHandler.class);
 
         messageLength = randomInt(96) + 4;
-        channel = mock(NioSocketChannel.class);
+        channel = mock(TcpNioSocketChannel.class);
         readContext = new TcpReadContext(channel, handler);
-
-        when(channel.getProfile()).thenReturn(PROFILE);
     }
 
     public void testSuccessfulRead() throws IOException {
@@ -146,5 +143,4 @@ public class TcpReadContextTests extends ESTestCase {
         }
         return bytes;
     }
-
 }

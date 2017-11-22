@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.ESSelector;
 
 import java.io.IOException;
@@ -57,13 +56,11 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     final AtomicBoolean isClosing = new AtomicBoolean(false);
 
     private final InetSocketAddress localAddress;
-    private final String profile;
-    private final CompletableFuture<TcpChannel> closeContext = new CompletableFuture<>();
+    private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
     private final ESSelector selector;
     private SelectionKey selectionKey;
 
-    AbstractNioChannel(String profile, S socketChannel, ESSelector selector) throws IOException {
-        this.profile = profile;
+    AbstractNioChannel(S socketChannel, ESSelector selector) throws IOException {
         this.socketChannel = socketChannel;
         this.localAddress = (InetSocketAddress) socketChannel.getLocalAddress();
         this.selector = selector;
@@ -77,11 +74,6 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     @Override
     public InetSocketAddress getLocalAddress() {
         return localAddress;
-    }
-
-    @Override
-    public String getProfile() {
-        return profile;
     }
 
     /**
@@ -111,7 +103,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         if (closeContext.isDone() == false) {
             try {
                 closeRawChannel();
-                closeContext.complete(this);
+                closeContext.complete(null);
             } catch (IOException e) {
                 closeContext.completeExceptionally(e);
                 throw e;
@@ -145,25 +137,18 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         return socketChannel;
     }
 
+    @Override
+    public void addCloseListener(ActionListener<Void> listener) {
+        closeContext.whenComplete(ActionListener.toBiConsumer(listener));
+    }
+
     // Package visibility for testing
     void setSelectionKey(SelectionKey selectionKey) {
         this.selectionKey = selectionKey;
     }
-
     // Package visibility for testing
+
     void closeRawChannel() throws IOException {
         socketChannel.close();
-    }
-
-    @Override
-    public void addCloseListener(ActionListener<TcpChannel> listener) {
-        closeContext.whenComplete(ActionListener.toBiConsumer(listener));
-    }
-
-    @Override
-    public void setSoLinger(int value) throws IOException {
-        if (isOpen()) {
-            socketChannel.setOption(StandardSocketOptions.SO_LINGER, value);
-        }
     }
 }

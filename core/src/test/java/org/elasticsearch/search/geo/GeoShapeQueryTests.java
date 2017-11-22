@@ -464,7 +464,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         // test that point was inserted
         SearchResponse response = client().prepareSearch("geo_points_only").setTypes("type1")
-                .setQuery(geoIntersectionQuery("location", shape))
+                .setQuery(matchAllQuery())
                 .execute().actionGet();
 
         assertEquals(1, response.getHits().getTotalHits());

@@ -21,7 +21,12 @@ package org.elasticsearch.transport;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -29,21 +34,28 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RemoteClusterServiceTests extends ESTestCase {
 
@@ -70,6 +82,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testSettingsAreRegistered() {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_NODE_ATTRIBUTE));
@@ -147,7 +160,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
                     IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                         service.groupClusterIndices(new String[]{"foo:bar", "cluster_1:bar",
-                            "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, i -> "cluster_1:bar".equals(i)));
+                            "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, "cluster_1:bar"::equals));
 
                     assertEquals("Can not filter indices; index cluster_1:bar exists but there is also a remote cluster named:" +
                             " cluster_1", iae.getMessage());
@@ -414,7 +427,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         failLatch.await();
                         assertNotNull(ex.get());
                         if (ex.get() instanceof  IllegalStateException) {
-                            assertThat(ex.get().getMessage(), Matchers.anyOf(Matchers.equalTo("no seed node left"), Matchers.startsWith
+                            assertThat(ex.get().getMessage(), anyOf(equalTo("no seed node left"), startsWith
                                 ("No node available for cluster:")));
                         } else {
                             if (ex.get() instanceof TransportException == false) {
@@ -426,6 +439,194 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    public void testCollectSearchShards() throws Exception {
+        int numClusters = randomIntBetween(2, 10);
+        MockTransportService[] mockTransportServices = new MockTransportService[numClusters];
+        DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        for (int i = 0; i < numClusters; i++) {
+            List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+            MockTransportService remoteSeedTransport = startTransport("node_remote" + i, knownNodes, Version.CURRENT);
+            mockTransportServices[i] = remoteSeedTransport;
+            DiscoveryNode remoteSeedNode = remoteSeedTransport.getLocalDiscoNode();
+            knownNodes.add(remoteSeedNode);
+            nodes[i] = remoteSeedNode;
+            builder.put("search.remote.remote" + i + ".seeds", remoteSeedNode.getAddress().toString());
+            remoteIndicesByCluster.put("remote" + i, new OriginalIndices(new String[]{"index"}, IndicesOptions.lenientExpandOpen()));
+        }
+        Settings settings = builder.build();
+
+        try {
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                try (RemoteClusterService remoteClusterService = new RemoteClusterService(settings, service)) {
+                    assertFalse(remoteClusterService.isCrossClusterSearchEnabled());
+                    remoteClusterService.initializeRemoteClusters();
+                    assertTrue(remoteClusterService.isCrossClusterSearchEnabled());
+                    {
+                        final CountDownLatch latch = new CountDownLatch(1);
+                        AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
+                        AtomicReference<Exception> failure = new AtomicReference<>();
+                        remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, remoteIndicesByCluster,
+                                new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
+                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        assertNull(failure.get());
+                        assertNotNull(response.get());
+                        Map<String, ClusterSearchShardsResponse> map = response.get();
+                        assertEquals(numClusters, map.size());
+                        for (int i = 0; i < numClusters; i++) {
+                            String clusterAlias = "remote" + i;
+                            assertTrue(map.containsKey(clusterAlias));
+                            ClusterSearchShardsResponse shardsResponse = map.get(clusterAlias);
+                            assertEquals(1, shardsResponse.getNodes().length);
+                        }
+                    }
+
+                    int numDisconnectedClusters = randomIntBetween(1, numClusters);
+                    Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
+                    Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
+                    while(disconnectedNodes.size() < numDisconnectedClusters) {
+                        int i = randomIntBetween(0, numClusters - 1);
+                        if (disconnectedNodes.add(nodes[i])) {
+                            assertTrue(disconnectedNodesIndices.add(i));
+                        }
+                    }
+
+                    CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
+                    service.addConnectionListener(new TransportConnectionListener() {
+                        @Override
+                        public void onNodeDisconnected(DiscoveryNode node) {
+                            if (disconnectedNodes.remove(node)) {
+                                disconnectedLatch.countDown();
+                            }
+                        }
+                    });
+
+                    for (DiscoveryNode disconnectedNode : disconnectedNodes) {
+                        service.addFailToSendNoConnectRule(disconnectedNode.getAddress());
+                    }
+
+                    {
+                        final CountDownLatch latch = new CountDownLatch(1);
+                        AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
+                        AtomicReference<Exception> failure = new AtomicReference<>();
+                        remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, remoteIndicesByCluster,
+                                new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
+                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        assertNull(response.get());
+                        assertNotNull(failure.get());
+                        assertThat(failure.get(), instanceOf(TransportException.class));
+                        assertThat(failure.get().getMessage(), containsString("unable to communicate with remote cluster"));
+                    }
+
+                    //setting skip_unavailable to true for all the disconnected clusters will make the request succeed again
+                    for (int i : disconnectedNodesIndices) {
+                        remoteClusterService.updateSkipUnavailable("remote" + i, true);
+                    }
+                    {
+                        final CountDownLatch latch = new CountDownLatch(1);
+                        AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
+                        AtomicReference<Exception> failure = new AtomicReference<>();
+                        remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, remoteIndicesByCluster,
+                                new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
+                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        assertNull(failure.get());
+                        assertNotNull(response.get());
+                        Map<String, ClusterSearchShardsResponse> map = response.get();
+                        assertEquals(numClusters, map.size());
+                        for (int i = 0; i < numClusters; i++) {
+                            String clusterAlias = "remote" + i;
+                            assertTrue(map.containsKey(clusterAlias));
+                            ClusterSearchShardsResponse shardsResponse = map.get(clusterAlias);
+                            if (disconnectedNodesIndices.contains(i)) {
+                                assertTrue(shardsResponse == ClusterSearchShardsResponse.EMPTY);
+                            } else {
+                                assertTrue(shardsResponse != ClusterSearchShardsResponse.EMPTY);
+                            }
+                        }
+                    }
+
+                    //give transport service enough time to realize that the node is down, and to notify the connection listeners
+                    //so that RemoteClusterConnection is left with no connected nodes, hence it will retry connecting next
+                    assertTrue(disconnectedLatch.await(1, TimeUnit.SECONDS));
+
+                    service.clearAllRules();
+                    if (randomBoolean()) {
+                        for (int i : disconnectedNodesIndices) {
+                            if (randomBoolean()) {
+                                remoteClusterService.updateSkipUnavailable("remote" + i, true);
+                            }
+
+                        }
+                    }
+                    {
+                        final CountDownLatch latch = new CountDownLatch(1);
+                        AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
+                        AtomicReference<Exception> failure = new AtomicReference<>();
+                        remoteClusterService.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, remoteIndicesByCluster,
+                                new LatchedActionListener<>(ActionListener.wrap(response::set, failure::set), latch));
+                        assertTrue(latch.await(1, TimeUnit.SECONDS));
+                        assertNull(failure.get());
+                        assertNotNull(response.get());
+                        Map<String, ClusterSearchShardsResponse> map = response.get();
+                        assertEquals(numClusters, map.size());
+                        for (int i = 0; i < numClusters; i++) {
+                            String clusterAlias = "remote" + i;
+                            assertTrue(map.containsKey(clusterAlias));
+                            ClusterSearchShardsResponse shardsResponse = map.get(clusterAlias);
+                            assertTrue(shardsResponse != ClusterSearchShardsResponse.EMPTY);
+                        }
+                    }
+                }
+            }
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
+        }
+    }
+
+    public void testRemoteClusterSkipIfDisconnectedSetting() {
+        {
+            Settings settings = Settings.builder()
+                    .put("search.remote.foo.skip_unavailable", true)
+                    .put("search.remote.bar.skip_unavailable", false).build();
+            RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+        }
+        {
+            Settings brokenSettings = Settings.builder()
+                    .put("search.remote.foo.skip_unavailable", "broken").build();
+            expectThrows(IllegalArgumentException.class, () ->
+                    RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getAllConcreteSettings(brokenSettings)
+                            .forEach(setting -> setting.get(brokenSettings)));
+        }
+
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
+                        RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE)));
+        {
+            Settings settings = Settings.builder().put("search.remote.foo.skip_unavailable", randomBoolean()).build();
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(settings, true));
+            assertEquals("Missing required setting [search.remote.foo.seeds] for setting [search.remote.foo.skip_unavailable]",
+                    iae.getMessage());
+        }
+        {
+            try (MockTransportService remoteSeedTransport = startTransport("seed", new CopyOnWriteArrayList<>(), Version.CURRENT)) {
+                String seed = remoteSeedTransport.getLocalDiscoNode().getAddress().toString();
+                service.validate(Settings.builder().put("search.remote.foo.skip_unavailable", randomBoolean())
+                        .put("search.remote.foo.seeds", seed).build(), true);
+                service.validate(Settings.builder().put("search.remote.foo.seeds", seed).build(), true);
+
+                AbstractScopedSettings service2 = new ClusterSettings(Settings.builder().put("search.remote.foo.seeds", seed).build(),
+                        new HashSet<>(Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
+                                RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE)));
+                service2.validate(Settings.builder().put("search.remote.foo.skip_unavailable", randomBoolean()).build(), false);
             }
         }
     }

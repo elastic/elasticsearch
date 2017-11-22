@@ -93,6 +93,15 @@ public final class MinDocQuery extends Query {
                 final DocIdSetIterator disi = new MinDocIterator(segmentMinDoc, maxDoc);
                 return new ConstantScoreScorer(this, score(), disi);
             }
+
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                // Let's not cache this query, the cached iterator would use more memory
+                // and be slower anyway.
+                // Also, matches in a given segment depend on the other segments, which
+                // makes it a bad candidate for per-segment caching.
+                return false;
+            }
         };
     }
 

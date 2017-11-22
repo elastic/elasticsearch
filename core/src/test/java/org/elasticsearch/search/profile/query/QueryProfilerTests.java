@@ -237,7 +237,6 @@ public class QueryProfilerTests extends ESTestCase {
 
                 @Override
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                    final Weight weight = this;
                     return new ScorerSupplier() {
 
                         @Override
@@ -250,6 +249,11 @@ public class QueryProfilerTests extends ESTestCase {
                             return 42;
                         }
                     };
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
                 }
             };
         }

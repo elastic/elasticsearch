@@ -333,6 +333,13 @@ public class FunctionScoreQuery extends Query {
             }
             return expl;
         }
+
+        @Override
+        public boolean isCacheable(LeafReaderContext ctx) {
+            // If minScore is not null, then matches depend on statistics of the
+            // top-level reader.
+            return minScore == null;
+        }
     }
 
     static class FunctionFactorScorer extends FilterScorer {

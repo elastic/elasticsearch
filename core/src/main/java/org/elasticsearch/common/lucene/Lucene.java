@@ -675,10 +675,6 @@ public class Lucene {
                 throw new IllegalStateException(message);
             }
             @Override
-            public int freq() throws IOException {
-                throw new IllegalStateException(message);
-            }
-            @Override
             public int docID() {
                 throw new IllegalStateException(message);
             }

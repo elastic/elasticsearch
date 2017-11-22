@@ -118,4 +118,9 @@ public final class ProfileWeight extends Weight {
         subQueryWeight.extractTerms(set);
     }
 
+    @Override
+    public boolean isCacheable(LeafReaderContext ctx) {
+        return subQueryWeight.isCacheable(ctx);
+    }
+
 }

@@ -51,11 +51,6 @@ public class ScriptScoreFunction extends ScoreFunction {
         }
 
         @Override
-        public int freq() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public DocIdSetIterator iterator() {
             throw new UnsupportedOperationException();
         }

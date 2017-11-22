@@ -196,6 +196,11 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                     };
                     return new ConstantScoreScorer(this, score(), twoPhase);
                 }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
             };
         }
     }

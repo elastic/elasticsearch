@@ -693,6 +693,11 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                         }
                     };
                 }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false; // doesn't matter
+                }
             };
         }
 

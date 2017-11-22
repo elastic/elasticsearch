@@ -26,6 +26,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CoveringQuery;
 import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
@@ -304,6 +305,16 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             return "script(" + script.toString() + ")";
         }
 
+        @Override
+        public boolean isCacheable(LeafReaderContext ctx) {
+            return false;
+        }
+
+        @Override
+        public LongValuesSource rewrite(IndexSearcher searcher) throws IOException {
+            return this;
+        }
+
     }
 
     // Forked from LongValuesSource.FieldValuesSource and changed getValues() method to always use sorted numeric
@@ -363,6 +374,16 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         @Override
         public boolean needsScores() {
             return false;
+        }
+
+        @Override
+        public boolean isCacheable(LeafReaderContext ctx) {
+            return false;
+        }
+
+        @Override
+        public LongValuesSource rewrite(IndexSearcher searcher) throws IOException {
+            return null;
         }
     }
 

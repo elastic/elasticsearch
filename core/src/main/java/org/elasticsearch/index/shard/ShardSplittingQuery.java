@@ -157,6 +157,13 @@ final class ShardSplittingQuery extends Query {
 
                 return new ConstantScoreScorer(this, score(), new BitSetIterator(bitSet, bitSet.length()));
             }
+
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                // This is not a regular query, let's not cache it. It wouldn't help
+                // anyway.
+                return false;
+            }
         };
     }
 

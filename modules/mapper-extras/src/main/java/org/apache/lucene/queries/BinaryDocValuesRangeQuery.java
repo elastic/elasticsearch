@@ -19,6 +19,7 @@
 package org.apache.lucene.queries;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
@@ -106,6 +107,11 @@ public final class BinaryDocValuesRangeQuery extends Query {
                     }
                 };
                 return new ConstantScoreScorer(this, score(), iterator);
+            }
+
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                return DocValues.isCacheable(ctx, fieldName);
             }
         };
     }

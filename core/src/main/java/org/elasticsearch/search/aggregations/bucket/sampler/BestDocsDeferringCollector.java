@@ -260,11 +260,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         }
 
         @Override
-        public int freq() throws IOException {
-            throw new ElasticsearchException("This caching scorer implementation only implements score() and docID()");
-        }
-
-        @Override
         public int docID() {
             return currentDocId;
         }

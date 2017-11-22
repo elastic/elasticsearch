@@ -136,7 +136,7 @@ public class Version implements Comparable<Version> {
         new Version(V_6_1_0_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final int V_7_0_0_alpha1_ID = 7000001;
     public static final Version V_7_0_0_alpha1 =
-        new Version(V_7_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
+        new Version(V_7_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_2_0);
     public static final Version CURRENT = V_7_0_0_alpha1;
 
     static {

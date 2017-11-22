@@ -110,7 +110,8 @@ public class V1AccountTests extends ESTestCase {
         HipChatMessage.Format format = randomFrom(HipChatMessage.Format.values());
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());
         Boolean notify = randomBoolean();
-        HipChatMessage message = new HipChatMessage("_body", new String[] { "_r1", "_r2" }, null, "_from", format, color, notify);
+        HipChatMessage message = new HipChatMessage("_body", new String[] { "Room with Spaces", "_r2" }, null, "_from", format, 
+                                                    color, notify);
 
         HttpRequest req1 = HttpRequest.builder("_host", 443)
                 .method(HttpMethod.POST)
@@ -120,7 +121,7 @@ public class V1AccountTests extends ESTestCase {
                 .setParam("format", "json")
                 .setParam("auth_token", "_token")
                 .body(new StringBuilder()
-                        .append("room_id=").append("_r1&")
+                        .append("room_id=").append("Room+with+Spaces&")
                         .append("from=").append("_from&")
                         .append("message=").append("_body&")
                         .append("message_format=").append(format.value()).append("&")

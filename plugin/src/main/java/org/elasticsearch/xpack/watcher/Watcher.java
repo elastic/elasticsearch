@@ -372,7 +372,7 @@ public class Watcher implements ActionPlugin {
         return Arrays.asList(registry, watcherClient, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
                 configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, watcherIndexTemplateRegistry,
-                slackService, pagerDutyService);
+                slackService, pagerDutyService, hipChatService);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {

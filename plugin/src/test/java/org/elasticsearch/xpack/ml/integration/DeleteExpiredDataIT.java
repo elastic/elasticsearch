@@ -124,9 +124,15 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             // Now let's create some forecasts
             openJob(job.getId());
             long forecastShortExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), TimeValue.timeValueSeconds(1));
+            // We need to wait so that forecasts get different IDs
+            awaitBusy(() -> false, 5, TimeUnit.MILLISECONDS);
             shortExpiryForecastIds.add(forecastShortExpiryId);
+
             long forecastDefaultExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), null);
+            awaitBusy(() -> false, 5, TimeUnit.MILLISECONDS);
+
             long forecastNoExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), TimeValue.ZERO);
+
             waitForecastToFinish(job.getId(), forecastShortExpiryId);
             waitForecastToFinish(job.getId(), forecastDefaultExpiryId);
             waitForecastToFinish(job.getId(), forecastNoExpiryId);

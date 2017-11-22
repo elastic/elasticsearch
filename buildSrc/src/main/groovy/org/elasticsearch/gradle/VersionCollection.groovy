@@ -30,6 +30,10 @@ class VersionCollection {
 
     private final List<Version> versions
 
+    /**
+     * Construct a VersionCollection from the lines of the Version.java file.
+     * @param versionLines The lines of the Version.java file.
+     */
     VersionCollection(List<String> versionLines) {
 
         List<Version> versions = []
@@ -83,24 +87,40 @@ class VersionCollection {
         this.versions = Collections.unmodifiableList(versions)
     }
 
+    /**
+     * @return The list of versions read from the Version.java file
+     */
     List<Version> getVersions() {
         return Collections.unmodifiableList(versions);
     }
 
+    /**
+     * @return The latest version in the Version.java file, which must be the current version of the system.
+     */
     Version getCurrentVersion() {
         return versions[-1]
     }
 
+    /**
+     * @return The snapshot at the end of the previous minor series in the current major series, or null if this is the first minor series.
+     */
     Version getBWCSnapshotForCurrentMajor() {
         return getLastSnapshotWithMajor(currentVersion.major)
     }
 
+    /**
+     * @return The snapshot at the end of the previous major series, which must not be null.
+     */
     Version getBWCSnapshotForPreviousMajor() {
         def version = getLastSnapshotWithMajor(currentVersion.major - 1)
         assert version != null : "getBWCSnapshotForPreviousMajor(): found no versions in the previous major"
         return version
     }
 
+    /**
+     * @return The snapshot at the end of the previous-but-one minor series in the current major series, if the previous minor series
+     * exists and has not yet been released. Otherwise null.
+     */
     Version getBWCSnapshotForPreviousMinorOfCurrentMajor() {
         // If we are at 6.2.0 but 6.1.0 has not yet been released then we
         // need to test against 6.0.1-SNAPSHOT too
@@ -130,6 +150,9 @@ class VersionCollection {
         })
     }
 
+    /**
+     * @return All earlier versions that should be tested for index BWC with the current version.
+     */
     List<Version> getVersionsIndexCompatibleWithCurrent() {
         final def firstVersionOfCurrentMajor = versions.find { it.major >= currentVersion.major - 1 }
         return versionsOnOrAfterExceptCurrent(firstVersionOfCurrentMajor)
@@ -144,10 +167,17 @@ class VersionCollection {
         return versions.find { it.major == lastVersionOfEarlierMajor.major && it.minor == lastVersionOfEarlierMajor.minor }
     }
 
+    /**
+     * @return All earlier versions that should be tested for wire BWC with the current version.
+     */
     List<Version> getVersionsWireCompatibleWithCurrent() {
         return versionsOnOrAfterExceptCurrent(minimumWireCompatibilityVersion)
     }
 
+    /**
+     * `gradle check` does not run all BWC tests. This defines which tests it does run.
+     * @return Versions to test for BWC during gradle check.
+     */
     List<Version> getBasicIntegrationTestVersions() {
         // TODO these are the versions checked by `gradle check` for BWC tests. Their choice seems a litle arbitrary.
         List<Version> result = [BWCSnapshotForPreviousMajor, BWCSnapshotForCurrentMajor]

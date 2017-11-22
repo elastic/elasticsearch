@@ -193,21 +193,28 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
     public void testLegacyIndex() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(randomInt(10));
         KeepUntilGlobalCheckpointDeletionPolicy deletionPolicy = new KeepUntilGlobalCheckpointDeletionPolicy(globalCheckpoint::get);
-        final IndexCommit firstCommit = mockIndexCommit(Collections.emptyMap());
-        deletionPolicy.onInit(Collections.singletonList(firstCommit));
-        verify(firstCommit, times(0)).delete();
 
-        final IndexCommit secondCommit = mockIndexCommit(Collections.emptyMap());
-        deletionPolicy.onCommit(Arrays.asList(firstCommit, secondCommit));
-        verify(firstCommit, times(1)).delete();
-        verify(secondCommit, times(0)).delete();
-        reset(firstCommit, secondCommit);
+        final IndexCommit commit1 = mockIndexCommit(Collections.emptyMap());
+        deletionPolicy.onInit(Collections.singletonList(commit1));
+        verify(commit1, times(0)).delete();
 
-        final IndexCommit thirdCommit = mockIndexCommit(
+        final IndexCommit commit2 = mockIndexCommit(Collections.emptyMap());
+        deletionPolicy.onCommit(Arrays.asList(commit1, commit2));
+        verify(commit1, times(1)).delete();
+        verify(commit2, times(0)).delete();
+        reset(commit1, commit2);
+
+        final IndexCommit commit3 = mockIndexCommit(
             Collections.singletonMap(SequenceNumbers.MAX_SEQ_NO, Long.toString(between(1, 1000))));
-        deletionPolicy.onCommit(Arrays.asList(secondCommit, thirdCommit));
-        verify(secondCommit, times(1)).delete();
-        verify(thirdCommit, times(0)).delete();
+        deletionPolicy.onCommit(Arrays.asList(commit2, commit3));
+        verify(commit2, times(0)).delete();
+        verify(commit3, times(0)).delete();
+
+        deletionPolicy.onCommit(Arrays.asList(commit1, commit2, commit3));
+        verify(commit1, times(1)).delete();
+        verify(commit2, times(0)).delete();
+        verify(commit3, times(0)).delete();
+
     }
 
     List<IndexCommit> reservedCommits(long currentGlobalCheckpoint) throws IOException {

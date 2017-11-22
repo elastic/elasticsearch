@@ -112,7 +112,7 @@ class VersionCollection {
      * @return The snapshot at the end of the previous major series, which must not be null.
      */
     Version getBWCSnapshotForPreviousMajor() {
-        def version = getLastSnapshotWithMajor(currentVersion.major - 1)
+        Version version = getLastSnapshotWithMajor(currentVersion.major - 1)
         assert version != null : "getBWCSnapshotForPreviousMajor(): found no versions in the previous major"
         return version
     }
@@ -124,7 +124,7 @@ class VersionCollection {
     Version getBWCSnapshotForPreviousMinorOfCurrentMajor() {
         // If we are at 6.2.0 but 6.1.0 has not yet been released then we
         // need to test against 6.0.1-SNAPSHOT too
-        final def v = BWCSnapshotForCurrentMajor
+        final Version v = BWCSnapshotForCurrentMajor
         if (v == null || v.revision != 0 || v.minor == 0) {
             return null
         }
@@ -132,7 +132,7 @@ class VersionCollection {
     }
 
     private Version getLastSnapshotWithMajor(int targetMajor) {
-        final def currentVersion = currentVersion.toString()
+        final String currentVersion = currentVersion.toString()
         final int snapshotIndex = versions.findLastIndexOf {
             it.major == targetMajor && it.before(currentVersion) && it.snapshot
         }
@@ -140,10 +140,10 @@ class VersionCollection {
     }
 
     private List<Version> versionsOnOrAfterExceptCurrent(Version minVersion) {
-        final def minVersionString = minVersion.toString()
-        final def snapshot1 = BWCSnapshotForCurrentMajor
-        final def snapshot2 = BWCSnapshotForPreviousMinorOfCurrentMajor
-        final def snapshot3 = BWCSnapshotForPreviousMajor
+        final String minVersionString = minVersion.toString()
+        final Version snapshot1 = BWCSnapshotForCurrentMajor
+        final Version snapshot2 = BWCSnapshotForPreviousMinorOfCurrentMajor
+        final Version snapshot3 = BWCSnapshotForPreviousMajor
         return Collections.unmodifiableList(versions.findAll {
             it.onOrAfter(minVersionString) && it != currentVersion &&
                 (false == it.snapshot || it == snapshot1 || it == snapshot2 || it == snapshot3)
@@ -154,16 +154,16 @@ class VersionCollection {
      * @return All earlier versions that should be tested for index BWC with the current version.
      */
     List<Version> getVersionsIndexCompatibleWithCurrent() {
-        final def firstVersionOfCurrentMajor = versions.find { it.major >= currentVersion.major - 1 }
+        final Version firstVersionOfCurrentMajor = versions.find { it.major >= currentVersion.major - 1 }
         return versionsOnOrAfterExceptCurrent(firstVersionOfCurrentMajor)
     }
 
     private Version getMinimumWireCompatibilityVersion() {
-        final def firstIndexOfThisMajor = versions.findIndexOf { it.major == currentVersion.major }
+        final int firstIndexOfThisMajor = versions.findIndexOf { it.major == currentVersion.major }
         if (firstIndexOfThisMajor == 0) {
             return versions[0]
         }
-        final def lastVersionOfEarlierMajor = versions[firstIndexOfThisMajor - 1]
+        final Version lastVersionOfEarlierMajor = versions[firstIndexOfThisMajor - 1]
         return versions.find { it.major == lastVersionOfEarlierMajor.major && it.minor == lastVersionOfEarlierMajor.minor }
     }
 

@@ -181,7 +181,9 @@ public class FetchPhase implements SearchPhase {
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
-            BitSet bits = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter()).getBitSet(subReaderContext);
+            BitSet bits = context.bitsetFilterCache()
+                .getBitSetProducer(Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated()))
+                .getBitSet(subReaderContext);
             if (!bits.get(subDocId)) {
                 return bits.nextSetBit(subDocId);
             }
@@ -345,7 +347,7 @@ public class FetchPhase implements SearchPhase {
                 }
                 parentFilter = nestedParentObjectMapper.nestedTypeFilter();
             } else {
-                parentFilter = Queries.newNonNestedFilter();
+                parentFilter = Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated());
             }
 
             Query childFilter = nestedObjectMapper.nestedTypeFilter();

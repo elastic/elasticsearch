@@ -103,7 +103,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("czech_stem", CzechStemTokenFilterFactory::new);
         filters.put("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
-        filters.put("delimited_payload_filter", DelimitedPayloadTokenFilterFactoryWrapper::new);
+        filters.put("delimited_payload_filter", LegacyDelimitedPayloadTokenFilterFactory::new);
         filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
         filters.put("dictionary_decompounder", requriesAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);

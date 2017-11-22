@@ -539,7 +539,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         {
             docBuilder.startArray("nested1");
             {
-                for(int i=0; i<=defaultMaxNoNestedDocs; i++) {
+                for(int i = 0; i <= defaultMaxNoNestedDocs; i++) {
                     docBuilder.startObject().field("f", i).endObject();
                 }
             }

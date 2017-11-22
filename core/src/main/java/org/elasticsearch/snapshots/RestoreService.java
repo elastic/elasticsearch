@@ -53,6 +53,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
@@ -546,13 +547,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                 RecoverySource recoverySource = failedShard.recoverySource();
                 if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
                     Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
-                    // mark restore entry for this shard as failed when it's due to a file corruption. There is no need wait on retries
-                    // to restore this shard on another node if the snapshot files are corrupt. In case where a node just left or crashed,
-                    // however, we only want to acknowledge the restore operation once it has been successfully restored on another node.
-                    if (unassignedInfo.getFailure() != null && Lucene.isCorruptionException(unassignedInfo.getFailure().getCause())) {
-                        changes(snapshot).failedShards.put(failedShard.shardId(), new ShardRestoreStatus(failedShard.currentNodeId(),
-                            RestoreInProgress.State.FAILURE, unassignedInfo.getFailure().getCause().getMessage()));
-                    }
+                    changes(snapshot).unassignedShards.put(failedShard.shardId(), unassignedInfo);
                 }
             }
         }
@@ -578,23 +573,54 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
         private static class Updates {
             private Map<ShardId, ShardRestoreStatus> failedShards = new HashMap<>();
             private Map<ShardId, ShardRestoreStatus> startedShards = new HashMap<>();
+            private Map<ShardId, UnassignedInfo> unassignedShards = new HashMap<>();
+
+            boolean isEmpty() {
+                return startedShards.isEmpty() && failedShards.isEmpty() && unassignedShards.isEmpty();
+            }
         }
 
-        public RestoreInProgress applyChanges(RestoreInProgress oldRestore) {
+        public RestoreInProgress applyChanges(final MetaData metaData,
+                                              final RoutingTable routingTables,
+                                              final RestoreInProgress oldRestore) {
             if (shardChanges.isEmpty() == false) {
                 final List<RestoreInProgress.Entry> entries = new ArrayList<>();
                 for (RestoreInProgress.Entry entry : oldRestore.entries()) {
                     Snapshot snapshot = entry.snapshot();
                     Updates updates = shardChanges.get(snapshot);
                     assert Sets.haveEmptyIntersection(updates.startedShards.keySet(), updates.failedShards.keySet());
-                    if (updates.startedShards.isEmpty() == false || updates.failedShards.isEmpty() == false) {
+
+                    if (updates.isEmpty() == false) {
                         ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder(entry.shards());
-                        for (Map.Entry<ShardId, ShardRestoreStatus> startedShardEntry : updates.startedShards.entrySet()) {
-                            shardsBuilder.put(startedShardEntry.getKey(), startedShardEntry.getValue());
+                        for (Map.Entry<ShardId, ShardRestoreStatus> startedShard : updates.startedShards.entrySet()) {
+                            shardsBuilder.put(startedShard.getKey(), startedShard.getValue());
                         }
-                        for (Map.Entry<ShardId, ShardRestoreStatus> failedShardEntry : updates.failedShards.entrySet()) {
-                            shardsBuilder.put(failedShardEntry.getKey(), failedShardEntry.getValue());
+                        for (Map.Entry<ShardId, ShardRestoreStatus> failedShard : updates.failedShards.entrySet()) {
+                            shardsBuilder.put(failedShard.getKey(), failedShard.getValue());
                         }
+                        for (Map.Entry<ShardId, UnassignedInfo> unassignedShard : updates.unassignedShards.entrySet()) {
+                            ShardId shardId = unassignedShard.getKey();
+                            UnassignedInfo unassignedInfo = unassignedShard.getValue();
+                            String currentNodeId = routingTables.shardRoutingTable(shardId).primaryShard().currentNodeId();
+
+                            if (unassignedInfo.getFailure() != null && Lucene.isCorruptionException(unassignedInfo.getFailure().getCause())) {
+                                // mark restore entry for this shard as failed when it's due to a file corruption. There is no need wait on retries
+                                // to restore this shard on another node if the snapshot files are corrupt. In case where a node just left or crashed,
+                                // however, we only want to acknowledge the restore operation once it has been successfully restored on another node.
+                                shardsBuilder.put(shardId, new ShardRestoreStatus(currentNodeId, RestoreInProgress.State.FAILURE,
+                                    unassignedInfo.getFailure().getCause().getMessage()));
+                            } else {
+                                // check if the maximum number of attempts to restore the shard has been reached. If so, we can fail
+                                // the restore and leave the shards unassigned.
+                                IndexMetaData indexMetaData = metaData.getIndexSafe(unassignedShard.getKey().getIndex());
+                                int maxRetry = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(indexMetaData.getSettings());
+                                if (unassignedShard.getValue().getNumFailedAllocations() >= maxRetry) {
+                                    shardsBuilder.put(shardId, new ShardRestoreStatus(currentNodeId, RestoreInProgress.State.FAILURE,
+                                        "shard has exceeded the maximum number of retries [" + maxRetry + "] on failed allocation attempts"));
+                                }
+                            }
+                        }
+
                         ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
                         RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
                         entries.add(new RestoreInProgress.Entry(entry.snapshot(), newState, entry.indices(), shards));

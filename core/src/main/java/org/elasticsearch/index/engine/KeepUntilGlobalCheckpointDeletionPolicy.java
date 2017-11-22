@@ -72,6 +72,16 @@ public final class KeepUntilGlobalCheckpointDeletionPolicy extends IndexDeletion
                 return i;
             }
         }
+
+        /*
+         * We may not be able to find a safe commit (those max_seq_no is not greater than the global checkpoint) in these cases:
+         *
+         * - In the previous 6.x, we keep only the last commit - which is likely not a safe commit if writes are in progress.
+         *   Thus, after upgrading, we may not find a safe commit until we can reserve one.
+         *
+         * - In peer-recovery, if the file-based happens, a replica will be received the latest commit (with the current implementation)
+         *   from a primary. However, that commit may not be a safe commit if writes are in progress in the primary.
+         */
         return -1;
     }
 

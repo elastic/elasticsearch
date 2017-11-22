@@ -55,6 +55,10 @@ class VersionCollection {
             }
         }
 
+        if (versions.empty) {
+            throw new GradleException("Unexpectedly found no version constants in Versions.java");
+        }
+
         // The tip of each minor series (>= 5.6) is unreleased, so set their 'snapshot' flags
         Version prevConsideredVersion = null
         for (final int versionIndex = versions.size() - 1; versionIndex >= 0; versionIndex--) {
@@ -77,21 +81,10 @@ class VersionCollection {
         }
 
         this.versions = Collections.unmodifiableList(versions)
+    }
 
-        // TODO remove and replace with testing, once testing is possible
-        println "VersionCollection: ${versions}"
-        println "currentVersion: ${currentVersion}"
-        println "BWCSnapshotForCurrentMajor: ${BWCSnapshotForCurrentMajor}"
-        println "BWCSnapshotForPreviousMinorOfCurrentMajor: ${BWCSnapshotForPreviousMinorOfCurrentMajor}"
-        println "BWCSnapshotForPreviousMajor: ${BWCSnapshotForPreviousMajor}"
-        println "versionsIndexCompatibleWithCurrent: ${versionsIndexCompatibleWithCurrent}"
-        println "versionsWireCompatibleWithCurrent: ${versionsWireCompatibleWithCurrent}"
-        println "basicIntegrationTestVersions: ${basicIntegrationTestVersions}"
-
-        if (getCurrentVersion().toString() != VersionProperties.elasticsearch) {
-            throw new GradleException("The last version in Versions.java [${versions[-1]}] does not match " +
-                    "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
-        }
+    List<Version> getVersions() {
+        return Collections.unmodifiableList(versions);
     }
 
     Version getCurrentVersion() {

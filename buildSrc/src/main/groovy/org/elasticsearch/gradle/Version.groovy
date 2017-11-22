@@ -94,4 +94,31 @@ public class Version {
 
         return otherVersion.suffix == '' || suffix < otherVersion.suffix
     }
+
+    boolean equals(o) {
+        if (this.is(o)) return true
+        if (getClass() != o.class) return false
+
+        Version version = (Version) o
+
+        if (id != version.id) return false
+        if (major != version.major) return false
+        if (minor != version.minor) return false
+        if (revision != version.revision) return false
+        if (snapshot != version.snapshot) return false
+        if (suffix != version.suffix) return false
+
+        return true
+    }
+
+    int hashCode() {
+        int result
+        result = major
+        result = 31 * result + minor
+        result = 31 * result + revision
+        result = 31 * result + id
+        result = 31 * result + (snapshot ? 1 : 0)
+        result = 31 * result + (suffix != null ? suffix.hashCode() : 0)
+        return result
+    }
 }

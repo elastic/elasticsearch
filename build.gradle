@@ -80,6 +80,10 @@ if (versionJava == null) {
 }
 
 VersionCollection versions = new VersionCollection(file(versionJava).readLines('UTF-8'))
+if (versions.currentVersion.toString() != VersionProperties.elasticsearch) {
+  throw new GradleException("The last version in Versions.java [${versions.currentVersion}] does not match " +
+          "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
+}
 
 // build metadata from previous build, contains eg hashes for bwc builds
 String buildMetadataValue = System.getenv('BUILD_METADATA')

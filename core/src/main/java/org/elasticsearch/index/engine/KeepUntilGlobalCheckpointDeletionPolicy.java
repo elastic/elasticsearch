@@ -63,10 +63,9 @@ public final class KeepUntilGlobalCheckpointDeletionPolicy extends IndexDeletion
         // Commits are sorted by age (the 0th one is the oldest commit).
         for (int i = commits.size() - 1; i >= 0; i--) {
             final Map<String, String> commitUserData = commits.get(i).getUserData();
-            // Index from 5.x does not contain MAX_SEQ_NO, we should keep either the more recent commit with MAX_SEQ_NO,
-            // or the last commit.
+            // Index from 5.x does not contain MAX_SEQ_NO.
             if (commitUserData.containsKey(SequenceNumbers.MAX_SEQ_NO) == false) {
-                return Math.min(i + 1, commits.size() - 1);
+                return i;
             }
             final long maxSeqNoFromCommit = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));
             if (maxSeqNoFromCommit <= currentGlobalCheckpoint) {

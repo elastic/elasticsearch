@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import com.google.common.base.Strings;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interva
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.Clock;
+import java.util.SortedMap;
 
 import static org.elasticsearch.xpack.indexlifecycle.IndexLifecycle.NAME;
 
@@ -61,14 +64,16 @@ public class IndexLifecycleInitialisationService extends AbstractComponent
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(NAME)) {
             logger.error("Job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
-            // clusterService.state().getMetaData().getIndices().valuesIt()
-            // .forEachRemaining((idxMeta) -> {
-            // if (LIFECYCLE_TIMESERIES_NAME_SETTING.get(idxMeta.getSettings())
-            // != null) {
-            // // get policy by name
-            // // idxMeta.getIndex(), idxMeta.getCreationDate(),client
-            // }
-            // });
+            IndexLifecycleMetadata indexLifecycleMetadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
+            SortedMap<String, LifecyclePolicy> policies = indexLifecycleMetadata.getPolicies();
+            clusterService.state().getMetaData().getIndices().valuesIt().forEachRemaining((idxMeta) -> {
+                String policyName = IndexLifecycle.LIFECYCLE_TIMESERIES_NAME_SETTING.get(idxMeta.getSettings());
+                if (Strings.isNullOrEmpty(policyName) == false) {
+                    logger.error("Checking index for next action: " + idxMeta.getIndex().getName() + " (" + policyName + ")");
+                    LifecyclePolicy policy = policies.get(policyName);
+                    policy.execute(idxMeta, client);
+                }
+            });
         }
     }
 

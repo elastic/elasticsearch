@@ -211,11 +211,12 @@ subprojects {
     ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${bwcReleaseSnapshot}"] = ':distribution:bwc-release-snapshot'
     ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${bwcReleaseSnapshot}"] = ':distribution:bwc-release-snapshot'
   }
-  final Version bwcPreviousReleaseSnapshot = versionCollection.BWCSnapshotForPreviousMinorOfCurrentMajor
-  if (bwcPreviousReleaseSnapshot != null) {
-    throw new NotImplementedException(
-            "A third BWC snapshot test (against ${bwcPreviousReleaseSnapshot}) is required but not yet implemented.");
-  }
+  /* TODO Add the third BWC snapshot build (against ${bwcPreviousReleaseSnapshot}):
+    final Version bwcPreviousReleaseSnapshot = versionCollection.BWCSnapshotForPreviousMinorOfCurrentMajor
+    if (bwcPreviousReleaseSnapshot != null) {
+    }
+    Without this, the full BWC builds will not work
+  */
 
   project.afterEvaluate {
     configurations.all {

@@ -121,7 +121,6 @@ if (project == rootProject) {
     }
     mavenCentral()
   }
-  compileTestJava.enabled = false
   test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'
 }
 
@@ -147,11 +146,7 @@ if (project != rootProject) {
   thirdPartyAudit.enabled = false
 
   // test for elasticsearch.build tries to run with ES...
-  dependencies {
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-  }
+  test.enabled = false
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false
@@ -163,13 +158,13 @@ if (project != rootProject) {
   }
 
   namingConventions {
-    testClass = 'com.carrotsearch.randomizedtesting.RandomizedTest'
+    testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
     integTestClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$IntegTestCase'
   }
 
   task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
     checkForTestsInMain = true
-    testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
+    testClass = namingConventions.testClass
     integTestClass = namingConventions.integTestClass
   }
   precommit.dependsOn namingConventionsMain

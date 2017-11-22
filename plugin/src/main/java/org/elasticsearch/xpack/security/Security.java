@@ -308,13 +308,12 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         return modules;
     }
 
-    public Collection<Object> createComponents(Client nodeClient, ThreadPool threadPool, ClusterService clusterService,
+    public Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                                ResourceWatcherService resourceWatcherService,
                                                List<XPackExtension> extensions) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
-        final InternalSecurityClient client = new InternalSecurityClient(settings, threadPool, nodeClient);
         threadContext.set(threadPool.getThreadContext());
         List<Object> components = new ArrayList<>();
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));

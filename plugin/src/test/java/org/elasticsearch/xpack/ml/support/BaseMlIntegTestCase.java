@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,7 +27,6 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
@@ -113,9 +113,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     @Before
     public void ensureTemplatesArePresent() throws Exception {
         assertBusy(() -> {
-            MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearningTemplateRegistry.allTemplatesInstalled(metaData));
+                    MachineLearning.allTemplatesInstalled(state));
         });
     }
 

@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,7 +45,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.hamcrest.Matchers;
@@ -69,9 +69,11 @@ public class IndexLifecycleManagerTests extends ESTestCase {
         final Client mockClient = mock(Client.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(mockClient.threadPool()).thenReturn(threadPool);
+        when(mockClient.settings()).thenReturn(Settings.EMPTY);
 
         actions = new LinkedHashMap<>();
-        final InternalSecurityClient client = new InternalSecurityClient(Settings.EMPTY, threadPool, mockClient) {
+        final Client client = new FilterClient(mockClient) {
             @Override
             protected <Request extends ActionRequest,
                     Response extends ActionResponse,

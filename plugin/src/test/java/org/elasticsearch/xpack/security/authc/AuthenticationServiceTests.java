@@ -5,25 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.time.Clock;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -49,7 +37,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
@@ -62,6 +49,18 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.junit.After;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.time.Clock;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
@@ -138,11 +137,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadPool = new ThreadPool(settings,
                 new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool"));
         threadContext = threadPool.getThreadContext();
-        InternalSecurityClient internalClient = new InternalSecurityClient(Settings.EMPTY, threadPool, client);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.settings()).thenReturn(settings);
         lifecycleService = mock(SecurityLifecycleService.class);
         ClusterService clusterService = new ClusterService(settings, new ClusterSettings(settings, ClusterSettings
                 .BUILT_IN_CLUSTER_SETTINGS), threadPool, Collections.emptyMap());
-        tokenService = new TokenService(settings, Clock.systemUTC(), internalClient, lifecycleService, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, lifecycleService, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail,
                 new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings), tokenService);
     }
@@ -865,13 +865,16 @@ public class AuthenticationServiceTests extends ESTestCase {
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
         String token = tokenService.getUserTokenString(tokenService.createUserToken(expected));
         when(lifecycleService.isSecurityIndexAvailable()).thenReturn(true);
+        GetRequestBuilder getRequestBuilder = mock(GetRequestBuilder.class);
+        when(client.prepareGet(eq(SecurityLifecycleService.SECURITY_INDEX_NAME), eq("doc"), any(String.class)))
+                .thenReturn(getRequestBuilder);
         doAnswer(invocationOnMock -> {
-            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[2];
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             when(response.isExists()).thenReturn(true);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), any(ActionListener.class));
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);

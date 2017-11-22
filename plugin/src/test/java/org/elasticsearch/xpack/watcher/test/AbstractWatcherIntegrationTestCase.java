@@ -51,25 +51,25 @@ import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.watcher.notification.email.Authentication;
-import org.elasticsearch.xpack.watcher.notification.email.Email;
-import org.elasticsearch.xpack.watcher.notification.email.EmailService;
-import org.elasticsearch.xpack.watcher.notification.email.Profile;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
+import org.elasticsearch.xpack.watcher.notification.email.Authentication;
+import org.elasticsearch.xpack.watcher.notification.email.Email;
+import org.elasticsearch.xpack.watcher.notification.email.EmailService;
+import org.elasticsearch.xpack.watcher.notification.email.Profile;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -86,6 +86,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -184,10 +185,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @Override
     protected Set<String> excludeTemplates() {
         Set<String> excludes = new HashSet<>();
-        for (WatcherIndexTemplateRegistry.TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
-            excludes.add(templateConfig.getTemplateName());
-        }
-        return excludes;
+        excludes.addAll(Arrays.asList(WatcherIndexTemplateRegistry.TEMPLATE_NAMES));
+        return Collections.unmodifiableSet(excludes);
     }
 
     @Override

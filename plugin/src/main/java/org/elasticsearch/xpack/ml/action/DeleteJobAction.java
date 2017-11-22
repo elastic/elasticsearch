@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,11 +45,13 @@ import org.elasticsearch.xpack.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAction.Response, DeleteJobAction.RequestBuilder> {
 
@@ -172,17 +175,17 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final InternalClient internalClient;
+        private final Client client;
         private final JobManager jobManager;
         private final PersistentTasksService persistentTasksService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               JobManager jobManager, PersistentTasksService persistentTasksService, InternalClient internalClient) {
+                               JobManager jobManager, PersistentTasksService persistentTasksService, Client client) {
             super(settings, DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.internalClient = internalClient;
+            this.client = client;
             this.jobManager = jobManager;
             this.persistentTasksService = persistentTasksService;
         }
@@ -293,7 +296,7 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
 
         private void killProcess(String jobId, ActionListener<KillProcessAction.Response> listener) {
             KillProcessAction.Request killRequest = new KillProcessAction.Request(jobId);
-            internalClient.execute(KillProcessAction.INSTANCE, killRequest, listener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, KillProcessAction.INSTANCE, killRequest, listener);
         }
 
         private void removePersistentTask(String jobId, ClusterState currentState,

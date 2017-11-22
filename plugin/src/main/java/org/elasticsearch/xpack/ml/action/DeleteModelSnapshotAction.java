@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -130,7 +130,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final InternalClient client;
+        private final Client client;
         private final JobProvider jobProvider;
         private final ClusterService clusterService;
         private final Auditor auditor;
@@ -138,7 +138,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               JobProvider jobProvider, ClusterService clusterService, InternalClient client, Auditor auditor) {
+                               JobProvider jobProvider, ClusterService clusterService, Client client, Auditor auditor) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.client = client;
             this.jobProvider = jobProvider;

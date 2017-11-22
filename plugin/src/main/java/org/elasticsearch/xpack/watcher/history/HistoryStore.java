@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -34,6 +35,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
 
 public class HistoryStore extends AbstractComponent {
@@ -79,7 +82,8 @@ public class HistoryStore extends AbstractComponent {
         }
         String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         putUpdateLock.lock();
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder();
+             ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
             watchRecord.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
 
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
@@ -105,7 +109,8 @@ public class HistoryStore extends AbstractComponent {
         String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         putUpdateLock.lock();
         try {
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder();
+                 ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
                 watchRecord.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
 
                 IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
@@ -116,7 +121,8 @@ public class HistoryStore extends AbstractComponent {
             } catch (VersionConflictEngineException vcee) {
                 watchRecord = new WatchRecord.MessageWatchRecord(watchRecord, ExecutionState.EXECUTED_MULTIPLE_TIMES,
                         "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
-                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
+                     ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
                     IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
                             .source(xContentBuilder.value(watchRecord));
                     client.index(request).get(30, TimeUnit.SECONDS);

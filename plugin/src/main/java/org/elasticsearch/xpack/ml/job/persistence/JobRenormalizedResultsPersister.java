@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
@@ -23,6 +24,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 
@@ -98,9 +101,11 @@ public class JobRenormalizedResultsPersister extends AbstractComponent {
         }
         logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
 
-        BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
-        if (addRecordsResponse.hasFailures()) {
-            logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
+            if (addRecordsResponse.hasFailures()) {
+                logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
+            }
         }
 
         bulkRequest = new BulkRequest();

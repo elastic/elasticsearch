@@ -42,6 +42,9 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
+
 /**
  * A runnable class that reads the autodetect process output in the
  * {@link #process(AutodetectProcess)} method and persists parsed
@@ -299,7 +302,7 @@ public class AutoDetectResultProcessor {
             return;
         }
 
-        client.execute(UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
             @Override
             public void onResponse(PutJobAction.Response response) {
                 updateModelSnapshotIdSemaphore.release();
@@ -309,7 +312,8 @@ public class AutoDetectResultProcessor {
             @Override
             public void onFailure(Exception e) {
                 updateModelSnapshotIdSemaphore.release();
-                LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" + modelSnapshot.getSnapshotId() + "]", e);
+                LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" +
+                        modelSnapshot.getSnapshotId() + "]", e);
             }
         });
     }

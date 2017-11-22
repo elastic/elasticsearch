@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.persistent;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -21,20 +22,22 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.ClientHelper.PERSISTENT_TASK_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * This service is used by persistent actions to propagate changes in the action state and notify about completion
  */
 public class PersistentTasksService extends AbstractComponent {
 
-    private final InternalClient client;
+    private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
 
-    public PersistentTasksService(Settings settings, ClusterService clusterService, ThreadPool threadPool, InternalClient client) {
+    public PersistentTasksService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
         super(settings);
         this.client = client;
         this.clusterService = clusterService;
@@ -50,8 +53,8 @@ public class PersistentTasksService extends AbstractComponent {
         StartPersistentTaskAction.Request createPersistentActionRequest =
                 new StartPersistentTaskAction.Request(taskId, taskName, params);
         try {
-            client.execute(StartPersistentTaskAction.INSTANCE, createPersistentActionRequest, ActionListener.wrap(
-                    o -> listener.onResponse((PersistentTask<Params>) o.getTask()), listener::onFailure));
+            executeAsyncWithOrigin(client, PERSISTENT_TASK_ORIGIN, StartPersistentTaskAction.INSTANCE, createPersistentActionRequest,
+                    ActionListener.wrap(o -> listener.onResponse((PersistentTask<Params>) o.getTask()), listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -64,7 +67,7 @@ public class PersistentTasksService extends AbstractComponent {
                                            ActionListener<PersistentTask<?>> listener) {
         CompletionPersistentTaskAction.Request restartRequest = new CompletionPersistentTaskAction.Request(taskId, allocationId, failure);
         try {
-            client.execute(CompletionPersistentTaskAction.INSTANCE, restartRequest,
+            executeAsyncWithOrigin(client, PERSISTENT_TASK_ORIGIN, CompletionPersistentTaskAction.INSTANCE, restartRequest,
                     ActionListener.wrap(o -> listener.onResponse(o.getTask()), listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -80,7 +83,8 @@ public class PersistentTasksService extends AbstractComponent {
         cancelTasksRequest.setTaskId(new TaskId(localNode.getId(), taskId));
         cancelTasksRequest.setReason("persistent action was removed");
         try {
-            client.admin().cluster().cancelTasks(cancelTasksRequest, listener);
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), PERSISTENT_TASK_ORIGIN, cancelTasksRequest, listener,
+                    client.admin().cluster()::cancelTasks);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -96,8 +100,8 @@ public class PersistentTasksService extends AbstractComponent {
         UpdatePersistentTaskStatusAction.Request updateStatusRequest =
                 new UpdatePersistentTaskStatusAction.Request(taskId, allocationId, status);
         try {
-            client.execute(UpdatePersistentTaskStatusAction.INSTANCE, updateStatusRequest, ActionListener.wrap(
-                    o -> listener.onResponse(o.getTask()), listener::onFailure));
+            executeAsyncWithOrigin(client, PERSISTENT_TASK_ORIGIN, UpdatePersistentTaskStatusAction.INSTANCE, updateStatusRequest,
+                    ActionListener.wrap(o -> listener.onResponse(o.getTask()), listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -109,8 +113,8 @@ public class PersistentTasksService extends AbstractComponent {
     public void cancelPersistentTask(String taskId, ActionListener<PersistentTask<?>> listener) {
         RemovePersistentTaskAction.Request removeRequest = new RemovePersistentTaskAction.Request(taskId);
         try {
-            client.execute(RemovePersistentTaskAction.INSTANCE, removeRequest, ActionListener.wrap(o -> listener.onResponse(o.getTask()),
-                    listener::onFailure));
+            executeAsyncWithOrigin(client, PERSISTENT_TASK_ORIGIN, RemovePersistentTaskAction.INSTANCE, removeRequest,
+                ActionListener.wrap(o -> listener.onResponse(o.getTask()), listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
         }

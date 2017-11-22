@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 
 import java.util.concurrent.LinkedBlockingQueue;
 
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.ml.action.UpdateProcessAction.Request;
 import static org.elasticsearch.xpack.ml.action.UpdateProcessAction.Response;
 
@@ -98,7 +100,7 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
 
     void executeRemoteJob(JobUpdate update) {
         Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates());
-        client.execute(UpdateProcessAction.INSTANCE, request,
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request,
                 new ActionListener<Response>() {
                     @Override
                     public void onResponse(Response response) {

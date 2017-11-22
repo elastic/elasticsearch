@@ -7,37 +7,38 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.index.reindex.DeleteByQueryAction;
-import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Responsible for cleaning the invalidated tokens from the invalidated tokens index.
  */
 final class ExpiredTokenRemover extends AbstractRunnable {
 
-    private final InternalSecurityClient client;
+    private final Client client;
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
     private final Logger logger;
     private final TimeValue timeout;
 
-    ExpiredTokenRemover(Settings settings, InternalSecurityClient internalClient) {
-        this.client = internalClient;
+    ExpiredTokenRemover(Settings settings, Client client) {
+        this.client = client;
         this.logger = Loggers.getLogger(getClass(), settings);
         this.timeout = TokenService.DELETE_TIMEOUT.get(settings);
     }
@@ -54,13 +55,14 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                 .query(QueryBuilders.boolQuery()
                         .filter(QueryBuilders.termQuery("doc_type", TokenService.DOC_TYPE))
                         .filter(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli())));
-        client.execute(DeleteByQueryAction.INSTANCE, dbq, ActionListener.wrap(r -> markComplete(),
-                e -> {
-                    if (isShardNotAvailableException(e) == false) {
-                        logger.error("failed to delete expired tokens", e);
-                    }
-                    markComplete();
-                }));
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, dbq,
+                ActionListener.wrap(r -> markComplete(),
+                    e -> {
+                        if (isShardNotAvailableException(e) == false) {
+                            logger.error("failed to delete expired tokens", e);
+                        }
+                        markComplete();
+                    }));
     }
 
     void submit(ThreadPool threadPool) {

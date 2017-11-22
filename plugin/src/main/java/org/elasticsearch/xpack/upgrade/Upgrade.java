@@ -24,8 +24,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeAction;
@@ -48,7 +46,7 @@ public class Upgrade implements ActionPlugin {
     private static final int EXPECTED_INDEX_FORMAT_VERSION = 6;
 
     private final Settings settings;
-    private final List<BiFunction<InternalClient, ClusterService, IndexUpgradeCheck>> upgradeCheckFactories;
+    private final List<BiFunction<Client, ClusterService, IndexUpgradeCheck>> upgradeCheckFactories;
 
     public Upgrade(Settings settings) {
         this.settings = settings;
@@ -58,10 +56,9 @@ public class Upgrade implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
-        final InternalSecurityClient internalSecurityClient = new InternalSecurityClient(settings, threadPool, client);
         List<IndexUpgradeCheck> upgradeChecks = new ArrayList<>(upgradeCheckFactories.size());
-        for (BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> checkFactory : upgradeCheckFactories) {
-            upgradeChecks.add(checkFactory.apply(internalSecurityClient, clusterService));
+        for (BiFunction<Client, ClusterService, IndexUpgradeCheck> checkFactory : upgradeCheckFactories) {
+            upgradeChecks.add(checkFactory.apply(client, clusterService));
         }
         return Collections.singletonList(new IndexUpgradeService(settings, Collections.unmodifiableList(upgradeChecks)));
     }

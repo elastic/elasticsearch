@@ -13,12 +13,15 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.integration.MlRestTestStateCleaner;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.junit.After;
 import org.junit.Before;
@@ -49,14 +52,14 @@ public class MlWithSecurityIT extends ESClientYamlSuiteTestCase {
     }
 
     /**
-     * Waits for the Security template to be created by the {@link SecurityLifecycleService} and
-     * the Machine Learning templates to be created by {@link MachineLearningTemplateRegistry}
+     * Waits for the Security template and the Machine Learning templates to be created by the {@link MetaDataUpgrader}
      */
     @Before
     public void waitForTemplates() throws Exception {
         List<String> templates = new ArrayList<>();
         templates.add(SecurityLifecycleService.SECURITY_TEMPLATE_NAME);
-        templates.addAll(Arrays.asList(MachineLearningTemplateRegistry.TEMPLATE_NAMES));
+        templates.addAll(Arrays.asList(Auditor.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
+                AnomalyDetectorsIndex.jobStateIndexName(), AnomalyDetectorsIndex.jobResultsIndexPrefix()));
 
         for (String template : templates) {
             awaitCallApi("indices.exists_template", Collections.singletonMap("name", template), Collections.emptyList(),

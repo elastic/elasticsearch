@@ -12,7 +12,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
@@ -189,12 +191,16 @@ public class JobResultsPersisterTests extends ESTestCase {
         }
 
         verify(client, times(1)).bulk(any());
+        verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private Client mockClient(ArgumentCaptor<BulkRequest> captor) {
         Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ActionFuture<BulkResponse> future = mock(ActionFuture.class);
         when(future.actionGet()).thenReturn(new BulkResponse(new BulkItemResponse[0], 0L));
         when(client.bulk(captor.capture())).thenReturn(future);

@@ -5,16 +5,6 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiConsumer;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -26,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
@@ -37,11 +28,22 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.elasticsearch.xpack.upgrade.IndexUpgradeCheck;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
 /**
@@ -57,14 +59,14 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     private final String indexName;
     private final String templateName;
-    private final InternalSecurityClient client;
+    private final Client client;
 
     private final List<BiConsumer<ClusterIndexHealth, ClusterIndexHealth>> indexHealthChangeListeners = new CopyOnWriteArrayList<>();
     private final List<BiConsumer<Boolean, Boolean>> indexOutOfDateListeners = new CopyOnWriteArrayList<>();
 
     private volatile State indexState = new State(false, false, false, false, null);
 
-    public IndexLifecycleManager(Settings settings, InternalSecurityClient client, String indexName, String templateName) {
+    public IndexLifecycleManager(Settings settings, Client client, String indexName, String templateName) {
         super(settings);
         this.client = client;
         this.indexName = indexName;
@@ -291,28 +293,29 @@ public class IndexLifecycleManager extends AbstractComponent {
         } else {
             CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX);
             request.alias(new Alias(SECURITY_INDEX_NAME));
-            client.admin().indices().create(request, new ActionListener<CreateIndexResponse>() {
-                @Override
-                public void onResponse(CreateIndexResponse createIndexResponse) {
-                    if (createIndexResponse.isAcknowledged()) {
-                        andThen.run();
-                    } else {
-                        listener.onFailure(new ElasticsearchException("Failed to create security index"));
-                    }
-                }
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                    new ActionListener<CreateIndexResponse>() {
+                        @Override
+                        public void onResponse(CreateIndexResponse createIndexResponse) {
+                            if (createIndexResponse.isAcknowledged()) {
+                                andThen.run();
+                            } else {
+                                listener.onFailure(new ElasticsearchException("Failed to create security index"));
+                            }
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof ResourceAlreadyExistsException) {
-                        // the index already exists - it was probably just created so this
-                        // node hasn't yet received the cluster state update with the index
-                        andThen.run();
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }
-            });
+                        @Override
+                        public void onFailure(Exception e) {
+                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                            if (cause instanceof ResourceAlreadyExistsException) {
+                                // the index already exists - it was probably just created so this
+                                // node hasn't yet received the cluster state update with the index
+                                andThen.run();
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    }, client.admin().indices()::create);
         }
     }
 

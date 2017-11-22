@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.audit.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -46,7 +45,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
@@ -82,6 +80,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_GRANTED;
@@ -175,7 +175,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         return NAME;
     }
 
-    public IndexAuditTrail(Settings settings, InternalSecurityClient client, ThreadPool threadPool, ClusterService clusterService) {
+    public IndexAuditTrail(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -189,7 +189,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
         if (indexToRemoteCluster == false) {
             // in the absence of client settings for remote indexing, fall back to the client that was passed in.
-            this.client = client;
+            this.client = clientWithOrigin(client, SECURITY_ORIGIN);
         } else {
             this.client = initializeRemoteClient(settings, logger);
         }
@@ -932,9 +932,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                                "failed to bulk index audit events: [{}]", failure.getMessage()), failure);
+                logger.error(new ParameterizedMessage("failed to bulk index audit events: [{}]", failure.getMessage()), failure);
             }
         }).setBulkActions(bulkSize)
                 .setFlushInterval(interval)

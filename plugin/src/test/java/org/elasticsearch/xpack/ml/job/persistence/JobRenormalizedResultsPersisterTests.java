@@ -53,6 +53,7 @@ public class JobRenormalizedResultsPersisterTests extends ESTestCase {
         }
 
         verify(client, times(1)).bulk(any());
+        verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);
     }
 

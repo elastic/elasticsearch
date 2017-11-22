@@ -22,14 +22,16 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -55,12 +57,17 @@ public class NativeUsersStoreTests extends ESTestCase {
     private static final String PASSWORD_FIELD = User.Fields.PASSWORD.getPreferredName();
     private static final String BLANK_PASSWORD = "";
 
-    private InternalSecurityClient internalClient;
+    private Client client;
     private final List<Tuple<ActionRequest, ActionListener<? extends ActionResponse>>> requests = new CopyOnWriteArrayList<>();
 
     @Before
     public void setupMocks() {
-        internalClient = new InternalSecurityClient(Settings.EMPTY, null, null) {
+        Client mockClient = mock(Client.class);
+        when(mockClient.settings()).thenReturn(Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(mockClient.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        client = new FilterClient(mockClient) {
 
             @Override
             protected <
@@ -238,7 +245,7 @@ public class NativeUsersStoreTests extends ESTestCase {
             listener.onResponse(null);
             return null;
         }).when(securityLifecycleService).createIndexIfNeededThenExecute(any(ActionListener.class), any(Runnable.class));
-        return new NativeUsersStore(Settings.EMPTY, internalClient, securityLifecycleService);
+        return new NativeUsersStore(Settings.EMPTY, client, securityLifecycleService);
     }
 
 }

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -50,7 +51,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackActionFactory;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpSettings;
@@ -245,7 +244,7 @@ public class Watcher implements ActionPlugin {
         }
     }
 
-    public Collection<Object> createComponents(Clock clock, ScriptService scriptService, InternalClient internalClient,
+    public Collection<Object> createComponents(Clock clock, ScriptService scriptService, Client client,
                                                XPackLicenseState licenseState,
                                                ThreadPool threadPool, ClusterService clusterService,
                                                NamedXContentRegistry xContentRegistry, SSLService sslService) {
@@ -259,6 +258,8 @@ public class Watcher implements ActionPlugin {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+
+        new WatcherIndexTemplateRegistry(settings, clusterService, threadPool, client);
 
         // http client
         Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
@@ -295,14 +296,14 @@ public class Watcher implements ActionPlugin {
         final ConditionRegistry conditionRegistry = new ConditionRegistry(Collections.unmodifiableMap(parsers), clock);
         final Map<String, TransformFactory> transformFactories = new HashMap<>();
         transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
-        transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, internalClient, xContentRegistry, scriptService));
+        transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService));
         final TransformRegistry transformRegistry = new TransformRegistry(settings, Collections.unmodifiableMap(transformFactories));
 
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
         actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, emailAttachmentsParser));
         actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, httpTemplateParser, templateEngine));
-        actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, internalClient));
+        actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
         actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine, hipChatService));
         actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine, jiraService));
@@ -313,16 +314,14 @@ public class Watcher implements ActionPlugin {
         // inputs
         final Map<String, InputFactory> inputFactories = new HashMap<>();
         inputFactories.put(SearchInput.TYPE,
-                new SearchInputFactory(settings, internalClient, xContentRegistry, scriptService));
+                new SearchInputFactory(settings, client, xContentRegistry, scriptService));
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
         inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine, httpTemplateParser));
         inputFactories.put(NoneInput.TYPE, new NoneInputFactory(settings));
         final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(settings, inputRegistry));
 
-        final WatcherClient watcherClient = new WatcherClient(internalClient);
-
-        final HistoryStore historyStore = new HistoryStore(settings, internalClient);
+        final HistoryStore historyStore = new HistoryStore(settings, client);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -344,7 +343,7 @@ public class Watcher implements ActionPlugin {
         final TriggerService triggerService = new TriggerService(settings, triggerEngines);
 
         final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(settings, triggerService);
-        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, internalClient, triggeredWatchParser);
+        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
                 new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
@@ -352,16 +351,13 @@ public class Watcher implements ActionPlugin {
         final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                clock, watchParser, clusterService, internalClient);
+                clock, watchParser, clusterService, client);
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
 
-        final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = new WatcherIndexTemplateRegistry(settings, clusterService,
-                threadPool, internalClient);
-
         WatcherService watcherService = new WatcherService(settings, triggerService, triggeredWatchStore, executionService,
-                watchParser, internalClient);
+                watchParser, client);
 
         final WatcherLifeCycleService watcherLifeCycleService =
                 new WatcherLifeCycleService(settings, threadPool, clusterService, watcherService);
@@ -369,10 +365,9 @@ public class Watcher implements ActionPlugin {
         listener = new WatcherIndexingListener(settings, watchParser, clock, triggerService);
         clusterService.addListener(listener);
 
-        return Arrays.asList(registry, watcherClient, inputRegistry, historyStore, triggerService, triggeredWatchParser,
+        return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, watcherIndexTemplateRegistry,
-                slackService, pagerDutyService, hipChatService);
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService, hipChatService);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {

@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Request;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response;
@@ -119,6 +120,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final String clusterUuid = randomAlphaOfLength(5);
         final MonitoringDoc.Node node = randomMonitoringNode(random());
         final MachineLearningClient client = mock(MachineLearningClient.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
         withCollectionTimeout(JobStatsCollector.JOB_STATS_TIMEOUT, timeout);
@@ -127,7 +129,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         when(clusterState.metaData()).thenReturn(metaData);
         when(metaData.clusterUUID()).thenReturn(clusterUuid);
 
-        final JobStatsCollector collector = new JobStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final JobStatsCollector collector = new JobStatsCollector(Settings.EMPTY, clusterService, licenseState, client, threadContext);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final List<JobStats> jobStats = mockJobStats();

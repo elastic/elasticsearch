@@ -80,7 +80,6 @@ import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -249,9 +248,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         List<Object> components = new ArrayList<>();
         components.add(sslService);
 
-        final InternalClient internalClient = new InternalClient(settings, threadPool, client);
-        components.add(internalClient);
-
         LicenseService licenseService = new LicenseService(settings, clusterService, getClock(),
                 env, resourceWatcherService, licenseState);
         components.add(licenseService);
@@ -263,19 +259,17 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
-        components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService, sslService));
+        components.addAll(monitoring.createComponents(client, threadPool, clusterService, licenseService, sslService));
 
-        components.addAll(watcher.createComponents(getClock(), scriptService, internalClient, licenseState, threadPool, clusterService,
+        components.addAll(watcher.createComponents(getClock(), scriptService, client, licenseState, threadPool, clusterService,
                 xContentRegistry, sslService));
 
-        PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, internalClient);
+        PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, client);
 
-        components.addAll(machineLearning.createComponents(internalClient, clusterService, threadPool, xContentRegistry,
+        components.addAll(machineLearning.createComponents(client, clusterService, threadPool, xContentRegistry,
                 persistentTasksService));
         List<PersistentTasksExecutor<?>> tasksExecutors = new ArrayList<>();
         tasksExecutors.addAll(machineLearning.createPersistentTasksExecutors(clusterService));
-
-        components.addAll(logstash.createComponents(internalClient, clusterService));
 
         components.addAll(upgrade.createComponents(client, clusterService, threadPool, resourceWatcherService,
                 scriptService, xContentRegistry));
@@ -451,6 +445,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         return templates -> {
             templates = watcher.getIndexTemplateMetaDataUpgrader().apply(templates);
             templates = security.getIndexTemplateMetaDataUpgrader().apply(templates);
+            templates = logstash.getIndexTemplateMetaDataUpgrader().apply(templates);
+            templates = machineLearning.getIndexTemplateMetaDataUpgrader().apply(templates);
             return templates;
         };
     }

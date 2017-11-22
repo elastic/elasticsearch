@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -57,7 +58,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     private final IndexLifecycleManager securityIndex;
 
     public SecurityLifecycleService(Settings settings, ClusterService clusterService,
-                                    ThreadPool threadPool, InternalSecurityClient client,
+                                    ThreadPool threadPool, Client client,
                                     @Nullable IndexAuditTrail indexAuditTrail) {
         super(settings);
         this.settings = settings;

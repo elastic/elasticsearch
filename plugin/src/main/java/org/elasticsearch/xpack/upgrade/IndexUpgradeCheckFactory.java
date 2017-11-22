@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -30,6 +30,6 @@ public interface IndexUpgradeCheckFactory {
      * <p>
      * This method is called from {@link org.elasticsearch.plugins.Plugin#createComponents} method.
      */
-    IndexUpgradeCheck createCheck(InternalClient internalClient, ClusterService clusterService);
+    IndexUpgradeCheck createCheck(Client client, ClusterService clusterService);
 
 }

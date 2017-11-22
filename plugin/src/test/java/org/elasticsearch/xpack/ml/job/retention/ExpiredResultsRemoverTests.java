@@ -10,11 +10,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
@@ -55,6 +58,19 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
         client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        doAnswer(new Answer<Void>() {
+                 @Override
+                 public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                     capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
+                     ActionListener<BulkByScrollResponse> listener =
+                             (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
+                     listener.onResponse(null);
+                     return null;
+                 }
+             }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
         listener = mock(ActionListener.class);
     }
 

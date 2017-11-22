@@ -258,6 +258,7 @@ integTestCluster {
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.keystore.path', nodeKeystore.name
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.audit.enabled', 'true'
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'
   keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
   distribution = 'zip' // this is important since we use the reindex module in ML

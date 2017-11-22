@@ -19,7 +19,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -204,9 +203,7 @@ public class IndexActionTests extends ESIntegTestCase {
         }
         builder.endObject();
         Client client = client();
-        InternalClient internalClient = new InternalClient(client.settings(), client.threadPool(), client);
-
-        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, internalClient);
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client);
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
@@ -235,9 +232,8 @@ public class IndexActionTests extends ESIntegTestCase {
         }
         builder.endObject();
         Client client = client();
-        InternalClient internalClient = new InternalClient(client.settings(), client.threadPool(), client);
 
-        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, internalClient);
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client);
         XContentParser parser = createParser(builder);
         parser.nextToken();
         try {

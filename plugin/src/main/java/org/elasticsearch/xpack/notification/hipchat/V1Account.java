@@ -103,7 +103,7 @@ public class V1Account extends HipChatAccount {
             builder.proxy(proxy);
         }
         StringBuilder body = new StringBuilder();
-        body.append("room_id=").append(room);
+        body.append("room_id=").append(HttpRequest.encodeUrl(room));
         body.append("&from=").append(HttpRequest.encodeUrl(message.from));
         body.append("&message=").append(HttpRequest.encodeUrl(message.body));
         if (message.format != null) {

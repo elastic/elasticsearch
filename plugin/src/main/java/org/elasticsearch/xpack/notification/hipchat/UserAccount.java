@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.notification.hipchat.HipChatMessage.Format;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -108,10 +110,11 @@ public class UserAccount extends HipChatAccount {
     }
 
     public HttpRequest buildRoomRequest(String room, final HipChatMessage message, HttpProxy proxy) {
+        String urlEncodedRoom = encodeRoom(room);
         HttpRequest.Builder builder = server.httpRequest()
                 .method(HttpMethod.POST)
                 .scheme(Scheme.HTTPS)
-                .path("/v2/room/" + room + "/notification")
+                .path("/v2/room/" + urlEncodedRoom + "/notification")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer " + authToken)
                 .body(Strings.toString((xbuilder, params) -> {
@@ -131,6 +134,18 @@ public class UserAccount extends HipChatAccount {
             builder.proxy(proxy);
         }
         return builder.build();
+    }
+
+    // this specific hipchat API does not accept application-form encoding, but requires real URL encoding
+    // spaces must not be replaced with a plus, but rather with %20
+    // this workaround ensures, that this happens
+    private String encodeRoom(String text) {
+        try {
+            return new URI("//", "", "", text, null).getRawQuery();
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("failed to URL encode text [" + text + "]", e);
+        }
+
     }
 
     public HttpRequest buildUserRequest(String user, final HipChatMessage message, HttpProxy proxy) {

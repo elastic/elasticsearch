@@ -12,18 +12,23 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
+import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.Scheme;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
+import org.mockito.ArgumentCaptor;
 
 import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -263,6 +268,29 @@ public class UserAccountTests extends ESTestCase {
 
         HipChatMessage message = userAccount.render("watchId", "actionId", new MockTextTemplateEngine(), template, new HashMap<>());
         assertThat(message.format, is(nullValue()));
+    }
+
+    public void testRoomNameIsUrlEncoded() throws Exception {
+        Settings settings = Settings.builder()
+                .put("user", "testuser")
+                .put("auth_token", "awesome-auth-token")
+                .build();
+        HipChatServer hipChatServer = mock(HipChatServer.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        UserAccount account = new UserAccount("notify-monitoring", settings, hipChatServer, httpClient, logger);
+
+        TextTemplate[] rooms = new TextTemplate[] { new TextTemplate("Room with Spaces")};
+        HipChatMessage.Template template =
+                new HipChatMessage.Template(new TextTemplate("body"), rooms, null, "sender", HipChatMessage.Format.TEXT, null, true);
+
+        HipChatMessage message = account.render("watchId", "actionId", new MockTextTemplateEngine(), template, new HashMap<>());
+        account.send(message, HttpProxy.NO_PROXY);
+
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient).execute(captor.capture());
+        assertThat(captor.getAllValues(), hasSize(1));
+        assertThat(captor.getValue().path(), not(containsString("Room with Spaces")));
+        assertThat(captor.getValue().path(), containsString("Room%20with%20Spaces"));
     }
 
     private UserAccount createUserAccount(Settings settings) {

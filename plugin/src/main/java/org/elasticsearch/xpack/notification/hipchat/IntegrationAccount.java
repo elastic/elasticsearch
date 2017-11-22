@@ -95,10 +95,11 @@ public class IntegrationAccount extends HipChatAccount {
     }
 
     private HttpRequest buildRoomRequest(String room, final HipChatMessage message, HttpProxy proxy) {
+        String urlEncodedRoom = HttpRequest.encodeUrl(room);
         HttpRequest.Builder builder = server.httpRequest()
                 .method(HttpMethod.POST)
                 .scheme(Scheme.HTTPS)
-                .path("/v2/room/" + room + "/notification")
+                .path("/v2/room/" + urlEncodedRoom + "/notification")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer " + authToken)
                 .body(Strings.toString((xbuilder, params) -> {

@@ -33,7 +33,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.TcpChannelFactory;
@@ -71,7 +70,7 @@ public class NioTransport extends TcpTransport {
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
     private final ArrayList<SocketSelector> socketSelectors = new ArrayList<>();
-    private RoundRobinSelectorSupplier clientSelectorSupplier;
+    private RoundRobinSupplier<SocketSelector> clientSelectorSupplier;
     private TcpChannelFactory clientChannelFactory;
     private int acceptorNumber;
 
@@ -124,14 +123,14 @@ public class NioTransport extends TcpTransport {
             }
 
             Consumer<NioSocketChannel> clientContextSetter = getContextSetter("client-socket");
-            clientSelectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
+            clientSelectorSupplier = new RoundRobinSupplier<>(socketSelectors);
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = new TcpChannelFactory(clientProfileSettings, clientContextSetter, getServerContextSetter());
 
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 int acceptorCount = NioTransport.NIO_ACCEPTOR_COUNT.get(settings);
                 for (int i = 0; i < acceptorCount; ++i) {
-                    Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
+                    Supplier<SocketSelector> selectorSupplier = new RoundRobinSupplier<>(socketSelectors);
                     AcceptorEventHandler eventHandler = new AcceptorEventHandler(logger, selectorSupplier);
                     AcceptingSelector acceptor = new AcceptingSelector(eventHandler);
                     acceptors.add(acceptor);

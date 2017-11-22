@@ -23,18 +23,18 @@ import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-public class RoundRobinSelectorSupplier implements Supplier<SocketSelector> {
+public class RoundRobinSupplier<S> implements Supplier<S> {
 
-    private final ArrayList<SocketSelector> selectors;
+    private final ArrayList<S> selectors;
     private final int count;
     private AtomicInteger counter = new AtomicInteger(0);
 
-    public RoundRobinSelectorSupplier(ArrayList<SocketSelector> selectors) {
+    public RoundRobinSupplier(ArrayList<S> selectors) {
         this.count = selectors.size();
         this.selectors = selectors;
     }
 
-    public SocketSelector get() {
+    public S get() {
         return selectors.get(counter.getAndIncrement() % count);
     }
 }

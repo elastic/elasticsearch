@@ -61,8 +61,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         readContext = mock(ReadContext.class);
         when(rawChannel.finishConnect()).thenReturn(true);
 
-        channel.setContexts(readContext, new TcpWriteContext(channel));
-        channel.setExceptionHandler(exceptionHandler);
+        channel.setContexts(readContext, new TcpWriteContext(channel), exceptionHandler);
         channel.register();
         channel.finishConnect();
 

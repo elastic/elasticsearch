@@ -33,6 +33,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.same;
@@ -85,7 +86,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testHandleAcceptCallsServerAcceptCallback() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class), socketSelector);
-        childChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
+        childChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class), mock(BiConsumer.class));
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);

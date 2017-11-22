@@ -27,9 +27,13 @@ import org.elasticsearch.transport.nio.AcceptingSelector;
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 
+/**
+ * This is an implementation of {@link NioServerSocketChannel} that adheres to the {@link TcpChannel}
+ * interface. As it is a server socket, setting SO_LINGER and sending messages is not supported.
+ */
 public class TcpNioServerSocketChannel extends NioServerSocketChannel implements TcpChannel {
 
-    public TcpNioServerSocketChannel(ServerSocketChannel socketChannel, TcpChannelFactory channelFactory, AcceptingSelector selector)
+    TcpNioServerSocketChannel(ServerSocketChannel socketChannel, TcpChannelFactory channelFactory, AcceptingSelector selector)
         throws IOException {
         super(socketChannel, channelFactory, selector);
     }

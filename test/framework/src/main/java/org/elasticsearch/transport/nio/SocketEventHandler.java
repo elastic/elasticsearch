@@ -147,6 +147,6 @@ public class SocketEventHandler extends EventHandler {
     }
 
     private void exceptionCaught(NioSocketChannel channel, Exception e) {
-        channel.getExceptionHandler().accept(channel, e);
+        channel.getExceptionContext().accept(channel, e);
     }
 }

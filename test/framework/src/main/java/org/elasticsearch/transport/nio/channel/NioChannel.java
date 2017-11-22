@@ -46,5 +46,12 @@ public interface NioChannel {
 
     NetworkChannel getRawChannel();
 
+    /**
+     * Adds a close listener to the channel. Multiple close listeners can be added. There is no guarantee
+     * about the order in which close listeners will be executed. If the channel is already closed, the
+     * listener is executed immediately.
+     *
+     * @param listener to be called at close
+     */
     void addCloseListener(ActionListener<Void> listener);
 }

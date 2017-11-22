@@ -40,6 +40,12 @@ public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChann
         return channelFactory;
     }
 
+    /**
+     * This method sets the accept context for a server socket channel. The accept context is called when a
+     * new channel is accepted. The parameter passed to the context is the new channel.
+     *
+     * @param acceptContext to call
+     */
     public void setAcceptContext(Consumer<NioSocketChannel> acceptContext) {
         this.acceptContext = acceptContext;
     }

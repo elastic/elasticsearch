@@ -91,7 +91,7 @@ public class NioTransport extends TcpTransport {
         AcceptingSelector selector = acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings));
         TcpNioServerSocketChannel serverChannel = channelFactory.openNioServerSocketChannel(address, selector);
         openChannels.serverChannelOpened(serverChannel);
-        serverChannel.addCloseListener(new RemoveClosedChannelListener(serverChannel));
+        serverChannel.addCloseListener(ActionListener.wrap(() -> openChannels.channelClosed(serverChannel)));
         return serverChannel;
     }
 
@@ -100,7 +100,7 @@ public class NioTransport extends TcpTransport {
         throws IOException {
         TcpNioSocketChannel channel = clientChannelFactory.openNioChannel(node.getAddress().address(), clientSelectorSupplier.get());
         openChannels.clientChannelOpened(channel);
-        channel.addCloseListener(new RemoveClosedChannelListener(channel));
+        channel.addCloseListener(ActionListener.wrap(() -> openChannels.channelClosed(channel)));
         channel.addConnectListener(connectListener);
         return channel;
     }
@@ -184,40 +184,19 @@ public class NioTransport extends TcpTransport {
     }
 
     private Consumer<NioSocketChannel> getContextSetter(String profileName) {
-        return (c) -> {
-            c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName,this)), new TcpWriteContext(c));
-            c.setExceptionHandler(this::exceptionCaught);
-        };
+        return (c) -> c.setContexts(new TcpReadContext(c, new TcpReadHandler(profileName,this)), new TcpWriteContext(c),
+            this::exceptionCaught);
     }
 
     private void acceptChannel(NioSocketChannel channel) {
         TcpNioSocketChannel tcpChannel = (TcpNioSocketChannel) channel;
         openChannels.acceptedChannelOpened(tcpChannel);
-        tcpChannel.addCloseListener(new RemoveClosedChannelListener(channel));
+        tcpChannel.addCloseListener(ActionListener.wrap(() -> openChannels.channelClosed(channel)));
         serverAcceptedChannel(tcpChannel);
 
     }
 
     private Consumer<NioServerSocketChannel> getServerContextSetter() {
         return (c) -> c.setAcceptContext(this::acceptChannel);
-    }
-
-    private class RemoveClosedChannelListener implements ActionListener<Void> {
-
-        private final NioChannel channel;
-
-        private RemoveClosedChannelListener(NioChannel channel) {
-            this.channel = channel;
-        }
-
-        @Override
-        public void onResponse(Void aVoid) {
-            openChannels.channelClosed(channel);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            openChannels.channelClosed(channel);
-        }
     }
 }

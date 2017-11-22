@@ -61,12 +61,13 @@ public class NioSocketChannelTests extends ESTestCase {
         thread.join();
     }
 
+    @SuppressWarnings("unchecked")
     public void testClose() throws Exception {
         AtomicBoolean isClosed = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
 
         NioSocketChannel socketChannel = new DoNotCloseChannel(mock(SocketChannel.class), selector);
-        socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
+        socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class), mock(BiConsumer.class));
         socketChannel.addCloseListener(new ActionListener<Void>() {
             @Override
             public void onResponse(Void o) {
@@ -95,11 +96,12 @@ public class NioSocketChannelTests extends ESTestCase {
         assertTrue(isClosed.get());
     }
 
+    @SuppressWarnings("unchecked")
     public void testConnectSucceeds() throws Exception {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenReturn(true);
         NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
-        socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
+        socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class), mock(BiConsumer.class));
         selector.scheduleForRegistration(socketChannel);
 
         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -116,8 +118,7 @@ public class NioSocketChannelTests extends ESTestCase {
         SocketChannel rawChannel = mock(SocketChannel.class);
         when(rawChannel.finishConnect()).thenThrow(new ConnectException());
         NioSocketChannel socketChannel = new DoNotCloseChannel(rawChannel, selector);
-        socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
-        socketChannel.setExceptionHandler(mock(BiConsumer.class));
+        socketChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class), mock(BiConsumer.class));
         selector.scheduleForRegistration(socketChannel);
 
         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();

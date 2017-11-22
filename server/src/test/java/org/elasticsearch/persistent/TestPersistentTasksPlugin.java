@@ -64,7 +64,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.security.InternalClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -105,8 +104,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        InternalClient internalClient = new InternalClient(Settings.EMPTY, threadPool, client);
-        PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, clusterService, threadPool, internalClient);
+        PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, clusterService, threadPool, client);
         TestPersistentTasksExecutor testPersistentAction = new TestPersistentTasksExecutor(Settings.EMPTY, clusterService);
         PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY,
                 Collections.singletonList(testPersistentAction));

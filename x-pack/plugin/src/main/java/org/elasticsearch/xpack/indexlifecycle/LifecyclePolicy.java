@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -77,5 +79,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
         builder.endObject();
         builder.endObject();
         return builder;
+    }
+
+    public void execute(IndexMetaData idxMeta, InternalClient client) {
     }
 }

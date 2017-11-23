@@ -201,9 +201,10 @@ subprojects {
 
   final Version bwcStableSnapshot = versionCollection.BWCSnapshotForPreviousMajor
   if (bwcStableSnapshot != null) {
-    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-stable-snapshot'
-    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-stable-snapshot'
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-stable-snapshot'
+    project(':distribution:bwc-snapshot-6.x').ext.bwcVersion = bwcStableSnapshot
+    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-snapshot-6.x'
+    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-snapshot-6.x'
+    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-snapshot-6.x'
   }
   final Version bwcReleaseSnapshot = versionCollection.BWCSnapshotForCurrentMajor
   if (bwcReleaseSnapshot != null) {

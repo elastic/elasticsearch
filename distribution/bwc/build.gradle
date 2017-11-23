@@ -20,6 +20,7 @@
 
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
+import java.util.regex.Matcher
 
 /**
  * This is a dummy project which does a local checkout of the previous
@@ -27,27 +28,20 @@ import org.elasticsearch.gradle.Version
  * tests to test against the next unreleased version, closest to this version,
  * without relying on snapshots.
  */
-Version bwcVersion
-if (project.name == 'bwc-stable-snapshot') {
-  bwcVersion = versionCollection.BWCSnapshotForPreviousMajor
-} else if (project.name == 'bwc-release-snapshot') {
-  bwcVersion = versionCollection.BWCSnapshotForCurrentMajor
-} else {
+final Matcher match = project.name =~ /bwc-snapshot-(\d+\.(\d+|x))/
+if (!match.matches()) {
   throw new InvalidUserDataException("Unsupport project name ${project.name}")
 }
+String bwcBranch = match.group(1)
 
-if (bwcVersion != null) {
+if (project.hasProperty('ext.bwcVersion')) {
+  Version bwcVersion = project.ext.bwcVersion
+
   apply plugin: 'distribution'
   // Not published so no need to assemble
   tasks.remove(assemble)
   build.dependsOn.remove('assemble')
 
-  String bwcBranch
-  if (project.name == 'bwc-stable-snapshot' && bwcVersion.major != versionCollection.currentVersion.major) {
-    bwcBranch = "${bwcVersion.major}.x"
-  } else {
-    bwcBranch = "${bwcVersion.major}.${bwcVersion.minor}"
-  }
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
   final String remote = System.getProperty("tests.bwc.remote", "elastic")

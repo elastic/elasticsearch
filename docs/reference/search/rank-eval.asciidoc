@@ -17,11 +17,11 @@ They usually enters some search terms into a search box or some other web form.
 All of this information, together with meta information about the user (e.g. the browser, location, earlier preferences etc...) then gets translated into a query to the underlying search system.
 
 The challenge for search engineers is to tweak this translation process from user entries to a concrete query in such a way, that the search results contain the most relevant information with respect to the users information_need.
-This can only be done if the search result quality is evaluated constantly across a representative test suit of typical user queries, so that improvements in the rankings for one particular query doesn't negatively effect the ranking for other types of queries.
+This can only be done if the search result quality is evaluated constantly across a representative test suite of typical user queries, so that improvements in the rankings for one particular query doesn't negatively effect the ranking for other types of queries.
 
-In order to get started with search quality evaluation, three basic things a needed:
+In order to get started with search quality evaluation, three basic things are needed:
 
-. a collection of document you want to evaluate your query performance against, usually one or more indices
+. a collection of documents you want to evaluate your query performance against, usually one or more indices
 . a collection of typical search requests that users enter into your system
 . a set of document ratings that judge the documents relevance with respect to a search request+
   It is important to note that one set of document ratings is needed per test query, and that
@@ -45,7 +45,7 @@ GET /my_index/_rank_eval
 ------------------------------
 // NOTCONSOLE
 
-<1> a set of typical search requests to your system
+<1> a set of typical search requests, together with their provided ratings
 <2> definition of the evaluation metric to calculate
 <3> a specific metric and its parameters
 
@@ -131,16 +131,15 @@ GET /my_index/_rank_eval
 The `metric` section determines which of the available evaluation metrics is going to be used.
 Currently, the following metrics are supported:
 
-==== Precision at k (Prec@k)
+==== Precision at K (P@k)
 
 This metric measures the number of relevant results in the top k search results. Its a form of the well known https://en.wikipedia.org/wiki/Information_retrieval#Precision[Precision] metric that only looks at the top k documents. It is the fraction of relevant documents in those first k
-search. A precision at 10 (prec@10) value of 0.6 then means six out of the 10 top hits where
-relevant with respect to the users information need.
+search. A precision at 10 (P@10) value of 0.6 then means six out of the 10 top hits are relevant with respect to the users information need.
 
-This metric works well as a first and an easy to explain evaluation metric. 
-Documents in the collection need to be rated either as relevant or irrelevant with respect to the current query. Prec@k does not take into account where in the top k results the relevant documents occur, so a ranking of ten results that contains one relevant
-result in position 10 is equally good as a ranking of ten results that contains
-one relevant result in position 1.
+P@k works well as a simple evaluation metric that has the benefit of being easy to understand and explain.
+Documents in the collection need to be rated either as relevant or irrelevant with respect to the current query. 
+P@k does not take into account where in the top k results the relevant documents occur, so a ranking of ten results that 
+contains one relevant result in position 10 is equally good as a ranking of ten results that contains one relevant result in position 1.
 
 [source,js]
 --------------------------------
@@ -168,7 +167,7 @@ The `precision` metric takes the following optional parameters
 [cols="<,<",options="header",]
 |=======================================================================
 |Parameter |Description
-|`relevant_rating_threshold` |Sets the rating threshold from which on documents are considered to be
+|`relevant_rating_threshold` |Sets the rating threshold above which documents are considered to be
 "relevant". Defaults to `1`.
 |`ignore_unlabeled` |controls how unlabeled documents in the search results are counted.
 If set to 'true', unlabeled documents are ignored and neither count as relevant or irrelevant. Set to 'false' (the default), they are treated as irrelevant.
@@ -206,7 +205,7 @@ The `mean_reciprocal_rank` metric takes the following optional parameters
 [cols="<,<",options="header",]
 |=======================================================================
 |Parameter |Description
-|`relevant_rating_threshold` |Sets the rating threshold from which on documents are considered to be
+|`relevant_rating_threshold` |Sets the rating threshold above which documents are considered to be
 "relevant". Defaults to `1`.
 |=======================================================================
 

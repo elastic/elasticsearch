@@ -136,18 +136,30 @@ if (isEclipse) {
   * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
   * all files/directories in the source tree to find all projects.
   */
-void addSubProjects(String path, File dir) {
+void addSubProjects(String path, File dir, List<String> projects, List<String> branches) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
 
-  String projectName = "${path}:${dir.name}"
+  final String projectName = "${path}:${dir.name}"
   include projectName
-  if (path.isEmpty()) {
-    project(projectName).projectDir = dir
-  }
-  for (File subdir : dir.listFiles()) {
-    addSubProjects(projectName, subdir)
+
+  if (dir.name == 'bwc') {
+    final File dummyProject = new File(dir, "snapshot")
+    for (final String branch : branches) {
+      final String snapshotProjectName = "${projectName}:bwc-snapshot-${branch}"
+      projects.add(snapshotProjectName)
+      include snapshotProjectName
+      project("${snapshotProjectName}").projectDir = dummyProject
+    }
+    // TODO do we want to assert that there's nothing else in the bwc directory?
+  } else {
+    if (path.isEmpty()) {
+      project(projectName).projectDir = dir
+    }
+    for (File subdir : dir.listFiles()) {
+      addSubProjects(projectName, subdir, projects, branches)
+    }
   }
 }
 
@@ -155,6 +167,6 @@ void addSubProjects(String path, File dir) {
 File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
 if (extraProjects.exists()) {
   for (File extraProjectDir : extraProjects.listFiles()) {
-    addSubProjects('', extraProjectDir)
+    addSubProjects('', extraProjectDir, projects, branches)
   }
 }

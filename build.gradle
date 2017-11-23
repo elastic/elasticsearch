@@ -200,7 +200,7 @@ subprojects {
 
   for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
     if (version.branch != null) {
-      String snapshotProject = ":distribution:bwc-snapshot-${version.branch}"
+      final String snapshotProject = ":distribution:bwc-snapshot-${version.branch}"
       project(snapshotProject).ext.bwcVersion = version
       ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${version}"] = snapshotProject
       ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${version}"] = snapshotProject

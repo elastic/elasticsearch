@@ -336,12 +336,18 @@ public class ElasticsearchMappings {
             .field(TYPE, DOUBLE)
         .endObject()
         .startObject(Forecast.FORECAST_ID.getPreferredName())
-            .field(TYPE, LONG)
+            .field(TYPE, KEYWORD)
         .endObject();
 
         // Forecast Stats Output
         // re-used: TIMESTAMP, PROCESSING_TIME_MS, PROCESSED_RECORD_COUNT, LATEST_RECORD_TIME
-        builder.startObject(ForecastRequestStats.END_TIME.getPreferredName())
+        builder.startObject(ForecastRequestStats.START_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject()
+        .startObject(ForecastRequestStats.END_TIME.getPreferredName())
+            .field(TYPE, DATE)
+        .endObject()
+        .startObject(ForecastRequestStats.CREATE_TIME.getPreferredName())
             .field(TYPE, DATE)
         .endObject()
         .startObject(ForecastRequestStats.EXPIRY_TIME.getPreferredName())
@@ -355,6 +361,9 @@ public class ElasticsearchMappings {
         .endObject()
         .startObject(ForecastRequestStats.STATUS.getPreferredName())
             .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(ForecastRequestStats.MEMORY_USAGE.getPreferredName())
+            .field(TYPE, LONG)
         .endObject();
     }
     

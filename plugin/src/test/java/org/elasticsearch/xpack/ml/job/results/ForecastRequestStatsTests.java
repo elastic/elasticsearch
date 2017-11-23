@@ -24,10 +24,10 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
 
     @Override
     protected ForecastRequestStats createTestInstance() {
-        return createTestInstance("ForecastRequestStatsTest", randomNonNegativeLong());
+        return createTestInstance("ForecastRequestStatsTest", randomAlphaOfLength(20));
     }
 
-    public ForecastRequestStats createTestInstance(String jobId, long forecastId) {
+    public ForecastRequestStats createTestInstance(String jobId, String forecastId) {
         ForecastRequestStats forecastRequestStats = new ForecastRequestStats(jobId, forecastId);
 
         if (randomBoolean()) {
@@ -45,10 +45,16 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
             forecastRequestStats.setTimeStamp(Instant.ofEpochMilli(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            forecastRequestStats.setEndTimeStamp(Instant.ofEpochMilli(randomNonNegativeLong()));
+            forecastRequestStats.setStartTime(Instant.ofEpochMilli(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            forecastRequestStats.setExpiryTimeStamp(Instant.ofEpochMilli(randomNonNegativeLong()));
+            forecastRequestStats.setEndTime(Instant.ofEpochMilli(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            forecastRequestStats.setCreateTime(Instant.ofEpochMilli(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            forecastRequestStats.setExpiryTime(Instant.ofEpochMilli(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             forecastRequestStats.setProgress(randomDouble());

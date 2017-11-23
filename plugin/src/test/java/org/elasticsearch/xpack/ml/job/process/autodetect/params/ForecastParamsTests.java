@@ -11,6 +11,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -18,6 +22,14 @@ public class ForecastParamsTests extends ESTestCase {
 
     private static ParseField END = new ParseField("end");
     private static ParseField DURATION = new ParseField("duration");
+
+    public void testForecastIdsAreUnique() {
+        Set<String> ids = new HashSet<>();
+        for (int i = 0; i < 10; i++) {
+            ids.add(ForecastParams.builder().build().getForecastId());
+        }
+        assertThat(ids.size(), equalTo(10));
+    }
 
     public void test_UnparseableEndTimeThrows() {
         ElasticsearchParseException e =

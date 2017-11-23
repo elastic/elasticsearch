@@ -90,7 +90,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         registerJob(newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
         registerJob(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L));
 
-        List<Long> shortExpiryForecastIds = new ArrayList<>();
+        List<String> shortExpiryForecastIds = new ArrayList<>();
 
         long now = System.currentTimeMillis();
         long oneDayAgo = now - TimeValue.timeValueHours(48).getMillis() - 1;
@@ -123,16 +123,13 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
             // Now let's create some forecasts
             openJob(job.getId());
-            long forecastShortExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), TimeValue.timeValueSeconds(1));
-            // We need to wait so that forecasts get different IDs
-            awaitBusy(() -> false, 5, TimeUnit.MILLISECONDS);
+
+            // We must set a very small value for expires_in to keep this testable as the deletion cutoff point is the moment
+            // the DeleteExpiredDataAction is called.
+            String forecastShortExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), TimeValue.timeValueSeconds(1));
             shortExpiryForecastIds.add(forecastShortExpiryId);
-
-            long forecastDefaultExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), null);
-            awaitBusy(() -> false, 5, TimeUnit.MILLISECONDS);
-
-            long forecastNoExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), TimeValue.ZERO);
-
+            String forecastDefaultExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), null);
+            String forecastNoExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), TimeValue.ZERO);
             waitForecastToFinish(job.getId(), forecastShortExpiryId);
             waitForecastToFinish(job.getId(), forecastDefaultExpiryId);
             waitForecastToFinish(job.getId(), forecastNoExpiryId);
@@ -166,8 +163,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         List<ForecastRequestStats> forecastStats = getForecastStats();
         assertThat(forecastStats.size(), equalTo(getJobs().size() * 3));
         for (ForecastRequestStats forecastStat : forecastStats) {
-            assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()),
-                    equalTo((long) forecastStat.getRecordCount()));
+            assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()), equalTo(forecastStat.getRecordCount()));
         }
 
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
@@ -213,11 +209,10 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         forecastStats = getForecastStats();
         assertThat(forecastStats.size(), equalTo(getJobs().size() * 2));
         for (ForecastRequestStats forecastStat : forecastStats) {
-            assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()),
-                    equalTo((long) forecastStat.getRecordCount()));
+            assertThat(countForecastDocs(forecastStat.getJobId(), forecastStat.getForecastId()), equalTo(forecastStat.getRecordCount()));
         }
         for (Job.Builder job : getJobs()) {
-            for (long forecastId : shortExpiryForecastIds) {
+            for (String forecastId : shortExpiryForecastIds) {
                 assertThat(countForecastDocs(job.getId(), forecastId), equalTo(0L));
             }
         }

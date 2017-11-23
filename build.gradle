@@ -199,25 +199,11 @@ subprojects {
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
   ]
 
-  final Version bwcStableSnapshot = versionCollection.BWCSnapshotForPreviousMajor
-  if (bwcStableSnapshot != null) {
-    project(':distribution:bwc-snapshot-6.x').ext.bwcVersion = bwcStableSnapshot
-    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-snapshot-6.x'
-    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-snapshot-6.x'
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${bwcStableSnapshot}"] = ':distribution:bwc-snapshot-6.x'
-  }
-  final Version bwcReleaseSnapshot = versionCollection.BWCSnapshotForCurrentMajor
-  if (bwcReleaseSnapshot != null) {
-    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${bwcReleaseSnapshot}"] = ':distribution:bwc-release-snapshot'
-    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${bwcReleaseSnapshot}"] = ':distribution:bwc-release-snapshot'
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${bwcReleaseSnapshot}"] = ':distribution:bwc-release-snapshot'
-  }
-  /* TODO Add the third BWC snapshot build (against ${bwcPreviousReleaseSnapshot}):
-    final Version bwcPreviousReleaseSnapshot = versionCollection.BWCSnapshotForPreviousMinorOfCurrentMajor
-    if (bwcPreviousReleaseSnapshot != null) {
+  for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
+    if (version.branch != null) {
+      project(":distribution:bwc-snapshot-${version.branch}").ext.bwcVersion = version
     }
-    Without this, the full BWC builds will not work
-  */
+  }
 
   project.afterEvaluate {
     configurations.all {

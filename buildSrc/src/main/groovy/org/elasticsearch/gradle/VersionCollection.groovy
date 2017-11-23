@@ -43,7 +43,7 @@ class VersionCollection {
             if (match.matches()) {
                 final Version foundVersion = new Version(
                         Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)),
-                        Integer.parseInt(match.group(3)), (match.group(4) ?: '').replace('_', '-'), false)
+                        Integer.parseInt(match.group(3)), (match.group(4) ?: '').replace('_', '-'), false, null)
 
                 if (versions.size() > 0 && foundVersion.onOrBeforeIncludingSuffix(versions[-1])) {
                     throw new GradleException("Versions.java contains out of order version constants:" +
@@ -65,6 +65,7 @@ class VersionCollection {
 
         // The tip of each minor series (>= 5.6) is unreleased, so set their 'snapshot' flags
         Version prevConsideredVersion = null
+        boolean found6xSnapshot = false
         for (final int versionIndex = versions.size() - 1; versionIndex >= 0; versionIndex--) {
             final Version currConsideredVersion = versions[versionIndex]
 
@@ -72,9 +73,19 @@ class VersionCollection {
                     || currConsideredVersion.major != prevConsideredVersion.major
                     || currConsideredVersion.minor != prevConsideredVersion.minor) {
 
+                // This is a snapshot version. Work out its branch. NB this doesn't name the current branch correctly, but this doesn't
+                // matter as we don't BWC test against it.
+                String branch = "${currConsideredVersion.major}.${currConsideredVersion.minor}"
+
+                if (false == found6xSnapshot && currConsideredVersion.major == 6) {
+                    // TODO needs generalising to deal with when 7.x is cut, and when 6.x is deleted, and so on...
+                    branch = "6.x"
+                    found6xSnapshot = true
+                }
+
                 versions[versionIndex] = new Version(
                         currConsideredVersion.major, currConsideredVersion.minor,
-                        currConsideredVersion.revision, currConsideredVersion.suffix, true)
+                        currConsideredVersion.revision, currConsideredVersion.suffix, true, branch)
             }
 
             if (currConsideredVersion.onOrBefore("5.6.0")) {
@@ -91,7 +102,7 @@ class VersionCollection {
      * @return The list of versions read from the Version.java file
      */
     List<Version> getVersions() {
-        return Collections.unmodifiableList(versions);
+        return Collections.unmodifiableList(versions)
     }
 
     /**
@@ -141,12 +152,8 @@ class VersionCollection {
 
     private List<Version> versionsOnOrAfterExceptCurrent(Version minVersion) {
         final String minVersionString = minVersion.toString()
-        final Version snapshot1 = BWCSnapshotForCurrentMajor
-        final Version snapshot2 = BWCSnapshotForPreviousMinorOfCurrentMajor
-        final Version snapshot3 = BWCSnapshotForPreviousMajor
         return Collections.unmodifiableList(versions.findAll {
-            it.onOrAfter(minVersionString) && it != currentVersion &&
-                (false == it.snapshot || it == snapshot1 || it == snapshot2 || it == snapshot3)
+            it.onOrAfter(minVersionString) && it != currentVersion
         })
     }
 

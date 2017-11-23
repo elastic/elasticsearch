@@ -24,8 +24,13 @@ Each time you call the API, it generates a new forecast and returns a unique ID.
 Existing forecasts for the same job are not overwritten. You can use the forecast
 ID to distinguish between forecasts that you generated at different times.
 
-NOTE: If you use an `over_field_name` property in your job, you cannot create a
+[NOTE]
+===============================
+
+* If you use an `over_field_name` property in your job, you cannot create a
 forecast. For more information about this property, see <<ml-job-resource>>.
+* The job must be open when you create a forecast. Otherwise, an error occurs.
+===============================
 
 ==== Path Parameters
 

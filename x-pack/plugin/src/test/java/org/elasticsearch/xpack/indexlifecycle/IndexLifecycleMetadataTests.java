@@ -34,7 +34,7 @@ public class IndexLifecycleMetadataTests extends AbstractSerializingTestCase<Ind
 
     @Override
     protected IndexLifecycleMetadata createTestInstance() {
-        int numPolicies = 1; // randomInt(5);
+        int numPolicies = randomInt(5);
         SortedMap<String, LifecyclePolicy> policies = new TreeMap<>();
         for (int i = 0; i < numPolicies; i++) {
             int numberPhases = randomInt(5);

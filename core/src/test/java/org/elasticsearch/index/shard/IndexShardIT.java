@@ -569,7 +569,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             // we can't assert on hasRefreshed since it might have been refreshed in the background on the shard concurrently
             assertFalse(shard.isSearchIdle());
         }
-        ElasticsearchAssertions.assertHitCount(client().prepareSearch().get(), 1l);
+        assertHitCount(client().prepareSearch().get(), 1l);
         for (int i = 1; i < numDocs; i++) {
             client().prepareIndex("test", "test", "" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
                 .execute(new ActionListener<IndexResponse>() {
@@ -587,6 +587,40 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         indexingDone.await();
         t.join();
+    }
 
+    public void testPendingRefreshWithIntervalChange() throws InterruptedException {
+        Settings.Builder builder = Settings.builder();
+        builder.put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO);
+        IndexService indexService = createIndex("test", builder.build());
+        assertFalse(indexService.getIndexSettings().isExplicitRefresh());
+        ensureGreen();
+        assertNoSearchHits(client().prepareSearch().get());
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        IndexShard shard = indexService.getShard(0);
+        // with ZERO we are guaranteed to see the doc since we will wait for a refresh in the background
+        assertFalse(shard.scheduledRefresh());
+        assertTrue(shard.isSearchIdle());
+        CountDownLatch refreshLatch = new CountDownLatch(1);
+        client().admin().indices().prepareRefresh().execute(ActionListener.wrap(refreshLatch::countDown)); // async on purpose
+        assertHitCount(client().prepareSearch().get(), 1l);
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        assertFalse(shard.scheduledRefresh());
+
+        // now disable background refresh and make sure the refresh happens
+        CountDownLatch updateSettingsLatch = new CountDownLatch(1);
+        client().admin().indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build())
+            .execute(ActionListener.wrap(updateSettingsLatch::countDown));
+        assertHitCount(client().prepareSearch().get(), 2l);
+        // wait for both to ensure we don't have in-flight operations
+        updateSettingsLatch.await();
+        refreshLatch.await();
+
+        client().prepareIndex("test", "test", "2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        assertTrue(shard.scheduledRefresh());
+        assertTrue(shard.isSearchIdle());
+        assertHitCount(client().prepareSearch().get(), 3l);
     }
 }

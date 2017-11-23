@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
@@ -624,6 +625,26 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             }
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
+                // once we change the refresh interval we schedule yet another refresh
+                // to ensure we are in a clean and predictable state.
+                // it doesn't matter if we move from or to <code>-1</code>  in both cases we want
+                // docs to become visible immediately
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("forced refresh failed after interval change", e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        maybeRefreshEngine(true);
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return true;
+                    }
+                });
                 rescheduleRefreshTasks();
             }
             final Translog.Durability durability = indexSettings.getTranslogDurability();
@@ -686,8 +707,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    private void maybeRefreshEngine() {
-        if (indexSettings.getRefreshInterval().millis() > 0) {
+    private void maybeRefreshEngine(boolean force) {
+        if (indexSettings.getRefreshInterval().millis() > 0 || force) {
             for (IndexShard shard : this.shards.values()) {
                 try {
                     shard.scheduledRefresh();
@@ -892,7 +913,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         protected void runInternal() {
-            indexService.maybeRefreshEngine();
+            indexService.maybeRefreshEngine(false);
         }
 
         @Override

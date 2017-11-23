@@ -2581,7 +2581,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
         recoverShardFromStore(primary);
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
-        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
         assertFalse(primary.isSearchIdle());
 
@@ -2620,15 +2620,15 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
         recoverShardFromStore(primary);
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
-        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
         scopedSettings.applySettings(settings);
 
-        assertFalse(primary.isRefreshNeeded());
+        assertFalse(primary.getEngine().refreshNeeded());
         indexDoc(primary, "test", "1", "{\"foo\" : \"bar\"}");
-        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.getEngine().refreshNeeded());
         assertFalse(primary.scheduledRefresh());
         CountDownLatch latch = new CountDownLatch(10);
         for (int i = 0; i < 10; i++) {
@@ -2644,7 +2644,7 @@ public class IndexShardTests extends IndexShardTestCase {
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(1, searcher.reader().numDocs());
         }
-        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
         latch.await();
         CountDownLatch latch1 = new CountDownLatch(1);
@@ -2673,13 +2673,13 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
         recoverShardFromStore(primary);
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
-        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
         Engine.IndexResult doc = indexDoc(primary, "test", "1", "{\"foo\" : \"bar\"}");
         CountDownLatch latch = new CountDownLatch(1);
         primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
         assertEquals(1, latch.getCount());
-        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
         latch.await();
 
@@ -2691,7 +2691,7 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch latch1 = new CountDownLatch(1);
         primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
         assertEquals(1, latch1.getCount());
-        assertTrue(primary.isRefreshNeeded());
+        assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
         latch1.await();
         closeShards(primary);

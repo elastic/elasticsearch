@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -41,11 +41,11 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -56,11 +56,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.flush.FlushStats;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -70,6 +65,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -82,8 +78,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
@@ -94,9 +92,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
@@ -104,21 +100,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
-    }
-
-    private ParsedDocument testParsedDocument(String id, String type, String routing, long seqNo,
-                                              ParseContext.Document document, BytesReference source, XContentType xContentType,
-                                              Mapping mappingUpdate) {
-        Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
-        Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(uidField);
-        document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
-        return new ParsedDocument(versionField, seqID, id, type, routing,
-                Collections.singletonList(document), source, xContentType, mappingUpdate);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -549,5 +530,63 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         shardRouting = shardRouting.updateUnassigned(new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"),
             RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE);
         return shardRouting;
+    }
+
+    public void testAutomaticRefresh() throws InterruptedException {
+        TimeValue randomTimeValue = randomFrom(random(), null, TimeValue.ZERO, TimeValue.timeValueMillis(randomIntBetween(0, 1000)));
+        Settings.Builder builder = Settings.builder();
+        if (randomTimeValue != null) {
+            builder.put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), randomTimeValue);
+        }
+        IndexService indexService = createIndex("test", builder.build());
+        assertFalse(indexService.getIndexSettings().isExplicitRefresh());
+        ensureGreen();
+        AtomicInteger totalNumDocs = new AtomicInteger(Integer.MAX_VALUE);
+        CountDownLatch started = new CountDownLatch(1);
+        Thread t = new Thread(() -> {
+            SearchResponse searchResponse;
+            started.countDown();
+            do {
+               searchResponse = client().prepareSearch().get();
+           } while (searchResponse.getHits().totalHits != totalNumDocs.get());
+        });
+        t.start();
+        started.await();
+        assertNoSearchHits(client().prepareSearch().get());
+        int numDocs = scaledRandomIntBetween(25, 100);
+        totalNumDocs.set(numDocs);
+        CountDownLatch indexingDone = new CountDownLatch(numDocs);
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        indexingDone.countDown(); // one doc is indexed above blocking
+        IndexShard shard = indexService.getShard(0);
+        boolean hasRefreshed = shard.scheduledRefresh();
+        if (randomTimeValue == TimeValue.ZERO) {
+            // with ZERO we are guaranteed to see the doc since we will wait for a refresh in the background
+            assertFalse(hasRefreshed);
+            assertTrue(shard.isSearchIdle());
+        } else if (randomTimeValue == null){
+            // with null we are guaranteed to see the doc since do execute the refresh.
+            // we can't assert on hasRefreshed since it might have been refreshed in the background on the shard concurrently
+            assertFalse(shard.isSearchIdle());
+        }
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch().get(), 1l);
+        for (int i = 1; i < numDocs; i++) {
+            client().prepareIndex("test", "test", "" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
+                .execute(new ActionListener<IndexResponse>() {
+                             @Override
+                             public void onResponse(IndexResponse indexResponse) {
+                                 indexingDone.countDown();
+                             }
+
+                             @Override
+                             public void onFailure(Exception e) {
+                                 indexingDone.countDown();
+                                 throw new AssertionError(e);
+                             }
+                         });
+        }
+        indexingDone.await();
+        t.join();
+
     }
 }

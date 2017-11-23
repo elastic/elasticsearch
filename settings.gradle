@@ -144,7 +144,7 @@ void addSubProjects(String path, File dir, List<String> projects, List<String> b
   final String projectName = "${path}:${dir.name}"
   include projectName
 
-  if (dir.name == 'bwc') {
+  if (dir.name == 'bwc-snapshot-dummy-projects') {
     final File dummyProject = new File(dir, "snapshot")
     for (final String branch : branches) {
       final String snapshotProjectName = "${projectName}:bwc-snapshot-${branch}"

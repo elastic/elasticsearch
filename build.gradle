@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 import java.nio.file.Path
 
@@ -201,7 +200,11 @@ subprojects {
 
   for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
     if (version.branch != null) {
-      project(":distribution:bwc-snapshot-${version.branch}").ext.bwcVersion = version
+      String snapshotProject = ":distribution:bwc-snapshot-${version.branch}"
+      project(snapshotProject).ext.bwcVersion = version
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${version}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${version}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${version}"] = snapshotProject
     }
   }
 

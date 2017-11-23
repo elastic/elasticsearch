@@ -114,8 +114,10 @@ public class Phase implements ToXContentObject, Writeable {
 
                         @Override
                         public void onResponse(UpdateSettingsResponse response) {
-                            if (response.isAcknowledged() == false) {
-                                logger.error("Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
+                            if (response.isAcknowledged()) {
+                                logger.info("Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
+                            } else {
+                                logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]");
                             }
                         }
 

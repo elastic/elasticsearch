@@ -101,8 +101,10 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
 
                         @Override
                         public void onResponse(UpdateSettingsResponse response) {
-                            if (response.isAcknowledged() == false) {
+                            if (response.isAcknowledged()) {
                                 logger.info("Successfully initialised phase [" + firstPhaseName + "] for index [" + indexName + "]");
+                            } else {
+                                logger.error("Failed to initialised phase [" + firstPhaseName + "] for index [" + indexName + "]");
                             }
                         }
 
@@ -131,9 +133,11 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
 
                                 @Override
                                 public void onResponse(UpdateSettingsResponse response) {
-                                    if (response.isAcknowledged() == false) {
-                                        logger.error(
+                                    if (response.isAcknowledged()) {
+                                        logger.info(
                                                 "Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
+                                    } else {
+                                        logger.error("Failed to initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
                                     }
                                 }
 

@@ -28,6 +28,7 @@ The main {ml} resources can be accessed with a variety of endpoints:
 * {ref}/ml-get-job-stats.html[GET /anomaly_detectors/<job_id>/_stats]: Get job statistics
 * {ref}/ml-update-job.html[POST /anomaly_detectors/<job_id>/_update]: Update certain properties of the job configuration
 * {ref}/ml-flush-job.html[POST anomaly_detectors/<job_id>/_flush]: Force a job to analyze buffered data
+* {ref}/forecast.html[POST anomaly_detectors/<job_id>/_forecast]: Forecast future job behavior
 * {ref}/ml-close-job.html[POST /anomaly_detectors/<job_id>/_close]: Close a job
 * {ref}/ml-delete-job.html[DELETE /anomaly_detectors/<job_id+++>+++]: Delete a job
 

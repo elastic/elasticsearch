@@ -29,7 +29,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-flush-job,Flush job>>
 * <<ml-post-data,Post data to job>>
 * <<ml-update-job,Update job>>
-
+* <<ml-forecast,Forecast job behavior>>
 
 [float]
 [[ml-api-snapshot-endpoint]]
@@ -63,6 +63,8 @@ include::ml/delete-job.asciidoc[]
 include::ml/delete-snapshot.asciidoc[]
 //FLUSH
 include::ml/flush-job.asciidoc[]
+//FORECAST
+include::ml/forecast.asciidoc[]
 //GET
 include::ml/get-bucket.asciidoc[]
 include::ml/get-overall-buckets.asciidoc[]

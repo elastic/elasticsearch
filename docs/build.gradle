@@ -68,6 +68,7 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/delete-datafeed.asciidoc',
         'en/rest-api/ml/delete-snapshot.asciidoc',
         'en/rest-api/ml/flush-job.asciidoc',
+        'en/rest-api/ml/forecast.asciidoc',
         'en/rest-api/ml/get-bucket.asciidoc',
         'en/rest-api/ml/get-overall-buckets.asciidoc',
         'en/rest-api/ml/get-category.asciidoc',

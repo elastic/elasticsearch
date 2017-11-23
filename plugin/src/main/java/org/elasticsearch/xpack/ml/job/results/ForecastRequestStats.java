@@ -10,9 +10,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
@@ -36,7 +36,9 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
 
     public static final ParseField RESULTS_FIELD = new ParseField(RESULT_TYPE_VALUE);
     public static final ParseField FORECAST_ID = new ParseField("forecast_id");
+    public static final ParseField START_TIME = new ParseField("forecast_start_timestamp");
     public static final ParseField END_TIME = new ParseField("forecast_end_timestamp");
+    public static final ParseField CREATE_TIME = new ParseField("forecast_create_timestamp");
     public static final ParseField EXPIRY_TIME = new ParseField("forecast_expiry_timestamp");
     public static final ParseField MESSAGES = new ParseField("forecast_messages");
     public static final ParseField PROCESSING_TIME_MS = new ParseField("processing_time_ms");
@@ -46,20 +48,24 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     public static final ParseField MEMORY_USAGE = new ParseField("forecast_memory_bytes");
 
     public static final ConstructingObjectParser<ForecastRequestStats, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new ForecastRequestStats((String) a[0], (long) a[1]));
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new ForecastRequestStats((String) a[0], (String) a[1]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), FORECAST_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), FORECAST_ID);
 
         PARSER.declareString((modelForecastRequestStats, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareLong(ForecastRequestStats::setRecordCount, PROCESSED_RECORD_COUNT);
         PARSER.declareStringArray(ForecastRequestStats::setMessages, MESSAGES);
         PARSER.declareField(ForecastRequestStats::setTimeStamp,
                 p -> Instant.ofEpochMilli(p.longValue()), Result.TIMESTAMP, ValueType.LONG);
-        PARSER.declareField(ForecastRequestStats::setEndTimeStamp,
+        PARSER.declareField(ForecastRequestStats::setStartTime,
+                p -> Instant.ofEpochMilli(p.longValue()), START_TIME, ValueType.LONG);
+        PARSER.declareField(ForecastRequestStats::setEndTime,
                 p -> Instant.ofEpochMilli(p.longValue()), END_TIME, ValueType.LONG);
-        PARSER.declareField(ForecastRequestStats::setExpiryTimeStamp,
+        PARSER.declareField(ForecastRequestStats::setCreateTime,
+                p -> Instant.ofEpochMilli(p.longValue()), CREATE_TIME, ValueType.LONG);
+        PARSER.declareField(ForecastRequestStats::setExpiryTime,
                 p -> Instant.ofEpochMilli(p.longValue()), EXPIRY_TIME, ValueType.LONG);
         PARSER.declareDouble(ForecastRequestStats::setProgress, PROGRESS);
         PARSER.declareLong(ForecastRequestStats::setProcessingTime, PROCESSING_TIME_MS);
@@ -90,34 +96,39 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     }
 
     private final String jobId;
-    private final long forecastId;
+    private final String forecastId;
     private long recordCount;
     private List<String> messages;
-    private Instant dateStarted = Instant.EPOCH;
-    private Instant dateEnded = Instant.EPOCH;
-    private Instant dateExpires = Instant.EPOCH;
+    private Instant timestamp = Instant.EPOCH;
+    private Instant startTime = Instant.EPOCH;
+    private Instant endTime = Instant.EPOCH;
+    private Instant createTime = Instant.EPOCH;
+    private Instant expiryTime = Instant.EPOCH;
     private double progress;
     private long processingTime;
     private long memoryUsage;
     private ForecastRequestStatus status = ForecastRequestStatus.OK;
 
-    public ForecastRequestStats(String jobId, long forecastId) {
-        this.jobId = jobId;
-        this.forecastId = forecastId;
+    public ForecastRequestStats(String jobId, String forecastId) {
+        this.jobId = Objects.requireNonNull(jobId);
+        this.forecastId = Objects.requireNonNull(forecastId);
     }
 
     public ForecastRequestStats(StreamInput in) throws IOException {
         jobId = in.readString();
-        forecastId = in.readLong();
+        forecastId = in.readString();
         recordCount = in.readLong();
         if (in.readBoolean()) {
             messages = in.readList(StreamInput::readString);
         } else {
             messages = null;
         }
-        dateStarted = Instant.ofEpochMilli(in.readVLong());
-        dateEnded = Instant.ofEpochMilli(in.readVLong());
-        dateExpires = Instant.ofEpochMilli(in.readVLong());
+
+        timestamp = Instant.ofEpochMilli(in.readVLong());
+        startTime = Instant.ofEpochMilli(in.readVLong());
+        endTime = Instant.ofEpochMilli(in.readVLong());
+        createTime = Instant.ofEpochMilli(in.readVLong());
+        expiryTime = Instant.ofEpochMilli(in.readVLong());
         progress = in.readDouble();
         processingTime = in.readLong();
         setMemoryUsage(in.readLong());
@@ -127,7 +138,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        out.writeLong(forecastId);
+        out.writeString(forecastId);
         out.writeLong(recordCount);
         if (messages != null) {
             out.writeBoolean(true);
@@ -135,9 +146,11 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        out.writeVLong(dateStarted.toEpochMilli());
-        out.writeVLong(dateEnded.toEpochMilli());
-        out.writeVLong(dateExpires.toEpochMilli());
+        out.writeVLong(timestamp.toEpochMilli());
+        out.writeVLong(startTime.toEpochMilli());
+        out.writeVLong(endTime.toEpochMilli());
+        out.writeVLong(createTime.toEpochMilli());
+        out.writeVLong(expiryTime.toEpochMilli());
         out.writeDouble(progress);
         out.writeLong(processingTime);
         out.writeLong(getMemoryUsage());
@@ -154,14 +167,20 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         if (messages != null) {
             builder.field(MESSAGES.getPreferredName(), messages);
         }
-        if (dateStarted.equals(Instant.EPOCH) == false) {
-            builder.field(Result.TIMESTAMP.getPreferredName(), dateStarted.toEpochMilli());
+        if (timestamp.equals(Instant.EPOCH) == false) {
+            builder.field(Result.TIMESTAMP.getPreferredName(), timestamp.toEpochMilli());
         }
-        if (dateEnded.equals(Instant.EPOCH) == false) {
-            builder.field(END_TIME.getPreferredName(), dateEnded.toEpochMilli());
+        if (startTime.equals(Instant.EPOCH) == false) {
+            builder.field(START_TIME.getPreferredName(), startTime.toEpochMilli());
         }
-        if (dateExpires.equals(Instant.EPOCH) == false) {
-            builder.field(EXPIRY_TIME.getPreferredName(), dateExpires.toEpochMilli());
+        if (endTime.equals(Instant.EPOCH) == false) {
+            builder.field(END_TIME.getPreferredName(), endTime.toEpochMilli());
+        }
+        if (createTime.equals(Instant.EPOCH) == false) {
+            builder.field(CREATE_TIME.getPreferredName(), createTime.toEpochMilli());
+        }
+        if (expiryTime.equals(Instant.EPOCH) == false) {
+            builder.field(EXPIRY_TIME.getPreferredName(), expiryTime.toEpochMilli());
         }
         builder.field(PROGRESS.getPreferredName(), progress);
         builder.field(PROCESSING_TIME_MS.getPreferredName(), processingTime);
@@ -175,7 +194,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         return jobId;
     }
 
-    public long getForecastId() {
+    public String getForecastId() {
         return forecastId;
     }
 
@@ -193,7 +212,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         this.recordCount = recordCount;
     }
 
-    public double getRecordCount() {
+    public long getRecordCount() {
         return recordCount;
     }
 
@@ -205,28 +224,44 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         this.messages = messages;
     }
 
-    public Instant getDateStarted() {
-        return dateStarted;
+    public void setTimeStamp(Instant timestamp) {
+        this.timestamp = timestamp;
     }
 
-    public void setTimeStamp(Instant dateStarted) {
-        this.dateStarted = dateStarted;
+    public Instant getTimestamp() {
+        return timestamp;
     }
 
-    public Instant getDateEnded() {
-        return dateEnded;
+    public void setStartTime(Instant startTime) {
+        this.startTime = startTime;
     }
 
-    public void setEndTimeStamp(Instant dateEnded) {
-        this.dateEnded = dateEnded;
+    public Instant getStartTime() {
+        return startTime;
     }
 
-    public void setExpiryTimeStamp(Instant dateExpires) {
-        this.dateExpires = dateExpires;
+    public Instant getEndTime() {
+        return endTime;
     }
 
-    public Instant getDateExpired() {
-        return dateExpires;
+    public void setEndTime(Instant endTime) {
+        this.endTime = endTime;
+    }
+
+    public void setCreateTime(Instant createTime) {
+        this.createTime = createTime;
+    }
+
+    public Instant getCreateTime() {
+        return createTime;
+    }
+
+    public void setExpiryTime(Instant expiryTime) {
+        this.expiryTime = expiryTime;
+    }
+
+    public Instant getExpiryTime() {
+        return expiryTime;
     }
 
     /**
@@ -278,12 +313,14 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         }
         ForecastRequestStats that = (ForecastRequestStats) other;
         return Objects.equals(this.jobId, that.jobId) &&
-                this.forecastId == that.forecastId &&
+                Objects.equals(this.forecastId, that.forecastId) &&
                 this.recordCount == that.recordCount &&
                 Objects.equals(this.messages, that.messages) &&
-                Objects.equals(this.dateStarted, that.dateStarted) &&
-                Objects.equals(this.dateEnded, that.dateEnded) &&
-                Objects.equals(this.dateExpires, that.dateExpires) &&
+                Objects.equals(this.timestamp, that.timestamp) &&
+                Objects.equals(this.startTime, that.startTime) &&
+                Objects.equals(this.endTime, that.endTime) &&
+                Objects.equals(this.createTime, that.createTime) &&
+                Objects.equals(this.expiryTime, that.expiryTime) &&
                 this.progress == that.progress &&
                 this.processingTime == that.processingTime &&
                 this.memoryUsage == that.memoryUsage &&
@@ -292,7 +329,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, forecastId, recordCount, messages, dateStarted, dateEnded, dateExpires,
+        return Objects.hash(jobId, forecastId, recordCount, messages, timestamp, startTime, endTime, createTime, expiryTime,
                 progress, processingTime, memoryUsage, status);
     }
 }

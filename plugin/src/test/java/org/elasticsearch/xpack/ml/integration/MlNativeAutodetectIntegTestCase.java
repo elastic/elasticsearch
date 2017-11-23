@@ -26,6 +26,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -291,16 +293,18 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
         return client().execute(PostDataAction.INSTANCE, request).actionGet().getDataCounts();
     }
 
-    protected long forecast(String jobId, TimeValue duration, TimeValue expiresIn) {
+    protected String forecast(String jobId, TimeValue duration, TimeValue expiresIn) {
         ForecastJobAction.Request request = new ForecastJobAction.Request(jobId);
-        request.setDuration(duration.getStringRep());
+        if (duration != null) {
+            request.setDuration(duration.getStringRep());
+        }
         if (expiresIn != null) {
             request.setExpiresIn(expiresIn.getStringRep());
         }
         return client().execute(ForecastJobAction.INSTANCE, request).actionGet().getForecastId();
     }
 
-    protected void waitForecastToFinish(String jobId, long forecastId) throws Exception {
+    protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
         assertBusy(() -> {
             ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
             assertThat(forecastRequestStats, is(notNullValue()));
@@ -308,7 +312,7 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    protected ForecastRequestStats getForecastStats(String jobId, long forecastId) {
+    protected ForecastRequestStats getForecastStats(String jobId, String forecastId) {
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
                 .setQuery(QueryBuilders.boolQuery()
                         .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
@@ -350,7 +354,7 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
         return forecastStats;
     }
 
-    protected long countForecastDocs(String jobId, long forecastId) {
+    protected long countForecastDocs(String jobId, String forecastId) {
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
                 .setQuery(QueryBuilders.boolQuery()
                         .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
@@ -358,6 +362,30 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
                         .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId)))
                 .execute().actionGet();
         return searchResponse.getHits().getTotalHits();
+    }
+
+    protected List<Forecast> getForecasts(String jobId, ForecastRequestStats forecastRequestStats) {
+        List<Forecast> forecasts = new ArrayList<>();
+
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+                .setSize((int) forecastRequestStats.getRecordCount())
+                .setQuery(QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
+                        .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                        .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastRequestStats.getForecastId())))
+                .addSort(SortBuilders.fieldSort(Result.TIMESTAMP.getPreferredName()).order(SortOrder.ASC))
+                .execute().actionGet();
+        SearchHits hits = searchResponse.getHits();
+        for (SearchHit hit : hits) {
+            try {
+                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
+                        NamedXContentRegistry.EMPTY, hit.getSourceRef());
+                forecasts.add(Forecast.PARSER.apply(parser, null));
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return forecasts;
     }
 
     @Override

@@ -175,13 +175,13 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
         private boolean acknowledged;
-        private long forecastId;
+        private String forecastId;
 
         Response() {
             super(null, null);
         }
 
-        Response(boolean acknowledged, long forecastId) {
+        Response(boolean acknowledged, String forecastId) {
             super(null, null);
             this.acknowledged = acknowledged;
             this.forecastId = forecastId;
@@ -191,7 +191,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             return acknowledged;
         }
 
-        public long getForecastId() {
+        public String getForecastId() {
             return forecastId;
         }
 
@@ -199,14 +199,14 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             acknowledged = in.readBoolean();
-            forecastId = in.readLong();
+            forecastId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(acknowledged);
-            out.writeLong(forecastId);
+            out.writeString(forecastId);
         }
 
         @Override
@@ -227,7 +227,7 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
                 return false;
             }
             Response other = (Response) obj;
-            return this.acknowledged == other.acknowledged && this.forecastId == other.forecastId;
+            return this.acknowledged == other.acknowledged && Objects.equals(this.forecastId, other.forecastId);
         }
 
         @Override

@@ -27,7 +27,7 @@ public class ForecastTests extends AbstractSerializingTestCase<Forecast> {
 
     public Forecast createTestInstance(String jobId) {
         Forecast forecast =
-                new Forecast(jobId, randomNonNegativeLong(), new Date(randomLong()),
+                new Forecast(jobId, randomAlphaOfLength(20), new Date(randomLong()),
                         randomNonNegativeLong(), randomInt());
 
         if (randomBoolean()) {
@@ -69,7 +69,7 @@ public class ForecastTests extends AbstractSerializingTestCase<Forecast> {
     }
 
     public void testId() {
-        Forecast forecast = new Forecast("job-foo", 222, new Date(100L), 60L, 2);
+        Forecast forecast = new Forecast("job-foo", "222", new Date(100L), 60L, 2);
         String byFieldValue = null;
         String partitionFieldValue = null;
 

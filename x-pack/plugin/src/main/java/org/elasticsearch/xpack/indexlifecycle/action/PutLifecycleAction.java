@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -83,6 +85,38 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
             addAcknowledgedField(builder);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            readAcknowledged(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            writeAcknowledged(out);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(isAcknowledged());
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (obj.getClass() != getClass()) {
+                return false;
+            }
+            Response other = (Response) obj;
+            return Objects.equals(isAcknowledged(), other.isAcknowledged());
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
         }
 
     }
@@ -136,6 +170,28 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             policy.writeTo(out);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(policy);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (obj.getClass() != getClass()) {
+                return false;
+            }
+            Request other = (Request) obj;
+            return Objects.equals(policy, other.policy);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
         }
 
     }

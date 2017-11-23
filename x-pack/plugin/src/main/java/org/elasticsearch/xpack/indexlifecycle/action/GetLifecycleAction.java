@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class GetLifecycleAction
         extends Action<GetLifecycleAction.Request, GetLifecycleAction.Response, GetLifecycleAction.RequestBuilder> {
@@ -63,10 +65,9 @@ public class GetLifecycleAction
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final LifecyclePolicy policy;
+        private LifecyclePolicy policy;
 
-        public Response() {
-            this(null);
+        Response() {
         }
 
         public Response(LifecyclePolicy policy) {
@@ -77,6 +78,38 @@ public class GetLifecycleAction
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             policy.toXContent(builder, params);
             return builder;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            policy = new LifecyclePolicy(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            policy.writeTo(out);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(policy);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (obj.getClass() != getClass()) {
+                return false;
+            }
+            Response other = (Response) obj;
+            return Objects.equals(policy, other.policy);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
         }
 
     }
@@ -113,6 +146,23 @@ public class GetLifecycleAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(policyName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(policyName);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (obj.getClass() != getClass()) {
+                return false;
+            }
+            Request other = (Request) obj;
+            return Objects.equals(policyName, other.policyName);
         }
 
     }

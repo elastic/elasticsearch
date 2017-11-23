@@ -22,7 +22,11 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -55,12 +59,13 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
     public void testUnassignedGlobalCheckpoint() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         final AtomicLong maxSeqNoLeap = new AtomicLong(0);
-        final Path indexPath = createTempDir();
+        final Path translogPath = createTempDir();
 
         try (Store store = createStore()) {
             int initDocs = scaledRandomIntBetween(10, 1000);
             int initCommits = 1;
-            try (InternalEngine engine = newEngine(store, indexPath, globalCheckpoint::get, maxSeqNoLeap::get)) {
+            try (InternalEngine engine =
+                     newEngine(store, translogPath, new ByteSizeValue(randomInt(1024)), globalCheckpoint::get, maxSeqNoLeap::get)) {
                 for (int i = 0; i < initDocs; i++) {
                     addDoc(engine, Integer.toString(i));
                     maxSeqNoLeap.set(randomInt(10));
@@ -75,7 +80,8 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
                 engine.flush(true, true);
             }
             assertThat(DirectoryReader.listCommits(store.directory()), hasSize(initCommits + 1));
-            try (InternalEngine engine = newEngine(store, indexPath, globalCheckpoint::get, maxSeqNoLeap::get)) {
+            try (InternalEngine engine =
+                     newEngine(store, translogPath, new ByteSizeValue(randomInt(1024)), globalCheckpoint::get, maxSeqNoLeap::get)) {
                 engine.refresh("test");
                 assertThat("Unassigned global checkpoint reserves all commits", DirectoryReader.listCommits(store.directory()),
                     hasSize(initCommits + 1));
@@ -105,11 +111,12 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
     public void testKeepUpGlobalCheckpoint() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         final AtomicLong maxSeqNoLeap = new AtomicLong(0);
-        final Path indexPath = createTempDir();
+        final Path translogPath = createTempDir();
 
         try (Store store = createStore()) {
             int initDocs = scaledRandomIntBetween(10, 1000);
-            try (InternalEngine engine = newEngine(store, indexPath, globalCheckpoint::get, maxSeqNoLeap::get)) {
+            try (InternalEngine engine =
+                     newEngine(store, translogPath, new ByteSizeValue(randomInt(1024)), globalCheckpoint::get, maxSeqNoLeap::get)) {
                 for (int i = 0; i < initDocs; i++) {
                     addDoc(engine, Integer.toString(i));
                     globalCheckpoint.set(engine.seqNoService().getLocalCheckpoint());
@@ -120,7 +127,8 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
                 engine.flush(true, true);
             }
             assertThat(DirectoryReader.listCommits(store.directory()), hasSize(1));
-            try (InternalEngine engine = newEngine(store, indexPath, globalCheckpoint::get, maxSeqNoLeap::get)) {
+            try (InternalEngine engine =
+                     newEngine(store, translogPath, new ByteSizeValue(randomInt(1024)), globalCheckpoint::get, maxSeqNoLeap::get)) {
                 assertThat("OnInit deletes unreferenced commits", DirectoryReader.listCommits(store.directory()), hasSize(1));
                 int moreDocs = scaledRandomIntBetween(1, 100);
                 for (int i = 0; i < moreDocs; i++) {
@@ -138,11 +146,12 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
     public void testLaggingGlobalCheckpoint() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
         final AtomicLong maxSeqNoLeap = new AtomicLong(0);
-        final Path indexPath = createTempDir();
+        final Path translogPath = createTempDir();
 
         try (Store store = createStore()) {
             int initDocs = scaledRandomIntBetween(100, 1000);
-            try (InternalEngine engine = newEngine(store, indexPath, globalCheckpoint::get, maxSeqNoLeap::get)) {
+            try (InternalEngine engine =
+                     newEngine(store, translogPath, new ByteSizeValue(randomInt(1024)), globalCheckpoint::get, maxSeqNoLeap::get)) {
                 for (int i = 0; i < initDocs; i++) {
                     addDoc(engine, Integer.toString(i));
                     maxSeqNoLeap.set(randomInt(10));
@@ -162,10 +171,11 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
                 }
                 engine.flush(true, true);
             }
-            assertThat("Reserved commits should be 1", reservedCommits(globalCheckpoint.get()), hasSize(1));
+            assertThat("Reserved commits should be 1", reservedCommits(store, globalCheckpoint.get()), hasSize(1));
 
-            try (InternalEngine engine = newEngine(store, indexPath, globalCheckpoint::get, maxSeqNoLeap::get)) {
-                assertThat("Reserved commits should always be 1", reservedCommits(globalCheckpoint.get()), hasSize(1));
+            try (InternalEngine engine =
+                     newEngine(store, translogPath, new ByteSizeValue(randomInt(1024)), globalCheckpoint::get, maxSeqNoLeap::get)) {
+                assertThat("Reserved commits should always be 1", reservedCommits(store, globalCheckpoint.get()), hasSize(1));
                 int moreDocs = scaledRandomIntBetween(1, 100);
                 for (int i = 0; i < moreDocs; i++) {
                     addDoc(engine, Integer.toString(initDocs + i));
@@ -175,7 +185,7 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
                     }
                     if (frequently()) {
                         engine.flush(true, true);
-                        assertThat("Reserved commits should be 1", reservedCommits(globalCheckpoint.get()), hasSize(1));
+                        assertThat("Reserved commits should be 1", reservedCommits(store, globalCheckpoint.get()), hasSize(1));
                     }
                     if (rarely()) {
                         engine.rollTranslogGeneration();
@@ -215,9 +225,11 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
         verify(commit2, times(0)).delete();
         verify(commit3, times(0)).delete();
 
+        // TODO: Once more test here.
+
     }
 
-    List<IndexCommit> reservedCommits(long currentGlobalCheckpoint) throws IOException {
+    List<IndexCommit> reservedCommits(Store store, long currentGlobalCheckpoint) throws IOException {
         List<IndexCommit> reservedCommits = new ArrayList<>();
         List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
         for (IndexCommit commit : existingCommits) {
@@ -235,9 +247,17 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
         engine.index(indexForDoc(doc));
     }
 
-    InternalEngine newEngine(final Store store, final Path indexPath,
+    InternalEngine newEngine(final Store store, final Path translogPath, final ByteSizeValue translogRetentionSize,
                              final LongSupplier globalCheckpointSupplier, final LongSupplier maxSeqNoLeapSupplier) throws IOException {
-        return createEngine(defaultSettings, store, indexPath, newMergePolicy(), null,
+
+        final IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(),
+            defaultSettings.getNodeSettings(), defaultSettings.getScopedSettings());
+
+        final IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData());
+        builder.settings(Settings.builder().put(indexSettings.getSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), translogRetentionSize));
+        indexSettings.updateIndexMetaData(builder.build());
+        return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null,
             (config, seqNoStats) -> new SequenceNumbersService(
                 config.getShardId(),
                 config.getAllocationId(),

@@ -783,8 +783,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 Collections.singletonList(new TransportAddress(TransportAddress.META_ADDRESS, 80)),
                 4, 4, new TimeValue(30, TimeUnit.MINUTES), false);
 
-        String encoded = "AQQAAAAABzAuMC4wLjAAAAABAQQAAAAABzAuMC4wLjAAAABQBDwEBAx0ZXN0X2NsdXN0ZXIAAAAAAAAAAAAAAA==";
-        final byte[] data = Base64.getDecoder().decode(encoded);
+        final byte[] data;
+        if (version.before(Version.V_6_0_0_alpha1)) {
+            String encoded = "AQABBAAAAAAHMC4wLjAuMAAAAAEBAAEEAAAAAAcwLjAuMC4wAAAAUAQ8BAQMdGVzdF9jbHVzdGVyAAAAAAAAAA==";
+            data = Base64.getDecoder().decode(encoded);
+        } else {
+            String encoded = "AQQAAAAABzAuMC4wLjAAAAABAQQAAAAABzAuMC4wLjAAAABQBDwEBAx0ZXN0X2NsdXN0ZXIAAAAAAAAAAAAAAA==";
+            data = Base64.getDecoder().decode(encoded);
+        }
 
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);

@@ -170,7 +170,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
             return false;
         }
         LifecyclePolicy other = (LifecyclePolicy) obj;
-        return Objects.equals(name, other.name) && Objects.equals(phases, other.phases);
+        return Objects.equals(name, other.name) && 
+                Objects.equals(phases, other.phases);
     }
 
     @Override

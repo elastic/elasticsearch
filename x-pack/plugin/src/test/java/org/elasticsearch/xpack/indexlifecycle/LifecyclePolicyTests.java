@@ -18,6 +18,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
@@ -67,6 +68,25 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
                 Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new)));
+    }
+
+    @Override
+    protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) throws IOException {
+        String name = instance.getName();
+        List<Phase> phases = instance.getPhases();
+        switch (between(0, 1)) {
+        case 0:
+            name = name + randomAlphaOfLengthBetween(1, 5);
+            break;
+        case 1:
+            phases = new ArrayList<>(phases);
+            phases.add(new Phase(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
+                    Collections.emptyList()));
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new LifecyclePolicy(name, phases);
     }
 
 }

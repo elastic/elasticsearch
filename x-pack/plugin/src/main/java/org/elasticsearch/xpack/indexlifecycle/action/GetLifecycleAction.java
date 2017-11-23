@@ -74,6 +74,10 @@ public class GetLifecycleAction
             this.policy = policy;
         }
 
+        public LifecyclePolicy getPolicy() {
+            return policy;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             policy.toXContent(builder, params);

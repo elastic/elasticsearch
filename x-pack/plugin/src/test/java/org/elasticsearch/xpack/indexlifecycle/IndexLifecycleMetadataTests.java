@@ -5,23 +5,28 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleMetadata.IndexLifecycleMetadataDiff;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class IndexLifecycleMetadataTests extends AbstractSerializingTestCase<IndexLifecycleMetadata> {
+public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTestCase<MetaData.Custom> {
 
     private NamedXContentRegistry registry;
 
@@ -65,13 +70,43 @@ public class IndexLifecycleMetadataTests extends AbstractSerializingTestCase<Ind
     }
 
     @Override
-    protected Reader<IndexLifecycleMetadata> instanceReader() {
+    protected Reader<MetaData.Custom> instanceReader() {
         return IndexLifecycleMetadata::new;
     }
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
                 Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new)));
+    }
+
+    @Override
+    protected MetaData.Custom mutateInstance(MetaData.Custom instance) {
+        IndexLifecycleMetadata metadata = (IndexLifecycleMetadata) instance;
+        SortedMap<String, LifecyclePolicy> policies = metadata.getPolicies();
+        long pollInterval = metadata.getPollInterval();
+        switch (between(0, 1)) {
+        case 0:
+            pollInterval = pollInterval + randomIntBetween(1, 1000);
+            break;
+        case 1:
+            policies = new TreeMap<>(policies);
+            String policyName = randomAlphaOfLength(10);
+            policies.put(policyName, new LifecyclePolicy(policyName, Collections.emptyList()));
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new IndexLifecycleMetadata(policies, pollInterval);
+    }
+
+    @Override
+    protected Custom makeTestChanges(Custom testInstance) {
+        return mutateInstance(testInstance);
+    }
+
+    @Override
+    protected Reader<Diff<Custom>> diffReader() {
+        return IndexLifecycleMetadataDiff::new;
     }
 
 }

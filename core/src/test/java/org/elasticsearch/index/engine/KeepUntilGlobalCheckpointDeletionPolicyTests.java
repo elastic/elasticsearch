@@ -45,11 +45,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -201,32 +201,62 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
     }
 
     public void testLegacyIndex() throws Exception {
-        final AtomicLong globalCheckpoint = new AtomicLong(randomInt(10));
-        KeepUntilGlobalCheckpointDeletionPolicy deletionPolicy = new KeepUntilGlobalCheckpointDeletionPolicy(globalCheckpoint::get);
+        final AtomicLong globalCheckpoint = new AtomicLong(randomInt(1000));
+        final KeepUntilGlobalCheckpointDeletionPolicy deletionPolicy = new KeepUntilGlobalCheckpointDeletionPolicy(globalCheckpoint::get);
 
-        final IndexCommit commit1 = mockIndexCommit(Collections.emptyMap());
-        deletionPolicy.onInit(Collections.singletonList(commit1));
-        verify(commit1, times(0)).delete();
+        // Keep a single legacy commit
+        {
+            IndexCommit legacyCommit = mockIndexCommit(Collections.emptyMap());
+            deletionPolicy.onInit(Collections.singletonList(legacyCommit));
+            verify(legacyCommit, times(0)).delete();
 
-        final IndexCommit commit2 = mockIndexCommit(Collections.emptyMap());
-        deletionPolicy.onCommit(Arrays.asList(commit1, commit2));
-        verify(commit1, times(1)).delete();
-        verify(commit2, times(0)).delete();
-        reset(commit1, commit2);
+            deletionPolicy.onCommit(Collections.singletonList(legacyCommit));
+            verify(legacyCommit, times(0)).delete();
+        }
 
-        final IndexCommit commit3 = mockIndexCommit(
-            Collections.singletonMap(SequenceNumbers.MAX_SEQ_NO, Long.toString(between(1, 1000))));
-        deletionPolicy.onCommit(Arrays.asList(commit2, commit3));
-        verify(commit2, times(0)).delete();
-        verify(commit3, times(0)).delete();
+        // Keep a safe commit, and delete a legacy commit.
+        {
+            IndexCommit legacyCommit = mockIndexCommit(Collections.emptyMap());
+            IndexCommit safeCommit = mockIndexCommit(singletonMap(
+                SequenceNumbers.MAX_SEQ_NO, Long.toString(between(0, globalCheckpoint.intValue()))));
 
-        deletionPolicy.onCommit(Arrays.asList(commit1, commit2, commit3));
-        verify(commit1, times(1)).delete();
-        verify(commit2, times(0)).delete();
-        verify(commit3, times(0)).delete();
+            deletionPolicy.onInit(Arrays.asList(legacyCommit, safeCommit));
+            verify(legacyCommit, times(1)).delete();
+            verify(safeCommit, times(0)).delete();
 
-        // TODO: Once more test here.
+            deletionPolicy.onCommit(Arrays.asList(legacyCommit, safeCommit));
+            verify(legacyCommit, times(2)).delete();
+            verify(safeCommit, times(0)).delete();
+        }
 
+        // Keep until the safe commit, and delete legacy commits
+        {
+            IndexCommit legacyCommit = mockIndexCommit(Collections.emptyMap());
+
+            IndexCommit safeCommit = mockIndexCommit(singletonMap(
+                SequenceNumbers.MAX_SEQ_NO, Long.toString(between(0, globalCheckpoint.intValue()))));
+            IndexCommit unsafeCommit = mockIndexCommit(singletonMap(
+                SequenceNumbers.MAX_SEQ_NO, Long.toString(globalCheckpoint.intValue() + between(1, 1000))));
+
+            deletionPolicy.onInit(Arrays.asList(legacyCommit, safeCommit, unsafeCommit));
+            verify(legacyCommit, times(1)).delete();
+            verify(safeCommit, times(0)).delete();
+            verify(unsafeCommit, times(0)).delete();
+
+            deletionPolicy.onCommit(Arrays.asList(legacyCommit, safeCommit, unsafeCommit));
+            verify(legacyCommit, times(2)).delete();
+            verify(safeCommit, times(0)).delete();
+            verify(unsafeCommit, times(0)).delete();
+
+            IndexCommit oldCommit = mockIndexCommit(singletonMap(
+                SequenceNumbers.MAX_SEQ_NO, Long.toString(between(0, globalCheckpoint.intValue()))));
+
+            deletionPolicy.onCommit(Arrays.asList(legacyCommit, oldCommit, safeCommit, unsafeCommit));
+            verify(legacyCommit, times(3)).delete();
+            verify(oldCommit, times(1)).delete();
+            verify(safeCommit, times(0)).delete();
+            verify(unsafeCommit, times(0)).delete();
+        }
     }
 
     List<IndexCommit> reservedCommits(Store store, long currentGlobalCheckpoint) throws IOException {

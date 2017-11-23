@@ -240,7 +240,7 @@ public class RoutingAllocation {
      * Returns updated {@link RestoreInProgress} based on the changes that were made to the routing nodes
      */
     public RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress) {
-        return restoreInProgressUpdater.applyChanges(metaData, routingTable, restoreInProgress);
+        return restoreInProgressUpdater.applyChanges(restoreInProgress);
     }
 
     /**

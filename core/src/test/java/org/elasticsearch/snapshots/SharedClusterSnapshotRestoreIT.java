@@ -968,18 +968,23 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreResponse.getRestoreInfo().totalShards(), equalTo(numShards.numPrimaries));
         assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(0));
 
-        // check that every shard failed because the number of allocation retries has been reached
-        for (int shardId = 0; shardId < numShards.numPrimaries; shardId++) {
-            ClusterAllocationExplainResponse allocationResponse = client().admin().cluster().prepareAllocationExplain()
-                                                                                            .setIndex(indexName)
-                                                                                            .setShard(shardId)
-                                                                                            .setPrimary(true)
-                                                                                            .get();
+        // check that every shard failed because the number of allocation retries has been reached;
+        // as it can take some time and shard allocation can be throttled, we use an assertBusy()
+        assertBusy(() -> {
+            Client client = client();
+            for (int shardId = 0; shardId < numShards.numPrimaries; shardId++) {
+                ClusterAllocationExplainResponse allocationResponse = client.admin().cluster().prepareAllocationExplain()
+                                                                                              .setIndex(indexName)
+                                                                                              .setShard(shardId)
+                                                                                              .setPrimary(true)
+                                                                                              .get();
 
-            UnassignedInfo unassignedInfo = allocationResponse.getExplanation().getUnassignedInfo();
-            assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            assertThat(unassignedInfo.getNumFailedAllocations(), equalTo(maxRetries));
-        }
+                UnassignedInfo unassignedInfo = allocationResponse.getExplanation().getUnassignedInfo();
+                assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+                assertThat(unassignedInfo.getNumFailedAllocations(), equalTo(maxRetries));
+                assertThat(unassignedInfo.getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.DECIDERS_NO));
+            }
+        });
 
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).setRoutingTable(true).get();
 

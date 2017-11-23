@@ -116,12 +116,13 @@ specific index module:
     How often to perform a refresh operation, which makes recent changes to the
     index visible to search. Defaults to `1s`.  Can be set to `-1` to disable
     refresh. If this setting is not explicitly set, shards that haven't seen
-    search traffic for at least `index.search.idle.after` won't receive
-    background refreshes until they are not idle anymore. Searches that hit
-    an idle shard where a refresh is pending will wait in the background
-    for the next background refresh. This behavior aims to automatically optimize
-    bulk indexing in the default case when no searches are performed. In order to
-    opt out of this behavior an explicit value of `1s` should set as the refresh interval.
+    search traffic for at least `index.search.idle.after` seconds will not receive
+    background refreshes until they receive a search request. Searches that hit an
+    idle shard where a refresh is pending will wait for the next background
+    refresh (within `1s`). This behavior aims to automatically optimize bulk
+    indexing in the default case when no searches are performed. In order to opt
+    out of this behavior an explicit value of `1s` should set as the refresh
+    interval.
 
 `index.max_result_window`::
 

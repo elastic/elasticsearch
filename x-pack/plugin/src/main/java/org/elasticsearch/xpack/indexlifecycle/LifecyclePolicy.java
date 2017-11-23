@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implements ToXContentObject, Writeable {
     private static final Logger logger = ESLoggerFactory.getLogger(LifecyclePolicy.class);
@@ -78,7 +79,6 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.array(PHASES_FIELD.getPreferredName(), phases);
         builder.startObject(PHASES_FIELD.getPreferredName());
         for (Phase phase : phases) {
             builder.field(phase.getName(), phase);
@@ -154,5 +154,27 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
                             + getName() + "] for index [" + indexName + "]"));
             currentPhase.execute(idxMeta, client);
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, phases);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
+        LifecyclePolicy other = (LifecyclePolicy) obj;
+        return Objects.equals(name, other.name) && Objects.equals(phases, other.phases);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

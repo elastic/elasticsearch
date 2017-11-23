@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 public class Phase implements ToXContentObject, Writeable {
     public static final String PHASE_COMPLETED = "ACTIONS COMPLETED";
@@ -89,13 +91,9 @@ public class Phase implements ToXContentObject, Writeable {
         return actions;
     }
 
-    protected boolean canExecute(IndexMetaData idxMeta) {
-        long now = System.currentTimeMillis(); // NOCOMMIT use ES way for
-                                               // getting current time.
+    protected boolean canExecute(IndexMetaData idxMeta, Supplier<Long> nowSupplier) {
+        long now = nowSupplier.get();
         long indexCreated = idxMeta.getCreationDate();
-        logger.error("canExecute: now: " + now + ", indexCreated: " + indexCreated + ", (indexCreated + after.millis()): "
-                + (indexCreated + after.millis()) + ", (indexCreated + after.millis()) >= now: "
-                + ((indexCreated + after.millis()) >= now));
         return (indexCreated + after.millis()) <= now;
     }
 
@@ -109,24 +107,28 @@ public class Phase implements ToXContentObject, Writeable {
             } else {
                 firstActionName = actions.get(0).getWriteableName();
             }
-            client.admin().indices().prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), firstActionName))
-                    .execute(new ActionListener<UpdateSettingsResponse>() {
+            client.admin().indices()
+                    .updateSettings(
+                            new UpdateSettingsRequest(Settings.builder()
+                                    .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), firstActionName).build(), indexName),
+                            new ActionListener<UpdateSettingsResponse>() {
 
-                        @Override
-                        public void onResponse(UpdateSettingsResponse response) {
-                            if (response.isAcknowledged()) {
-                                logger.info("Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
-                            } else {
-                                logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]");
-                            }
-                        }
+                                @Override
+                                public void onResponse(UpdateSettingsResponse response) {
+                                    if (response.isAcknowledged()) {
+                                        logger.info(
+                                                "Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
+                                    } else {
+                                        logger.error(
+                                                "Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]");
+                                    }
+                                }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]", e);
-                        }
-                    });
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]", e);
+                                }
+                            });
         } else if (currentActionName.equals(PHASE_COMPLETED) == false) {
             LifecycleAction currentAction = actions.stream().filter(action -> action.getWriteableName().equals(currentActionName)).findAny()
                     .orElseThrow(() -> new IllegalStateException("Current action [" + currentActionName + "] not found in phase ["

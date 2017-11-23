@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implements ToXContentObject, Writeable {
     private static final Logger logger = ESLoggerFactory.getLogger(LifecyclePolicy.class);
@@ -88,7 +89,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
         return builder;
     }
 
-    public void execute(IndexMetaData idxMeta, Client client) {
+    public void execute(IndexMetaData idxMeta, Client client, Supplier<Long> nowSupplier) {
         String currentPhaseName = IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.get(idxMeta.getSettings());
         boolean currentPhaseActionsComplete = IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.get(idxMeta.getSettings())
                 .equals(Phase.PHASE_COMPLETED);
@@ -123,7 +124,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
             }
             if (currentPhaseIndex < phases.size() - 1) {
                 Phase nextPhase = phases.get(currentPhaseIndex + 1);
-                if (nextPhase.canExecute(idxMeta)) {
+                if (nextPhase.canExecute(idxMeta, nowSupplier)) {
                     String nextPhaseName = nextPhase.getName();
                     client.admin().indices().prepareUpdateSettings(indexName)
                             .setSettings(Settings.builder()

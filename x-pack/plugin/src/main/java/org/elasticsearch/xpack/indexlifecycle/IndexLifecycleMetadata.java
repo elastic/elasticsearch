@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,7 +24,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -35,7 +38,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     public static final IndexLifecycleMetadata EMPTY_METADATA = new IndexLifecycleMetadata(Collections.emptySortedMap(), 3);
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<IndexLifecycleMetadata, NamedXContentRegistry> PARSER = new ConstructingObjectParser<>(
-            TYPE, a -> new IndexLifecycleMetadata((SortedMap<String, LifecyclePolicy>) a[0], (long) a[1]));
+            TYPE, a -> new IndexLifecycleMetadata(convertListToMapValues((List<LifecyclePolicy>) a[0]), (long) a[1]));
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> LifecyclePolicy.parse(p, new Tuple<>(n, c)),
                 v -> {
@@ -92,6 +95,14 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
         return builder;
     }
 
+    private static SortedMap<String, LifecyclePolicy> convertListToMapValues(List<LifecyclePolicy> list) {
+        SortedMap<String, LifecyclePolicy> map = new TreeMap<>();
+        for (LifecyclePolicy policy : list) {
+            map.put(policy.getName(), policy);
+        }
+        return map;
+    }
+
     @Override
     public Version getMinimalSupportedVersion() {
         return Version.V_7_0_0_alpha1;
@@ -105,6 +116,29 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     @Override
     public EnumSet<MetaData.XContentContext> context() {
         return MetaData.ALL_CONTEXTS;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(policies, pollInterval);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
+        IndexLifecycleMetadata other = (IndexLifecycleMetadata) obj;
+        return Objects.equals(policies, other.policies) && 
+                Objects.equals(pollInterval, other.pollInterval);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 
     public static class IndexLifecycleMetadataDiff implements NamedDiff<MetaData.Custom> {

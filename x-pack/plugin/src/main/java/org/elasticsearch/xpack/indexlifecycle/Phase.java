@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 public class Phase implements ToXContentObject, Writeable {
     public static final String PHASE_COMPLETED = "ACTIONS COMPLETED";
@@ -137,7 +138,7 @@ public class Phase implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(AFTER_FIELD.getPreferredName(), after);
+        builder.field(AFTER_FIELD.getPreferredName(), after.seconds() + "s"); // Need a better way to get a parsable format out here
         builder.startObject(ACTIONS_FIELD.getPreferredName());
         for (LifecycleAction action : actions) {
             builder.field(action.getWriteableName(), action);
@@ -145,6 +146,30 @@ public class Phase implements ToXContentObject, Writeable {
         builder.endObject();
         builder.endObject();
         return builder;
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, after, actions);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
+        Phase other = (Phase) obj;
+        return Objects.equals(name, other.name) &&
+                Objects.equals(after, other.after) &&
+                Objects.equals(actions, other.actions);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 
 }

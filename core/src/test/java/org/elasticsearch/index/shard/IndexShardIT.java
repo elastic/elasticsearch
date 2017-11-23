@@ -569,7 +569,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             // we can't assert on hasRefreshed since it might have been refreshed in the background on the shard concurrently
             assertFalse(shard.isSearchIdle());
         }
-        assertHitCount(client().prepareSearch().get(), 1l);
+        assertHitCount(client().prepareSearch().get(), 1);
         for (int i = 1; i < numDocs; i++) {
             client().prepareIndex("test", "test", "" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
                 .execute(new ActionListener<IndexResponse>() {
@@ -603,7 +603,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(shard.isSearchIdle());
         CountDownLatch refreshLatch = new CountDownLatch(1);
         client().admin().indices().prepareRefresh().execute(ActionListener.wrap(refreshLatch::countDown)); // async on purpose
-        assertHitCount(client().prepareSearch().get(), 1l);
+        assertHitCount(client().prepareSearch().get(), 1);
         client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertFalse(shard.scheduledRefresh());
 
@@ -613,7 +613,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build())
             .execute(ActionListener.wrap(updateSettingsLatch::countDown));
-        assertHitCount(client().prepareSearch().get(), 2l);
+        assertHitCount(client().prepareSearch().get(), 2);
         // wait for both to ensure we don't have in-flight operations
         updateSettingsLatch.await();
         refreshLatch.await();
@@ -621,6 +621,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertTrue(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
-        assertHitCount(client().prepareSearch().get(), 3l);
+        assertHitCount(client().prepareSearch().get(), 3);
     }
 }

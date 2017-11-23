@@ -9,6 +9,7 @@ import com.google.common.base.Strings;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval.Unit;
@@ -38,11 +38,11 @@ public class IndexLifecycleInitialisationService extends AbstractComponent
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final Clock clock;
-    private InternalClient client;
+    private Client client;
     private ClusterService clusterService;
     private ThreadPool threadPool;
 
-    public IndexLifecycleInitialisationService(Settings settings, InternalClient client, ClusterService clusterService, Clock clock,
+    public IndexLifecycleInitialisationService(Settings settings, Client client, ClusterService clusterService, Clock clock,
             ThreadPool threadPool) {
         super(settings);
         this.client = client;

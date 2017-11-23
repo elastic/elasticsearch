@@ -95,7 +95,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get());
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5).put("index.number_of_routing_shards", 5)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get());
         indexRandom(true, client.prepareIndex("index", "type", "1").setRouting("1").setSource("s", "2016-03-19"),
                 client.prepareIndex("index", "type", "2").setRouting("1").setSource("s", "2016-03-20"),
                 client.prepareIndex("index", "type", "3").setRouting("1").setSource("s", "2016-03-21"),
@@ -362,7 +363,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testCanCache() throws Exception {
         Client client = client();
         Settings settings = Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
         assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
                 .setSettings(settings)
                 .get());

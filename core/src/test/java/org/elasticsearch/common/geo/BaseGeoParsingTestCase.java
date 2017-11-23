@@ -25,9 +25,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
 
-/**
- * Created by nknize on 9/22/17.
- */
+/** Base class for all geo parsing tests */
 abstract class BaseGeoParsingTestCase extends ESTestCase {
     protected static final GeometryFactory GEOMETRY_FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
 

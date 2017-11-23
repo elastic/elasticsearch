@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.xpack.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
@@ -17,6 +18,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLifecycleAction.Response> {
@@ -52,6 +54,28 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
                 Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new)));
+    }
+
+    @Override
+    protected MutateFunction<Response> getMutateFunction() {
+        return resp -> {
+            LifecyclePolicy policy = resp.getPolicy();
+            String name = policy.getName();
+            List<Phase> phases = policy.getPhases();
+            switch (between(0, 1)) {
+            case 0:
+                name = name + randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 1:
+                phases = new ArrayList<>(phases);
+                phases.add(new Phase(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
+                        Collections.emptyList()));
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+            }
+            return new Response(new LifecyclePolicy(name, phases));
+        };
     }
 
 }

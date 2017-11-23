@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.xpack.indexlifecycle.action.GetLifecycleAction.Request;
 
 public class GetLifecycleRequestTests extends AbstractStreamableTestCase<GetLifecycleAction.Request> {
@@ -18,6 +19,11 @@ public class GetLifecycleRequestTests extends AbstractStreamableTestCase<GetLife
     @Override
     protected Request createBlankInstance() {
         return new Request();
+    }
+
+    @Override
+    protected MutateFunction<Request> getMutateFunction() {
+        return resp -> new Request(resp.getPolicyName() + randomAlphaOfLengthBetween(1, 10));
     }
 
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.xpack.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
@@ -20,6 +21,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase<PutLifecycleAction.Request> {
@@ -68,6 +70,28 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
 
     protected boolean supportsUnknownFields() {
         return false;
+    }
+
+    @Override
+    protected MutateFunction<Request> getMutateFunction() {
+        return resp -> {
+            LifecyclePolicy policy = resp.getPolicy();
+            String name = policy.getName();
+            List<Phase> phases = policy.getPhases();
+            switch (between(0, 1)) {
+            case 0:
+                name = name + randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 1:
+                phases = new ArrayList<>(phases);
+                phases.add(new Phase(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
+                        Collections.emptyList()));
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+            }
+            return new Request(new LifecyclePolicy(name, phases));
+        };
     }
 
 }

@@ -144,30 +144,30 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
     public static class IndexLifecycleMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, LifecyclePolicy>> policies;
-        final Long pollInterval;
+        final Long pollIntervalDiff;
 
         IndexLifecycleMetadataDiff(IndexLifecycleMetadata before, IndexLifecycleMetadata after) {
             this.policies = DiffableUtils.diff(before.policies, after.policies, DiffableUtils.getStringKeySerializer());
-            this.pollInterval = after.pollInterval;
+            this.pollIntervalDiff = after.pollInterval - before.pollInterval;
         }
 
         public IndexLifecycleMetadataDiff(StreamInput in) throws IOException {
             this.policies = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), LifecyclePolicy::new,
                     IndexLifecycleMetadataDiff::readLifecyclePolicyDiffFrom);
-            this.pollInterval = in.readVLong();
+            this.pollIntervalDiff = in.readZLong();
         }
 
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, LifecyclePolicy> newPolicies = new TreeMap<>(policies.apply(((IndexLifecycleMetadata) part).policies));
-            long pollInterval = ((IndexLifecycleMetadata) part).pollInterval;
+            long pollInterval = ((IndexLifecycleMetadata) part).pollInterval + pollIntervalDiff;
             return new IndexLifecycleMetadata(newPolicies, pollInterval);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             policies.writeTo(out);
-            out.writeVLong(pollInterval);
+            out.writeZLong(pollIntervalDiff);
         }
 
         @Override

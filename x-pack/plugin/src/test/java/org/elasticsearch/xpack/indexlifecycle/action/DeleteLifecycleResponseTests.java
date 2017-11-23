@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.xpack.indexlifecycle.action.DeleteLifecycleAction.Response;
 
 public class DeleteLifecycleResponseTests extends AbstractStreamableTestCase<DeleteLifecycleAction.Response> {
@@ -18,6 +19,11 @@ public class DeleteLifecycleResponseTests extends AbstractStreamableTestCase<Del
     @Override
     protected Response createBlankInstance() {
         return new Response();
+    }
+
+    @Override
+    protected MutateFunction<Response> getMutateFunction() {
+        return resp -> new Response(resp.isAcknowledged() == false);
     }
 
 }

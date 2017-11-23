@@ -60,4 +60,26 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 .asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new)));
     }
 
+    @Override
+    protected Phase mutateInstance(Phase instance) throws IOException {
+        String name = instance.getName();
+        TimeValue after = instance.getAfter();
+        List<LifecycleAction> actions = instance.getActions();
+        switch (between(0, 2)) {
+        case 0:
+            name = name + randomAlphaOfLengthBetween(1, 5);
+            break;
+        case 1:
+            after = TimeValue.timeValueSeconds(after.getSeconds() + randomIntBetween(1, 1000));
+            break;
+        case 2:
+            actions = new ArrayList<>(actions);
+            actions.add(new DeleteAction());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new Phase(name, after, actions);
+    }
+
 }

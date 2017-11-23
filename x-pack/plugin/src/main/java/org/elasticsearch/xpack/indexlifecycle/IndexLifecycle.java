@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestGetLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestPutLifecycleAction;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -92,10 +92,10 @@ public class IndexLifecycle extends Plugin {
                 LIFECYCLE_TIMESERIES_ACTION_SETTING);
     }
 
-    public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, Clock clock,
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, Clock clock,
             ThreadPool threadPool) {
         indexLifecycleInitialisationService
-                .set(new IndexLifecycleInitialisationService(settings, internalClient, clusterService, clock, threadPool));
+                .set(new IndexLifecycleInitialisationService(settings, client, clusterService, clock, threadPool));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
     }
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
@@ -23,7 +24,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -88,7 +88,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
         return builder;
     }
 
-    public void execute(IndexMetaData idxMeta, InternalClient client) {
+    public void execute(IndexMetaData idxMeta, Client client) {
         String currentPhaseName = IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.get(idxMeta.getSettings());
         boolean currentPhaseActionsComplete = IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.get(idxMeta.getSettings())
                 .equals(Phase.PHASE_COMPLETED);

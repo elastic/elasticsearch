@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -24,7 +25,6 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -98,7 +98,7 @@ public class Phase implements ToXContentObject, Writeable {
         return (indexCreated + after.millis()) <= now;
     }
 
-    protected void execute(IndexMetaData idxMeta, InternalClient client) {
+    protected void execute(IndexMetaData idxMeta, Client client) {
         String currentActionName = IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.get(idxMeta.getSettings());
         String indexName = idxMeta.getIndex().getName();
         if (Strings.isNullOrEmpty(currentActionName)) {

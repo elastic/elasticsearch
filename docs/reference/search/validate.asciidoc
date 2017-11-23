@@ -239,19 +239,19 @@ Response:
       "index": "twitter",
       "shard": 2,
       "valid": true,
-      "explanation": "(user:kimchi)^0.8333333"
+      "explanation": "user:kimchy~2"
     },
     {
       "index": "twitter",
       "shard": 3,
       "valid": true,
-      "explanation": "user:kimchy"
+      "explanation": "(user:kimchi)^0.8333333"
     },
     {
       "index": "twitter",
       "shard": 4,
       "valid": true,
-      "explanation": "user:kimchy~2"
+      "explanation": "user:kimchy"
     }
   ]
 }

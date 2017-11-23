@@ -379,15 +379,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                 indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                 final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
-
+                final Settings idxSettings = indexSettingsBuilder.build();
+                int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);
                 final int routingNumShards;
-                if (recoverFromIndex == null) {
-                    Settings idxSettings = indexSettingsBuilder.build();
-                    routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);
+                final Version indexVersionCreated = idxSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
+                final IndexMetaData sourceMetaData = recoverFromIndex == null ? null :
+                    currentState.metaData().getIndexSafe(recoverFromIndex);
+                if (sourceMetaData == null || sourceMetaData.getNumberOfShards() == 1) {
+                    // in this case we either have no index to recover from or
+                    // we have a source index with 1 shard and without an explicit split factor
+                    // or one that is valid in that case we can split into whatever and auto-generate a new factor.
+                    if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(idxSettings)) {
+                        routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);
+                    } else {
+                        routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
+                    }
                 } else {
                     assert IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettingsBuilder.build()) == false
-                        : "index.number_of_routing_shards should be present on the target index on resize";
-                    final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(recoverFromIndex);
+                        : "index.number_of_routing_shards should not be present on the target index on resize";
                     routingNumShards = sourceMetaData.getRoutingNumShards();
                 }
                 // remove the setting it's temporary and is only relevant once we create the index
@@ -408,7 +417,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                      * the maximum primary term on all the shards in the source index. This ensures that we have correct
                      * document-level semantics regarding sequence numbers in the shrunken index.
                      */
-                    final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(recoverFromIndex);
                     final long primaryTerm =
                         IntStream
                             .range(0, sourceMetaData.getNumberOfShards())
@@ -716,5 +724,28 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())
             .put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
             .put(IndexMetaData.INDEX_RESIZE_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());
+    }
+
+    /**
+     * Returns a default number of routing shards based on the number of shards of the index. The default number of routing shards will
+     * allow any index to be split at least once and at most 10 times by a factor of two. The closer the number or shards gets to 1024
+     * the less default split operations are supported
+     */
+    public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_0_0_alpha1)) {
+            // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
+            // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
+            // will always have the behavior of the min node in the cluster.
+            //
+            // We use as a default number of routing shards the higher number that can be expressed
+            // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
+            int log2MaxNumShards = 10; // logBase2(1024)
+            int log2NumShards = 32 - Integer.numberOfLeadingZeros(numShards - 1); // ceil(logBase2(numShards))
+            int numSplits = log2MaxNumShards - log2NumShards;
+            numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
+            return numShards * 1 << numSplits;
+        } else {
+            return numShards;
+        }
     }
 }

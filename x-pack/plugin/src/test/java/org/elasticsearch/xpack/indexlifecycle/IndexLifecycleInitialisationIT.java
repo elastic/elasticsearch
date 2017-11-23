@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -19,10 +20,14 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.indexlifecycle.action.PutLifecycleAction;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.createIndexRequest;
@@ -37,11 +42,12 @@ import static org.hamcrest.core.IsNull.nullValue;
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     private Settings settings;
+    private LifecyclePolicy lifecyclePolicy;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(),  true);
+        settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -76,14 +82,13 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
     @Before
     public void init() {
-        settings = Settings.builder()
-            .put(indexSettings())
-            .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.lifecycle.timeseries.new.after", "1s")
-            .put("index.lifecycle.timeseries.delete.after", "3s")
-            .put("index.lifecycle.timeseries.delete.actions.delete.what", "me")
-            .build();
+        settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.lifecycle.name", "test_lifecycle").build();
+        List<Phase> phases = new ArrayList<>();
+        phases.add(new Phase("new", TimeValue.timeValueSeconds(0), Collections.emptyList()));
+        List<LifecycleAction> deletePhaseActions = Collections.singletonList(new DeleteAction());
+        phases.add(new Phase("delete", TimeValue.timeValueSeconds(3), deletePhaseActions));
+        lifecyclePolicy = new LifecyclePolicy("test_lifecycle", phases);
     }
 
     public void testSingleNodeCluster() throws Exception {
@@ -91,8 +96,14 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         logger.info("Starting sever1");
         final String server_1 = internalCluster().startNode();
         final String node1 = getLocalNodeId(server_1);
+        logger.info("Creating lifecycle [test_lifecycle]");
+        Thread.sleep(10000);
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings)).actionGet();
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
+                .actionGet();
         assertAcked(createIndexResponse);
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
@@ -113,7 +124,8 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         final String node2 = getLocalNodeId(server_2);
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings)).actionGet();
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
+                .actionGet();
         assertAcked(createIndexResponse);
 
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
@@ -121,7 +133,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
 
         assertBusy(() -> {
-          assertEquals(false, client().admin().indices().prepareExists("test").get().isExists());
+            assertEquals(false, client().admin().indices().prepareExists("test").get().isExists());
         });
     }
 
@@ -132,7 +144,8 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         final String node1 = getLocalNodeId(server_1);
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings)).actionGet();
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
+                .actionGet();
         assertAcked(createIndexResponse);
 
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
@@ -145,8 +158,8 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
         // first wait for 2 nodes in the cluster
         logger.info("Waiting for replicas to be assigned");
-        ClusterHealthResponse clusterHealth =
-            client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster()
+                .health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

@@ -48,7 +48,10 @@ Note: if the number of routing shards equals the number of shards `_split` opera
 
 ==== Skipped background refresh on search idle shards.
 
- Shards that haven't seen any search traffic for `index.search.idle.after` (defaults to `30s`)
- won't receive background refreshes until they become non-idle and unless a requires waits for a refresh.
- Searches that access a search idle shard will be `parked` until the next refresh happens. This feature is only
- enabled unless an explicit background refresh interval via `index.refresh_interval` is set.
+Shards belonging to an index that does not have an explicit
+`index.refresh_interval` configured will  no longer refresh in the background
+once the shard becomes "search idle", ie the shard hasn't seen any search
+traffic for `index.search.idle.after` seconds (defaults to `30s`). Searches
+that access a search idle shard will be "parked" until the next refresh
+happens.  Indexing requests with `wait_for_refresh` will also trigger
+a background refresh.

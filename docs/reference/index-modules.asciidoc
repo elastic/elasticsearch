@@ -107,11 +107,21 @@ specific index module:
     Set to a dash delimited lower and upper bound (e.g. `0-5`) or use `all`
     for the upper bound (e.g. `0-all`).  Defaults to `false` (i.e. disabled).
 
+`index.search.idle.after`::
+    How long a shard can not receive a search or get request until it's considered
+    search idle. (default is `30s`)
+
 `index.refresh_interval`::
 
     How often to perform a refresh operation, which makes recent changes to the
-    index visible to search.  Defaults to `1s`.  Can be set to `-1` to disable
-    refresh.
+    index visible to search. Defaults to `1s`.  Can be set to `-1` to disable
+    refresh. If this setting is not explicitly set, shards that haven't seen
+    search traffic for at least `index.search.idle.after` won't receive
+    background refreshes until they are not idle anymore. Searches that hit
+    an idle shard where a refresh is pending will wait in the background
+    for the next background refresh. This behavior aims to automatically optimize
+    bulk indexing in the default case when no searches are performed. In order to
+    opt out of this behavior an explicit value of `1s` should set as the refresh interval.
 
 `index.max_result_window`::
 

@@ -45,3 +45,10 @@ value set. This might change how documents are distributed across shards dependi
 shards the index has. In order to maintain the exact same distribution as a pre `7.0.0` index, the
 `index.number_of_routing_shards` must be set to the `index.number_of_shards` at index creation time.
 Note: if the number of routing shards equals the number of shards `_split` operations are not supported.
+
+==== Skipped background refresh on search idle shards.
+
+ Shards that haven't seen any search traffic for `index.search.idle.after` (defaults to `30s`)
+ won't receive background refreshes until they become non-idle and unless a requires waits for a refresh.
+ Searches that access a search idle shard will be `parked` until the next refresh happens. This feature is only
+ enabled unless an explicit background refresh interval via `index.refresh_interval` is set.

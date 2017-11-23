@@ -149,7 +149,7 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
         final Path translogPath = createTempDir();
 
         try (Store store = createStore()) {
-            int initDocs = scaledRandomIntBetween(100, 1000);
+            int initDocs = scaledRandomIntBetween(10, 1000);
             try (InternalEngine engine =
                      newEngine(store, translogPath, new ByteSizeValue(randomInt(1024)), globalCheckpoint::get, maxSeqNoLeap::get)) {
                 for (int i = 0; i < initDocs; i++) {
@@ -165,8 +165,9 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
                         engine.rollTranslogGeneration();
                     }
                     try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+                        long requiredOps = engine.seqNoService().getLocalCheckpoint() - Math.max(0, globalCheckpoint.get());
                         assertThat("Should keep translog operations up to the global checkpoint",
-                            (long) snapshot.totalOperations(), greaterThanOrEqualTo(i + 1 - Math.max(0, globalCheckpoint.get())));
+                            (long) snapshot.totalOperations(), greaterThanOrEqualTo(requiredOps));
                     }
                 }
                 engine.flush(true, true);
@@ -191,7 +192,7 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
                         engine.rollTranslogGeneration();
                     }
                     try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
-                        long requiredOps = initDocs + i + 1 - Math.max(0, globalCheckpoint.get());
+                        long requiredOps = engine.seqNoService().getLocalCheckpoint() - Math.max(0, globalCheckpoint.get());
                         assertThat("Should keep translog operations up to the global checkpoint",
                             (long) snapshot.totalOperations(), greaterThanOrEqualTo(requiredOps));
                     }
@@ -283,11 +284,14 @@ public class KeepUntilGlobalCheckpointDeletionPolicyTests extends EngineTestCase
         final IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(),
             defaultSettings.getNodeSettings(), defaultSettings.getScopedSettings());
 
-        final IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData());
-        builder.settings(Settings.builder().put(indexSettings.getSettings())
-            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), translogRetentionSize));
-        indexSettings.updateIndexMetaData(builder.build());
-        return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null,
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData())
+                .settings(Settings.builder().put(defaultSettings.getSettings())
+                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), translogRetentionSize))
+                .build();
+
+        indexSettings.updateIndexMetaData(indexMetaData);
+
+        return createEngine(indexSettings, store, translogPath, newMergePolicy(), null,
             (config, seqNoStats) -> new SequenceNumbersService(
                 config.getShardId(),
                 config.getAllocationId(),

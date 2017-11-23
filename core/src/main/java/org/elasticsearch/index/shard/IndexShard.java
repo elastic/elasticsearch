@@ -2424,14 +2424,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Executes a scheduled refresh if necessary
+     * Executes a scheduled refresh if necessary.
+     *
+     * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
      */
     public boolean scheduledRefresh() {
-        if (isReadAllowed() && isRefreshNeeded()) {
+        if (isReadAllowed() && getEngine().refreshNeeded()) {
             if (refreshListeners.refreshNeeded() == false // if we have a listener that is waiting for a refresh we need to force it
                 && isSearchIdle() && indexSettings.isExplicitRefresh() == false) {
                 // lets skip this refresh since we are search idle and
-                // don't necessarily need to refresh. the next search execute cause a
+                // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
+                // cause the next schedule to refresh.
                 setRefreshPending();
                 return false;
             } else {
@@ -2440,18 +2443,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         return false;
-    }
-
-    /**
-     * Returns <code>true</code> iff one or more changes to the engine are not visible to via the current searcher *or* there are pending
-     * refresh listeners.
-     * Otherwise <code>false</code>.
-     *
-     * @throws AlreadyClosedException if the engine or internal indexwriter in the engine is already closed
-     */
-    final boolean isRefreshNeeded() {
-        return refreshListeners.refreshNeeded() // lets check the cheaper one first
-                || getEngine().refreshNeeded();
     }
 
     /**
@@ -2476,6 +2467,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } while (pendingRefreshLocation.compareAndSet(location, lastWriteLocation) == false);
     }
 
+    /**
+     * Registers the given listener and invokes it once the pending refresh translog location has been refreshed. If there is no pending
+     * refresh location registered the listener will be invoked immediately.
+     * @param listener the listener to invoke once the pending refresh location is visible. The listener will be called with
+     *                 <code>true</code> if the listener was registered to wait for a refresh.
+     */
     public void awaitPendingRefresh(Consumer<Boolean> listener) {
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {

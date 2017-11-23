@@ -145,12 +145,11 @@ void addSubProjects(String path, File dir, List<String> projects, List<String> b
   include projectName
 
   if (dir.name == 'bwc-snapshot-dummy-projects') {
-    final File dummyProject = new File(dir, "snapshot")
     for (final String branch : branches) {
       final String snapshotProjectName = "${projectName}:bwc-snapshot-${branch}"
       projects.add(snapshotProjectName)
       include snapshotProjectName
-      project("${snapshotProjectName}").projectDir = dummyProject
+      project("${snapshotProjectName}").projectDir = dir
     }
     // TODO do we want to assert that there's nothing else in the bwc directory?
   } else {

@@ -113,7 +113,7 @@
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._explanation.description: "weight(otherField:foo in 0) [PerFieldSimilarity], result of:" }
+  - match: { hits.hits.0._explanation.description: "weight(otherField:foo in 1) [PerFieldSimilarity], result of:" }
 
   - do:
       search_template:

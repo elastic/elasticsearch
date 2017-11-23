@@ -52,7 +52,6 @@ import static org.hamcrest.object.HasToString.hasToString;
 
 public class OperationRoutingTests extends ESTestCase{
 
-
     public void testGenerateShardId() {
         int[][] possibleValues = new int[][] {
             {8,4,2}, {20, 10, 2}, {36, 12, 3}, {15,5,1}

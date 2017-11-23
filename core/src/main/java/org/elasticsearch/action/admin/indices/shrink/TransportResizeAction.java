@@ -163,9 +163,14 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
 
         if (IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
             throw new IllegalArgumentException("cannot provide a routing partition size value when resizing an index");
+
         }
         if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(targetIndexSettings)) {
-            throw new IllegalArgumentException("cannot provide index.number_of_routing_shards on resize");
+            // if we have a source index with 1 shards it's legal to set this
+            final boolean splitFromSingleShards = resizeRequest.getResizeType() == ResizeType.SPLIT && metaData.getNumberOfShards() == 1;
+            if (splitFromSingleShards == false) {
+                throw new IllegalArgumentException("cannot provide index.number_of_routing_shards on resize");
+            }
         }
         String cause = resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT) + "_index";
         targetIndex.cause(cause);

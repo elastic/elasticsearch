@@ -34,7 +34,7 @@ if (!match.matches()) {
 }
 String bwcBranch = match.group(1)
 
-if (project.hasProperty('ext.bwcVersion')) {
+if (project.hasProperty('bwcVersion')) {
   Version bwcVersion = project.ext.bwcVersion
 
   apply plugin: 'distribution'

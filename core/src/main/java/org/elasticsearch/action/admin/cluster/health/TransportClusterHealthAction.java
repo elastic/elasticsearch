@@ -142,24 +142,26 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     }
 
     private void executeHealth(final ClusterHealthRequest request, final ActionListener<ClusterHealthResponse> listener) {
-        int waitFor = 5;
-        if (request.waitForStatus() == null) {
-            waitFor--;
+        int waitFor = 0;
+        if (request.waitForStatus() != null) {
+            waitFor++;
         }
-        if (request.waitForNoRelocatingShards() == false) {
-            waitFor--;
+        if (request.waitForNoRelocatingShards()) {
+            waitFor++;
         }
-        if (request.waitForActiveShards().equals(ActiveShardCount.NONE)) {
-            waitFor--;
+        if (request.waitForNoInitializingShards()) {
+            waitFor++;
         }
-        if (request.waitForNodes().isEmpty()) {
-            waitFor--;
+        if (request.waitForActiveShards().equals(ActiveShardCount.NONE) == false) {
+            waitFor++;
         }
-        if (request.indices() == null || request.indices().length == 0) { // check that they actually exists in the meta data
-            waitFor--;
+        if (request.waitForNodes().isEmpty() == false) {
+            waitFor++;
+        }
+        if (request.indices() != null && request.indices().length > 0) { // check that they actually exists in the meta data
+            waitFor++;
         }
 
-        assert waitFor >= 0;
         final ClusterState state = clusterService.state();
         final ClusterStateObserver observer = new ClusterStateObserver(state, clusterService, null, logger, threadPool.getThreadContext());
         if (request.timeout().millis() == 0) {
@@ -196,13 +198,15 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     private boolean validateRequest(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor) {
         ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.getMasterService().numberOfPendingTasks(),
                 gatewayAllocator.getNumberOfInFlightFetch(), clusterService.getMasterService().getMaxTaskWaitTime());
-        return prepareResponse(request, response, clusterState, waitFor);
+        int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
+        return readyCounter == waitFor;
     }
 
     private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor, boolean timedOut) {
         ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.getMasterService().numberOfPendingTasks(),
                 gatewayAllocator.getNumberOfInFlightFetch(), clusterService.getMasterService().getMaxTaskWaitTime());
-        boolean valid = prepareResponse(request, response, clusterState, waitFor);
+        int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
+        boolean valid = (readyCounter == waitFor);
         assert valid || timedOut;
         // we check for a timeout here since this method might be called from the wait_for_events
         // response handler which might have timed out already.
@@ -213,12 +217,16 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         return response;
     }
 
-    private boolean prepareResponse(final ClusterHealthRequest request, final ClusterHealthResponse response, ClusterState clusterState, final int waitFor) {
+    static int prepareResponse(final ClusterHealthRequest request, final ClusterHealthResponse response,
+                                   final ClusterState clusterState, final IndexNameExpressionResolver indexNameExpressionResolver) {
         int waitForCounter = 0;
         if (request.waitForStatus() != null && response.getStatus().value() <= request.waitForStatus().value()) {
             waitForCounter++;
         }
         if (request.waitForNoRelocatingShards() && response.getRelocatingShards() == 0) {
+            waitForCounter++;
+        }
+        if (request.waitForNoInitializingShards() && response.getInitializingShards() == 0) {
             waitForCounter++;
         }
         if (request.waitForActiveShards().equals(ActiveShardCount.NONE) == false) {
@@ -292,7 +300,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 }
             }
         }
-        return waitForCounter == waitFor;
+        return waitForCounter;
     }
 
 

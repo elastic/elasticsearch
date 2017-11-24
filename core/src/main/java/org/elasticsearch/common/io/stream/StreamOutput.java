@@ -713,8 +713,8 @@ public abstract class StreamOutput extends OutputStream {
      * integer is first written to the stream, and then the elements of the array are written to the stream.
      *
      * @param writer the writer used to write individual elements
-     * @param array the array
-     * @param <T> the type of the elements of the array
+     * @param array  the array
+     * @param <T>    the type of the elements of the array
      * @throws IOException if an I/O exception occurs while writing the array
      */
     public <T> void writeArray(final Writer<T> writer, final T[] array) throws IOException {

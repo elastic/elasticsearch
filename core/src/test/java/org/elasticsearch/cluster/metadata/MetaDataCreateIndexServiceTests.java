@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -56,10 +55,12 @@ import static org.hamcrest.Matchers.endsWith;
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
+        int numRoutingShards = settings.getAsInt(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), numShards);
         MetaData.Builder metaBuilder = MetaData.builder();
         IndexMetaData indexMetaData = IndexMetaData.builder(name).settings(settings(Version.CURRENT)
             .put(settings))
-            .numberOfShards(numShards).numberOfReplicas(numReplicas).build();
+            .numberOfShards(numShards).numberOfReplicas(numReplicas)
+            .setRoutingNumShards(numRoutingShards).build();
         metaBuilder.put(indexMetaData, false);
         MetaData metaData = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -204,10 +205,13 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 }
             ).getMessage());
 
-
+        int targetShards;
+        do {
+            targetShards = randomIntBetween(numShards+1, 100);
+        } while (isSplitable(numShards, targetShards) == false);
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
-            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
-            .build();
+            Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
@@ -218,10 +222,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         routingTable = service.applyStartedShards(clusterState,
             routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        int targetShards;
-        do {
-            targetShards = randomIntBetween(numShards+1, 100);
-        } while (isSplitable(numShards, targetShards) == false);
+
         MetaDataCreateIndexService.validateSplitIndex(clusterState, "source", Collections.emptySet(), "target",
             Settings.builder().put("index.number_of_shards", targetShards).build());
     }
@@ -296,5 +297,40 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             () -> MetaDataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
                 .getDefault(Settings.EMPTY)).build()));
         assertThat(e.getMessage(), endsWith(errorMessage));
+    }
+
+    public void testCalculateNumRoutingShards() {
+        assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(1, Version.CURRENT));
+        assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(2, Version.CURRENT));
+        assertEquals(768, MetaDataCreateIndexService.calculateNumRoutingShards(3, Version.CURRENT));
+        assertEquals(576, MetaDataCreateIndexService.calculateNumRoutingShards(9, Version.CURRENT));
+        assertEquals(1024, MetaDataCreateIndexService.calculateNumRoutingShards(512, Version.CURRENT));
+        assertEquals(2048, MetaDataCreateIndexService.calculateNumRoutingShards(1024, Version.CURRENT));
+        assertEquals(4096, MetaDataCreateIndexService.calculateNumRoutingShards(2048, Version.CURRENT));
+
+        Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1);
+        int numShards = randomIntBetween(1, 1000);
+        assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards, latestV6));
+        assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards,
+            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), latestV6)));
+
+        for (int i = 0; i < 1000; i++) {
+            int randomNumShards = randomIntBetween(1, 10000);
+            int numRoutingShards = MetaDataCreateIndexService.calculateNumRoutingShards(randomNumShards, Version.CURRENT);
+            if (numRoutingShards <= 1024) {
+                assertTrue("numShards: " + randomNumShards, randomNumShards < 513);
+                assertTrue("numRoutingShards: " + numRoutingShards, numRoutingShards > 512);
+            } else {
+                assertEquals("numShards: " + randomNumShards, numRoutingShards / 2, randomNumShards);
+            }
+
+            double ratio = numRoutingShards / randomNumShards;
+            int intRatio = (int) ratio;
+            assertEquals(ratio, (double)(intRatio), 0.0d);
+            assertTrue(1 < ratio);
+            assertTrue(ratio <= 1024);
+            assertEquals(0, intRatio % 2);
+            assertEquals("ratio is not a power of two", intRatio, Integer.highestOneBit(intRatio));
+        }
     }
 }

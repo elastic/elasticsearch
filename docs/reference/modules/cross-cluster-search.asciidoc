@@ -69,6 +69,11 @@ PUT _cluster/settings
           "seeds": [
             "127.0.0.1:9301"
           ]
+        },
+        "cluster_three": {
+          "seeds": [
+            "127.0.0.1:9302"
+          ]
         }
       }
     }
@@ -76,6 +81,46 @@ PUT _cluster/settings
 }
 --------------------------------
 // CONSOLE
+// TEST[setup:host]
+// TEST[s/127.0.0.1:9300/\${transport_host}/]
+
+//////////////////////////
+
+We want to be sure that settings have been updated,
+because we'll use them later.
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged" : true,
+    "persistent": {
+        "search": {
+          "remote": {
+            "cluster_one": {
+              "seeds": [
+                "127.0.0.1:9300"
+              ]
+            },
+            "cluster_two": {
+              "seeds": [
+                "127.0.0.1:9301"
+              ]
+            },
+            "cluster_three": {
+              "seeds": [
+                "127.0.0.1:9302"
+              ]
+            }
+          }
+        }
+    },
+    "transient" : {}
+}
+--------------------------------------------------
+// TESTRESPONSE[s/127.0.0.1:9300/\${transport_host}/]
+
+//////////////////////////
+
 
 A remote cluster can be deleted from the cluster settings by setting its seeds to `null`:
 
@@ -86,7 +131,7 @@ PUT _cluster/settings
   "persistent": {
     "search": {
       "remote": {
-        "cluster_one": {
+        "cluster_three": {
           "seeds": null <1>
         }
       }
@@ -95,41 +140,104 @@ PUT _cluster/settings
 }
 --------------------------------
 // CONSOLE
-<1> `cluster_one` would be removed from the cluster settings, leaving `cluster_two` intact.
+// TEST[continued]
+<1> `cluster_three` would be removed from the cluster settings, leaving `cluster_one` and `cluster_two` intact.
 
+//////////////////////////
+
+We want to be sure that settings have been updated,
+because we'll use them later.
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged" : true,
+    "persistent" : {},
+    "transient" : {}
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
 
 [float]
 === Using cross cluster search
 
-To search the `twitter` index on remote cluster `cluster_1` the index name must be prefixed with the cluster alias
-separated by a `:` character:
+To search the `twitter` index on remote cluster `cluster_one` the index name
+must be prefixed with the cluster alias separated by a `:` character:
 
 [source,js]
 --------------------------------------------------
-POST /cluster_one:twitter/tweet/_search
+GET /cluster_one:twitter/tweet/_search
 {
   "query": {
-    "match_all": {}
+    "match": {
+      "user": "kimchy"
+    }
   }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:we don't have two clusters set up during docs testing]
+// TEST[continued]
+// TEST[setup:twitter]
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 150,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "_clusters": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "cluster_one:twitter",
+        "_type": "tweet",
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
+// TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
+// TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
+
 
 In contrast to the `tribe` feature cross cluster search can also search indices with the same name on different
 clusters:
 
 [source,js]
 --------------------------------------------------
-POST /cluster_one:twitter,twitter/tweet/_search
+GET /cluster_one:twitter,twitter/tweet/_search
 {
   "query": {
-    "match_all": {}
+    "match": {
+      "user": "kimchy"
+    }
   }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:we don't have two clusters set up during docs testing]
+// TEST[continued]
 
 Search results are disambiguated the same way as the indices are disambiguated in the request. Even if index names are
 identical these indices will be treated as different indices when results are merged. All results retrieved from a
@@ -139,44 +247,146 @@ will be prefixed with their remote cluster name:
 [source,js]
 --------------------------------------------------
 {
-  "took" : 89,
-  "timed_out" : false,
-  "_shards" : {
-    "total" : 10,
-    "successful" : 10,
-    "failed" : 0
+  "took": 150,
+  "timed_out": false,
+  "_shards": {
+    "total": 2,
+    "successful": 2,
+    "failed": 0,
+    "skipped": 0
   },
-  "hits" : {
-    "total" : 2,
-    "max_score" : 1.0,
-    "hits" : [
+  "_clusters": {
+    "total": 2,
+    "successful": 2,
+    "skipped": 0
+  },
+  "hits": {
+    "total": 2,
+    "max_score": 1,
+    "hits": [
       {
-        "_index" : "cluster_one:twitter",
-        "_type" : "tweet",
-        "_id" : "1",
-        "_score" : 1.0,
-        "_source" : {
-          "user" : "kimchy",
-          "postDate" : "2009-11-15T14:12:12",
-          "message" : "trying out Elasticsearch"
+        "_index": "cluster_one:twitter",
+        "_type": "tweet",
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
         }
       },
       {
-        "_index" : "twitter",
-        "_type" : "tweet",
-        "_id" : "1",
-        "_score" : 1.0,
-        "_source" : {
-          "user" : "kimchy",
-          "postDate" : "2009-11-15T14:12:12",
-          "message" : "trying out Elasticsearch"
+        "_index": "twitter",
+        "_type": "tweet",
+        "_id": "0",
+        "_score": 2,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
         }
       }
     ]
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
+// TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
+// TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
+// TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
+
+[float]
+=== Skipping disconnected clusters
+
+By default all remote clusters that are searched via Cross Cluster Search need to be available when
+the search request is executed, otherwise the whole request fails and no search results are returned
+despite some of the clusters are available. Remote clusters can be made optional through the
+boolean `skip_unavailable` setting, set to `false` by default.
+
+[source,js]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "search.remote.cluster_two.skip_unavailable": true <1>
+  }
+}
+--------------------------------
+// CONSOLE
+// TEST[continued]
+<1> `cluster_two` is made optional
+
+[source,js]
+--------------------------------------------------
+GET /cluster_one:twitter,cluster_two:twitter,twitter/tweet/_search <1>
+{
+  "query": {
+    "match": {
+      "user": "kimchy"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+<1> Search against the `twitter` index in `cluster_one`, `cluster_two` and also locally
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 150,
+  "timed_out": false,
+  "_shards": {
+    "total": 2,
+    "successful": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "_clusters": { <1>
+    "total": 3,
+    "successful": 2,
+    "skipped": 1
+  },
+  "hits": {
+    "total": 2,
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "cluster_one:twitter",
+        "_type": "tweet",
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
+        }
+      },
+      {
+        "_index": "twitter",
+        "_type": "tweet",
+        "_id": "0",
+        "_score": 2,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
+// TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
+// TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
+// TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
+<1> The `clusters` section indicates that one cluster was unavailable and got skipped
+
 
 [float]
 [[cross-cluster-search-settings]]
@@ -204,6 +414,14 @@ will be prefixed with their remote cluster name:
   to `false` (defaults to `true`) to prevent certain nodes from connecting to
   remote clusters. Cross-cluster search requests must be sent to a node that
   is allowed to act as a cross-cluster client.
+
+`search.remote.${cluster_alias}.skip_unavailable`::
+
+  Per cluster boolean setting that allows to skip specific clusters when no
+  nodes belonging to them are available and they are searched as part of a
+  cross cluster search request. Default is `false`, meaning that all clusters
+  are mandatory by default, but they can selectively be made optional by
+  setting this setting to `true`.
 
 [float]
 [[retrieve-remote-clusters-info]]

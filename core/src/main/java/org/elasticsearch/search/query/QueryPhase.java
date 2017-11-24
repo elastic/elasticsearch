@@ -162,12 +162,12 @@ public class QueryPhase implements SearchPhase {
                         searchContext.terminateAfter(searchContext.size());
                         searchContext.trackTotalHits(false);
                     } else if (canEarlyTerminate(indexSort, searchContext)) {
-                        // now this gets interesting: since the index sort matches the search sort, we can directly
+                        // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
                         if (after != null) {
                             BooleanQuery bq = new BooleanQuery.Builder()
                                 .add(query, BooleanClause.Occur.MUST)
-                                .add(new SearchAfterSortedDocQuery(indexSort, (FieldDoc) after), BooleanClause.Occur.FILTER)
+                                .add(new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after), BooleanClause.Occur.FILTER)
                                 .build();
                             query = bq;
                         }

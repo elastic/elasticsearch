@@ -36,11 +36,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -56,6 +58,7 @@ import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,6 +75,9 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     private static final String NESTED_AGG = "nestedAgg";
     private static final String MAX_AGG_NAME = "maxAgg";
     private static final String SUM_AGG_NAME = "sumAgg";
+
+    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+
 
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
@@ -120,6 +126,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                         UidFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(TypeFieldMapper.NAME, "test",
                         TypeFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(sequenceIDFields.primaryTerm);
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -168,6 +175,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                         UidFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(TypeFieldMapper.NAME, "test",
                         TypeFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(sequenceIDFields.primaryTerm);
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -216,6 +224,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                         UidFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(TypeFieldMapper.NAME, "test",
                         TypeFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(sequenceIDFields.primaryTerm);
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -254,6 +263,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     public void testResetRootDocId() throws Exception {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, iwc)) {
                 List<Document> documents = new ArrayList<>();
@@ -274,6 +284,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new Field(UidFieldMapper.NAME, "type#1", UidFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "test", TypeFieldMapper.Defaults.FIELD_TYPE));
+                document.add(sequenceIDFields.primaryTerm);
                 documents.add(document);
                 iw.addDocuments(documents);
                 iw.commit();
@@ -288,6 +299,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new Field(UidFieldMapper.NAME, "type#2", UidFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "test", TypeFieldMapper.Defaults.FIELD_TYPE));
+                document.add(sequenceIDFields.primaryTerm);
                 documents.add(document);
                 iw.addDocuments(documents);
                 documents.clear();
@@ -299,6 +311,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new Field(UidFieldMapper.NAME, "type#3", UidFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "test", TypeFieldMapper.Defaults.FIELD_TYPE));
+                document.add(sequenceIDFields.primaryTerm);
                 documents.add(document);
                 iw.addDocuments(documents);
 
@@ -314,7 +327,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 fieldType.setName(VALUE_FIELD_NAME);
 
                 BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                bq.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
+                bq.add(Queries.newNonNestedFilter(VersionUtils.randomVersion(random())), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(UidFieldMapper.NAME, "type#2")), BooleanClause.Occur.MUST_NOT);
 
                 Nested nested = search(newSearcher(indexReader, false, true),
@@ -550,6 +563,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         Document document = new Document();
         document.add(new Field(UidFieldMapper.NAME, "book#" + id, UidFieldMapper.Defaults.FIELD_TYPE));
         document.add(new Field(TypeFieldMapper.NAME, "book", TypeFieldMapper.Defaults.FIELD_TYPE));
+        document.add(sequenceIDFields.primaryTerm);
         for (String author : authors) {
             document.add(new SortedSetDocValuesField("author", new BytesRef(author)));
         }

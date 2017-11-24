@@ -39,6 +39,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -66,7 +67,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.IntFunction;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -88,21 +88,41 @@ public class SplitIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateSplitIndexToN() throws IOException {
-        int[][] possibleShardSplits = new int[][] {{2,4,8}, {3, 6, 12}, {1, 2, 4}};
+        int[][] possibleShardSplits = new int[][]{{2, 4, 8}, {3, 6, 12}, {1, 2, 4}};
         int[] shardSplits = randomFrom(possibleShardSplits);
-        assertEquals(shardSplits[0], (shardSplits[0] * shardSplits[1]) / shardSplits[1]);
-        assertEquals(shardSplits[1], (shardSplits[1] * shardSplits[2]) / shardSplits[2]);
+        splitToN(shardSplits[0], shardSplits[1], shardSplits[2]);
+    }
+
+    public void testSplitFromOneToN() {
+        splitToN(1, 5, 10);
+        client().admin().indices().prepareDelete("*").get();
+        int randomSplit = randomIntBetween(2, 6);
+        splitToN(1, randomSplit, randomSplit * 2);
+    }
+
+    private void splitToN(int sourceShards, int firstSplitShards, int secondSplitShards) {
+
+        assertEquals(sourceShards, (sourceShards * firstSplitShards) / firstSplitShards);
+        assertEquals(firstSplitShards, (firstSplitShards * secondSplitShards) / secondSplitShards);
         internalCluster().ensureAtLeastNumDataNodes(2);
         final boolean useRouting =  randomBoolean();
         final boolean useNested = randomBoolean();
         final boolean useMixedRouting = useRouting ? randomBoolean() : false;
         CreateIndexRequestBuilder createInitialIndex = prepareCreate("source");
-        final int routingShards = shardSplits[2] * randomIntBetween(1, 10);
-        Settings.Builder settings = Settings.builder().put(indexSettings())
-            .put("number_of_shards", shardSplits[0])
-            .put("index.number_of_routing_shards", routingShards);
-        if (useRouting && useMixedRouting == false && randomBoolean()) {
-            settings.put("index.routing_partition_size", randomIntBetween(1, routingShards - 1));
+        Settings.Builder settings = Settings.builder().put(indexSettings()).put("number_of_shards", sourceShards);
+        final boolean useRoutingPartition;
+        if (randomBoolean()) {
+            // randomly set the value manually
+            int routingShards = secondSplitShards * randomIntBetween(1, 10);
+            settings.put("index.number_of_routing_shards", routingShards);
+            useRoutingPartition = false;
+        } else {
+            useRoutingPartition = randomBoolean();
+        }
+        if (useRouting && useMixedRouting == false && useRoutingPartition) {
+            int numRoutingShards = MetaDataCreateIndexService.calculateNumRoutingShards(secondSplitShards, Version.CURRENT)-1;
+            settings.put("index.routing_partition_size",
+                randomIntBetween(1, numRoutingShards));
             if (useNested) {
                 createInitialIndex.addMapping("t1", "_routing", "required=true", "nested1", "type=nested");
             } else {
@@ -172,11 +192,15 @@ public class SplitIndexIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put("index.blocks.write", true)).get();
         ensureGreen();
+        Settings.Builder firstSplitSettingsBuilder = Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .put("index.number_of_shards", firstSplitShards);
+        if (sourceShards == 1 && useRoutingPartition == false && randomBoolean()) { // try to set it if we have a source index with 1 shard
+            firstSplitSettingsBuilder.put("index.number_of_routing_shards", secondSplitShards);
+        }
         assertAcked(client().admin().indices().prepareResizeIndex("source", "first_split")
             .setResizeType(ResizeType.SPLIT)
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", shardSplits[1]).build()).get());
+            .setSettings(firstSplitSettingsBuilder.build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
 
@@ -204,7 +228,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             .setResizeType(ResizeType.SPLIT)
             .setSettings(Settings.builder()
                 .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", shardSplits[2]).build()).get());
+                .put("index.number_of_shards", secondSplitShards).build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         // let it be allocated anywhere and bump replicas
@@ -340,7 +364,6 @@ public class SplitIndexIT extends ESIntegTestCase {
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings())
             .put("number_of_shards", 1)
             .put("index.version.created", version)
-            .put("index.number_of_routing_shards",  2)
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
@@ -443,7 +466,6 @@ public class SplitIndexIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(indexSettings())
                     .put("sort.field", "id")
-                    .put("index.number_of_routing_shards",  16)
                     .put("sort.order", "desc")
                     .put("number_of_shards", 2)
                     .put("number_of_replicas", 0)

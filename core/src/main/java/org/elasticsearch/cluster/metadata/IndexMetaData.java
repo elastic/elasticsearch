@@ -1333,19 +1333,33 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
      * @return a the source shard ID to split off from
      */
     public static ShardId selectSplitShard(int shardId, IndexMetaData sourceIndexMetadata, int numTargetShards) {
+        int numSourceShards = sourceIndexMetadata.getNumberOfShards();
         if (shardId >= numTargetShards) {
             throw new IllegalArgumentException("the number of target shards (" + numTargetShards + ") must be greater than the shard id: "
                 + shardId);
         }
-        int numSourceShards = sourceIndexMetadata.getNumberOfShards();
+        final int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
+        assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
+        return new ShardId(sourceIndexMetadata.getIndex(), shardId/routingFactor);
+    }
+
+    private static void assertSplitMetadata(int numSourceShards, int numTargetShards, IndexMetaData sourceIndexMetadata) {
         if (numSourceShards > numTargetShards) {
             throw new IllegalArgumentException("the number of source shards [" + numSourceShards
-                 + "] must be less that the number of target shards [" + numTargetShards + "]");
+                + "] must be less that the number of target shards [" + numTargetShards + "]");
         }
-        int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
+        // now we verify that the numRoutingShards is valid in the source index
+        // note: if the number of shards is 1 in the source index we can just assume it's correct since from 1 we can split into anything
+        // this is important to special case here since we use this to validate this in various places in the code but allow to split form
+        // 1 to N but we never modify the sourceIndexMetadata to accommodate for that
+        int routingNumShards = numSourceShards == 1 ? numTargetShards : sourceIndexMetadata.getRoutingNumShards();
+        if (routingNumShards % numTargetShards != 0) {
+            throw new IllegalStateException("the number of routing shards ["
+                + routingNumShards + "] must be a multiple of the target shards [" + numTargetShards + "]");
+        }
         // this is just an additional assertion that ensures we are a factor of the routing num shards.
-        assert getRoutingFactor(numTargetShards, sourceIndexMetadata.getRoutingNumShards()) >= 0;
-        return new ShardId(sourceIndexMetadata.getIndex(), shardId/routingFactor);
+        assert sourceIndexMetadata.getNumberOfShards() == 1 // special case - we can split into anything from 1 shard
+            || getRoutingFactor(numTargetShards, routingNumShards) >= 0;
     }
 
     /**

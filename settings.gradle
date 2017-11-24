@@ -16,8 +16,6 @@ List projects = [
   'client:benchmark',
   'benchmarks',
   'distribution:integ-test-zip',
-  'distribution:bwc-release-snapshot',
-  'distribution:bwc-stable-snapshot',
   'distribution:zip',
   'distribution:tar',
   'distribution:deb',
@@ -31,7 +29,6 @@ List projects = [
   'test:fixtures:old-elasticsearch',
   'test:logger-usage',
   'modules:aggs-matrix-stats',
-  'modules:aggs-composite',
   'modules:analysis-common',
   'modules:ingest-common',
   'modules:lang-expression',
@@ -66,6 +63,7 @@ List projects = [
   'plugins:jvm-example',
   'plugins:store-smb',
   'qa:auto-create-index',
+  'qa:ccs-unavailable-clusters',
   'qa:evil-tests',
   'qa:full-cluster-restart',
   'qa:integration-bwc',
@@ -97,6 +95,12 @@ for (File example : examplePluginsDir.listFiles()) {
   examplePlugins.add(example.name)
 }
 
+/* Create projects for building BWC snapshot distributions from the heads of other branches */
+final List<String> branches = ['5.6', '6.0', '6.1', '6.x']
+for (final String branch : branches) {
+  projects.add("distribution:bwc-snapshot-${branch}".toString())
+}
+
 boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
 if (isEclipse) {
   // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
@@ -113,12 +117,11 @@ for (String example : examplePlugins) {
   project(":example-plugins:${example}").projectDir = new File(rootProject.projectDir, "plugins/examples/${example}")
 }
 
-/* bwc and bwc-unreleased share the same build directory and build file, but
- * apply to different backwards compatibility branches. */
-project(':distribution:bwc-release-snapshot').projectDir =
-    new File(rootProject.projectDir, 'distribution/bwc')
-project(':distribution:bwc-stable-snapshot').projectDir =
-    new File(rootProject.projectDir, 'distribution/bwc')
+/* The BWC snapshot projects share the same build directory and build file,
+ * but apply to different backwards compatibility branches. */
+for (final String branch : branches) {
+  project(":distribution:bwc-snapshot-${branch}").projectDir = new File(rootProject.projectDir, 'distribution/bwc')
+}
 
 if (isEclipse) {
   project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')
@@ -133,18 +136,29 @@ if (isEclipse) {
   * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
   * all files/directories in the source tree to find all projects.
   */
-void addSubProjects(String path, File dir) {
+void addSubProjects(String path, File dir, List<String> projects, List<String> branches) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
 
-  String projectName = "${path}:${dir.name}"
+  final String projectName = "${path}:${dir.name}"
   include projectName
-  if (path.isEmpty()) {
-    project(projectName).projectDir = dir
-  }
-  for (File subdir : dir.listFiles()) {
-    addSubProjects(projectName, subdir)
+
+  if (dir.name == 'bwc-snapshot-dummy-projects') {
+    for (final String branch : branches) {
+      final String snapshotProjectName = "${projectName}:bwc-snapshot-${branch}"
+      projects.add(snapshotProjectName)
+      include snapshotProjectName
+      project("${snapshotProjectName}").projectDir = dir
+    }
+    // TODO do we want to assert that there's nothing else in the bwc directory?
+  } else {
+    if (path.isEmpty()) {
+      project(projectName).projectDir = dir
+    }
+    for (File subdir : dir.listFiles()) {
+      addSubProjects(projectName, subdir, projects, branches)
+    }
   }
 }
 
@@ -152,6 +166,6 @@ void addSubProjects(String path, File dir) {
 File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
 if (extraProjects.exists()) {
   for (File extraProjectDir : extraProjects.listFiles()) {
-    addSubProjects('', extraProjectDir)
+    addSubProjects('', extraProjectDir, projects, branches)
   }
 }

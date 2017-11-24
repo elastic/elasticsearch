@@ -61,6 +61,16 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
+/**
+ * An integration test that tests whether percolator queries stored in older supported ES version can still be read by the
+ * current ES version. Percolator queries are stored in the binary format in a dedicated doc values field (see
+ * PercolatorFieldMapper#createQueryBuilderField(...) method). Using the query builders writable contract. This test
+ * does best effort verifying that we don't break bwc for query builders between the first previous major version and
+ * the latest current major release.
+ *
+ * The queries to test are specified in json format, which turns out to work because we tend break here rarely. If the
+ * json format of a query being tested here then feel free to change this.
+ */
 public class QueryBuilderBWCIT extends ESRestTestCase {
 
     private static final List<Object[]> CANDIDATES = new ArrayList<>();

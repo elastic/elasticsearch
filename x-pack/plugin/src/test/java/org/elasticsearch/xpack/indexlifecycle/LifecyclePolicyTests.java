@@ -5,15 +5,26 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,6 +32,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+// NOCOMMIT this test needs some thinking about as currently it can't really test that the right thing is 
+// happening since we can't inspect the settings in the update request
 public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
     
     private NamedXContentRegistry registry;
@@ -87,6 +100,600 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             throw new AssertionError("Illegal randomisation branch");
         }
         return new LifecyclePolicy(name, phases);
+    }
+
+    public void testExecuteNewIndex() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        IndexMetaData idxMeta = IndexMetaData.builder(indexName).settings(Settings.builder().put("index.version.created", 7000001L).build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                assertNotNull(request);
+                assertEquals(1, request.indices().length);
+                assertEquals(indexName, request.indices()[0]);
+                // NOCOMMIT Need to check the settings in the request are
+                // correct (i.e adds the name of the first action)
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        policy.execute(idxMeta, client, () -> 0L);
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+    }
+
+    public void testExecuteFirstPhase() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
+                .settings(Settings.builder().put("index.version.created", 7000001L)
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), firstPhase.getName())
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                assertNotNull(request);
+                assertEquals(1, request.indices().length);
+                assertEquals(indexName, request.indices()[0]);
+                // NOCOMMIT Need to check the settings in the request are
+                // correct (i.e adds the name of the first action)
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        policy.execute(idxMeta, client, () -> 0L);
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+    }
+
+    public void testExecuteSecondPhase() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
+                .settings(Settings.builder().put("index.version.created", 7000001L)
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), secondPhase.getName())
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                assertNotNull(request);
+                assertEquals(1, request.indices().length);
+                assertEquals(indexName, request.indices()[0]);
+                // NOCOMMIT Need to check the settings in the request are
+                // correct (i.e adds the name of the first action)
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        policy.execute(idxMeta, client, () -> 0L);
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+    }
+
+    public void testExecuteThirdPhase() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
+                .settings(Settings.builder().put("index.version.created", 7000001L)
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), thirdPhase.getName())
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                assertNotNull(request);
+                assertEquals(1, request.indices().length);
+                assertEquals(indexName, request.indices()[0]);
+                // NOCOMMIT Need to check the settings in the request are
+                // correct (i.e adds the name of the first action)
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        policy.execute(idxMeta, client, () -> 0L);
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+    }
+
+    public void testExecuteMissingPhase() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
+                .settings(Settings.builder().put("index.version.created", 7000001L)
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), "does_not_exist")
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                assertNotNull(request);
+                assertEquals(1, request.indices().length);
+                assertEquals(indexName, request.indices()[0]);
+                // NOCOMMIT Need to check the settings in the request are
+                // correct (i.e adds the name of the first action)
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> policy.execute(idxMeta, client, () -> 0L));
+        assertEquals(
+                "Current phase [" + "does_not_exist" + "] not found in lifecycle [" + lifecycleName + "] for index [" + indexName + "]",
+                exception.getMessage());
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+
+        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
+    }
+
+    public void testExecuteFirstPhaseCompletedBeforeTrigger() throws Exception {
+        long creationDate = 0L;
+        long now = randomIntBetween(0, 9999);
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
+                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), firstPhase.getName())
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+
+        policy.execute(idxMeta, client, () -> now);
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+
+        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
+    }
+
+    public void testExecuteFirstPhaseCompletedAfterTrigger() throws Exception {
+        long creationDate = 0L;
+        long now = randomIntBetween(10000, 1000000);
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
+                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), firstPhase.getName())
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                assertNotNull(request);
+                assertEquals(1, request.indices().length);
+                assertEquals(indexName, request.indices()[0]);
+                // NOCOMMIT Need to check the settings in the request are
+                // correct (i.e adds the name of the first action)
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        policy.execute(idxMeta, client, () -> now);
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+    }
+
+    public void testExecuteSecondPhaseCompletedBeforeTrigger() throws Exception {
+        long creationDate = 0L;
+        long now = randomIntBetween(0, 19999);
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
+                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), secondPhase.getName())
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+
+        policy.execute(idxMeta, client, () -> now);
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+
+        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
+    }
+
+    public void testExecuteSecondPhaseCompletedAfterTrigger() throws Exception {
+        long creationDate = 0L;
+        long now = randomIntBetween(20000, 1000000);
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
+                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), secondPhase.getName())
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                assertNotNull(request);
+                assertEquals(1, request.indices().length);
+                assertEquals(indexName, request.indices()[0]);
+                // NOCOMMIT Need to check the settings in the request are
+                // correct (i.e adds the name of the first action)
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        policy.execute(idxMeta, client, () -> now);
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+    }
+
+    public void testExecuteThirdPhaseCompleted() throws Exception {
+        long creationDate = 0L;
+        long now = randomIntBetween(20000, 1000000);
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
+                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), thirdPhase.getName())
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+
+        policy.execute(idxMeta, client, () -> now);
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+
+        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
     }
 
 }

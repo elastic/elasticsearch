@@ -98,7 +98,8 @@ public final class Mapping implements ToXContentFragment {
             }
             mergedMetaDataMappers.put(merged.getClass(), merged);
         }
-        return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]), mergeWith.meta);
+        Map<String, Object> mergedMeta = mergeWith.meta == null ? meta : mergeWith.meta;
+        return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
     /**
@@ -128,7 +129,7 @@ public final class Mapping implements ToXContentFragment {
         root.toXContent(builder, params, new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (meta != null && !meta.isEmpty()) {
+                if (meta != null) {
                     builder.field("_meta", meta);
                 }
                 for (Mapper mapper : metadataMappers) {

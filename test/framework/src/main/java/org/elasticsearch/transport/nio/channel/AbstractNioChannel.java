@@ -137,25 +137,18 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         return socketChannel;
     }
 
-    // Package visibility for testing
-    void setSelectionKey(SelectionKey selectionKey) {
-        this.selectionKey = selectionKey;
-    }
-
-    // Package visibility for testing
-    void closeRawChannel() throws IOException {
-        socketChannel.close();
-    }
-
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
         closeContext.whenComplete(ActionListener.toBiConsumer(listener));
     }
 
-    @Override
-    public void setSoLinger(int value) throws IOException {
-        if (isOpen()) {
-            socketChannel.setOption(StandardSocketOptions.SO_LINGER, value);
-        }
+    // Package visibility for testing
+    void setSelectionKey(SelectionKey selectionKey) {
+        this.selectionKey = selectionKey;
+    }
+    // Package visibility for testing
+
+    void closeRawChannel() throws IOException {
+        socketChannel.close();
     }
 }

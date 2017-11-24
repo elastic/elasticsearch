@@ -102,7 +102,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // map.  While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        maps = new Maps(ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency(), maps.current);
+        maps = new Maps(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(maps.current.size()), maps.current);
 
         // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
         // line and this one, but that should be minor, and the error won't accumulate over time:
@@ -117,7 +117,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // case.  This is because we assign new maps (in beforeRefresh) slightly before Lucene actually flushes any segments for the
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact reflected
         // in the previous reader.   We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
-        maps = new Maps(maps.current, ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency());
+        maps = new Maps(maps.current, Collections.emptyMap());
     }
 
     /** Returns the live version (add or delete) for this uid. */

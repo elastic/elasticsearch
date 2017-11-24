@@ -470,5 +470,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertThat(searchResponse.getTotalShards(), greaterThan(0));
         assertEquals(searchResponse.getTotalShards(), searchResponse.getSuccessfulShards());
         assertEquals(0, searchResponse.getShardFailures().length);
+        assertEquals(SearchResponse.Clusters.EMPTY, searchResponse.getClusters());
     }
 }

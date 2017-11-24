@@ -238,7 +238,43 @@ public class TransportSearchActionTests extends ESTestCase {
             assertEquals(new MatchAllQueryBuilder(), remoteAliases.get("bar_id").getQueryBuilder());
             assertNull(remoteAliases.get("xyz_id").getQueryBuilder());
         }
-
     }
 
+    public void testBuildClusters() {
+        OriginalIndices localIndices = randomOriginalIndices();
+        Map<String, OriginalIndices> remoteIndices = new HashMap<>();
+        Map<String, ClusterSearchShardsResponse> searchShardsResponses = new HashMap<>();
+        int numRemoteClusters = randomIntBetween(0, 10);
+        boolean onlySuccessful = randomBoolean();
+        int localClusters = localIndices.indices().length == 0 ? 0 : 1;
+        int total = numRemoteClusters + localClusters;
+        int successful = localClusters;
+        int skipped = 0;
+        for (int i = 0; i < numRemoteClusters; i++) {
+            String cluster = randomAlphaOfLengthBetween(5, 10);
+            remoteIndices.put(cluster, randomOriginalIndices());
+            if (onlySuccessful || randomBoolean()) {
+                //whatever response counts as successful as long as it's not the empty placeholder
+                searchShardsResponses.put(cluster, new ClusterSearchShardsResponse());
+                successful++;
+            } else {
+                searchShardsResponses.put(cluster, ClusterSearchShardsResponse.EMPTY);
+                skipped++;
+            }
+        }
+        SearchResponse.Clusters clusters = TransportSearchAction.buildClusters(localIndices, remoteIndices, searchShardsResponses);
+        assertEquals(total, clusters.getTotal());
+        assertEquals(successful, clusters.getSuccessful());
+        assertEquals(skipped, clusters.getSkipped());
+    }
+
+    private static OriginalIndices randomOriginalIndices() {
+        int numLocalIndices = randomIntBetween(0, 5);
+        String[] localIndices = new String[numLocalIndices];
+        for (int i = 0; i < numLocalIndices; i++) {
+            localIndices[i] = randomAlphaOfLengthBetween(3, 10);
+        }
+        return new OriginalIndices(localIndices, IndicesOptions.fromOptions(randomBoolean(),
+                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+    }
 }

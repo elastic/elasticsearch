@@ -43,21 +43,21 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testOrientationPersistence() throws Exception {
         String idxName = "orientation";
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("shape")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("orientation", "left")
-                .endObject().endObject()
-                .endObject().endObject().string();
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("orientation", "left")
+            .endObject().endObject()
+            .endObject().endObject().string();
 
         // create index
         assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("shape")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("orientation", "right")
-                .endObject().endObject()
-                .endObject().endObject().string();
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("orientation", "right")
+            .endObject().endObject()
+            .endObject().endObject().string();
 
         assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping, XContentType.JSON));
         ensureGreen(idxName, idxName+"2");

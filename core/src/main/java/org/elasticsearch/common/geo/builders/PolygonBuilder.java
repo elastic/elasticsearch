@@ -26,12 +26,15 @@ import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
  * builder.
  */
-public class PolygonBuilder extends ShapeBuilder {
+public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
 
@@ -222,7 +225,7 @@ public class PolygonBuilder extends ShapeBuilder {
     }
 
     @Override
-    public Shape build() {
+    public JtsGeometry build() {
         return jtsGeometry(buildGeometry(FACTORY, wrapdateline));
     }
 
@@ -237,9 +240,9 @@ public class PolygonBuilder extends ShapeBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapeName());
-        builder.field(FIELD_ORIENTATION, orientation.name().toLowerCase(Locale.ROOT));
-        builder.startArray(FIELD_COORDINATES);
+        builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
+        builder.field(ShapeParser.FIELD_ORIENTATION.getPreferredName(), orientation.name().toLowerCase(Locale.ROOT));
+        builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
         coordinatesArray(builder, params);
         builder.endArray();
         builder.endObject();

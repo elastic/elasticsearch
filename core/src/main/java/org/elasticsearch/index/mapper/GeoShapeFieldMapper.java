@@ -37,6 +37,7 @@ import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -174,7 +175,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
             setupFieldType(context);
 
             return new GeoShapeFieldMapper(name, fieldType, ignoreMalformed(context), coerce(context), context.indexSettings(),
-                    multiFieldsBuilder.build(this, context), copyTo);
+                multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -274,7 +275,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), tree, strategyName, pointsOnly, treeLevels, precisionInMeters, distanceErrorPct,
-                    defaultDistanceErrorPct, orientation);
+                defaultDistanceErrorPct, orientation);
         }
 
         @Override
@@ -468,7 +469,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         try {
             Shape shape = context.parseExternalValue(Shape.class);
             if (shape == null) {
-                ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser(), this);
+                ShapeBuilder shapeBuilder = ShapeParser.parse(context.parser(), this);
                 if (shapeBuilder == null) {
                     return null;
                 }

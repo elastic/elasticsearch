@@ -33,7 +33,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
- * This search phrase can be used as an initial search phase to pre-filter search shards based on query rewriting.
+ * This search phase can be used as an initial search phase to pre-filter search shards based on query rewriting.
  * The queries are rewritten against the shards and based on the rewrite result shards might be able to be excluded
  * from the search. The extra round trip to the search shards is very cheap and is not subject to rejections
  * which allows to fan out to more shards at the same time without running into rejections even if we are hitting a
@@ -50,13 +50,15 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                         TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
-                                        SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory) {
+                                        SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
+                                        SearchResponse.Clusters clusters) {
         /*
          * We set max concurrent shard requests to the number of shards to otherwise avoid deep recursing that would occur if the local node
          * is the coordinating node for the query, holds all the shards for the request, and there are a lot of shards.
          */
         super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor, request,
-            listener, shardsIts, timeProvider, clusterStateVersion, task, new BitSetSearchPhaseResults(shardsIts.size()), shardsIts.size());
+            listener, shardsIts, timeProvider, clusterStateVersion, task, new BitSetSearchPhaseResults(shardsIts.size()), shardsIts.size(),
+                clusters);
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;
     }

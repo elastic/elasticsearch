@@ -189,7 +189,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
             final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
             final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
-            MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
+            final MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
 
             // Make sure that we can restore from this snapshot
             validateSnapshotRestorable(request.repositoryName, snapshotInfo);

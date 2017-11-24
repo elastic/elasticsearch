@@ -121,12 +121,13 @@ public class WatchStatus implements ToXContentObject, Streamable {
                 Objects.equals(lastMetCondition, that.lastMetCondition) &&
                 Objects.equals(version, that.version) &&
                 Objects.equals(executionState, that.executionState) &&
-                Objects.equals(actions, that.actions);
+                Objects.equals(actions, that.actions) &&
+                Objects.equals(headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(lastChecked, lastMetCondition, actions, version, executionState);
+        return Objects.hash(lastChecked, lastMetCondition, actions, version, executionState, headers);
     }
 
     /**

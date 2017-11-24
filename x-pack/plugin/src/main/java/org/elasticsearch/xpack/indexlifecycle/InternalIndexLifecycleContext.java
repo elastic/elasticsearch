@@ -60,8 +60,8 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
         return (indexCreated + phase.getAfter().millis()) <= now;
     }
 
-    public void executeAction(LifecycleAction action) {
-        action.execute(idxMeta.getIndex(), client);
+    public void executeAction(LifecycleAction action, LifecycleAction.Listener listener) {
+        action.execute(idxMeta.getIndex(), client, listener);
     }
 
     private void writeSettings(String index, Settings settings, Listener listener) {

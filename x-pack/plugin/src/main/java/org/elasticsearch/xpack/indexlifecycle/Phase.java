@@ -90,16 +90,39 @@ public class Phase implements ToXContentObject, Writeable {
         String indexName = context.getLifecycleTarget();
         if (Strings.isNullOrEmpty(currentActionName)) {
             String firstActionName;
+            LifecycleAction firstAction;
             if (actions.isEmpty()) {
+                firstAction = null;
                 firstActionName = PHASE_COMPLETED;
             } else {
-                firstActionName = actions.get(0).getWriteableName();
+                firstAction = actions.get(0);
+                firstActionName = firstAction.getWriteableName();
             }
             context.setAction(firstActionName, new Listener() {
 
                 @Override
                 public void onSuccess() {
                     logger.info("Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
+                    if (firstActionName.equals(PHASE_COMPLETED) == false) {
+                        context.executeAction(firstAction, new LifecycleAction.Listener() {
+
+                            @Override
+                            public void onSuccess(boolean completed) {
+                                if (completed) {
+                                    logger.info("Action [" + firstActionName + "] for index [" + indexName
+                                            + "] executed sucessfully but is not yet complete");
+                                } else {
+                                    logger.info("Action [" + firstActionName + "] for index [" + indexName
+                                            + "] complete, moving to next action");
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.info("Action [" + firstActionName + "] for index [" + indexName + "] failed", e);
+                            }
+                        });
+                    }
                 }
 
                 @Override
@@ -111,7 +134,23 @@ public class Phase implements ToXContentObject, Writeable {
             LifecycleAction currentAction = actions.stream().filter(action -> action.getWriteableName().equals(currentActionName)).findAny()
                     .orElseThrow(() -> new IllegalStateException("Current action [" + currentActionName + "] not found in phase ["
                             + getName() + "] for index [" + indexName + "]"));
-            context.executeAction(currentAction);
+            context.executeAction(currentAction, new LifecycleAction.Listener() {
+
+                @Override
+                public void onSuccess(boolean completed) {
+                    if (completed) {
+                        logger.info("Action [" + currentActionName + "] for index [" + indexName
+                                + "] executed sucessfully but is not yet complete");
+                    } else {
+                        logger.info("Action [" + currentActionName + "] for index [" + indexName + "] complete, moving to next action");
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.info("Action [" + currentActionName + "] for index [" + indexName + "] failed", e);
+                }
+            });
         }
     }
 

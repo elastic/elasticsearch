@@ -21,7 +21,7 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 
-public class DeleteAction extends LifecycleAction {
+public class DeleteAction implements LifecycleAction {
     public static final String NAME = "delete";
 
     private static final Logger logger = ESLoggerFactory.getLogger(DeleteAction.class);
@@ -54,16 +54,18 @@ public class DeleteAction extends LifecycleAction {
     }
 
     @Override
-    protected void execute(Index index, Client client) {
+    public void execute(Index index, Client client, Listener listener) {
         client.admin().indices().delete(new DeleteIndexRequest(index.getName()), new ActionListener<DeleteIndexResponse>() {
             @Override
             public void onResponse(DeleteIndexResponse deleteIndexResponse) {
                 logger.error(deleteIndexResponse);
+                listener.onSuccess(true);
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.error(e);
+                listener.onFailure(e);
             }
         });
     }

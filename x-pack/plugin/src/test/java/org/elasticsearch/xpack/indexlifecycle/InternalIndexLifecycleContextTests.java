@@ -482,10 +482,26 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
 
         MockAction action = new MockAction();
 
-        assertFalse(action.wasExecuted());
+        assertFalse(action.wasCompleted());
+        assertEquals(0L, action.getExecutedCount());
 
-        context.executeAction(action);
+        SetOnce<Boolean> listenerCalled = new SetOnce<>();
 
-        assertTrue(action.wasExecuted());
+        context.executeAction(action, new LifecycleAction.Listener() {
+
+            @Override
+            public void onSuccess(boolean completed) {
+                listenerCalled.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertTrue(action.wasCompleted());
+        assertEquals(1L, action.getExecutedCount());
+        assertEquals(true, listenerCalled.get());
     }
 }

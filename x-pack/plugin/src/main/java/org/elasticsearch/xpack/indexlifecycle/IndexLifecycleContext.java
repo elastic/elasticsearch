@@ -19,7 +19,7 @@ public interface IndexLifecycleContext {
 
     boolean canExecute(Phase phase);
 
-    public void executeAction(LifecycleAction action);
+    public void executeAction(LifecycleAction action, LifecycleAction.Listener listener);
 
     public static interface Listener {
 

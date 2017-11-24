@@ -60,23 +60,20 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
         List<IndexCommit> commitList = new ArrayList<>();
         long count = randomIntBetween(10, 20);
-        long minGen = Long.MAX_VALUE;
+        long lastGen = 0;
         for (int i = 0; i < count; i++) {
-            long lastGen = randomIntBetween(10, 20000);
-            minGen = Math.min(minGen, lastGen);
+            lastGen += randomIntBetween(10, 20000);
             commitList.add(mockIndexCommitWithTranslogGen(lastGen));
         }
         combinedDeletionPolicy.onInit(commitList);
-        verify(translogDeletionPolicy, times(1)).setMinTranslogGenerationForRecovery(minGen);
+        verify(translogDeletionPolicy, times(1)).setMinTranslogGenerationForRecovery(lastGen);
         commitList.clear();
-        minGen = Long.MAX_VALUE;
         for (int i = 0; i < count; i++) {
-            long lastGen = randomIntBetween(10, 20000);
-            minGen = Math.min(minGen, lastGen);
+            lastGen += randomIntBetween(10, 20000);
             commitList.add(mockIndexCommitWithTranslogGen(lastGen));
         }
         combinedDeletionPolicy.onCommit(commitList);
-        verify(translogDeletionPolicy, times(1)).setMinTranslogGenerationForRecovery(minGen);
+        verify(translogDeletionPolicy, times(1)).setMinTranslogGenerationForRecovery(lastGen);
     }
 
     IndexCommit mockIndexCommitWithTranslogGen(long gen) throws IOException {

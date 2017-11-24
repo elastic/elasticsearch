@@ -19,6 +19,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
@@ -57,6 +59,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -67,6 +70,9 @@ import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -80,6 +86,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -480,5 +487,44 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected void flushShard(IndexShard shard, boolean force) {
         shard.flush(new FlushRequest(shard.shardId().getIndexName()).force(force));
+    }
+
+    /** Recover a shard from a snapshot using a given repository **/
+    protected void recoverShardFromSnapshot(final IndexShard shard,
+                                            final Snapshot snapshot,
+                                            final Repository repository) throws IOException {
+        final Version version = Version.CURRENT;
+        final ShardId shardId = shard.shardId();
+        final String index = shardId.getIndexName();
+        final IndexId indexId = new IndexId(shardId.getIndex().getName(), shardId.getIndex().getUUID());
+        final DiscoveryNode node = getFakeDiscoNode(shard.routingEntry().currentNodeId());
+        final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(snapshot, version, index);
+        final ShardRouting shardRouting = newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, recoverySource);
+
+        shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
+        repository.restoreShard(shard, snapshot.getSnapshotId(), version, indexId, shard.shardId(), shard.recoveryState());
+    }
+
+    /** Snapshot a shard using a given repository **/
+    protected void snapshotShard(final IndexShard shard,
+                                 final Snapshot snapshot,
+                                 final Repository repository) throws IOException {
+        final IndexShardSnapshotStatus snapshotStatus = new IndexShardSnapshotStatus();
+
+        IndexCommit indexCommit = null;
+        try {
+            indexCommit = shard.acquireIndexCommit(true);
+            Index index = shard.shardId().getIndex();
+            IndexId indexId = new IndexId(index.getName(), index.getUUID());
+
+            repository.snapshotShard(shard, snapshot.getSnapshotId(), indexId, indexCommit, snapshotStatus);
+        } finally {
+            if (indexCommit != null) {
+                shard.releaseIndexCommit(indexCommit);
+            }
+        }
+        assertEquals(IndexShardSnapshotStatus.Stage.DONE, snapshotStatus.stage());
+        assertEquals(shard.snapshotStoreMetadata().size(), snapshotStatus.numberOfFiles());
+        assertNull(snapshotStatus.failure());
     }
 }

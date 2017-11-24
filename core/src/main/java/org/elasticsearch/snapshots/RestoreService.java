@@ -64,7 +64,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -534,7 +533,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                 RecoverySource recoverySource = initializingShard.recoverySource();
                 if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
                     Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
-                    changes(snapshot).startedShards.put(initializingShard.shardId(),
+                    changes(snapshot).shards.put(initializingShard.shardId(),
                         new ShardRestoreStatus(initializingShard.currentNodeId(), RestoreInProgress.State.SUCCESS));
                 }
             }
@@ -550,7 +549,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                     // to restore this shard on another node if the snapshot files are corrupt. In case where a node just left or crashed,
                     // however, we only want to acknowledge the restore operation once it has been successfully restored on another node.
                     if (unassignedInfo.getFailure() != null && Lucene.isCorruptionException(unassignedInfo.getFailure().getCause())) {
-                        changes(snapshot).failedShards.put(failedShard.shardId(), new ShardRestoreStatus(failedShard.currentNodeId(),
+                        changes(snapshot).shards.put(failedShard.shardId(), new ShardRestoreStatus(failedShard.currentNodeId(),
                             RestoreInProgress.State.FAILURE, unassignedInfo.getFailure().getCause().getMessage()));
                     }
                 }
@@ -563,7 +562,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
             if (unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT &&
                 initializedShard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
                 Snapshot snapshot = ((SnapshotRecoverySource) unassignedShard.recoverySource()).snapshot();
-                changes(snapshot).failedShards.put(unassignedShard.shardId(), new ShardRestoreStatus(null,
+                changes(snapshot).shards.put(unassignedShard.shardId(), new ShardRestoreStatus(null,
                     RestoreInProgress.State.FAILURE, "recovery source type changed from snapshot to " + initializedShard.recoverySource()));
             }
         }
@@ -575,8 +574,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                 if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
                     if (newUnassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                         Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
-                        String reason = "shard was denied allocation by all allocation deciders";
-                        changes(snapshot).unassignedShards.put(unassignedShard.shardId(),
+                        String reason = "shard could not be allocated on any of the nodes";
+                        changes(snapshot).shards.put(unassignedShard.shardId(),
                             new ShardRestoreStatus(unassignedShard.currentNodeId(), RestoreInProgress.State.FAILURE, reason));
                     }
                 }
@@ -591,13 +590,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
         }
 
         private static class Updates {
-            private Map<ShardId, ShardRestoreStatus> failedShards = new HashMap<>();
-            private Map<ShardId, ShardRestoreStatus> startedShards = new HashMap<>();
-            private Map<ShardId, ShardRestoreStatus> unassignedShards = new HashMap<>();
-
-            boolean isEmpty() {
-                return startedShards.isEmpty() && failedShards.isEmpty() && unassignedShards.isEmpty();
-            }
+            private Map<ShardId, ShardRestoreStatus> shards = new HashMap<>();
         }
 
         public RestoreInProgress applyChanges(final RestoreInProgress oldRestore) {
@@ -606,18 +599,12 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                 for (RestoreInProgress.Entry entry : oldRestore.entries()) {
                     Snapshot snapshot = entry.snapshot();
                     Updates updates = shardChanges.get(snapshot);
-                    assert Sets.haveEmptyIntersection(updates.startedShards.keySet(), updates.failedShards.keySet());
-                    if (updates.isEmpty() == false) {
+                    if (updates.shards.isEmpty() == false) {
                         ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder(entry.shards());
-                        for (Map.Entry<ShardId, ShardRestoreStatus> startedShard : updates.startedShards.entrySet()) {
-                            shardsBuilder.put(startedShard.getKey(), startedShard.getValue());
+                        for (Map.Entry<ShardId, ShardRestoreStatus> shard : updates.shards.entrySet()) {
+                            shardsBuilder.put(shard.getKey(), shard.getValue());
                         }
-                        for (Map.Entry<ShardId, ShardRestoreStatus> failedShard : updates.failedShards.entrySet()) {
-                            shardsBuilder.put(failedShard.getKey(), failedShard.getValue());
-                        }
-                        for (Map.Entry<ShardId, ShardRestoreStatus> unassignedShard : updates.unassignedShards.entrySet()) {
-                            shardsBuilder.put(unassignedShard.getKey(), unassignedShard.getValue());
-                        }
+
                         ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
                         RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
                         entries.add(new RestoreInProgress.Entry(entry.snapshot(), newState, entry.indices(), shards));

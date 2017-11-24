@@ -23,7 +23,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -101,6 +100,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -916,118 +916,31 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
      * does not hang indefinitely.
      */
     public void testUnrestorableFilesDuringRestore() throws Exception {
-        // create a test repository
-        final Path repositoryLocation = randomRepoPath();
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                                              .setType("fs")
-                                              .setSettings(Settings.builder().put("location", repositoryLocation)));
-
-        // create a test index
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String indexName = "unrestorable-files";
         final int maxRetries = randomIntBetween(1, 10);
-        assertAcked(prepareCreate(indexName, Settings.builder().put(SETTING_ALLOCATION_MAX_RETRY.getKey(), maxRetries)));
 
-        // index some documents
-        final int nbDocs = scaledRandomIntBetween(10, 100);
-        for (int i = 0; i < nbDocs; i++) {
-            index(indexName, "doc", Integer.toString(i), "foo", "bar" + i);
-        }
-        flushAndRefresh(indexName);
-        assertThat(client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits(), equalTo((long) nbDocs));
+        Settings createIndexSettings = Settings.builder().put(SETTING_ALLOCATION_MAX_RETRY.getKey(), maxRetries).build();
 
-        // create a snapshot
-        final NumShards numShards = getNumShards(indexName);
-        CreateSnapshotResponse snapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                                                                            .setWaitForCompletion(true)
-                                                                            .setIndices(indexName)
-                                                                            .get();
+        Settings repositorySettings = Settings.builder()
+                                                .put("random", randomAlphaOfLength(10))
+                                                .put("max_failure_number", 10000000L)
+                                                // No lucene corruptions, we want to test retries
+                                                .put("use_lucene_corruption", false)
+                                                // Restoring a file will never complete
+                                                .put("random_data_file_io_exception_rate", 1.0)
+                                                .build();
 
-        assertThat(snapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotResponse.getSnapshotInfo().successfulShards(), equalTo(numShards.numPrimaries));
-        assertThat(snapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
+        Consumer<UnassignedInfo> checkUnassignedInfo = unassignedInfo -> {
+            assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+            assertThat(unassignedInfo.getNumFailedAllocations(), equalTo(maxRetries));
+        };
 
-        // delete the test index
-        assertAcked(client().admin().indices().prepareDelete(indexName));
-
-        // update the test repository so that restoring files will always fail
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                                              .setType("mock")
-                                              .setSettings(
-                                                    Settings.builder()
-                                                        .put("location", repositoryLocation)
-                                                        .put("random", randomAlphaOfLength(10))
-                                                        .put("max_failure_number", 10000000L)
-                                                        // No lucene corruptions, we want to test retries
-                                                        .put("use_lucene_corruption", false)
-                                                        // Restoring a file will never complete
-                                                        .put("random_data_file_io_exception_rate", 1.0)));
-
-        // attempt to restore the snapshot
-        RestoreSnapshotResponse restoreResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
-                                                                            .setMasterNodeTimeout("30s")
-                                                                            .setWaitForCompletion(true)
-                                                                            .get();
-
-        // check that all shards failed during restore
-        assertThat(restoreResponse.getRestoreInfo().totalShards(), equalTo(numShards.numPrimaries));
-        assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(0));
-
-        // check that every shard failed because the number of allocation retries has been reached;
-        // as it can take some time and shard allocation can be throttled, we use an assertBusy()
-        assertBusy(() -> {
-            Client client = client();
-            for (int shardId = 0; shardId < numShards.numPrimaries; shardId++) {
-                ClusterAllocationExplainResponse allocationResponse = client.admin().cluster().prepareAllocationExplain()
-                                                                                              .setIndex(indexName)
-                                                                                              .setShard(shardId)
-                                                                                              .setPrimary(true)
-                                                                                              .get();
-
-                UnassignedInfo unassignedInfo = allocationResponse.getExplanation().getUnassignedInfo();
-                assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-                assertThat(unassignedInfo.getNumFailedAllocations(), equalTo(maxRetries));
-                assertThat(unassignedInfo.getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.DECIDERS_NO));
-            }
-        });
-
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).setRoutingTable(true).get();
-
-        // check that there is no restore in progress
-        RestoreInProgress restoreInProgress = clusterStateResponse.getState().custom(RestoreInProgress.TYPE);
-        assertNotNull("RestoreInProgress must be not null", restoreInProgress);
-        assertThat("RestoreInProgress must be empty", restoreInProgress.entries(), hasSize(0));
-
-        // check that the shards have been created but are not assigned
-        List<ShardRouting> shards = clusterStateResponse.getState().getRoutingTable().allShards(indexName);
-        assertThat(shards, hasSize(numShards.totalNumShards));
-        shards.forEach(shard -> assertTrue("Shard " + shard.shardId() + " must be unassigned", shard.unassigned()));
-
-        // update the test repository in order to make it work
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                                                .setType("fs")
-                                                .setSettings(Settings.builder().put("location", repositoryLocation)));
-
-        final boolean useReroute = randomBoolean();
-        if (useReroute) {
-            // Option 1: use the Reroute API to retry the failed shards
+        Runnable fixupAction = () -> {
+            // use the Reroute API to retry the failed shards
             assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true));
+        };
 
-        } else {
-            // Option 2: delete the index and restore again
-            assertAcked(client().admin().indices().prepareDelete(indexName));
-            restoreResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
-                                                        .setMasterNodeTimeout("30s")
-                                                        .setWaitForCompletion(true)
-                                                        .get();
-            assertThat(restoreResponse.getRestoreInfo().totalShards(), equalTo(numShards.numPrimaries));
-            assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(numShards.numPrimaries));
-        }
-
-        // Wait for the shards to be assigned
-        waitForRelocation();
-        refresh(indexName);
-
-        assertThat(client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits(), equalTo((long) nbDocs));
+        unrestorableUseCase(indexName, createIndexSettings, repositorySettings, Settings.EMPTY, checkUnassignedInfo, fixupAction);
     }
 
     /**
@@ -1035,15 +948,39 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
      * its allocation does not hang indefinitely.
      */
     public void testUnrestorableIndexDuringRestore() throws Exception {
+        final String indexName = "unrestorable-index";
+        Settings restoreIndexSettings = Settings.builder().put("index.routing.allocation.include._name", randomAlphaOfLength(5)).build();
+
+        Consumer<UnassignedInfo> checkUnassignedInfo = unassignedInfo -> {
+            assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.NEW_INDEX_RESTORED));
+        };
+
+        Runnable fixupAction =() -> {
+            // remove the shard allocation filtering settings and use the Reroute API to retry the failed shards
+            assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
+                                                    .setSettings(Settings.builder()
+                                                                            .putNull("index.routing.allocation.include._name")
+                                                                            .build()));
+            assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true));
+        };
+
+        unrestorableUseCase(indexName, Settings.EMPTY, Settings.EMPTY, restoreIndexSettings, checkUnassignedInfo, fixupAction);
+    }
+
+    /** Execute the unrestorable test use case **/
+    private void unrestorableUseCase(final String indexName,
+                                     final Settings createIndexSettings,
+                                     final Settings repositorySettings,
+                                     final Settings restoreIndexSettings,
+                                     final Consumer<UnassignedInfo> checkUnassignedInfo,
+                                     final Runnable fixUpAction) throws Exception {
         // create a test repository
         final Path repositoryLocation = randomRepoPath();
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                                              .setType("fs")
-                                              .setSettings(Settings.builder().put("location", repositoryLocation)));
-
+                                                .setType("fs")
+                                                .setSettings(Settings.builder().put("location", repositoryLocation)));
         // create a test index
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName);
+        assertAcked(prepareCreate(indexName, Settings.builder().put(createIndexSettings)));
 
         // index some documents
         final int nbDocs = scaledRandomIntBetween(10, 100);
@@ -1067,35 +1004,24 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         // delete the test index
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        // attempt to restore the snapshot with wrong shard allocation filtering settings
-        Settings restoreIndexSettings = Settings.builder().put("index.routing.allocation.include._name", randomAlphaOfLength(5)).build();
+        // update the test repository
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+                                              .setType("mock")
+                                              .setSettings(Settings.builder()
+                                                                   .put("location", repositoryLocation)
+                                                                   .put(repositorySettings)
+                                                                   .build()));
+
+        // attempt to restore the snapshot with the given settings
         RestoreSnapshotResponse restoreResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
-                                                                            .setMasterNodeTimeout("30s")
-                                                                            .setWaitForCompletion(true)
                                                                             .setIndices(indexName)
                                                                             .setIndexSettings(restoreIndexSettings)
+                                                                            .setWaitForCompletion(true)
                                                                             .get();
 
         // check that all shards failed during restore
         assertThat(restoreResponse.getRestoreInfo().totalShards(), equalTo(numShards.numPrimaries));
         assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(0));
-
-        // check that every shard failed because the shard allocation filtering settings do not
-        // allow the shards to be assigned to nodes
-        assertBusy(() -> {
-            Client client = client();
-            for (int shardId = 0; shardId < numShards.numPrimaries; shardId++) {
-                ClusterAllocationExplainResponse allocationResponse = client.admin().cluster().prepareAllocationExplain()
-                                                                                              .setIndex(indexName)
-                                                                                              .setShard(shardId)
-                                                                                              .setPrimary(true)
-                                                                                              .get();
-
-                UnassignedInfo unassignedInfo = allocationResponse.getExplanation().getUnassignedInfo();
-                assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.NEW_INDEX_RESTORED));
-                assertThat(unassignedInfo.getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.DECIDERS_NO));
-            }
-        });
 
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).setRoutingTable(true).get();
 
@@ -1105,33 +1031,49 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat("RestoreInProgress must be empty", restoreInProgress.entries(), hasSize(0));
 
         // check that the shards have been created but are not assigned
-        List<ShardRouting> shards = clusterStateResponse.getState().getRoutingTable().allShards(indexName);
-        assertThat(shards, hasSize(numShards.totalNumShards));
-        shards.forEach(shard -> assertTrue("Shard " + shard.shardId() + " must be unassigned", shard.unassigned()));
+        assertThat(clusterStateResponse.getState().getRoutingTable().allShards(indexName), hasSize(numShards.totalNumShards));
 
-        final boolean useReroute = randomBoolean();
-        if (useReroute) {
-            // Option 1: remove the shard allocation filtering settings and use the Reroute API to retry the failed shards
-            assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
-                                                  .setSettings(Settings.builder()
-                                                                       .putNull("index.routing.allocation.include._name")
-                                                                       .build()));
-            assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true));
+        // check that every primary shard failed because the number of allocation retries has been reached
+        assertBusy(() -> {
+            ClusterStateResponse clusterState = client().admin().cluster().prepareState()
+                                                                .clear()
+                                                                .setRoutingTable(true)
+                                                                .setIndices(indexName)
+                                                                .get();
 
+            for (ShardRouting shard : clusterState.getState().getRoutingTable().allShards()) {
+                if (shard.primary()) {
+                    assertTrue("Shard " + shard.shardId() + " must be unassigned", shard.unassigned());
+
+                    UnassignedInfo unassignedInfo = shard.unassignedInfo();
+                    assertThat(unassignedInfo, notNullValue());
+                    assertThat(unassignedInfo.getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.DECIDERS_NO));
+                    checkUnassignedInfo.accept(unassignedInfo);
+                }
+            }
+        });
+
+        // update the test repository in order to make it work
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+                                              .setType("fs")
+                                              .setSettings(Settings.builder().put("location", repositoryLocation)));
+
+        final boolean useFixUpAction = randomBoolean();
+        if (useFixUpAction) {
+            // Option 1: use a dedicated fix up action
+            fixUpAction.run();
         } else {
-            // Option 2: delete the index and restore again, this time without shard allocation filtering settings
+            // Option 2: delete the index and restore again
             assertAcked(client().admin().indices().prepareDelete(indexName));
             restoreResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
-                                                        .setMasterNodeTimeout("30s")
-                                                        .setWaitForCompletion(true)
-                                                        .setIndices(indexName)
-                                                        .get();
+                .setWaitForCompletion(true)
+                .get();
             assertThat(restoreResponse.getRestoreInfo().totalShards(), equalTo(numShards.numPrimaries));
             assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(numShards.numPrimaries));
         }
 
         // Wait for the shards to be assigned
-        waitForRelocation();
+        ensureGreen(indexName);
         refresh(indexName);
 
         assertThat(client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits(), equalTo((long) nbDocs));

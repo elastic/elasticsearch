@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 public class Phase implements ToXContentObject, Writeable {
     public static final String PHASE_COMPLETED = "ACTIONS COMPLETED";
@@ -91,8 +91,8 @@ public class Phase implements ToXContentObject, Writeable {
         return actions;
     }
 
-    protected boolean canExecute(IndexMetaData idxMeta, Supplier<Long> nowSupplier) {
-        long now = nowSupplier.get();
+    protected boolean canExecute(IndexMetaData idxMeta, LongSupplier nowSupplier) {
+        long now = nowSupplier.getAsLong();
         long indexCreated = idxMeta.getCreationDate();
         return (indexCreated + after.millis()) <= now;
     }

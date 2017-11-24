@@ -95,8 +95,8 @@
 ---
 "cluster health basic test, one index with wait for no initializing shards":
   - skip:
-      version: " - 6.99.99"
-      reason: "wait_for_no_initializing_shards is introduced in 7.0.0"
+      version: " - 6.1.99"
+      reason: "wait_for_no_initializing_shards is introduced in 6.2.0"
 
   - do:
       indices.create:

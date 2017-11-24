@@ -1,0 +1,8 @@
+[[breaking_70_analysis_changes]]
+=== Analysis changes
+
+==== The `delimited_payload_filter` is renamed
+
+The `delimited_payload_filter` is renamed to `delimited_payload`, the old name is 
+deprecated and will be removed at some point, so it should be replaced by 
+`delimited_payload`.

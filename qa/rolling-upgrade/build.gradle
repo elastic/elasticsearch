@@ -256,10 +256,8 @@ subprojects {
   // basic integ tests includes testing bwc against the most recent version
   task integTest {
     if (project.bwc_tests_enabled) {
-      if (project.bwc_tests_enabled) {
-        for (final def version : versionCollection.basicIntegrationTestVersions) {
-          dependsOn "v${version}#bwcTest"
-        }
+      for (final def version : versionCollection.basicIntegrationTestVersions) {
+        dependsOn "v${version}#bwcTest"
       }
     }
   }

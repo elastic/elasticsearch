@@ -128,20 +128,6 @@ class VersionCollection {
         return version
     }
 
-    /**
-     * @return The snapshot at the end of the previous-but-one minor series in the current major series, if the previous minor series
-     * exists and has not yet been released. Otherwise null.
-     */
-    Version getBWCSnapshotForPreviousMinorOfCurrentMajor() {
-        // If we are at 6.2.0 but 6.1.0 has not yet been released then we
-        // need to test against 6.0.1-SNAPSHOT too
-        final Version v = BWCSnapshotForCurrentMajor
-        if (v == null || v.revision != 0 || v.minor == 0) {
-            return null
-        }
-        return versions.find { it.major == v.major && it.minor == v.minor - 1 && it.snapshot }
-    }
-
     private Version getLastSnapshotWithMajor(int targetMajor) {
         final String currentVersion = currentVersion.toString()
         final int snapshotIndex = versions.findLastIndexOf {

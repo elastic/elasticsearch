@@ -10,7 +10,7 @@ public abstract class MockIndexLifecycleContext implements IndexLifecycleContext
     private final String targetName;
     private String phase;
     private String action;
-    private RuntimeException exceptionToThrow;
+    private Exception exceptionToThrow;
 
     public MockIndexLifecycleContext(String targetName, String initialPhase, String initialAction) {
         this.targetName = targetName;
@@ -18,7 +18,7 @@ public abstract class MockIndexLifecycleContext implements IndexLifecycleContext
         this.action = initialAction;
     }
 
-    public void failOnSetters(RuntimeException exceptionToThrow) {
+    public void failOnSetters(Exception exceptionToThrow) {
         this.exceptionToThrow = exceptionToThrow;
     }
 

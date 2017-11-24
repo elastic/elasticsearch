@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 
 import java.util.Collections;
@@ -29,6 +30,9 @@ public class WatchExecutionContextMockBuilder {
     public WatchExecutionContextMockBuilder(String watchId) {
         ctx = mock(WatchExecutionContext.class);
         watch = mock(Watch.class);
+        WatchStatus watchStatus = mock(WatchStatus.class);
+        when(watchStatus.getHeaders()).thenReturn(Collections.emptyMap());
+        when(watch.status()).thenReturn(watchStatus);
         when(watch.id()).thenReturn(watchId);
         when(ctx.watch()).thenReturn(watch);
         payload(Collections.<String, Object>emptyMap());

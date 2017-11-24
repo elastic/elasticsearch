@@ -17,8 +17,11 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -214,7 +217,11 @@ public class SearchTransformTests extends ESIntegTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, client(), xContentRegistry(), scriptService());
+        final MockScriptEngine engine = new MockScriptEngine("mock", Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+
+        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, client(),  xContentRegistry(), scriptService);
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());

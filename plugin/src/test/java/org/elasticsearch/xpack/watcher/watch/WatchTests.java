@@ -141,6 +141,7 @@ import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ESTestCase {
+
     private ScriptService scriptService;
     private Client client;
     private HttpClient httpClient;
@@ -511,7 +512,8 @@ public class WatchTests extends ESTestCase {
             IndexAction action = new IndexAction("_index", "_type", randomBoolean() ? "123" : null, null, timeout, timeZone);
             list.add(new ActionWrapper("_index_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService),  randomTransform(),
-                    new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30))));
+                    new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30),
+                            TimeValue.timeValueSeconds(30))));
         }
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))

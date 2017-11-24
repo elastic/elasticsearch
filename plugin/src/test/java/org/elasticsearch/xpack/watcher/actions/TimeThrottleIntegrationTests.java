@@ -40,6 +40,11 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         return true;
     }
 
+    @Override
+    protected boolean enableSecurity() {
+        return true;
+    }
+
     public void testTimeThrottle() throws Exception {
         String id = randomAlphaOfLength(20);
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
@@ -68,12 +73,12 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
 
     public void testTimeThrottleDefaults() throws Exception {
         String id = randomAlphaOfLength(30);
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
+        PutWatchResponse putWatchResponse = watcherClientWithWatcherUser().preparePutWatch()
                 .setId(id)
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
                         .input(simpleInput())
-                        .addAction("my-logging-action", indexAction("actions", "action")))
+                        .addAction("my-logging-action", indexAction("my_watcher_index", "action")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 

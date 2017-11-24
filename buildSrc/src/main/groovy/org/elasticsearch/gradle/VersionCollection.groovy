@@ -95,6 +95,12 @@ class VersionCollection {
             prevConsideredVersion = currConsideredVersion
         }
 
+        // If we're making a release build then the current should not be a snapshot after all.
+        final boolean currentIsSnapshot = "true" == System.getProperty("build.snapshot", "true")
+        if (false == currentIsSnapshot) {
+            versions[-1] = new Version(versions[-1].major, versions[-1].minor, versions[-1].revision, versions[-1].suffix, false, null)
+        }
+
         this.versions = Collections.unmodifiableList(versions)
     }
 

@@ -62,7 +62,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -155,7 +154,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -871,7 +869,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
             for (LeafReaderContext reader : searcher.reader().leaves()) {
                 // we go on the segment level here to get accurate numbers
-                final SegmentReader segmentReader = Engine.segmentReader(reader.reader());
+                final SegmentReader segmentReader = Lucene.segmentReader(reader.reader());
                 SegmentCommitInfo info = segmentReader.getSegmentInfo();
                 numDocs += reader.reader().numDocs();
                 numDeletedDocs += reader.reader().numDeletedDocs();

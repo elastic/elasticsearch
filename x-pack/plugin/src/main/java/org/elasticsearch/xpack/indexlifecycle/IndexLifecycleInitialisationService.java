@@ -29,7 +29,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.SortedMap;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.indexlifecycle.IndexLifecycle.NAME;
 
@@ -42,7 +42,7 @@ public class IndexLifecycleInitialisationService extends AbstractComponent
     private Client client;
     private ClusterService clusterService;
     private ThreadPool threadPool;
-    private Supplier<Long> nowSupplier;
+    private LongSupplier nowSupplier;
 
     public IndexLifecycleInitialisationService(Settings settings, Client client, ClusterService clusterService, Clock clock,
             ThreadPool threadPool) {
@@ -51,7 +51,7 @@ public class IndexLifecycleInitialisationService extends AbstractComponent
         this.clusterService = clusterService;
         this.clock = clock;
         this.threadPool = threadPool;
-        this.nowSupplier = () -> System.currentTimeMillis(); // NOCOMMIT use ES now supplier.
+        this.nowSupplier = () -> System.currentTimeMillis();
         clusterService.addListener(this);
     }
 

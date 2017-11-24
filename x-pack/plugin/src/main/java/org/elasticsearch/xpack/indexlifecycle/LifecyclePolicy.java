@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implements ToXContentObject, Writeable {
     private static final Logger logger = ESLoggerFactory.getLogger(LifecyclePolicy.class);
@@ -90,7 +90,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
         return builder;
     }
 
-    public void execute(IndexMetaData idxMeta, Client client, Supplier<Long> nowSupplier) {
+    public void execute(IndexMetaData idxMeta, Client client, LongSupplier nowSupplier) {
         String currentPhaseName = IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.get(idxMeta.getSettings());
         boolean currentPhaseActionsComplete = IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.get(idxMeta.getSettings())
                 .equals(Phase.PHASE_COMPLETED);

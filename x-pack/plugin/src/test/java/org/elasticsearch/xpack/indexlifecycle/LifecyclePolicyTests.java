@@ -5,27 +5,15 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsTestHelper;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,7 +89,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         return new LifecyclePolicy(name, phases);
     }
 
-    public void testExecuteNewIndex() throws Exception {
+    public void testExecuteNewIndexBeforeTrigger() throws Exception {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String lifecycleName = randomAlphaOfLengthBetween(1, 20);
         List<Phase> phases = new ArrayList<>();
@@ -125,41 +113,125 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.add(thirdPhase);
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName).settings(Settings.builder().put("index.version.created", 7000001L).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "") {
 
             @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder()
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), "first_phase")
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build();
-                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
-                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-                return null;
+            public boolean canExecute(Phase phase) {
+                if (phase == firstPhase) {
+                    return false;
+                } else {
+                    throw new AssertionError("canExecute should not have been called on this phase: " + phase.getName());
+                }
             }
+        };
 
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+        policy.execute(context);
 
-        policy.execute(idxMeta, client, () -> 0L);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals("", context.getPhase());
+        assertEquals("", context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
+    }
 
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+    public void testExecuteNewIndexAfterTrigger() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "") {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                if (phase == firstPhase) {
+                    return true;
+                } else {
+                    throw new AssertionError("canExecute should not have been called on this phase: " + phase.getName());
+                }
+            }
+        };
+
+        policy.execute(context);
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(firstPhase.getName(), context.getPhase());
+        assertEquals("", context.getAction());
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
+    }
+
+    public void testExecuteNewIndexAfterTriggerFailure() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        List<Phase> phases = new ArrayList<>();
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction();
+        actions.add(firstAction);
+        TimeValue after = TimeValue.timeValueSeconds(0);
+        Phase firstPhase = new Phase("first_phase", after, actions);
+        phases.add(firstPhase);
+        actions = new ArrayList<>();
+        MockAction secondAction = new MockAction();
+        actions.add(secondAction);
+        after = TimeValue.timeValueSeconds(10);
+        Phase secondPhase = new Phase("second_phase", after, actions);
+        phases.add(secondPhase);
+        actions = new ArrayList<>();
+        MockAction thirdAction = new MockAction();
+        actions.add(thirdAction);
+        after = TimeValue.timeValueSeconds(20);
+        Phase thirdPhase = new Phase("third_phase", after, actions);
+        phases.add(thirdPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "") {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                if (phase == firstPhase) {
+                    return true;
+                } else {
+                    throw new AssertionError("canExecute should not have been called on this phase: " + phase.getName());
+                }
+            }
+        };
+
+        RuntimeException exception = new RuntimeException();
+
+        context.failOnSetters(exception);
+
+        policy.execute(context);
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals("", context.getPhase());
+        assertEquals("", context.getAction());
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
     }
 
     public void testExecuteFirstPhase() throws Exception {
@@ -186,43 +258,23 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.add(thirdPhase);
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), firstPhase.getName())
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), "") {
 
             @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder()
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), MockAction.NAME).build();
-                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
-                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-                return null;
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called.");
             }
+        };
 
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+        policy.execute(context);
 
-        policy.execute(idxMeta, client, () -> 0L);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(firstPhase.getName(), context.getPhase());
+        assertEquals(MockAction.NAME, context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
     public void testExecuteSecondPhase() throws Exception {
@@ -249,43 +301,23 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.add(thirdPhase);
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), secondPhase.getName())
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), "") {
 
             @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder()
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), MockAction.NAME).build();
-                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
-                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-                return null;
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called.");
             }
+        };
 
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+        policy.execute(context);
 
-        policy.execute(idxMeta, client, () -> 0L);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(secondPhase.getName(), context.getPhase());
+        assertEquals(MockAction.NAME, context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
     public void testExecuteThirdPhase() throws Exception {
@@ -312,43 +344,23 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.add(thirdPhase);
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), thirdPhase.getName())
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, thirdPhase.getName(), "") {
 
             @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder()
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), MockAction.NAME).build();
-                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
-                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-                return null;
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called.");
             }
+        };
 
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+        policy.execute(context);
 
-        policy.execute(idxMeta, client, () -> 0L);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(thirdPhase.getName(), context.getPhase());
+        assertEquals(MockAction.NAME, context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
     public void testExecuteMissingPhase() throws Exception {
@@ -375,34 +387,29 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.add(thirdPhase);
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), "does_not_exist")
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "does_not_exist", "") {
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called.");
+            }
+        };
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> policy.execute(idxMeta, client, () -> 0L));
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> policy.execute(context));
         assertEquals(
                 "Current phase [" + "does_not_exist" + "] not found in lifecycle [" + lifecycleName + "] for index [" + indexName + "]",
                 exception.getMessage());
 
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals("does_not_exist", context.getPhase());
+        assertEquals("", context.getAction());
+
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
     }
 
     public void testExecuteFirstPhaseCompletedBeforeTrigger() throws Exception {
-        long creationDate = 0L;
-        long now = randomIntBetween(0, 9999);
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String lifecycleName = randomAlphaOfLengthBetween(1, 20);
         List<Phase> phases = new ArrayList<>();
@@ -425,32 +432,31 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Phase thirdPhase = new Phase("third_phase", after, actions);
         phases.add(thirdPhase);
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
+        
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), Phase.PHASE_COMPLETED) {
+            
+            @Override
+            public boolean canExecute(Phase phase) {
+                if (phase == secondPhase) {
+                    return false;
+                } else {
+                    throw new AssertionError("canExecute should not have been called on this phase: " + phase.getName());
+                }
+            }
+        };
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), firstPhase.getName())
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        policy.execute(context);
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
-        policy.execute(idxMeta, client, () -> now);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(firstPhase.getName(), context.getPhase());
+        assertEquals(Phase.PHASE_COMPLETED, context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
     }
 
     public void testExecuteFirstPhaseCompletedAfterTrigger() throws Exception {
-        long creationDate = 0L;
-        long now = randomIntBetween(10000, 1000000);
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String lifecycleName = randomAlphaOfLengthBetween(1, 20);
         List<Phase> phases = new ArrayList<>();
@@ -474,49 +480,30 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.add(thirdPhase);
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), firstPhase.getName())
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), Phase.PHASE_COMPLETED) {
 
             @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder()
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), "second_phase")
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build();
-                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
-                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-                return null;
+            public boolean canExecute(Phase phase) {
+                if (phase == secondPhase) {
+                    return true;
+                } else {
+                    throw new AssertionError("canExecute should not have been called on this phase: " + phase.getName());
+                }
             }
+        };
 
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+        policy.execute(context);
 
-        policy.execute(idxMeta, client, () -> now);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(secondPhase.getName(), context.getPhase());
+        assertEquals("", context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
     public void testExecuteSecondPhaseCompletedBeforeTrigger() throws Exception {
-        long creationDate = 0L;
-        long now = randomIntBetween(0, 19999);
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String lifecycleName = randomAlphaOfLengthBetween(1, 20);
         List<Phase> phases = new ArrayList<>();
@@ -540,31 +527,30 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.add(thirdPhase);
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), secondPhase.getName())
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), Phase.PHASE_COMPLETED) {
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+            @Override
+            public boolean canExecute(Phase phase) {
+                if (phase == thirdPhase) {
+                    return false;
+                } else {
+                    throw new AssertionError("canExecute should not have been called on this phase: " + phase.getName());
+                }
+            }
+        };
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        policy.execute(context);
 
-        policy.execute(idxMeta, client, () -> now);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(secondPhase.getName(), context.getPhase());
+        assertEquals(Phase.PHASE_COMPLETED, context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
     }
 
     public void testExecuteSecondPhaseCompletedAfterTrigger() throws Exception {
-        long creationDate = 0L;
-        long now = randomIntBetween(20000, 1000000);
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String lifecycleName = randomAlphaOfLengthBetween(1, 20);
         List<Phase> phases = new ArrayList<>();
@@ -588,49 +574,30 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.add(thirdPhase);
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), secondPhase.getName())
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), Phase.PHASE_COMPLETED) {
 
             @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder()
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), "third_phase")
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build();
-                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
-                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-                return null;
+            public boolean canExecute(Phase phase) {
+                if (phase == thirdPhase) {
+                    return true;
+                } else {
+                    throw new AssertionError("canExecute should not have been called on this phase: " + phase.getName());
+                }
             }
+        };
 
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+        policy.execute(context);
 
-        policy.execute(idxMeta, client, () -> now);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(thirdPhase.getName(), context.getPhase());
+        assertEquals("", context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
     public void testExecuteThirdPhaseCompleted() throws Exception {
-        long creationDate = 0L;
-        long now = randomIntBetween(20000, 1000000);
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String lifecycleName = randomAlphaOfLengthBetween(1, 20);
         List<Phase> phases = new ArrayList<>();
@@ -654,26 +621,23 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.add(thirdPhase);
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, phases);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), thirdPhase.getName())
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, thirdPhase.getName(), Phase.PHASE_COMPLETED) {
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
+            }
+        };
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        policy.execute(context);
 
-        policy.execute(idxMeta, client, () -> now);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(thirdPhase.getName(), context.getPhase());
+        assertEquals(Phase.PHASE_COMPLETED, context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
     }
 
 }

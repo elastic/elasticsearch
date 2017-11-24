@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
@@ -107,6 +108,14 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     @Override
     protected Reader<Diff<Custom>> diffReader() {
         return IndexLifecycleMetadataDiff::new;
+    }
+
+    public void testMinimumSupportedVersion() {
+        assertEquals(Version.V_7_0_0_alpha1, createTestInstance().getMinimalSupportedVersion());
+    }
+
+    public void testcontext() {
+        assertEquals(MetaData.ALL_CONTEXTS, createTestInstance().context());
     }
 
 }

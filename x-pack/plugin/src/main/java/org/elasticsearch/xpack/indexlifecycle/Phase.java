@@ -6,11 +6,6 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -18,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -26,11 +20,11 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleContext.Listener;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.LongSupplier;
 
 public class Phase implements ToXContentObject, Writeable {
     public static final String PHASE_COMPLETED = "ACTIONS COMPLETED";
@@ -91,15 +85,9 @@ public class Phase implements ToXContentObject, Writeable {
         return actions;
     }
 
-    protected boolean canExecute(IndexMetaData idxMeta, LongSupplier nowSupplier) {
-        long now = nowSupplier.getAsLong();
-        long indexCreated = idxMeta.getCreationDate();
-        return (indexCreated + after.millis()) <= now;
-    }
-
-    protected void execute(IndexMetaData idxMeta, Client client) {
-        String currentActionName = IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.get(idxMeta.getSettings());
-        String indexName = idxMeta.getIndex().getName();
+    protected void execute(IndexLifecycleContext context) {
+        String currentActionName = context.getAction();
+        String indexName = context.getLifecycleTarget();
         if (Strings.isNullOrEmpty(currentActionName)) {
             String firstActionName;
             if (actions.isEmpty()) {
@@ -107,33 +95,23 @@ public class Phase implements ToXContentObject, Writeable {
             } else {
                 firstActionName = actions.get(0).getWriteableName();
             }
-            client.admin().indices()
-                    .updateSettings(
-                            new UpdateSettingsRequest(Settings.builder()
-                                    .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), firstActionName).build(), indexName),
-                            new ActionListener<UpdateSettingsResponse>() {
+            context.setAction(firstActionName, new Listener() {
 
-                                @Override
-                                public void onResponse(UpdateSettingsResponse response) {
-                                    if (response.isAcknowledged()) {
-                                        logger.info(
-                                                "Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
-                                    } else {
-                                        logger.error(
-                                                "Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]");
-                                    }
-                                }
+                @Override
+                public void onSuccess() {
+                    logger.info("Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
+                }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]", e);
-                                }
-                            });
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]", e);
+                }
+            });
         } else if (currentActionName.equals(PHASE_COMPLETED) == false) {
             LifecycleAction currentAction = actions.stream().filter(action -> action.getWriteableName().equals(currentActionName)).findAny()
                     .orElseThrow(() -> new IllegalStateException("Current action [" + currentActionName + "] not found in phase ["
                             + getName() + "] for index [" + indexName + "]"));
-            currentAction.execute(idxMeta.getIndex(), client);
+            context.executeAction(currentAction);
         }
     }
 

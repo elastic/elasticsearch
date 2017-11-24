@@ -5,27 +5,15 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsTestHelper;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -95,51 +83,6 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         return new Phase(name, after, actions);
     }
 
-    public void testCanExecuteBeforeTrigger() throws Exception {
-        TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(0, 100000));
-        long creationDate = randomNonNegativeLong();
-        long now = random().longs(creationDate, creationDate + after.millis()).iterator().nextLong();
-
-        IndexMetaData idxMeta = IndexMetaData.builder("test")
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        Phase phase = new Phase("test_phase", after, Collections.emptyList());
-
-        assertFalse(phase.canExecute(idxMeta, () -> now));
-    }
-
-    public void testCanExecuteOnTrigger() throws Exception {
-        TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(0, 100000));
-        long creationDate = randomNonNegativeLong();
-        long now = creationDate + after.millis();
-
-        IndexMetaData idxMeta = IndexMetaData.builder("test")
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        Phase phase = new Phase("test_phase", after, Collections.emptyList());
-
-        assertTrue(phase.canExecute(idxMeta, () -> now));
-    }
-
-    public void testCanExecuteAfterTrigger() throws Exception {
-        TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(0, 100000));
-        long creationDate = randomNonNegativeLong();
-        long now = random().longs(creationDate + after.millis(), Long.MAX_VALUE).iterator().nextLong();
-
-        IndexMetaData idxMeta = IndexMetaData.builder("test").settings(Settings.builder()
-                .put("index.version.created", 7000001L)
-                .put("index.creation_date", creationDate)
-                .build())
-                .numberOfShards(randomIntBetween(1, 5))
-                .numberOfReplicas(randomIntBetween(0, 5)).build();
-        
-        Phase phase = new Phase("test_phase", after, Collections.emptyList());
-
-        assertTrue(phase.canExecute(idxMeta, () -> now));
-    }
-
     public void testExecuteNewIndex() throws Exception {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);
@@ -168,40 +111,74 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.add(thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName).settings(Settings.builder().put("index.version.created", 7000001L).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "") {
 
             @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder()
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "first_action").build();
-                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
-                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-                return null;
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
             }
+        };
 
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+        phase.execute(context);
 
-        phase.execute(idxMeta, client);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(firstAction.getWriteableName(), context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
+    }
 
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+    public void testExecuteNewIndexFailure() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String phaseName = randomAlphaOfLengthBetween(1, 20);
+        TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "first_action";
+            }
+        };
+        actions.add(firstAction);
+        MockAction secondAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "second_action";
+            }
+        };
+        actions.add(secondAction);
+        MockAction thirdAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "third_action";
+            }
+        };
+        actions.add(thirdAction);
+        Phase phase = new Phase(phaseName, after, actions);
+
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "") {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
+            }
+        };
+
+        RuntimeException exception = new RuntimeException();
+
+        context.failOnSetters(exception);
+        
+        phase.execute(context);
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals("", context.getAction());
+
+        assertFalse(firstAction.wasExecuted());
+        assertFalse(secondAction.wasExecuted());
+        assertFalse(thirdAction.wasExecuted());
     }
 
     public void testExecuteNewIndexNoActions() throws Exception {
@@ -210,36 +187,19 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
         Phase phase = new Phase(phaseName, after, Collections.emptyList());
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName).settings(Settings.builder().put("index.version.created", 7000001L).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "") {
 
             @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings expectedSettings = Settings.builder()
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build();
-                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
-                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
-                return null;
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
             }
+        };
 
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+        phase.execute(context);
 
-        phase.execute(idxMeta, client);
-
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(Phase.PHASE_COMPLETED, context.getAction());
     }
 
     public void testExecutePhaseAlreadyComplete() throws Exception {
@@ -269,25 +229,23 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         };
         Phase phase = new Phase(phaseName, after, Collections.emptyList());
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, Phase.PHASE_COMPLETED) {
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
+            }
+        };
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        phase.execute(context);
 
-        phase.execute(idxMeta, client);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(Phase.PHASE_COMPLETED, context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
     }
 
     public void testExecuteFirstAction() throws Exception {
@@ -318,25 +276,23 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.add(thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), firstAction.getWriteableName()).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, firstAction.getWriteableName()) {
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
+            }
+        };
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        phase.execute(context);
 
-        phase.execute(idxMeta, client);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(firstAction.getWriteableName(), context.getAction());
 
         assertTrue(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
     }
 
     public void testExecuteSecondAction() throws Exception {
@@ -367,25 +323,23 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.add(thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), secondAction.getWriteableName()).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, secondAction.getWriteableName()) {
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
+            }
+        };
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        phase.execute(context);
 
-        phase.execute(idxMeta, client);
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(secondAction.getWriteableName(), context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertTrue(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
     }
 
     public void testExecuteThirdAction() throws Exception {
@@ -416,25 +370,24 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.add(thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), thirdAction.getWriteableName()).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, thirdAction.getWriteableName()) {
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
+            }
+        };
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        phase.execute(context);
 
-        phase.execute(idxMeta, client);
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(thirdAction.getWriteableName(), context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertTrue(thirdAction.wasExecuted());
-
-        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
     }
 
     public void testExecuteMissingAction() throws Exception {
@@ -465,27 +418,25 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.add(thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        IndexMetaData idxMeta = IndexMetaData.builder(indexName)
-                .settings(Settings.builder().put("index.version.created", 7000001L)
-                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "does_not_exist").build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "does_not_exist") {
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
+            }
+        };
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> phase.execute(idxMeta, client));
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> phase.execute(context));
         assertEquals("Current action [" + "does_not_exist" + "] not found in phase [" + phaseName + "] for index [" + indexName + "]",
                 exception.getMessage());
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals("does_not_exist", context.getAction());
 
         assertFalse(firstAction.wasExecuted());
         assertFalse(secondAction.wasExecuted());
         assertFalse(thirdAction.wasExecuted());
-
-        Mockito.verifyZeroInteractions(client, adminClient, indicesClient);
     }
 
 }

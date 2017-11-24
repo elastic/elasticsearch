@@ -6,12 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -19,17 +14,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleContext.Listener;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.LongSupplier;
 
 public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implements ToXContentObject, Writeable {
     private static final Logger logger = ESLoggerFactory.getLogger(LifecyclePolicy.class);
@@ -90,34 +84,11 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
         return builder;
     }
 
-    public void execute(IndexMetaData idxMeta, Client client, LongSupplier nowSupplier) {
-        String currentPhaseName = IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.get(idxMeta.getSettings());
-        boolean currentPhaseActionsComplete = IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.get(idxMeta.getSettings())
-                .equals(Phase.PHASE_COMPLETED);
-        String indexName = idxMeta.getIndex().getName();
-        if (Strings.isNullOrEmpty(currentPhaseName)) {
-            String firstPhaseName = phases.get(0).getName();
-            client.admin().indices().updateSettings(new UpdateSettingsRequest(
-                    Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), firstPhaseName)
-                            .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build(),
-                    indexName),
-                    new ActionListener<UpdateSettingsResponse>() {
-
-                        @Override
-                        public void onResponse(UpdateSettingsResponse response) {
-                            if (response.isAcknowledged()) {
-                                logger.info("Successfully initialised phase [" + firstPhaseName + "] for index [" + indexName + "]");
-                            } else {
-                                logger.error("Failed to initialised phase [" + firstPhaseName + "] for index [" + indexName + "]");
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.error("Failed to initialised phase [" + firstPhaseName + "] for index [" + indexName + "]", e);
-                        }
-                    });
-        } else if (currentPhaseActionsComplete) {
+    public void execute(IndexLifecycleContext context) {
+        String currentPhaseName = context.getPhase();
+        boolean currentPhaseActionsComplete = context.getAction().equals(Phase.PHASE_COMPLETED);
+        String indexName = context.getLifecycleTarget();
+        if (Strings.isNullOrEmpty(currentPhaseName) || currentPhaseActionsComplete) {
             int currentPhaseIndex = -1;
             for (int i = 0; i < phases.size(); i++) {
                 if (phases.get(i).getName().equals(currentPhaseName)) {
@@ -127,36 +98,27 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
             }
             if (currentPhaseIndex < phases.size() - 1) {
                 Phase nextPhase = phases.get(currentPhaseIndex + 1);
-                if (nextPhase.canExecute(idxMeta, nowSupplier)) {
+                if (context.canExecute(nextPhase)) {
                     String nextPhaseName = nextPhase.getName();
-                    client.admin().indices().updateSettings(
-                            new UpdateSettingsRequest(
-                                    Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), nextPhaseName)
-                                            .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build(),
-                                    indexName),
-                            new ActionListener<UpdateSettingsResponse>() {
+                    context.setPhase(nextPhaseName, new Listener() {
 
-                                @Override
-                                public void onResponse(UpdateSettingsResponse response) {
-                                    if (response.isAcknowledged()) {
-                                        logger.info("Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
-                                    } else {
-                                        logger.error("Failed to initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
-                                    }
-                                }
+                        @Override
+                        public void onSuccess() {
+                            logger.info("Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
+                        }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.error("Failed to initialised phase [" + nextPhaseName + "] for index [" + indexName + "]", e);
-                                }
-                            });
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("Failed to initialised phase [" + nextPhaseName + "] for index [" + indexName + "]", e);
+                        }
+                    });
                 }
             }
         } else {
             Phase currentPhase = phases.stream().filter(phase -> phase.getName().equals(currentPhaseName)).findAny()
                     .orElseThrow(() -> new IllegalStateException("Current phase [" + currentPhaseName + "] not found in lifecycle ["
                             + getName() + "] for index [" + indexName + "]"));
-            currentPhase.execute(idxMeta, client);
+            currentPhase.execute(context);
         }
     }
 

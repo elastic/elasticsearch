@@ -74,7 +74,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (in.readBoolean()) {
             waitForEvents = Priority.readFrom(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             waitForNoInitializingShards = in.readBoolean();
         }
     }
@@ -106,7 +106,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             out.writeBoolean(true);
             Priority.writeTo(waitForEvents, out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeBoolean(waitForNoInitializingShards);
         }
     }

@@ -7,6 +7,7 @@
 This section summarizes the changes that you need to be aware of when migrating
 your application from one version of {xpack} to another.
 
+//* <<breaking-6.0.1-xes>>
 * <<breaking-6.0.0-xes>>
 
 See also:
@@ -16,6 +17,13 @@ See also:
 * {logstash-ref}/breaking-changes-xls.html[Logstash {xpack} Breaking Changes]
 
 --
+
+////
+[role="xpack"]
+[[breaking-6.0.1-xes]]
+== {xpack} Breaking changes in 6.0.1
+
+////
 
 [role="xpack"]
 [[breaking-6.0.0-xes]]

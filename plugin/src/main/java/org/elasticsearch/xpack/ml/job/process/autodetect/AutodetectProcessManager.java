@@ -378,8 +378,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                 renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
 
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams.modelSnapshot(),
-                autodetectParams.quantiles(), autodetectParams.filters(), autoDetectExecutorService,
-                () -> setJobState(jobTask, JobState.FAILED));
+                autodetectParams.quantiles(), autodetectParams.filters(), autoDetectExecutorService, onProcessCrash(jobTask));
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
                 client, jobId, renormalizer, jobResultsPersister, jobProvider, autodetectParams.modelSizeStats(),
                 autodetectParams.modelSnapshot() != null);
@@ -423,6 +422,13 @@ public class AutodetectProcessManager extends AbstractComponent {
         String msg = msgBuilder.toString();
         logger.info("[{}] {}", jobId, msg);
         auditor.info(jobId, msg);
+    }
+
+    private Runnable onProcessCrash(JobTask jobTask) {
+        return () -> {
+            processByAllocation.remove(jobTask.getAllocationId());
+            setJobState(jobTask, JobState.FAILED);
+        };
     }
 
     /**
@@ -494,7 +500,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     private AutodetectCommunicator getOpenAutodetectCommunicator(JobTask jobTask) {
         ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
-        if (processContext.getState() == ProcessContext.ProcessStateName.RUNNING) {
+        if (processContext != null && processContext.getState() == ProcessContext.ProcessStateName.RUNNING) {
             return processContext.getAutodetectCommunicator();
         }
         return null;

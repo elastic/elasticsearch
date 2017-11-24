@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
@@ -205,6 +206,21 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         if (exception.get() != null) {
             throw exception.get();
         }
+    }
+
+    public void testRealtime_GivenProcessIsKilled() throws Exception {
+        String jobId = "realtime-job-given-process-is-killed";
+        String datafeedId = jobId + "-datafeed";
+        startRealtime(jobId);
+
+        KillProcessAction.Request killRequest = new KillProcessAction.Request(jobId);
+        client().execute(KillProcessAction.INSTANCE, killRequest).actionGet();
+
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        });
     }
 
     private void startRealtime(String jobId) throws Exception {

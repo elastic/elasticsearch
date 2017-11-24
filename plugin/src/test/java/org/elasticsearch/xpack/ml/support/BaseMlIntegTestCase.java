@@ -190,7 +190,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     public static DatafeedConfig.Builder createDatafeedBuilder(String datafeedId, String jobId, List<String> indices) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setQueryDelay(TimeValue.timeValueSeconds(1));
-        builder.setFrequency(TimeValue.timeValueSeconds(2));
+        builder.setFrequency(TimeValue.timeValueSeconds(1));
         builder.setIndices(indices);
         builder.setTypes(Collections.singletonList("type"));
         return builder;

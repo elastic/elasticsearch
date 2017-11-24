@@ -71,12 +71,18 @@ class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     private void setLastCommittedTranslogGeneration(List<? extends IndexCommit> commits) throws IOException {
-        // when opening an existing lucene index, we currently always open the last commit.
-        // we therefore use the translog gen as the one that will be required for recovery
-        final IndexCommit indexCommit = commits.get(commits.size() - 1);
-        assert indexCommit.isDeleted() == false : "last commit is deleted";
-        long minGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minGen);
+        // We need to keep translog since the smallest translog generation of un-deleted commits.
+        // However, there are commits that are not deleted just because they are being snapshotted (rather than being kept by the policy).
+        // TODO: We need to distinguish those commits and skip them in calculating the minimum required translog generation.
+        long minRequiredGen = Long.MAX_VALUE;
+        for (IndexCommit indexCommit : commits) {
+            if (indexCommit.isDeleted() == false) {
+                long translogGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+                minRequiredGen = Math.min(translogGen, minRequiredGen);
+            }
+        }
+        assert minRequiredGen != Long.MAX_VALUE : "All commits are deleted";
+        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
     }
 
     public SnapshotDeletionPolicy getIndexDeletionPolicy() {

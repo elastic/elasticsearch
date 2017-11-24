@@ -47,8 +47,8 @@ setup:
 ---
 "Simple Composite aggregation":
   - skip:
-      version: " - 6.99.99"
-      reason:  this uses a new API that has been added in 7.0
+      version: " - 6.0.99"
+      reason:  this uses a new API that has been added in 6.1
 
 
   - do:
@@ -76,8 +76,8 @@ setup:
 ---
 "Nested Composite aggregation":
   - skip:
-      version: " - 6.99.99"
-      reason:  this uses a new API that has been added in 7.0
+      version: " - 6.0.99"
+      reason:  this uses a new API that has been added in 6.1
 
 
   - do:
@@ -125,8 +125,8 @@ setup:
 ---
 "Aggregate After":
   - skip:
-      version: " - 6.99.99"
-      reason:  this uses a new API that has been added in 7.0
+      version: " - 6.0.99"
+      reason:  this uses a new API that has been added in 6.1
 
 
   - do:
@@ -166,8 +166,8 @@ setup:
 ---
 "Invalid Composite aggregation":
   - skip:
-      version: " - 6.99.99"
-      reason:  this uses a new API that has been added in 7.0
+      version: " - 6.0.99"
+      reason:  this uses a new API that has been added in 6.1
 
   - do:
       catch:      /\[composite\] aggregation cannot be used with a parent aggregation/

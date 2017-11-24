@@ -77,7 +77,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
             @Override
             protected SocketEventHandler getSocketEventHandler() {
-                return new TestingSocketEventHandler(logger, this::exceptionCaught, openChannels);
+                return new TestingSocketEventHandler(logger);
             }
         };
         MockTransportService mockTransportService =

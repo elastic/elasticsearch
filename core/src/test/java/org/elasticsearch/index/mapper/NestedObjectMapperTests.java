@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -522,6 +522,146 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .endObject()).mapperService();
         objectMapper = mapperService.getObjectMapper("comments.messages");
         assertFalse(objectMapper.parentObjectMapperAreNested(mapperService));
+    }
+
+    public void testLimitNestedDocsDefaultSettings() throws Exception{
+        Settings settings = Settings.builder().build();
+        MapperService mapperService = createIndex("test1", settings).mapperService();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("nested1").field("type", "nested").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper docMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
+        long defaultMaxNoNestedDocs = MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.get(settings);
+
+        // parsing a doc with No. nested objects > defaultMaxNoNestedDocs fails
+        XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+        docBuilder.startObject();
+        {
+            docBuilder.startArray("nested1");
+            {
+                for(int i = 0; i <= defaultMaxNoNestedDocs; i++) {
+                    docBuilder.startObject().field("f", i).endObject();
+                }
+            }
+            docBuilder.endArray();
+        }
+        docBuilder.endObject();
+        SourceToParse source1 = SourceToParse.source("test1", "type", "1", docBuilder.bytes(), XContentType.JSON);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source1));
+        assertEquals(
+            "The number of nested documents has exceeded the allowed limit of [" + defaultMaxNoNestedDocs
+                + "]. This limit can be set by changing the [" + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
+                + "] index level setting.",
+            e.getMessage()
+        );
+    }
+
+    public void testLimitNestedDocs() throws Exception{
+        // setting limit to allow only two nested objects in the whole doc
+        long maxNoNestedDocs = 2L;
+        MapperService mapperService = createIndex("test1", Settings.builder()
+            .put(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(), maxNoNestedDocs).build()).mapperService();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("nested1").field("type", "nested").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper docMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
+
+        // parsing a doc with 2 nested objects succeeds
+        XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+        docBuilder.startObject();
+        {
+            docBuilder.startArray("nested1");
+            {
+                docBuilder.startObject().field("field1", "11").field("field2", "21").endObject();
+                docBuilder.startObject().field("field1", "12").field("field2", "22").endObject();
+            }
+            docBuilder.endArray();
+        }
+        docBuilder.endObject();
+        SourceToParse source1 = SourceToParse.source("test1", "type", "1", docBuilder.bytes(), XContentType.JSON);
+        ParsedDocument doc = docMapper.parse(source1);
+        assertThat(doc.docs().size(), equalTo(3));
+
+        // parsing a doc with 3 nested objects fails
+        XContentBuilder docBuilder2 = XContentFactory.jsonBuilder();
+        docBuilder2.startObject();
+        {
+            docBuilder2.startArray("nested1");
+            {
+                docBuilder2.startObject().field("field1", "11").field("field2", "21").endObject();
+                docBuilder2.startObject().field("field1", "12").field("field2", "22").endObject();
+                docBuilder2.startObject().field("field1", "13").field("field2", "23").endObject();
+            }
+            docBuilder2.endArray();
+        }
+        docBuilder2.endObject();
+        SourceToParse source2 = SourceToParse.source("test1", "type", "2", docBuilder2.bytes(), XContentType.JSON);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source2));
+        assertEquals(
+            "The number of nested documents has exceeded the allowed limit of [" + maxNoNestedDocs
+            + "]. This limit can be set by changing the [" + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
+            + "] index level setting.",
+            e.getMessage()
+        );
+    }
+
+    public void testLimitNestedDocsMultipleNestedFields() throws Exception{
+        // setting limit to allow only two nested objects in the whole doc
+        long maxNoNestedDocs = 2L;
+        MapperService mapperService = createIndex("test1", Settings.builder()
+            .put(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(), maxNoNestedDocs).build()).mapperService();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("nested1").field("type", "nested").endObject()
+            .startObject("nested2").field("type", "nested").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper docMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
+
+        // parsing a doc with 2 nested objects succeeds
+        XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+        docBuilder.startObject();
+        {
+            docBuilder.startArray("nested1");
+            {
+                docBuilder.startObject().field("field1", "11").field("field2", "21").endObject();
+            }
+            docBuilder.endArray();
+            docBuilder.startArray("nested2");
+            {
+                docBuilder.startObject().field("field1", "21").field("field2", "22").endObject();
+            }
+            docBuilder.endArray();
+        }
+        docBuilder.endObject();
+        SourceToParse source1 = SourceToParse.source("test1", "type", "1", docBuilder.bytes(), XContentType.JSON);
+        ParsedDocument doc = docMapper.parse(source1);
+        assertThat(doc.docs().size(), equalTo(3));
+
+        // parsing a doc with 3 nested objects fails
+        XContentBuilder docBuilder2 = XContentFactory.jsonBuilder();
+        docBuilder2.startObject();
+        {
+            docBuilder2.startArray("nested1");
+            {
+                docBuilder2.startObject().field("field1", "11").field("field2", "21").endObject();
+            }
+            docBuilder2.endArray();
+            docBuilder2.startArray("nested2");
+            {
+                docBuilder2.startObject().field("field1", "12").field("field2", "22").endObject();
+                docBuilder2.startObject().field("field1", "13").field("field2", "23").endObject();
+            }
+            docBuilder2.endArray();
+
+        }
+        docBuilder2.endObject();
+        SourceToParse source2 = SourceToParse.source("test1", "type", "2", docBuilder2.bytes(), XContentType.JSON);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source2));
+        assertEquals(
+            "The number of nested documents has exceeded the allowed limit of [" + maxNoNestedDocs
+                + "]. This limit can be set by changing the [" + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
+                + "] index level setting.",
+            e.getMessage()
+        );
     }
 
 }

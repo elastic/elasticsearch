@@ -64,8 +64,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         initialConnectionTimeout = new TimeValue(input);
         numNodesConnected = input.readVInt();
         clusterAlias = input.readString();
-        //TODO update version once backported
-        if (input.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (input.getVersion().onOrAfter(Version.V_6_1_0)) {
             skipUnavailable = input.readBoolean();
         } else {
             skipUnavailable = false;
@@ -104,8 +103,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         initialConnectionTimeout.writeTo(out);
         out.writeVInt(numNodesConnected);
         out.writeString(clusterAlias);
-        //TODO update version once backported
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(skipUnavailable);
         }
     }

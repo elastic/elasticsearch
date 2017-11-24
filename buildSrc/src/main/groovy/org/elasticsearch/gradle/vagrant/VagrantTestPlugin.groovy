@@ -107,7 +107,8 @@ class VagrantTestPlugin implements Plugin<Project> {
         if (upgradeFromVersion == null) {
             String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
             final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16)
-            upgradeFromVersion = project.indexCompatVersions[new Random(seed).nextInt(project.indexCompatVersions.size())]
+            final def indexCompatVersions = project.versionCollection.versionsIndexCompatibleWithCurrent
+            upgradeFromVersion = indexCompatVersions[new Random(seed).nextInt(indexCompatVersions.size())]
         }
 
         DISTRIBUTION_ARCHIVES.each {

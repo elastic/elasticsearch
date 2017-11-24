@@ -24,6 +24,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -194,6 +196,13 @@ public class AliasRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareSearch("test", "alias0", "alias1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
         }
 
+    }
+
+    @Override
+    public Settings indexSettings() {
+        Settings settings = super.indexSettings();
+        int numShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
+        return Settings.builder().put(settings).put("index.number_of_routing_shards", numShards).build();
     }
 
     public void testAliasSearchRoutingWithTwoIndices() throws Exception {

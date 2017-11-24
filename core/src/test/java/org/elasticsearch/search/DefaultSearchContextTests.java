@@ -102,6 +102,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
         when(indexService.getIndexSettings()).thenReturn(indexSettings);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
 
         BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
 

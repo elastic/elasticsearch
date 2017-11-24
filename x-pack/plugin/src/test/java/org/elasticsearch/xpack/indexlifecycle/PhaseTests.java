@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsTestHelper;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -144,11 +145,26 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
         List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
+        MockAction firstAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "first_action";
+            }
+        };
         actions.add(firstAction);
-        MockAction secondAction = new MockAction();
+        MockAction secondAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "second_action";
+            }
+        };
         actions.add(secondAction);
-        MockAction thirdAction = new MockAction();
+        MockAction thirdAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "third_action";
+            }
+        };
         actions.add(thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
@@ -168,11 +184,10 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexName, request.indices()[0]);
-                // NOCOMMIT Need to check the settings in the request are
-                // correct (i.e adds the name of the first action)
+                Settings expectedSettings = Settings.builder()
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "first_action").build();
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
+                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
                 return null;
             }
 
@@ -211,11 +226,10 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexName, request.indices()[0]);
-                // NOCOMMIT Need to check the settings in the request are
-                // correct (i.e. sets the action to `ACTIONS COMPLETED`)
+                Settings expectedSettings = Settings.builder()
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), Phase.PHASE_COMPLETED).build();
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
+                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
                 return null;
             }
 
@@ -233,12 +247,26 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
         List<LifecycleAction> actions = new ArrayList<>();
-        MockAction firstAction = new MockAction();
+        MockAction firstAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "first_action";
+            }
+        };
         actions.add(firstAction);
-        MockAction secondAction = new MockAction();
+        MockAction secondAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "second_action";
+            }
+        };
         actions.add(secondAction);
-        MockAction thirdAction = new MockAction();
-        actions.add(thirdAction);
+        MockAction thirdAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "third_action";
+            }
+        };
         Phase phase = new Phase(phaseName, after, Collections.emptyList());
 
         IndexMetaData idxMeta = IndexMetaData.builder(indexName)

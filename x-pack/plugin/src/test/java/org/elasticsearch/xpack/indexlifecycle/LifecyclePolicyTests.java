@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsTestHelper;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -32,8 +33,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-// NOCOMMIT this test needs some thinking about as currently it can't really test that the right thing is 
-// happening since we can't inspect the settings in the update request
 public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
     
     private NamedXContentRegistry registry;
@@ -142,11 +141,11 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexName, request.indices()[0]);
-                // NOCOMMIT Need to check the settings in the request are
-                // correct (i.e adds the name of the first action)
+                Settings expectedSettings = Settings.builder()
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), "first_phase")
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build();
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
+                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
                 return null;
             }
 
@@ -206,11 +205,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexName, request.indices()[0]);
-                // NOCOMMIT Need to check the settings in the request are
-                // correct (i.e adds the name of the first action)
+                Settings expectedSettings = Settings.builder()
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), MockAction.NAME).build();
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
+                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
                 return null;
             }
 
@@ -270,11 +268,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexName, request.indices()[0]);
-                // NOCOMMIT Need to check the settings in the request are
-                // correct (i.e adds the name of the first action)
+                Settings expectedSettings = Settings.builder()
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), MockAction.NAME).build();
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
+                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
                 return null;
             }
 
@@ -334,11 +331,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexName, request.indices()[0]);
-                // NOCOMMIT Need to check the settings in the request are
-                // correct (i.e adds the name of the first action)
+                Settings expectedSettings = Settings.builder()
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), MockAction.NAME).build();
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
+                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
                 return null;
             }
 
@@ -391,22 +387,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexName, request.indices()[0]);
-                // NOCOMMIT Need to check the settings in the request are
-                // correct (i.e adds the name of the first action)
-                return null;
-            }
-
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> policy.execute(idxMeta, client, () -> 0L));
         assertEquals(
@@ -513,11 +493,11 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexName, request.indices()[0]);
-                // NOCOMMIT Need to check the settings in the request are
-                // correct (i.e adds the name of the first action)
+                Settings expectedSettings = Settings.builder()
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), "second_phase")
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build();
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
+                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
                 return null;
             }
 
@@ -627,11 +607,11 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexName, request.indices()[0]);
-                // NOCOMMIT Need to check the settings in the request are
-                // correct (i.e adds the name of the first action)
+                Settings expectedSettings = Settings.builder()
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), "third_phase")
+                        .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build();
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, indexName);
+                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
                 return null;
             }
 

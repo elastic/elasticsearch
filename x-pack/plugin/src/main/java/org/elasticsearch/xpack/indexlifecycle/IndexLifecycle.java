@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -49,8 +47,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+
 public class IndexLifecycle extends Plugin {
-    private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
     public static final String NAME = "index_lifecycle";
     public static final String BASE_PATH = "/_xpack/index_lifecycle/";
     public static final String THREAD_POOL_NAME = NAME;
@@ -94,6 +93,9 @@ public class IndexLifecycle extends Plugin {
 
     public Collection<Object> createComponents(Client client, ClusterService clusterService, Clock clock,
             ThreadPool threadPool) {
+        if (enabled == false || transportClientMode) {
+            return emptyList();
+        }
         indexLifecycleInitialisationService
                 .set(new IndexLifecycleInitialisationService(settings, client, clusterService, clock, threadPool));
         return Collections.singletonList(indexLifecycleInitialisationService.get());

@@ -10,8 +10,14 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 
-public abstract class LifecycleAction implements ToXContentObject, NamedWriteable {
+public interface LifecycleAction extends ToXContentObject, NamedWriteable {
 
-    protected abstract void execute(Index index, Client client);
+    void execute(Index index, Client client, Listener listener);
 
+    public static interface Listener {
+
+        void onSuccess(boolean completed);
+
+        void onFailure(Exception e);
+    }
 }

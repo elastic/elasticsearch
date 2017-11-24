@@ -125,9 +125,12 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(phaseName, context.getPhase());
         assertEquals(firstAction.getWriteableName(), context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertTrue(firstAction.wasCompleted());
+        assertEquals(1L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteNewIndexFailure() throws Exception {
@@ -176,9 +179,12 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(phaseName, context.getPhase());
         assertEquals("", context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteNewIndexNoActions() throws Exception {
@@ -243,9 +249,12 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(phaseName, context.getPhase());
         assertEquals(Phase.PHASE_COMPLETED, context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteFirstAction() throws Exception {
@@ -290,9 +299,12 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(phaseName, context.getPhase());
         assertEquals(firstAction.getWriteableName(), context.getAction());
 
-        assertTrue(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertTrue(firstAction.wasCompleted());
+        assertEquals(1L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteSecondAction() throws Exception {
@@ -337,9 +349,12 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(phaseName, context.getPhase());
         assertEquals(secondAction.getWriteableName(), context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertTrue(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertTrue(secondAction.wasCompleted());
+        assertEquals(1L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteThirdAction() throws Exception {
@@ -385,9 +400,12 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(phaseName, context.getPhase());
         assertEquals(thirdAction.getWriteableName(), context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertTrue(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertTrue(thirdAction.wasCompleted());
+        assertEquals(1L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteMissingAction() throws Exception {
@@ -434,9 +452,12 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(phaseName, context.getPhase());
         assertEquals("does_not_exist", context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
 }

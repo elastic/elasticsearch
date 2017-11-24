@@ -131,9 +131,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals("", context.getPhase());
         assertEquals("", context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteNewIndexAfterTrigger() throws Exception {
@@ -176,11 +179,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(firstPhase.getName(), context.getPhase());
-        assertEquals("", context.getAction());
+        assertEquals(MockAction.NAME, context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertTrue(firstAction.wasCompleted());
+        assertEquals(1L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteNewIndexAfterTriggerFailure() throws Exception {
@@ -229,9 +235,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals("", context.getPhase());
         assertEquals("", context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteFirstPhase() throws Exception {
@@ -272,9 +281,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(firstPhase.getName(), context.getPhase());
         assertEquals(MockAction.NAME, context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertTrue(firstAction.wasCompleted());
+        assertEquals(1L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteSecondPhase() throws Exception {
@@ -315,9 +327,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(secondPhase.getName(), context.getPhase());
         assertEquals(MockAction.NAME, context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertTrue(secondAction.wasCompleted());
+        assertEquals(1L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteThirdPhase() throws Exception {
@@ -358,9 +373,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(thirdPhase.getName(), context.getPhase());
         assertEquals(MockAction.NAME, context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertTrue(thirdAction.wasCompleted());
+        assertEquals(1L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteMissingPhase() throws Exception {
@@ -404,9 +422,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals("does_not_exist", context.getPhase());
         assertEquals("", context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteFirstPhaseCompletedBeforeTrigger() throws Exception {
@@ -451,9 +472,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(firstPhase.getName(), context.getPhase());
         assertEquals(Phase.PHASE_COMPLETED, context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteFirstPhaseCompletedAfterTrigger() throws Exception {
@@ -496,11 +520,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(secondPhase.getName(), context.getPhase());
-        assertEquals("", context.getAction());
+        assertEquals(MockAction.NAME, context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertTrue(secondAction.wasCompleted());
+        assertEquals(1L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteSecondPhaseCompletedBeforeTrigger() throws Exception {
@@ -545,9 +572,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(secondPhase.getName(), context.getPhase());
         assertEquals(Phase.PHASE_COMPLETED, context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteSecondPhaseCompletedAfterTrigger() throws Exception {
@@ -590,11 +620,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(thirdPhase.getName(), context.getPhase());
-        assertEquals("", context.getAction());
+        assertEquals(MockAction.NAME, context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertTrue(thirdAction.wasCompleted());
+        assertEquals(1L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteThirdPhaseCompleted() throws Exception {
@@ -635,9 +668,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(thirdPhase.getName(), context.getPhase());
         assertEquals(Phase.PHASE_COMPLETED, context.getAction());
 
-        assertFalse(firstAction.wasExecuted());
-        assertFalse(secondAction.wasExecuted());
-        assertFalse(thirdAction.wasExecuted());
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
     }
 
 }

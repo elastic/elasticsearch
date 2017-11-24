@@ -105,6 +105,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
                         @Override
                         public void onSuccess() {
                             logger.info("Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
+                            nextPhase.execute(context);
                         }
 
                         @Override

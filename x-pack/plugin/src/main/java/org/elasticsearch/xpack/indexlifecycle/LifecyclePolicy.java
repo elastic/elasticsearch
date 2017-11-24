@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -96,9 +97,11 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
         String indexName = idxMeta.getIndex().getName();
         if (Strings.isNullOrEmpty(currentPhaseName)) {
             String firstPhaseName = phases.get(0).getName();
-            client.admin().indices().prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), firstPhaseName))
-                    .execute(new ActionListener<UpdateSettingsResponse>() {
+            client.admin().indices().updateSettings(new UpdateSettingsRequest(
+                    Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), firstPhaseName)
+                            .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build(),
+                    indexName),
+                    new ActionListener<UpdateSettingsResponse>() {
 
                         @Override
                         public void onResponse(UpdateSettingsResponse response) {
@@ -126,17 +129,17 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
                 Phase nextPhase = phases.get(currentPhaseIndex + 1);
                 if (nextPhase.canExecute(idxMeta, nowSupplier)) {
                     String nextPhaseName = nextPhase.getName();
-                    client.admin().indices().prepareUpdateSettings(indexName)
-                            .setSettings(Settings.builder()
-                                    .put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), nextPhaseName)
-                                    .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), ""))
-                            .execute(new ActionListener<UpdateSettingsResponse>() {
+                    client.admin().indices().updateSettings(
+                            new UpdateSettingsRequest(
+                                    Settings.builder().put(IndexLifecycle.LIFECYCLE_TIMESERIES_PHASE_SETTING.getKey(), nextPhaseName)
+                                            .put(IndexLifecycle.LIFECYCLE_TIMESERIES_ACTION_SETTING.getKey(), "").build(),
+                                    indexName),
+                            new ActionListener<UpdateSettingsResponse>() {
 
                                 @Override
                                 public void onResponse(UpdateSettingsResponse response) {
                                     if (response.isAcknowledged()) {
-                                        logger.info(
-                                                "Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
+                                        logger.info("Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
                                     } else {
                                         logger.error("Failed to initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
                                     }
@@ -146,7 +149,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
                                 public void onFailure(Exception e) {
                                     logger.error("Failed to initialised phase [" + nextPhaseName + "] for index [" + indexName + "]", e);
                                 }
-                    });
+                            });
                 }
             }
         } else {

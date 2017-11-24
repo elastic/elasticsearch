@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -28,6 +29,8 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
@@ -58,8 +61,18 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
             Watch watch = parser.parseWithSecrets(request.getId(), false, request.getSource(), now, request.xContentType());
             watch.setState(request.isActive(), now);
 
+            // ensure we only filter for the allowed headers
+            Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+                    .filter(e -> Watcher.HEADER_FILTERS.contains(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            watch.status().setHeaders(filteredHeaders);
+
             try (XContentBuilder builder = jsonBuilder()) {
-                Payload.XContent.Params params = WatcherParams.builder().hideSecrets(false).put(Watch.INCLUDE_STATUS_KEY, "true").build();
+                Payload.XContent.Params params = WatcherParams.builder()
+                        .hideSecrets(false)
+                        .hideHeaders(false)
+                        .put(Watch.INCLUDE_STATUS_KEY, "true")
+                        .build();
                 watch.toXContent(builder, params);
                 final BytesReference bytesReference = builder.bytes();
 

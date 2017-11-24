@@ -7,6 +7,9 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,8 +21,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -43,12 +45,20 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
 
     @Before
     public void startWatcher() throws Exception {
-        final List<String> watcherTemplates = Arrays.asList(WatcherIndexTemplateRegistry.TEMPLATE_NAMES);
+        // delete the watcher history to not clutter with entries from other test
+        getAdminExecutionContext().callApi("indices.delete", Collections.singletonMap("index", ".watcher-history-*"),
+                emptyList(), emptyMap());
+
+        // create one document in this index, so we can test in the YAML tests, that the index cannot be accessed
+        Response resp = adminClient().performRequest("PUT", "/index_not_allowed_to_read/doc/1", Collections.emptyMap(),
+                new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
+        assertThat(resp.getStatusLine().getStatusCode(), is(201));
+
         assertBusy(() -> {
             try {
                 getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
 
-                for (String template : watcherTemplates) {
+                for (String template : WatcherIndexTemplateRegistry.TEMPLATE_NAMES) {
                     ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi("indices.exists_template",
                             singletonMap("name", template), emptyList(), emptyMap());
                     assertThat(templateExistsResponse.getStatusCode(), is(200));

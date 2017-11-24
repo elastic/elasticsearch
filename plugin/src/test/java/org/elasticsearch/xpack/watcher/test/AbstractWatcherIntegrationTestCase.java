@@ -439,6 +439,22 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return randomBoolean() ? new XPackClient(client).watcher() : new WatcherClient(client);
     }
 
+    /**
+     * This watcher client needs to be used whenenver an index action is about to be called in a watch
+     * as otherwise there is no permission to index data with the default transport client user called admin
+     * This is important if the watch is executed, as the watch is run as the user who stored the watch
+     * when security is enabled
+     */
+    protected WatcherClient watcherClientWithWatcherUser() {
+        if (securityEnabled) {
+            return watcherClient()
+                    .filterWithHeader(Collections.singletonMap("Authorization",
+                            basicAuthHeaderValue("watcher_test", new SecureString(SecuritySettings.TEST_PASSWORD.toCharArray()))));
+        } else {
+            return watcherClient();
+        }
+    }
+
     protected IndexNameExpressionResolver indexNameExpressionResolver() {
         return internalCluster().getInstance(IndexNameExpressionResolver.class);
     }
@@ -680,13 +696,15 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 "transport_client:" + TEST_PASSWORD_HASHED + "\n" +
                 TEST_USERNAME + ":" + TEST_PASSWORD_HASHED + "\n" +
                 "admin:" + TEST_PASSWORD_HASHED + "\n" +
+                "watcher_test:" + TEST_PASSWORD_HASHED + "\n" +
                 "monitor:" + TEST_PASSWORD_HASHED;
 
         public static final String USER_ROLES =
                 "transport_client:transport_client\n" +
                 "test:test\n" +
                 "admin:admin\n" +
-                "monitor:monitor";
+                "monitor:monitor\n" +
+                "watcher_test:watcher_test,watcher_admin,watcher_user\n";
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
@@ -700,8 +718,15 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 "\n" +
                 "admin:\n" +
                 "  cluster: [ 'manage' ]\n" +
+                "\n" +
                 "monitor:\n" +
-                "  cluster: [ 'monitor' ]\n"
+                "  cluster: [ 'monitor' ]\n" +
+                "\n" +
+                "watcher_test:\n" +
+                "  cluster: [ 'manage_watcher', 'cluster:admin/xpack/watcher/watch/put' ]\n" +
+                "  indices:\n" +
+                "    - names: 'my_watcher_index'\n" +
+                "      privileges: [ all ]\n"
                 ;
 
 

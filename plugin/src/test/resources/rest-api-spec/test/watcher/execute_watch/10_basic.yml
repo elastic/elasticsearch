@@ -32,7 +32,7 @@ teardown:
             "actions": {
               "indexme" : {
                 "index" : {
-                  "index" : "my-index",
+                  "index" : "my_test_index",
                   "doc_type" : "my-type",
                   "doc_id": "my-id"
                 }
@@ -86,7 +86,7 @@ teardown:
               "actions": {
                 "indexme" : {
                   "index" : {
-                    "index" : "my-index",
+                    "index" : "my_test_index",
                     "doc_type" : "my-type",
                     "doc_id": "my-id"
                   }
@@ -129,7 +129,7 @@ teardown:
             "actions": {
               "indexme" : {
                 "index" : {
-                  "index" : "my-index",
+                  "index" : "my_test_index",
                   "doc_type" : "my-type",
                   "doc_id": "my-id"
                 }

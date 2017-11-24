@@ -204,6 +204,10 @@ public class Watcher implements ActionPlugin {
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
 
+    // list of headers that will be stored when a watch is stored
+    public static final Set<String> HEADER_FILTERS =
+            new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
+
     public static final ScriptContext<SearchScript.Factory> SCRIPT_SEARCH_CONTEXT =
         new ScriptContext<>("xpack", SearchScript.Factory.class);
     // TODO: remove this context when each xpack script use case has their own contexts
@@ -289,8 +293,8 @@ public class Watcher implements ActionPlugin {
         final Map<String, ConditionFactory> parsers = new HashMap<>();
         parsers.put(AlwaysCondition.TYPE, (c, id, p) -> AlwaysCondition.parse(id, p));
         parsers.put(NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p));
-        parsers.put(ArrayCompareCondition.TYPE, (c, id, p) -> ArrayCompareCondition.parse(c, id, p));
-        parsers.put(CompareCondition.TYPE, (c, id, p) -> CompareCondition.parse(c, id, p));
+        parsers.put(ArrayCompareCondition.TYPE, ArrayCompareCondition::parse);
+        parsers.put(CompareCondition.TYPE, CompareCondition::parse);
         parsers.put(ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p));
 
         final ConditionRegistry conditionRegistry = new ConditionRegistry(Collections.unmodifiableMap(parsers), clock);
@@ -313,8 +317,7 @@ public class Watcher implements ActionPlugin {
 
         // inputs
         final Map<String, InputFactory> inputFactories = new HashMap<>();
-        inputFactories.put(SearchInput.TYPE,
-                new SearchInputFactory(settings, client, xContentRegistry, scriptService));
+        inputFactories.put(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry, scriptService));
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
         inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine, httpTemplateParser));
         inputFactories.put(NoneInput.TYPE, new NoneInputFactory(settings));

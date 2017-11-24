@@ -40,6 +40,7 @@ import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
@@ -109,6 +110,12 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
 
         threadPool.executor(XPackPlugin.WATCHER).submit(() -> {
             try {
+                // ensure that the headers from the incoming request are used instead those of the stored watch
+                // otherwise the watch would run as the user who stored the watch, but it needs to be run as the user who
+                // executes this request
+                Map<String, String> headers = new HashMap<>(threadPool.getThreadContext().getHeaders());
+                watch.status().setHeaders(headers);
+
                 String triggerType = watch.trigger().type();
                 TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());
 

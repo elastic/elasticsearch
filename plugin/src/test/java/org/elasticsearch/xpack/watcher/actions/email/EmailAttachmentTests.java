@@ -5,25 +5,27 @@
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
+import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachment;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachments;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpRequestAttachment;
 import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
-import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.CompareCondition;
-import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
@@ -41,14 +43,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.xpack.watcher.notification.email.DataAttachment.JSON;
-import static org.elasticsearch.xpack.watcher.notification.email.DataAttachment.YAML;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
+import static org.elasticsearch.xpack.watcher.input.InputBuilders.noneInput;
+import static org.elasticsearch.xpack.watcher.notification.email.DataAttachment.JSON;
+import static org.elasticsearch.xpack.watcher.notification.email.DataAttachment.YAML;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.allOf;
@@ -151,7 +151,6 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         // Have a sample document in the index, the watch is going to evaluate
         client().prepareIndex("idx", "type").setSource("field", "value").get();
         refresh();
-        WatcherSearchTemplateRequest request = templateRequest(searchSource().query(matchAllQuery()), "idx");
 
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
 
@@ -174,8 +173,8 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         EmailTemplate.Builder emailBuilder = EmailTemplate.builder().from("_from").to("_to").subject("Subject");
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                .input(searchInput(request))
-                .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
+                .input(noneInput())
+                .condition(AlwaysCondition.INSTANCE)
                 .addAction("_email", emailAction(emailBuilder).setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())
                 .setAttachments(emailAttachments));
         logger.info("TMP WATCHSOURCE {}", watchSourceBuilder.build().getBytes().utf8ToString());
@@ -184,12 +183,13 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchSourceBuilder)
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().trigger("_test_id");
-            refresh();
-        }
+        timeWarp().trigger("_test_id");
+        refresh();
 
-        assertWatchWithMinimumPerformedActionsCount("_test_id", 1);
+        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*")
+                .setQuery(QueryBuilders.termQuery("watch_id", "_test_id"))
+                .execute().actionGet();
+        assertHitCount(searchResponse, 1);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waited too long for email to be received");

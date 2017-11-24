@@ -260,8 +260,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(watchId, now, now);
             Wid wid = new Wid(watchId, now);
             TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
-            bulkRequestBuilder.add(client().prepareIndex(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, triggeredWatch.id
-                    ().value())
+            bulkRequestBuilder.add(client()
+                    .prepareIndex(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, triggeredWatch.id().value())
                     .setSource(jsonBuilder().value(triggeredWatch))
                     .setWaitForActiveShards(ActiveShardCount.ALL)
             );

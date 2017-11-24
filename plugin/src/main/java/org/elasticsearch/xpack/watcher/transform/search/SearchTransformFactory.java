@@ -19,12 +19,11 @@ import java.io.IOException;
 
 public class SearchTransformFactory extends TransformFactory<SearchTransform, SearchTransform.Result, ExecutableSearchTransform> {
 
-    protected final Client client;
+    private final Client client;
     private final TimeValue defaultTimeout;
     private final WatcherSearchTemplateService searchTemplateService;
 
-    public SearchTransformFactory(Settings settings, Client client, NamedXContentRegistry xContentRegistry,
-            ScriptService scriptService) {
+    public SearchTransformFactory(Settings settings, Client client, NamedXContentRegistry xContentRegistry, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.transform.search.default_timeout", TimeValue.timeValueMinutes(1));

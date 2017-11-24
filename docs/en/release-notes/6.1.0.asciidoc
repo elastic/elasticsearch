@@ -1,0 +1,13 @@
+[role="xpack"]
+[[xes-6.1.0]]
+== {es} {xpack} 6.1.0 Release Notes
+++++
+<titleabbrev>6.1.0 Release Notes</titleabbrev>
+++++
+
+
+[[xes-breaking-6.1.0]]
+[float]
+=== Breaking changes
+
+No breaking changes have been made (yet).

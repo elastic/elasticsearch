@@ -27,19 +27,16 @@ import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 
 import java.io.IOException;
-import java.util.function.BiConsumer;
 
 /**
  * Event handler designed to handle events from non-server sockets
  */
 public class SocketEventHandler extends EventHandler {
 
-    private final BiConsumer<NioSocketChannel, Exception> exceptionHandler;
     private final Logger logger;
 
-    public SocketEventHandler(Logger logger, BiConsumer<NioSocketChannel, Exception> exceptionHandler, OpenChannels openChannels) {
-        super(logger, openChannels);
-        this.exceptionHandler = exceptionHandler;
+    public SocketEventHandler(Logger logger) {
+        super(logger);
         this.logger = logger;
     }
 
@@ -150,6 +147,6 @@ public class SocketEventHandler extends EventHandler {
     }
 
     private void exceptionCaught(NioSocketChannel channel, Exception e) {
-        exceptionHandler.accept(channel, e);
+        channel.getExceptionContext().accept(channel, e);
     }
 }

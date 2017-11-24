@@ -22,7 +22,6 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.junit.Before;
 
@@ -30,7 +29,6 @@ import java.io.IOException;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class WriteOperationTests extends ESTestCase {

@@ -337,6 +337,6 @@
         body:
           script:
             lang: painless
-            source: if (ctx._source.user == "kimchy") {ctx.op = "update"} else {ctx.op = "junk"}
+            source: if (ctx._source.user == "kimchy") {ctx.op = "index"} else {ctx.op = "junk"}
 
   - match: { error.reason: 'Operation type [junk] not allowed, only [noop, index, delete] are allowed' }

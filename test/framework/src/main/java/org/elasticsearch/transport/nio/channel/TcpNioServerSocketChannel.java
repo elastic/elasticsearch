@@ -19,44 +19,38 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.AcceptingSelector;
 
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
-import java.util.function.Consumer;
 
-public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChannel> {
+/**
+ * This is an implementation of {@link NioServerSocketChannel} that adheres to the {@link TcpChannel}
+ * interface. As it is a server socket, setting SO_LINGER and sending messages is not supported.
+ */
+public class TcpNioServerSocketChannel extends NioServerSocketChannel implements TcpChannel {
 
-    private final ChannelFactory channelFactory;
-    private Consumer<NioSocketChannel> acceptContext;
-
-    public NioServerSocketChannel(ServerSocketChannel socketChannel, ChannelFactory channelFactory, AcceptingSelector selector)
+    TcpNioServerSocketChannel(ServerSocketChannel socketChannel, TcpChannelFactory channelFactory, AcceptingSelector selector)
         throws IOException {
-        super(socketChannel, selector);
-        this.channelFactory = channelFactory;
+        super(socketChannel, channelFactory, selector);
     }
 
-    public ChannelFactory getChannelFactory() {
-        return channelFactory;
+    @Override
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+        throw new UnsupportedOperationException("Cannot send a message to a server channel.");
     }
 
-    /**
-     * This method sets the accept context for a server socket channel. The accept context is called when a
-     * new channel is accepted. The parameter passed to the context is the new channel.
-     *
-     * @param acceptContext to call
-     */
-    public void setAcceptContext(Consumer<NioSocketChannel> acceptContext) {
-        this.acceptContext = acceptContext;
-    }
-
-    public Consumer<NioSocketChannel> getAcceptContext() {
-        return acceptContext;
+    @Override
+    public void setSoLinger(int value) throws IOException {
+        throw new UnsupportedOperationException("Cannot set SO_LINGER on a server channel.");
     }
 
     @Override
     public String toString() {
-        return "NioServerSocketChannel{" +
+        return "TcpNioServerSocketChannel{" +
             "localAddress=" + getLocalAddress() +
             '}';
     }

@@ -218,7 +218,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      * based on Damerau-Levenshtein algorithm.
      * <li><code>levenshtein</code> - String distance algorithm based on
      * Levenshtein edit distance algorithm.
-     * <li><code>jarowinkler</code> - String distance algorithm based on
+     * <li><code>jaro_winkler</code> - String distance algorithm based on
      * Jaro-Winkler algorithm.
      * <li><code>ngram</code> - String distance algorithm based on character
      * n-grams.
@@ -474,9 +474,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
             return new LevensteinDistance();
         } else if ("levenshtein".equals(distanceVal)) {
             return new LevensteinDistance();
-            // TODO Jaro and Winkler are 2 people - so apply same naming logic
-            // as damerau_levenshtein
-        } else if ("jarowinkler".equals(distanceVal)) {
+        } else if ("jaro_winkler".equals(distanceVal) || "jarowinkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {
             return new NGramDistance();

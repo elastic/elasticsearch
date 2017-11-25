@@ -221,7 +221,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * Damerau-Levenshtein algorithm.
      * <li><code>levenshtein</code> - String distance algorithm based on
      * Levenshtein edit distance algorithm.
-     * <li><code>jarowinkler</code> - String distance algorithm based on
+     * <li><code>jaro_winkler</code> - String distance algorithm based on
      * Jaro-Winkler algorithm.
      * <li><code>ngram</code> - String distance algorithm based on character
      * n-grams.
@@ -556,7 +556,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             }
         },
         /** String distance algorithm based on Jaro-Winkler algorithm. */
-        JAROWINKLER {
+        JARO_WINKLER {
             @Override
             public StringDistance toLucene() {
                 return new JaroWinklerDistance();
@@ -595,8 +595,9 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                     return LEVENSHTEIN;
                 case "ngram":
                     return NGRAM;
+                case "jaro_winkler":
                 case "jarowinkler":
-                    return JAROWINKLER;
+                    return JARO_WINKLER;
                 default: throw new IllegalArgumentException("Illegal distance option " + str);
             }
         }

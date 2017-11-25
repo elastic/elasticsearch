@@ -76,6 +76,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("internal"), equalTo(DirectSpellChecker.INTERNAL_LEVENSHTEIN));
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("damerau_levenshtein"), instanceOf(LuceneLevenshteinDistance.class));
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("levenshtein"), instanceOf(LevensteinDistance.class));
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("jaro_winkler"), instanceOf(JaroWinklerDistance.class));
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("jaroWinkler"), instanceOf(JaroWinklerDistance.class));
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("ngram"), instanceOf(NGramDistance.class));
 
@@ -212,7 +213,8 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         maybeSet(generator::postFilter, randomAlphaOfLengthBetween(1, 20));
         maybeSet(generator::size, randomIntBetween(1, 20));
         maybeSet(generator::sort, randomFrom("score", "frequency"));
-        maybeSet(generator::stringDistance, randomFrom("internal", "damerau_levenshtein", "levenshtein", "jarowinkler", "ngram"));
+        maybeSet(generator::stringDistance,
+                randomFrom("internal", "damerau_levenshtein", "levenshtein", "jaro_winkler", "jarowinkler", "ngram"));
         maybeSet(generator::suggestMode, randomFrom("missing", "popular", "always"));
         return generator;
     }

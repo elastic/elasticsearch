@@ -21,10 +21,14 @@ package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -58,7 +62,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -151,7 +154,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -856,15 +858,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public DocsStats docStats() {
+        // we calculate the doc stats based on the internal reader that is more up-to-date and not subject
+        // to external refreshes. For instance we don't refresh an external reader if we flush and indices with
+        // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
+        // when indexing but not refreshing in general. Yet, if a refresh happens the internal reader is refresh as well so we are
+        // safe here.
         long numDocs = 0;
         long numDeletedDocs = 0;
         long sizeInBytes = 0;
-        List<Segment> segments = segments(false);
-        for (Segment segment : segments) {
-            if (segment.search) {
-                numDocs += segment.getNumDocs();
-                numDeletedDocs += segment.getDeletedDocs();
-                sizeInBytes += segment.getSizeInBytes();
+        try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
+            for (LeafReaderContext reader : searcher.reader().leaves()) {
+                // we go on the segment level here to get accurate numbers
+                final SegmentReader segmentReader = Lucene.segmentReader(reader.reader());
+                SegmentCommitInfo info = segmentReader.getSegmentInfo();
+                numDocs += reader.reader().numDocs();
+                numDeletedDocs += reader.reader().numDeletedDocs();
+                try {
+                    sizeInBytes += info.sizeInBytes();
+                } catch (IOException e) {
+                    logger.trace((org.apache.logging.log4j.util.Supplier<?>)
+                        () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                }
             }
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);

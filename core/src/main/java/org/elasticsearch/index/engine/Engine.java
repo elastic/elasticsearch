@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
@@ -144,26 +143,11 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Tries to extract a segment reader from the given index reader.
-     * If no SegmentReader can be extracted an {@link IllegalStateException} is thrown.
-     */
-    protected static SegmentReader segmentReader(LeafReader reader) {
-        if (reader instanceof SegmentReader) {
-            return (SegmentReader) reader;
-        } else if (reader instanceof FilterLeafReader) {
-            final FilterLeafReader fReader = (FilterLeafReader) reader;
-            return segmentReader(FilterLeafReader.unwrap(fReader));
-        }
-        // hard fail - we can't get a SegmentReader
-        throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
-    }
-
-    /**
      * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
      */
     protected static boolean isMergedSegment(LeafReader reader) {
         // We expect leaves to be segment readers
-        final Map<String, String> diagnostics = segmentReader(reader).getSegmentInfo().info.getDiagnostics();
+        final Map<String, String> diagnostics = Lucene.segmentReader(reader).getSegmentInfo().info.getDiagnostics();
         final String source = diagnostics.get(IndexWriter.SOURCE);
         assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH,
                 IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
@@ -611,7 +595,7 @@ public abstract class Engine implements Closeable {
         try (Searcher searcher = acquireSearcher("segments_stats")) {
             SegmentsStats stats = new SegmentsStats();
             for (LeafReaderContext reader : searcher.reader().leaves()) {
-                final SegmentReader segmentReader = segmentReader(reader.reader());
+                final SegmentReader segmentReader = Lucene.segmentReader(reader.reader());
                 stats.add(1, segmentReader.ramBytesUsed());
                 stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
                 stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
@@ -718,7 +702,7 @@ public abstract class Engine implements Closeable {
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments")){
             for (LeafReaderContext reader : searcher.reader().leaves()) {
-                final SegmentReader segmentReader = segmentReader(reader.reader());
+                final SegmentReader segmentReader = Lucene.segmentReader(reader.reader());
                 SegmentCommitInfo info = segmentReader.getSegmentInfo();
                 assert !segments.containsKey(info.info.name);
                 Segment segment = new Segment(info.info.name);

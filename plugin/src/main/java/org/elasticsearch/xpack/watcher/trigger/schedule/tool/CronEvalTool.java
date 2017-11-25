@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Cron;
@@ -20,7 +21,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
-public class CronEvalTool extends Command {
+public class CronEvalTool extends LoggingAwareCommand {
 
     public static void main(String[] args) throws Exception {
         exit(new CronEvalTool().main(args, Terminal.DEFAULT));

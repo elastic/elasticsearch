@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.extensions;
 
+import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 
 /**
  * A cli tool for adding, removing and listing extensions for x-pack.
  */
-public class XPackExtensionCli extends MultiCommand {
+public class XPackExtensionCli extends LoggingAwareMultiCommand {
 
     private XPackExtensionCli() {
         super("A tool for managing installed x-pack extensions");

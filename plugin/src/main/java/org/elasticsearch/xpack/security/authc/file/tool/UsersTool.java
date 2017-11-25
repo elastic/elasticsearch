@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.file.tool;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
@@ -39,7 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class UsersTool extends MultiCommand {
+public class UsersTool extends LoggingAwareMultiCommand {
 
     public static void main(String[] args) throws Exception {
         exit(new UsersTool().main(args, Terminal.DEFAULT));

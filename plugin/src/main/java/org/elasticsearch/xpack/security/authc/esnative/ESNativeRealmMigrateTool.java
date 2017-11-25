@@ -19,6 +19,7 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
@@ -73,7 +74,7 @@ import static org.elasticsearch.xpack.security.Security.setting;
  * import. It reads from the files and tries its best to add the users, showing an error if it was incapable of importing them. Any existing
  * users or roles are skipped.
  */
-public class ESNativeRealmMigrateTool extends MultiCommand {
+public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
 
     public static void main(String[] args) throws Exception {
         exit(new ESNativeRealmMigrateTool().main(args, Terminal.DEFAULT));

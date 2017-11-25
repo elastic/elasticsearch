@@ -9,6 +9,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
@@ -25,7 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class LicenseGeneratorTool extends Command {
+public class LicenseGeneratorTool extends LoggingAwareCommand {
 
     private final OptionSpec<String> publicKeyPathOption;
     private final OptionSpec<String> privateKeyPathOption;

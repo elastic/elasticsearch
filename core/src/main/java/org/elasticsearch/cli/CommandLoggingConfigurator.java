@@ -31,7 +31,7 @@ final class CommandLoggingConfigurator {
 
     /**
      * Configures logging without Elasticsearch configuration files based on the system property "es.logger.level" only. As such, any
-     * logging will written to the console.
+     * logging will be written to the console.
      */
     static void configureLoggingWithoutConfig() {
         // initialize default for es.logger.level because we will not read the log4j2.properties

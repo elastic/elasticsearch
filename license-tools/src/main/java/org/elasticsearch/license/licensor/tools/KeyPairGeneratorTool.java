@@ -9,6 +9,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
@@ -23,7 +24,7 @@ import java.security.SecureRandom;
 import static org.elasticsearch.license.CryptUtils.writeEncryptedPrivateKey;
 import static org.elasticsearch.license.CryptUtils.writeEncryptedPublicKey;
 
-public class KeyPairGeneratorTool extends Command {
+public class KeyPairGeneratorTool extends LoggingAwareCommand {
 
     private final OptionSpec<String> publicKeyPathOption;
     private final OptionSpec<String> privateKeyPathOption;

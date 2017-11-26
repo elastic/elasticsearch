@@ -55,23 +55,18 @@ public class IndexRequestTests extends ESTestCase {
 
         IndexRequest indexRequest = new IndexRequest("");
         indexRequest.opType(create);
-        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.CREATE));
+        assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.CREATE));
         indexRequest.opType(createUpper);
-        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.CREATE));
+        assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.CREATE));
         indexRequest.opType(index);
-        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.INDEX));
+        assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.INDEX));
         indexRequest.opType(indexUpper);
-        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.INDEX));
+        assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.INDEX));
     }
 
-    public void testReadBogusString() {
-        try {
-            IndexRequest indexRequest = new IndexRequest("");
-            indexRequest.opType("foobar");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("opType must be 'create' or 'index', found: [foobar]"));
-        }
+    public void testReadIncorrectOpType() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexRequest("").opType("foobar"));
+        assertThat(e.getMessage(), equalTo("opType must be 'create' or 'index', found: [foobar]"));
     }
 
     public void testCreateOperationRejectsVersions() {

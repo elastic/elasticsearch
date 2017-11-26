@@ -19,6 +19,8 @@
 
 
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.Version
+import java.util.regex.Matcher
 
 /**
  * This is a dummy project which does a local checkout of the previous
@@ -26,41 +28,20 @@ import org.elasticsearch.gradle.LoggedExec
  * tests to test against the next unreleased version, closest to this version,
  * without relying on snapshots.
  */
-String bwcVersion
-boolean enabled = true
-if (project.name == 'bwc-stable-snapshot') {
-  /* bwc-stable is only used if the last version is on a stable branch instead
-   * of a bugfix branch */
-  enabled = indexCompatVersions[-1].bugfix == 0
-  bwcVersion = indexCompatVersions[-1]
-} else if (project.name == 'bwc-release-snapshot') {
-  if (indexCompatVersions[-1].bugfix == 0) {
-    /* The last version is on a stable branch so it is handled by the bwc-stable
-     * project. This project will instead handle the version before that which
-     * *should* be on a stable branch. */
-    bwcVersion = indexCompatVersions[-2]
-  } else {
-    // The last version is on a release branch so it is handled by this project
-    bwcVersion = indexCompatVersions[-1]
-  }
-} else {
+final Matcher match = project.name =~ /bwc-snapshot-(\d+\.(\d+|x))/
+if (!match.matches()) {
   throw new InvalidUserDataException("Unsupport project name ${project.name}")
 }
+String bwcBranch = match.group(1)
 
-if (enabled) {
+if (project.hasProperty('bwcVersion')) {
+  Version bwcVersion = project.ext.bwcVersion
+
   apply plugin: 'distribution'
   // Not published so no need to assemble
   tasks.remove(assemble)
   build.dependsOn.remove('assemble')
 
-  def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
-  def (String currentMajor, String currentMinor, String currentBugfix) = version.split('\\.')
-  String bwcBranch
-  if (project.name == 'bwc-stable-snapshot' && major != currentMajor) {
-    bwcBranch = "${major}.x"
-  } else {
-    bwcBranch = "${major}.${minor}"
-  }
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
   final String remote = System.getProperty("tests.bwc.remote", "elastic")

@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongObjectHashMap;
-import com.carrotsearch.hppc.LongSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
@@ -85,11 +84,13 @@ final class MultiSnapshot implements Translog.Snapshot {
     }
 
     /**
-     * A wrapper of {@link FixedBitSet} but allows to check if all bits are set in O(1).
+     * A {@link CountedBitSet} wraps a {@link FixedBitSet} but automatically releases the internal bitset
+     * when all bits are set to reduce memory usage. This structure can work well for sequence numbers
+     * from translog as these numbers are likely to form contiguous ranges (eg. filling all bits).
      */
     private static final class CountedBitSet {
-        private short onBits;
-        private final FixedBitSet bitset;
+        private short onBits; // Number of bits are set.
+        private FixedBitSet bitset;
 
         CountedBitSet(short numBits) {
             assert numBits > 0;
@@ -99,26 +100,33 @@ final class MultiSnapshot implements Translog.Snapshot {
 
         boolean getAndSet(int index) {
             assert index >= 0;
+            assert bitset == null || onBits < bitset.length() : "Bitset should be cleared when all bits are set";
+
+            // A null bitset means all bits are set.
+            if (bitset == null) {
+                return true;
+            }
+
             boolean wasOn = bitset.getAndSet(index);
             if (wasOn == false) {
                 onBits++;
+                // Once all bits are set, we can simply just return YES for all indexes.
+                // This allows us to clear the internal bitset and use null check as the guard.
+                if (onBits == bitset.length()) {
+                    bitset = null;
+                }
             }
             return wasOn;
         }
 
         boolean hasAllBitsOn() {
-            return onBits == bitset.length();
+            return bitset == null;
         }
     }
 
-    /**
-     * Sequence numbers from translog are likely to form contiguous ranges,
-     * thus collapsing a completed bitset into a single entry will reduce memory usage.
-     */
     static final class SeqNoSet {
         static final short BIT_SET_SIZE = 1024;
-        private final LongSet completedSets = new LongHashSet();
-        private final LongObjectHashMap<CountedBitSet> ongoingSets = new LongObjectHashMap<>();
+        private final LongObjectHashMap<CountedBitSet> bitSets = new LongObjectHashMap<>();
 
         /**
          * Marks this sequence number and returns <tt>true</tt> if it is seen before.
@@ -126,33 +134,28 @@ final class MultiSnapshot implements Translog.Snapshot {
         boolean getAndSet(long value) {
             assert value >= 0;
             final long key = value / BIT_SET_SIZE;
-
-            if (completedSets.contains(key)) {
-                return true;
-            }
-
-            CountedBitSet bitset = ongoingSets.get(key);
+            CountedBitSet bitset = bitSets.get(key);
             if (bitset == null) {
                 bitset = new CountedBitSet(BIT_SET_SIZE);
-                ongoingSets.put(key, bitset);
+                bitSets.put(key, bitset);
             }
-
-            final boolean wasOn = bitset.getAndSet(Math.toIntExact(value % BIT_SET_SIZE));
-            if (bitset.hasAllBitsOn()) {
-                ongoingSets.remove(key);
-                completedSets.add(key);
-            }
-            return wasOn;
+            return bitset.getAndSet(Math.toIntExact(value % BIT_SET_SIZE));
         }
 
         // For testing
         long completeSetsSize() {
-            return completedSets.size();
+            int completedBitSets = 0;
+            for (ObjectCursor<CountedBitSet> bitset : bitSets.values()) {
+                if (bitset.value.hasAllBitsOn()) {
+                    completedBitSets++;
+                }
+            }
+            return completedBitSets;
         }
 
         // For testing
         long ongoingSetsSize() {
-            return ongoingSets.size();
+            return bitSets.size() - completeSetsSize();
         }
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
@@ -29,8 +30,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -39,22 +44,45 @@ import static org.mockito.Mockito.when;
 public class CombinedDeletionPolicyTests extends ESTestCase {
 
     public void testPassThrough() throws IOException {
-        SnapshotDeletionPolicy indexDeletionPolicy = mock(SnapshotDeletionPolicy.class);
-        CombinedDeletionPolicy combinedDeletionPolicy = new CombinedDeletionPolicy(indexDeletionPolicy, createTranslogDeletionPolicy(),
+        final List<Long> onInitList = new ArrayList<>();
+        final List<Long> onCommitList = new ArrayList<>();
+
+        final IndexDeletionPolicy primaryPolicy = new IndexDeletionPolicy() {
+            @Override
+            public void onInit(List<? extends IndexCommit> commits) throws IOException {
+                commits.forEach(c -> onInitList.add(c.getGeneration()));
+            }
+
+            @Override
+            public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+                commits.forEach(c -> onCommitList.add(c.getGeneration()));
+            }
+        };
+
+        CombinedDeletionPolicy combinedDeletionPolicy = new CombinedDeletionPolicy(primaryPolicy, createTranslogDeletionPolicy(),
             EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
         List<IndexCommit> commitList = new ArrayList<>();
         long count = randomIntBetween(1, 3);
-        for (int i = 0; i < count; i++) {
-            commitList.add(mockIndexCommitWithTranslogGen(randomNonNegativeLong()));
+        for (long i = 0; i < count; i++) {
+            commitList.add(mockIndexCommitWithTranslogGen(i, randomNonNegativeLong()));
         }
+        final Long[] commitGenerations = commitList.stream()
+            .map(IndexCommit::getGeneration)
+            .toArray(Long[]::new);
+
         combinedDeletionPolicy.onInit(commitList);
-        verify(indexDeletionPolicy, times(1)).onInit(commitList);
+        assertThat(onInitList, contains(commitGenerations));
+        assertThat(onCommitList, empty());
+        onCommitList.clear();
+        onInitList.clear();
+
         combinedDeletionPolicy.onCommit(commitList);
-        verify(indexDeletionPolicy, times(1)).onCommit(commitList);
+        assertThat(onInitList, empty());
+        assertThat(onCommitList, contains(commitGenerations));
     }
 
     public void testSettingMinTranslogGen() throws IOException {
-        SnapshotDeletionPolicy indexDeletionPolicy = mock(SnapshotDeletionPolicy.class);
+        IndexDeletionPolicy indexDeletionPolicy = mock(IndexDeletionPolicy.class);
         final TranslogDeletionPolicy translogDeletionPolicy = mock(TranslogDeletionPolicy.class);
         CombinedDeletionPolicy combinedDeletionPolicy = new CombinedDeletionPolicy(indexDeletionPolicy, translogDeletionPolicy,
             EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
@@ -63,22 +91,58 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         long lastGen = 0;
         for (int i = 0; i < count; i++) {
             lastGen += randomIntBetween(10, 20000);
-            commitList.add(mockIndexCommitWithTranslogGen(lastGen));
+            commitList.add(mockIndexCommitWithTranslogGen(i, lastGen));
         }
         combinedDeletionPolicy.onInit(commitList);
         verify(translogDeletionPolicy, times(1)).setMinTranslogGenerationForRecovery(lastGen);
         commitList.clear();
         for (int i = 0; i < count; i++) {
             lastGen += randomIntBetween(10, 20000);
-            commitList.add(mockIndexCommitWithTranslogGen(lastGen));
+            commitList.add(mockIndexCommitWithTranslogGen(i, lastGen));
         }
         combinedDeletionPolicy.onCommit(commitList);
         verify(translogDeletionPolicy, times(1)).setMinTranslogGenerationForRecovery(lastGen);
     }
 
-    IndexCommit mockIndexCommitWithTranslogGen(long gen) throws IOException {
+    public void testIgnoreSnapshottingCommits() throws Exception {
+        final AtomicBoolean deleteAll = new AtomicBoolean(false);
+        IndexDeletionPolicy predicateBasedPolicy = new IndexDeletionPolicy() {
+            @Override
+            public void onInit(List<? extends IndexCommit> commits) throws IOException {
+                onCommit(commits);
+            }
+
+            @Override
+            public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+                if (deleteAll.get()) {
+                    commits.forEach(IndexCommit::delete);
+                }
+            }
+        };
+
+        CombinedDeletionPolicy combinedDeletionPolicy = new CombinedDeletionPolicy(predicateBasedPolicy,
+            createTranslogDeletionPolicy(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
+        List<IndexCommit> commitList = new ArrayList<>();
+        long count = randomIntBetween(10, 20);
+        long lastGen = 0;
+        for (int i = 0; i < count; i++) {
+            lastGen += randomIntBetween(10, 20000);
+            commitList.add(mockIndexCommitWithTranslogGen(i, lastGen));
+        }
+        deleteAll.set(false);
+        SnapshotDeletionPolicy snapshotDeletionPolicy = new SnapshotDeletionPolicy(combinedDeletionPolicy);
+        snapshotDeletionPolicy.onInit(commitList);
+        // The last commit is kept by SnapshotDeletionPolicy, but the CombinedPolicy does not take into account.
+        snapshotDeletionPolicy.snapshot();
+        deleteAll.set(true);
+        AssertionError assertionError = expectThrows(AssertionError.class, () -> combinedDeletionPolicy.onCommit(commitList));
+        assertThat(assertionError.getMessage(), equalTo("last commit is deleted"));
+    }
+
+    IndexCommit mockIndexCommitWithTranslogGen(long commitGen, long translogGen) throws IOException {
         IndexCommit commit = mock(IndexCommit.class);
-        when(commit.getUserData()).thenReturn(Collections.singletonMap(Translog.TRANSLOG_GENERATION_KEY, Long.toString(gen)));
+        when(commit.getGeneration()).thenReturn(commitGen);
+        when(commit.getUserData()).thenReturn(Collections.singletonMap(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGen)));
         return commit;
     }
 }

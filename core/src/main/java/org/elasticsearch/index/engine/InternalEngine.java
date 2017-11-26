@@ -128,7 +128,7 @@ public class InternalEngine extends Engine {
 
     private final String uidField;
 
-    private final CombinedDeletionPolicy deletionPolicy;
+    private final SnapshotDeletionPolicy snapshotDeletionPolicy;
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
@@ -167,8 +167,9 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
                 engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
         );
-        this.deletionPolicy = new CombinedDeletionPolicy(
-                new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), translogDeletionPolicy, openMode);
+        this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
+            new CombinedDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy(), translogDeletionPolicy, openMode));
+
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;
@@ -1642,7 +1643,7 @@ public class InternalEngine extends Engine {
         }
         try (ReleasableLock lock = readLock.acquire()) {
             logger.trace("pulling snapshot");
-            return new IndexCommitRef(deletionPolicy.getIndexDeletionPolicy());
+            return new IndexCommitRef(snapshotDeletionPolicy);
         } catch (IOException e) {
             throw new SnapshotFailedEngineException(shardId, e);
         }
@@ -1823,7 +1824,7 @@ public class InternalEngine extends Engine {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
-        iwc.setIndexDeletionPolicy(deletionPolicy);
+        iwc.setIndexDeletionPolicy(snapshotDeletionPolicy);
         // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
         boolean verbose = false;
         try {

@@ -22,7 +22,7 @@ package org.elasticsearch.transport.nio.channel;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.NetworkBytesReference;
+import org.elasticsearch.transport.nio.InboundChannelBuffer;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.Before;
 
@@ -58,12 +58,12 @@ public class TcpReadContextTests extends ESTestCase {
         byte[] fullMessage = combineMessageAndHeader(bytes);
 
         final AtomicInteger bufferCapacity = new AtomicInteger();
-        when(channel.read(any(NetworkBytesReference.class))).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference reference = (NetworkBytesReference) invocationOnMock.getArguments()[0];
-            ByteBuffer buffer = reference.getWriteByteBuffer();
-            bufferCapacity.set(reference.getWriteRemaining());
-            buffer.put(fullMessage);
-            reference.incrementWrite(fullMessage.length);
+        when(channel.read(any(InboundChannelBuffer.class))).thenAnswer(invocationOnMock -> {
+            InboundChannelBuffer buffer = (InboundChannelBuffer) invocationOnMock.getArguments()[0];
+            ByteBuffer byteBuffer = buffer.getPostIndexBuffers()[0];
+            bufferCapacity.set(buffer.getCapacity() - buffer.getIndex());
+            byteBuffer.put(fullMessage);
+            buffer.incrementIndex(fullMessage.length);
             return fullMessage.length;
         });
 
@@ -85,12 +85,12 @@ public class TcpReadContextTests extends ESTestCase {
         final AtomicInteger bufferCapacity = new AtomicInteger();
         final AtomicReference<byte[]> bytes = new AtomicReference<>();
 
-        when(channel.read(any(NetworkBytesReference.class))).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference reference = (NetworkBytesReference) invocationOnMock.getArguments()[0];
-            ByteBuffer buffer = reference.getWriteByteBuffer();
-            bufferCapacity.set(reference.getWriteRemaining());
-            buffer.put(bytes.get());
-            reference.incrementWrite(bytes.get().length);
+        when(channel.read(any(InboundChannelBuffer.class))).thenAnswer(invocationOnMock -> {
+            InboundChannelBuffer buffer = (InboundChannelBuffer) invocationOnMock.getArguments()[0];
+            ByteBuffer byteBuffer = buffer.getPostIndexBuffers()[0];
+            bufferCapacity.set(buffer.getCapacity() - buffer.getIndex());
+            byteBuffer.put(bytes.get());
+            buffer.incrementIndex(bytes.get().length);
             return bytes.get().length;
         });
 

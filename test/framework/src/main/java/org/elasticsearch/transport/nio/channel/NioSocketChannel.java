@@ -20,7 +20,8 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.transport.nio.NetworkBytesReference;
+import org.elasticsearch.transport.nio.InboundChannelBuffer;
+import org.elasticsearch.transport.nio.OutboundChannelBytes;
 import org.elasticsearch.transport.nio.SocketSelector;
 
 import java.io.IOException;
@@ -28,7 +29,6 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
-import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -66,34 +66,32 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return socketSelector;
     }
 
-    public int write(NetworkBytesReference[] references) throws IOException {
+    public int write(OutboundChannelBytes channelBytes) throws IOException {
+        ByteBuffer[] writeBuffers = channelBytes.getPostIndexBuffers();
         int written;
-        if (references.length == 1) {
-            written = socketChannel.write(references[0].getReadByteBuffer());
+        if (writeBuffers.length == 1) {
+            written = socketChannel.write(writeBuffers[0]);
         } else {
-            ByteBuffer[] buffers = new ByteBuffer[references.length];
-            for (int i = 0; i < references.length; ++i) {
-                buffers[i] = references[i].getReadByteBuffer();
-            }
-            written = (int) socketChannel.write(buffers);
+            written = (int) socketChannel.write(writeBuffers);
         }
+
         if (written <= 0) {
             return written;
         }
 
-        NetworkBytesReference.vectorizedIncrementReadIndexes(Arrays.asList(references), written);
+        channelBytes.incrementIndex(written);
 
         return written;
     }
 
-    public int read(NetworkBytesReference reference) throws IOException {
-        int bytesRead = socketChannel.read(reference.getWriteByteBuffer());
+    public int read(InboundChannelBuffer buffer) throws IOException {
+        int bytesRead = (int) socketChannel.read(buffer.getPostIndexBuffers());
 
         if (bytesRead == -1) {
             return bytesRead;
         }
 
-        reference.incrementWrite(bytesRead);
+        buffer.incrementIndex(bytesRead);
         return bytesRead;
     }
 

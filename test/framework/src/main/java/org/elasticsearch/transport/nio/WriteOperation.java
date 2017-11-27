@@ -27,22 +27,23 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 public class WriteOperation {
 
     private final NioSocketChannel channel;
     private final ActionListener<Void> listener;
-    private final NetworkBytesReference[] references;
+    private final OutboundChannelBytes outboundBytes;
 
     public WriteOperation(NioSocketChannel channel, BytesReference bytesReference, ActionListener<Void> listener) {
         this.channel = channel;
         this.listener = listener;
-        this.references = toArray(bytesReference);
+        this.outboundBytes = toChannelBytes(bytesReference);
     }
 
-    public NetworkBytesReference[] getByteReferences() {
-        return references;
+    public OutboundChannelBytes getByteReferences() {
+        return outboundBytes;
     }
 
     public ActionListener<Void> getListener() {
@@ -54,23 +55,23 @@ public class WriteOperation {
     }
 
     public boolean isFullyFlushed() {
-        return references[references.length - 1].hasReadRemaining() == false;
+        return outboundBytes.getRemaining() == 0;
     }
 
     public int flush() throws IOException {
-        return channel.write(references);
+        return channel.write(outboundBytes);
     }
 
-    private static NetworkBytesReference[] toArray(BytesReference reference) {
+    private static OutboundChannelBytes toChannelBytes(BytesReference reference) {
         BytesRefIterator byteRefIterator = reference.iterator();
         BytesRef r;
         try {
-            // Most network messages are composed of three buffers
-            ArrayList<NetworkBytesReference> references = new ArrayList<>(3);
+            // Most network messages are composed of three buffers.
+            ArrayList<ByteBuffer> buffers = new ArrayList<>(3);
             while ((r = byteRefIterator.next()) != null) {
-                references.add(NetworkBytesReference.wrap(new BytesArray(r), r.length, 0));
+                buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
             }
-            return references.toArray(new NetworkBytesReference[references.size()]);
+            return new OutboundChannelBytes(buffers.toArray(new ByteBuffer[buffers.size()]));
 
         } catch (IOException e) {
             // this is really an error since we don't do IO in our bytesreferences

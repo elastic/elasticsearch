@@ -105,6 +105,8 @@ import org.elasticsearch.xpack.watcher.input.search.SearchInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
+import org.elasticsearch.xpack.watcher.input.transform.TransformInput;
+import org.elasticsearch.xpack.watcher.input.transform.TransformInputFactory;
 import org.elasticsearch.xpack.watcher.notification.email.Account;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachmentParser;
@@ -321,6 +323,7 @@ public class Watcher implements ActionPlugin {
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
         inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine, httpTemplateParser));
         inputFactories.put(NoneInput.TYPE, new NoneInputFactory(settings));
+        inputFactories.put(TransformInput.TYPE, new TransformInputFactory(settings, transformRegistry));
         final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(settings, inputRegistry));
 

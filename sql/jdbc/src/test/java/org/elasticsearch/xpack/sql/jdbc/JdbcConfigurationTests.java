@@ -20,35 +20,39 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testJustThePrefix() throws Exception {
        Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es:"));
-       assertEquals("Invalid URL [jdbc:es:], format should be [jdbc:es://[host[:port]]*/[prefix]*[?[option=value]&]*]", e.getMessage());
+       assertEquals("Expected [jdbc:es://] url, received [jdbc:es:]", e.getMessage());
     }
 
     public void testJustTheHost() throws Exception {
-        assertThat(ci("jdbc:es://localhost").asUrl().toString(), is("http://localhost:9200/"));
+        assertThat(ci("jdbc:es://localhost").baseUri().toString(), is("http://localhost:9200/"));
     }
 
     public void testHostAndPort() throws Exception {
-        assertThat(ci("jdbc:es://localhost:1234").asUrl().toString(), is("http://localhost:1234/"));
+        assertThat(ci("jdbc:es://localhost:1234").baseUri().toString(), is("http://localhost:1234/"));
     }
 
     public void testTrailingSlashForHost() throws Exception {
-        assertThat(ci("jdbc:es://localhost:1234/").asUrl().toString(), is("http://localhost:1234/"));
+        assertThat(ci("jdbc:es://localhost:1234/").baseUri().toString(), is("http://localhost:1234/"));
     }
 
     public void testMultiPathSuffix() throws Exception {
-        assertThat(ci("jdbc:es://a:1/foo/bar/tar/").asUrl().toString(), is("http://a:1/foo/bar/tar"));
+        assertThat(ci("jdbc:es://a:1/foo/bar/tar").baseUri().toString(), is("http://a:1/foo/bar/tar"));
+    }
+
+    public void testV6Localhost() throws Exception {
+        assertThat(ci("jdbc:es://[::1]:54161/foo/bar").baseUri().toString(), is("http://[::1]:54161/foo/bar"));
     }
 
     public void testDebug() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://a:1/?debug=true");
-        assertThat(ci.asUrl().toString(), is("http://a:1/"));
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
         assertThat(ci.debug(), is(true));
         assertThat(ci.debugOut(), is("err"));
     }
 
     public void testDebugOut() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://a:1/?debug=true&debug.output=jdbc.out");
-        assertThat(ci.asUrl().toString(), is("http://a:1/"));
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
         assertThat(ci.debug(), is(true));
         assertThat(ci.debugOut(), is("jdbc.out"));
     }
@@ -60,8 +64,19 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testDebugOutWithSuffix() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://a:1/foo/bar/tar?debug=true&debug.output=jdbc.out");
-        assertThat(ci.asUrl().toString(), is("http://a:1/foo/bar/tar/"));
+        assertThat(ci.baseUri().toString(), is("http://a:1/foo/bar/tar"));
         assertThat(ci.debug(), is(true));
         assertThat(ci.debugOut(), is("jdbc.out"));
     }
+
+    public void testHttpWithSSLEnabled() throws Exception {
+        JdbcConfiguration ci = ci("jdbc:es://test?ssl=true");
+        assertThat(ci.baseUri().toString(), is("https://test:9200/"));
+    }
+
+    public void testHttpWithSSLDisabled() throws Exception {
+        JdbcConfiguration ci = ci("jdbc:es://test?ssl=false");
+        assertThat(ci.baseUri().toString(), is("http://test:9200/"));
+    }
+
 }

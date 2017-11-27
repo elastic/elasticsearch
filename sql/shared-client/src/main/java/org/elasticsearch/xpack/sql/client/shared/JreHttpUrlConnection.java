@@ -14,7 +14,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.Proxy;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -44,7 +47,16 @@ public class JreHttpUrlConnection implements Closeable {
      */
     public static final String SQL_STATE_BAD_SERVER = "bad_server";
 
-    public static <R> R http(URL url, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
+    public static <R> R http(String path, String query, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
+        final URI uriPath = cfg.baseUri().resolve(path);  // update path if needed
+        final String uriQuery = query == null ? uriPath.getQuery() : query; // update query if needed
+        final URL url;
+        try {
+            url = new URI(uriPath.getScheme(), null, uriPath.getHost(), uriPath.getPort(), uriPath.getPath(), uriQuery,
+                    uriPath.getFragment()).toURL();
+        } catch (URISyntaxException | MalformedURLException ex) {
+            throw new ClientException(ex, "Cannot build url using base: [" + uriPath + "] query: [" + query + "] path: [" + path + "]");
+        }
         try (JreHttpUrlConnection con = new JreHttpUrlConnection(url, cfg)) {
             return handler.apply(con);
         }
@@ -95,8 +107,8 @@ public class JreHttpUrlConnection implements Closeable {
             HttpsURLConnection https = (HttpsURLConnection) con;
             SSLSocketFactory factory = cfg.sslConfig().sslSocketFactory();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                  https.setSSLSocketFactory(factory);
-                  return null;
+                https.setSSLSocketFactory(factory);
+                return null;
             });
         }
     }
@@ -120,9 +132,9 @@ public class JreHttpUrlConnection implements Closeable {
     }
 
     public <R> ResponseOrException<R> post(
-                CheckedConsumer<DataOutput, IOException> doc,
-                CheckedFunction<DataInput, R, IOException> parser
-            ) throws ClientException {
+            CheckedConsumer<DataOutput, IOException> doc,
+            CheckedFunction<DataInput, R, IOException> parser
+    ) throws ClientException {
         try {
             con.setRequestMethod("POST");
             con.setDoOutput(true);
@@ -147,13 +159,13 @@ public class JreHttpUrlConnection implements Closeable {
                  * think that the failure is not the fault of the application.
                  */
                 return new ResponseOrException<>(new SQLException("Server encountered an error ["
-                    + failure.reason() + "]. [" + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
+                        + failure.reason() + "]. [" + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
             }
             SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
             if (type == null) {
                 return new ResponseOrException<>(new SQLException("Server sent bad type ["
-                    + failure.type() + "]. Original type was [" + failure.reason() + "]. ["
-                    + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
+                        + failure.type() + "]. Original type was [" + failure.reason() + "]. ["
+                        + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));
             }
             return new ResponseOrException<>(type.asException(failure.reason()));
         } catch (IOException ex) {
@@ -253,21 +265,21 @@ public class JreHttpUrlConnection implements Closeable {
 
         public static SqlExceptionType fromRemoteFailureType(String type) {
             switch (type) {
-            case "analysis_exception":
-            case "resource_not_found_exception":
-            case "verification_exception":
-                return DATA;
-            case "planning_exception":
-            case "mapping_exception":
-                return NOT_SUPPORTED;
-            case "parsing_exception":
-                return SYNTAX;
-            case "security_exception":
-                return SECURITY;
-            case "timeout_exception":
-                return TIMEOUT;
-            default:
-                return null;
+                case "analysis_exception":
+                case "resource_not_found_exception":
+                case "verification_exception":
+                    return DATA;
+                case "planning_exception":
+                case "mapping_exception":
+                    return NOT_SUPPORTED;
+                case "parsing_exception":
+                    return SYNTAX;
+                case "security_exception":
+                    return SECURITY;
+                case "timeout_exception":
+                    return TIMEOUT;
+                default:
+                    return null;
             }
         }
 

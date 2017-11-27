@@ -10,8 +10,7 @@ import org.elasticsearch.xpack.sql.client.shared.StringUtils;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.util.Version;
 
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
 import java.sql.DriverPropertyInfo;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,10 +21,12 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TimeZone;
 
+import static org.elasticsearch.xpack.sql.client.shared.UriUtils.parseURI;
+import static org.elasticsearch.xpack.sql.client.shared.UriUtils.removeQuery;
+
 //
 // Supports the following syntax
 //
-// jdbc:es:
 // jdbc:es://[host|ip]
 // jdbc:es://[host|ip]:port/(prefix)
 // jdbc:es://[host|ip]:port/(prefix)(?options=value&)
@@ -35,7 +36,9 @@ import java.util.TimeZone;
 
 //TODO: beef this up for Security/SSL
 public class JdbcConfiguration extends ConnectionConfiguration {
-    static final String URL_PREFIX = "jdbc:es:";
+    static final String URL_PREFIX = "jdbc:es://";
+    public static URI DEFAULT_URI = URI.create("http://localhost:9200/");
+
 
     static final String DEBUG = "debug";
     static final String DEBUG_DEFAULT = "false";
@@ -63,9 +66,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     // immutable properties
-    private final HostAndPort hostAndPort;
     private final String originalUrl;
-    private final String urlFile;
     private final boolean debug;
     private final String debugOut;
 
@@ -73,11 +74,9 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     private TimeZone timeZone;
 
     public static JdbcConfiguration create(String u, Properties props) throws JdbcSQLException {
-        Object[] result = parseUrl(u);
-
-        String urlFile = (String) result[0];
-        HostAndPort hostAndPort = (HostAndPort) result[1];
-        Properties urlProps = (Properties) result[2];
+        URI uri = parseUrl(u);
+        Properties urlProps = parseProperties(uri, u);
+        uri = removeQuery(uri, u, DEFAULT_URI);
 
         // override properties set in the URL with the ones specified programmatically
         if (props != null) {
@@ -85,7 +84,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         }
 
         try {
-            return new JdbcConfiguration(u, urlFile, hostAndPort, urlProps);
+            return new JdbcConfiguration(uri, u, urlProps);
         } catch (JdbcSQLException e) {
             throw e;
         } catch (Exception ex) {
@@ -93,94 +92,34 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         }
     }
 
-    private static Object[] parseUrl(String u) throws JdbcSQLException {
+    private static URI parseUrl(String u) throws JdbcSQLException {
         String url = u;
         String format = "jdbc:es://[host[:port]]*/[prefix]*[?[option=value]&]*";
         if (!canAccept(u)) {
-            throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + u +"]");
+            throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + u + "]");
         }
 
-        String urlFile = "/";
-        HostAndPort destination;
-        Properties props = new Properties();
-
         try {
-            if (u.endsWith("/")) {
-                u = u.substring(0, u.length() - 1);
-            }
+            return parseURI(removeJdbcPrefix(u), DEFAULT_URI);
+        } catch (IllegalArgumentException ex) {
+            throw new JdbcSQLException(ex, "Invalid URL [" + url + "], format should be [" + format + "]");
+        }
+    }
 
-            // remove space
-            u = u.trim();
+    private static String removeJdbcPrefix(String connectionString) throws JdbcSQLException {
+        if (connectionString.startsWith(URL_PREFIX)) {
+            return "http://" + connectionString.substring(URL_PREFIX.length());
+        } else {
+            throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + connectionString + "]");
+        }
+    }
 
-            //
-            // remove prefix jdbc:es prefix
-            //
-            u = u.substring(URL_PREFIX.length(), u.length());
-
-            if (!u.startsWith("//")) {
-                throw new JdbcSQLException("Invalid URL [" + url + "], format should be [" + format + "]");
-            }
-
-            // remove //
-            u = u.substring(2);
-
-            String hostAndPort = u;
-
-            // / is required if any params are specified
-            // get it out of the way early on
-            int index = u.indexOf("/");
-    
-            String params = null;
-            int pIndex = u.indexOf("?");
-            if (pIndex > 0) {
-                if (index < 0) {
-                    throw new JdbcSQLException("Invalid URL [" + url + "], format should be [" + format + "]");
-                }
-                if (pIndex + 1 < u.length()) {
-                    params = u.substring(pIndex + 1);
-                }
-            }
-
-            // parse url suffix (if any)
-            if (index >= 0) {
-                hostAndPort = u.substring(0, index);
-                if (index + 1 < u.length()) {
-                    urlFile = u.substring(index);
-                    index = urlFile.indexOf("?");
-                    if (index > 0) {
-                        urlFile = urlFile.substring(0, index);
-                        if (!urlFile.endsWith("/")) {
-                            urlFile = urlFile + "/";
-                        }
-                    }
-                }
-            }
-
-            //
-            // parse host
-            //
-
-            // look for port
-            index = hostAndPort.lastIndexOf(":");
-            if (index > 0) {
-                if (index + 1 >= hostAndPort.length()) {
-                    throw new JdbcSQLException("Invalid port specified");
-                }
-                String host = hostAndPort.substring(0, index);
-                String port = hostAndPort.substring(index + 1);
-
-                destination = new HostAndPort(host, Integer.parseInt(port));
-            } else {
-                destination = new HostAndPort(hostAndPort);
-            }
-
-            //
-            // parse params
-            //
-            
-            if (params != null) {
+    private static Properties parseProperties(URI uri, String u) throws JdbcSQLException {
+        Properties props = new Properties();
+        try {
+            if (uri.getRawQuery() != null) {
                 // parse properties
-                List<String> prms = StringUtils.tokenize(params, "&");
+                List<String> prms = StringUtils.tokenize(uri.getRawQuery(), "&");
                 for (String param : prms) {
                     List<String> args = StringUtils.tokenize(param, "=");
                     if (args.size() != 2) {
@@ -196,18 +135,15 @@ public class JdbcConfiguration extends ConnectionConfiguration {
             // Add the url to unexpected exceptions
             throw new IllegalArgumentException("Failed to parse acceptable jdbc url [" + u + "]", e);
         }
-        
-        return new Object[] { urlFile, destination, props };
+        return props;
     }
 
     // constructor is private to force the use of a factory in order to catch and convert any validation exception
     // and also do input processing as oppose to handling this from the constructor (which is tricky or impossible)
-    private JdbcConfiguration(String u, String urlFile, HostAndPort hostAndPort, Properties props) throws JdbcSQLException {
-        super(props);
+    private JdbcConfiguration(URI baseURI, String u, Properties props) throws JdbcSQLException {
+        super(baseURI, u, props);
 
         this.originalUrl = u;
-        this.urlFile = urlFile;
-        this.hostAndPort = hostAndPort;
 
         this.debug = parseValue(DEBUG, props.getProperty(DEBUG, DEBUG_DEFAULT), Boolean::parseBoolean);
         this.debugOut = props.getProperty(DEBUG_OUTPUT, DEBUG_OUTPUT_DEFAULT);
@@ -218,18 +154,6 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     @Override
     protected Collection<? extends String> extraOptions() {
         return OPTION_NAMES;
-    }
-
-    public URL asUrl() throws JdbcSQLException {
-        try {
-            return new URL(isSSLEnabled() ? "https" : "http", hostAndPort.ip, port(), urlFile);
-        } catch (MalformedURLException ex) {
-            throw new JdbcSQLException(ex, "Cannot connect to server [" + originalUrl + "]");
-        }
-    }
-
-    private int port() {
-        return hostAndPort.port > 0 ? hostAndPort.port : 9200;
     }
 
     public boolean debug() {

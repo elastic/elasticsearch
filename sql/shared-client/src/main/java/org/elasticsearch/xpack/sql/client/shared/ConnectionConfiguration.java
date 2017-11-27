@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.client.shared;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,25 +28,6 @@ import static java.util.Collections.emptyList;
  * to move away from the loose Strings...
  */
 public class ConnectionConfiguration {
-
-    public static class HostAndPort {
-        public final String ip;
-        public final int port;
-
-        public HostAndPort(String ip) {
-            this(ip, 0);
-        }
-
-        public HostAndPort(String ip, int port) {
-            this.ip = ip;
-            this.port = port;
-        }
-
-        @Override
-        public String toString() {
-            return (port > 0 ? ip + ":" + port : ip);
-        }
-    }
 
     // Timeouts
 
@@ -81,6 +64,9 @@ public class ConnectionConfiguration {
         OPTION_NAMES.addAll(ProxyConfig.OPTION_NAMES);
     }
 
+    // Base URI for all request
+    private final URI baseURI;
+    private final String connectionString;
     // Proxy
 
     private long connectTimeout;
@@ -95,7 +81,8 @@ public class ConnectionConfiguration {
     private final SslConfig sslConfig;
     private final ProxyConfig proxyConfig;
 
-    public ConnectionConfiguration(Properties props) throws ClientException {
+    public ConnectionConfiguration(URI baseURI, String connectionString, Properties props) throws ClientException {
+        this.connectionString = connectionString;
         Properties settings = props != null ? props : new Properties();
 
         checkPropertyNames(settings, optionNames());
@@ -113,6 +100,28 @@ public class ConnectionConfiguration {
 
         sslConfig = new SslConfig(settings);
         proxyConfig = new ProxyConfig(settings);
+
+        this.baseURI = normalizeSchema(baseURI, connectionString, sslConfig.isEnabled());
+    }
+
+    private static URI normalizeSchema(URI uri, String connectionString, boolean isSSLEnabled)  {
+        // Make sure the protocol is correct
+        final String scheme;
+        if (isSSLEnabled) {
+            // It's ok to upgrade from http to https
+            scheme = "https";
+        } else {
+            // Silently downgrading from https to http can cause security issues
+            if ("https".equals(uri.getScheme())) {
+                throw new ClientException("SSL is disabled");
+            }
+            scheme = "http";
+        }
+        try {
+            return new URI(scheme, null, uri.getHost(), uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment());
+        } catch (URISyntaxException ex) {
+            throw new ClientException("Cannot parse process baseURI [" + connectionString + "] " + ex.getMessage());
+        }
     }
 
     private Collection<String> optionNames() {
@@ -203,4 +212,16 @@ public class ConnectionConfiguration {
     public String authPass() {
         return pass;
     }
+
+    public URI baseUri() {
+        return baseURI;
+    }
+
+    /**
+     * Returns the original connections string
+     */
+    public String connectionString() {
+        return connectionString;
+    }
+
 }

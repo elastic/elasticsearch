@@ -15,6 +15,7 @@ import org.junit.ClassRule;
 import org.junit.rules.ExternalResource;
 
 import java.io.DataInput;
+import java.net.URI;
 import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -72,7 +73,7 @@ public class SSLTests extends ESTestCase {
         prop.setProperty("ssl.truststore.pass", "password");
         //prop.setProperty("ssl.accept.self.signed.certs", "true");
 
-        cfg = new ConnectionConfiguration(prop);
+        cfg = new ConnectionConfiguration(URI.create(sslServer.toString()), sslServer.toString(), prop);
     }
 
     @After
@@ -101,14 +102,14 @@ public class SSLTests extends ESTestCase {
 
     public void testSslHead() throws Exception {
         assertTrue(AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
-            return JreHttpUrlConnection.http(sslServer, cfg, JreHttpUrlConnection::head);
+            return JreHttpUrlConnection.http("", null, cfg, JreHttpUrlConnection::head);
         }));
     }
 
     public void testSslPost() throws Exception {
         String message = UUID.randomUUID().toString();
         String received = AccessController.doPrivileged((PrivilegedAction<ResponseOrException<String>>) () ->
-            JreHttpUrlConnection.http(sslServer, cfg, c ->
+            JreHttpUrlConnection.http("", null, cfg, c ->
                 c.post(
                     out -> out.writeUTF(message),
                     DataInput::readUTF

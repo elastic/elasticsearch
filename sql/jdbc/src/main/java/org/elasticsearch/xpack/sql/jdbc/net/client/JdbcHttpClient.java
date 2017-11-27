@@ -56,7 +56,7 @@ public class JdbcHttpClient {
     public Cursor query(String sql, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
         QueryInitRequest request = new QueryInitRequest(sql, fetch, conCfg.timeZone(), timeout(meta));
-        QueryInitResponse response = (QueryInitResponse) http.put(request);
+        QueryInitResponse response = (QueryInitResponse) http.post(request);
         return new DefaultCursor(this, response.cursor(), (Page) response.data, meta);
     }
 
@@ -66,7 +66,7 @@ public class JdbcHttpClient {
      */
     public byte[] nextPage(byte[] cursor, Page page, RequestMeta meta) throws SQLException {
         QueryPageRequest request = new QueryPageRequest(cursor, timeout(meta), page);
-        return ((QueryPageResponse) http.put(request)).cursor();
+        return ((QueryPageResponse) http.post(request)).cursor();
     }
 
     public InfoResponse serverInfo() throws SQLException {
@@ -78,17 +78,17 @@ public class JdbcHttpClient {
 
     private InfoResponse fetchServerInfo() throws SQLException {
         InfoRequest request = new InfoRequest();
-        return (InfoResponse) http.put(request);
+        return (InfoResponse) http.post(request);
     }
 
     public List<String> metaInfoTables(String pattern) throws SQLException {
         MetaTableRequest request = new MetaTableRequest(pattern);
-        return ((MetaTableResponse) http.put(request)).tables;
+        return ((MetaTableResponse) http.post(request)).tables;
     }
 
     public List<MetaColumnInfo> metaInfoColumns(String tablePattern, String columnPattern) throws SQLException {
         MetaColumnRequest request = new MetaColumnRequest(tablePattern, columnPattern);
-        return ((MetaColumnResponse) http.put(request)).columns;
+        return ((MetaColumnResponse) http.post(request)).columns;
     }
 
     public void setNetworkTimeout(long millis) {

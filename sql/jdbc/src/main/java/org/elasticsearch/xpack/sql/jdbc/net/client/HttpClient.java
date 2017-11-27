@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
 import org.elasticsearch.xpack.sql.protocol.shared.Response;
 
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
@@ -26,19 +24,9 @@ import java.sql.SQLException;
 class HttpClient {
 
     private final JdbcConfiguration cfg;
-    private final URL url;
 
     HttpClient(JdbcConfiguration connectionInfo) throws SQLException {
         this.cfg = connectionInfo;
-        URL baseUrl = connectionInfo.asUrl();
-        try {
-            // the baseUrl ends up / so the suffix can be directly appended
-            // TODO Do something with the error trace. Useful for filing bugs and debugging.
-            // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3079
-            this.url = new URL(baseUrl, "_sql/jdbc?error_trace=true");
-        } catch (MalformedURLException ex) {
-            throw new JdbcException(ex, "Cannot connect to JDBC endpoint [" + baseUrl.toString() + "_sql/jdbc]");
-        }
     }
 
     void setNetworkTimeout(long millis) {
@@ -51,21 +39,17 @@ class HttpClient {
 
     boolean head() throws JdbcSQLException {
         try {
-            URL root = new URL(url, "/");
-            return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
-                return JreHttpUrlConnection.http(root, cfg, JreHttpUrlConnection::head);
-            });
-        } catch (MalformedURLException ex) {
-            throw new JdbcSQLException(ex, "Cannot ping server");
+            return AccessController.doPrivileged((PrivilegedAction<Boolean>) () ->
+                    JreHttpUrlConnection.http("", "error_trace", cfg, JreHttpUrlConnection::head));
         } catch (ClientException ex) {
-            throw new JdbcSQLException(ex, "Transport failure");
+            throw new JdbcSQLException(ex, "Cannot ping server");
         }
     }
 
-    Response put(Request request) throws SQLException {
+    Response post(Request request) throws SQLException {
         try {
             return AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Response>>) () ->
-                JreHttpUrlConnection.http(url, cfg, con ->
+                JreHttpUrlConnection.http("_sql/jdbc", "error_trace", cfg, con ->
                     con.post(
                         out -> Proto.INSTANCE.writeRequest(request, out),
                         in -> Proto.INSTANCE.readResponse(request, in)

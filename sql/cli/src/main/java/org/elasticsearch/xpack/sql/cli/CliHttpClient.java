@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
+import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection.ResponseOrException;
 import org.elasticsearch.xpack.sql.protocol.shared.Request;
@@ -24,26 +25,26 @@ import java.time.Instant;
 import java.util.TimeZone;
 
 public class CliHttpClient {
-    private final CliConfiguration cfg;
+    private final ConnectionConfiguration cfg;
 
-    public CliHttpClient(CliConfiguration cfg) {
+    public CliHttpClient(ConnectionConfiguration cfg) {
         this.cfg = cfg;
     }
 
     public InfoResponse serverInfo() throws SQLException {
         InfoRequest request = new InfoRequest();
-        return (InfoResponse) sendRequest(request);
+        return (InfoResponse) post(request);
     }
 
     public QueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         QueryInitRequest request = new QueryInitRequest(query, fetchSize, TimeZone.getTimeZone("UTC"), timeout());
-        return (QueryResponse) sendRequest(request);
+        return (QueryResponse) post(request);
     }
 
     public QueryResponse nextPage(byte[] cursor) throws SQLException {
         QueryPageRequest request = new QueryPageRequest(cursor, timeout());
-        return (QueryResponse) sendRequest(request);
+        return (QueryResponse) post(request);
     }
 
     private TimeoutInfo timeout() {
@@ -51,9 +52,9 @@ public class CliHttpClient {
         return new TimeoutInfo(clientTime, cfg.queryTimeout(), cfg.pageTimeout());
     }
 
-    private Response sendRequest(Request request) throws SQLException {
+    private Response post(Request request) throws SQLException {
         return AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Response>>) () ->
-            JreHttpUrlConnection.http(cfg.asUrl(), cfg, con ->
+            JreHttpUrlConnection.http("_sql/cli", "error_trace", cfg, con ->
                 con.post(
                     out -> Proto.INSTANCE.writeRequest(request, out),
                     in -> Proto.INSTANCE.readResponse(request, in)

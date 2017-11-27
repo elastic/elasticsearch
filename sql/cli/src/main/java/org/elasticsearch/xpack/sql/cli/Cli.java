@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.xpack.sql.cli.net.protocol.QueryResponse;
+import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.shared.SuppressForbidden;
 import org.elasticsearch.xpack.sql.client.shared.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.client.shared.StringUtils;
@@ -26,7 +27,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.Locale;
@@ -35,6 +35,8 @@ import java.util.logging.LogManager;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.xpack.sql.client.shared.UriUtils.parseURI;
+import static org.elasticsearch.xpack.sql.client.shared.UriUtils.removeQuery;
 import static org.jline.utils.AttributedStyle.BOLD;
 import static org.jline.utils.AttributedStyle.BRIGHT;
 import static org.jline.utils.AttributedStyle.DEFAULT;
@@ -42,43 +44,39 @@ import static org.jline.utils.AttributedStyle.RED;
 import static org.jline.utils.AttributedStyle.YELLOW;
 
 public class Cli {
+    public static String DEFAULT_CONNECTION_STRING = "http://localhost:9200/";
+    public static URI DEFAULT_URI = URI.create(DEFAULT_CONNECTION_STRING);
+
     public static void main(String... args) throws Exception {
         /* Initialize the logger from the a properties file we bundle. This makes sure
          * we get useful error messages from jLine. */
         LogManager.getLogManager().readConfiguration(Cli.class.getResourceAsStream("/logging.properties"));
-        String hostAndPort = "localhost:9200";
+        final URI uri;
+        final String connectionString;
         Properties properties = new Properties();
         String user = null;
         String password = null;
         if (args.length > 0) {
-            hostAndPort = args[0];
-            if (false == hostAndPort.contains("://")) {
-                // Default to http
-                hostAndPort = "http://" + hostAndPort;
-            }
-            URI parsed;
+            connectionString = args[0];
             try {
-                parsed = new URI(hostAndPort);
-            } catch (URISyntaxException e) {
-                exit("Invalid connection configuration [" + hostAndPort + "]: " + e.getMessage(), 1);
+                uri = removeQuery(parseURI(connectionString, DEFAULT_URI), connectionString, DEFAULT_URI);
+            } catch (IllegalArgumentException ex) {
+                exit(ex.getMessage(), 1);
                 return;
             }
-            if (false == "".equals(parsed.getPath())) {
-                exit("Invalid connection configuration [" + hostAndPort + "]: Path not allowed", 1);
-                return;
-            }
-            user = parsed.getUserInfo();
+            user = uri.getUserInfo();
             if (user != null) {
-                // TODO just use a URI the whole time
-                // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/2882
-                hostAndPort = parsed.getScheme() + "://" + parsed.getHost() + ":" + parsed.getPort();
                 int colonIndex = user.indexOf(':');
                 if (colonIndex >= 0) {
                     password = user.substring(colonIndex + 1);
                     user = user.substring(0, colonIndex);
                 }
             }
+        } else {
+            uri = DEFAULT_URI;
+            connectionString = DEFAULT_CONNECTION_STRING;
         }
+
         try (Terminal term = TerminalBuilder.builder().build()) {
             try {
                 if (user != null) {
@@ -89,12 +87,12 @@ public class Cli {
                         password = new BufferedReader(term.reader()).readLine();
                         term.echo(true);
                     }
-                    properties.setProperty(CliConfiguration.AUTH_USER, user);
-                    properties.setProperty(CliConfiguration.AUTH_PASS, password);
+                    properties.setProperty(ConnectionConfiguration.AUTH_USER, user);
+                    properties.setProperty(ConnectionConfiguration.AUTH_PASS, password);
                 }
 
                 boolean debug = StringUtils.parseBoolean(System.getProperty("cli.debug", "false"));
-                Cli console = new Cli(debug, new CliConfiguration(hostAndPort + "/_sql/cli?error_trace", properties), term);
+                Cli console = new Cli(debug, new ConnectionConfiguration(uri, connectionString, properties), term);
                 console.run();
             } catch (FatalException e) {
                 term.writer().println(e.getMessage());
@@ -108,7 +106,7 @@ public class Cli {
     private int fetchSize = AbstractQueryInitRequest.DEFAULT_FETCH_SIZE;
     private String fetchSeparator = "";
 
-    Cli(boolean debug, CliConfiguration cfg, Terminal terminal) {
+    Cli(boolean debug, ConnectionConfiguration cfg, Terminal terminal) {
         this.debug = debug;
         term = terminal;
         cliClient = new CliHttpClient(cfg);

@@ -47,7 +47,7 @@ public class JdbcConnection implements Connection, JdbcWrapper {
         cfg = connectionInfo;
         client = new JdbcHttpClient(connectionInfo);
 
-        url = connectionInfo.asUrl().toExternalForm();
+        url = connectionInfo.connectionString();
         userName = connectionInfo.authUser();
     }
 

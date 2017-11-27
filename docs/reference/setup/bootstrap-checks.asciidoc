@@ -228,6 +228,7 @@ enabled.  The versions impacted are those earlier than the version of
 HotSpot that shipped with JDK 8u40. The G1GC check detects these early
 versions of the HotSpot JVM.
 
+[[all-permission-check]]
 === All permission check
 
 The all permission check ensures that the security policy used during bootstrap

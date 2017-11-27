@@ -1,0 +1,14 @@
+[[breaking-changes-6.2]]
+== Breaking changes in 6.2
+
+[[breaking_62_packaging]]
+[float]
+=== All permission bootstrap check
+
+Elasticsearch installs a security manager during bootstrap to mitigate the scope
+of exploits in the JDK, in third-party dependencies, and in Elasticsearch itself
+as well as to sandbox untrusted plugins. A custom security policy can be applied
+and one permission that can be added to this policy is
+`java.security.AllPermission`. However, this effectively disables the security
+manager. As such, granting this permission in production mode is now forbidden
+via the <<all-permission-check, all permission bootstrap check>>.

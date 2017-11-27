@@ -33,6 +33,9 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.indexlifecycle.IndexLifecycle.NAME;
 
+/**
+ * A service which runs the {@link LifecyclePolicy}s associated with indexes.
+ */
 public class IndexLifecycleService extends AbstractComponent
         implements ClusterStateListener, SchedulerEngine.Listener, Closeable {
     private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleService.class);
@@ -59,7 +62,7 @@ public class IndexLifecycleService extends AbstractComponent
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster()) {
             MetaData metaData = event.state().metaData();
-            installMlMetadata(metaData);
+            installMetadata(metaData);
         }
     }
 
@@ -80,7 +83,7 @@ public class IndexLifecycleService extends AbstractComponent
         }
     }
 
-    private void installMlMetadata(MetaData metaData) {
+    private void installMetadata(MetaData metaData) {
         IndexLifecycleMetadata indexLifecycleMetadata = metaData.custom(IndexLifecycleMetadata.TYPE);
         if (indexLifecycleMetadata == null) {
             threadPool.executor(ThreadPool.Names.GENERIC)

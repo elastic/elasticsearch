@@ -77,7 +77,6 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("damerau_levenshtein"), instanceOf(LuceneLevenshteinDistance.class));
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("levenshtein"), instanceOf(LevensteinDistance.class));
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("jaro_winkler"), instanceOf(JaroWinklerDistance.class));
-        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("jaroWinkler"), instanceOf(JaroWinklerDistance.class));
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("ngram"), instanceOf(NGramDistance.class));
 
         expectThrows(IllegalArgumentException.class, () -> DirectCandidateGeneratorBuilder.resolveDistance("doesnt_exist"));
@@ -87,6 +86,11 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
     public void testLevensteinDeprecation() {
         assertThat(DirectCandidateGeneratorBuilder.resolveDistance("levenstein"), instanceOf(LevensteinDistance.class));
         assertWarnings("Deprecated distance [levenstein] used, replaced by [levenshtein]");
+    }
+
+    public void testJaroWinklerDeprecation() {
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("jaroWinkler"), instanceOf(JaroWinklerDistance.class));
+        assertWarnings("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
     }
 
     private static DirectCandidateGeneratorBuilder mutate(DirectCandidateGeneratorBuilder original) throws IOException {
@@ -214,7 +218,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         maybeSet(generator::size, randomIntBetween(1, 20));
         maybeSet(generator::sort, randomFrom("score", "frequency"));
         maybeSet(generator::stringDistance,
-                randomFrom("internal", "damerau_levenshtein", "levenshtein", "jaro_winkler", "jarowinkler", "ngram"));
+                randomFrom("internal", "damerau_levenshtein", "levenshtein", "jaro_winkler", "ngram"));
         maybeSet(generator::suggestMode, randomFrom("missing", "popular", "always"));
         return generator;
     }

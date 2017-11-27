@@ -595,8 +595,10 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                     return LEVENSHTEIN;
                 case "ngram":
                     return NGRAM;
-                case "jaro_winkler":
                 case "jarowinkler":
+                    DEPRECATION_LOGGER.deprecated("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
+                    return JARO_WINKLER;
+                case "jaro_winkler":
                     return JARO_WINKLER;
                 default: throw new IllegalArgumentException("Illegal distance option " + str);
             }

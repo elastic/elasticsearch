@@ -24,8 +24,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -94,7 +92,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected void asyncShardOperation(ExplainRequest request, ShardId shardId, ActionListener<ExplainResponse> listener) throws IOException {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        indexShard.awaitPendingRefresh(b -> {
+        indexShard.awaitShardSearchActive(b -> {
             try {
                 super.asyncShardOperation(request, shardId, listener);
             } catch (Exception ex) {

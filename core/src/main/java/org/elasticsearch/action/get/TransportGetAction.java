@@ -23,12 +23,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -88,7 +85,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
             listener.onResponse(shardOperation(request, shardId));
         } else {
-            indexShard.awaitPendingRefresh(b -> {
+            indexShard.awaitShardSearchActive(b -> {
                 try {
                     super.asyncShardOperation(request, shardId, listener);
                 } catch (Exception ex) {

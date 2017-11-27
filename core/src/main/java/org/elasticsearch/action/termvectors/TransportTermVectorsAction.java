@@ -92,7 +92,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
             listener.onResponse(shardOperation(request, shardId));
         } else {
-            indexShard.awaitPendingRefresh(b -> {
+            indexShard.awaitShardSearchActive(b -> {
                 try {
                     super.asyncShardOperation(request, shardId, listener);
                 } catch (Exception ex) {

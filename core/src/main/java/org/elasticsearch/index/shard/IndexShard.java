@@ -872,6 +872,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long numDeletedDocs = 0;
         long sizeInBytes = 0;
         try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
+            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accesssed only which will cause
+            // the next scheduled refresh to go through and refresh the stats as well
+            markSearcherAccessed();
             for (LeafReaderContext reader : searcher.reader().leaves()) {
                 // we go on the segment level here to get accurate numbers
                 final SegmentReader segmentReader = Lucene.segmentReader(reader.reader());
@@ -968,6 +971,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
         try (Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
+            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accesssed only which will cause
+            // the next scheduled refresh to go through and refresh the stats as well
+            markSearcherAccessed();
             completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
         }
         return completionStats;
@@ -1143,7 +1149,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
-        markSearcherAccessed();
         final Engine engine = getEngine();
         final Engine.Searcher searcher = engine.acquireSearcher(source, scope);
         boolean success = false;
@@ -2492,12 +2497,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Registers the given listener and invokes it once the pending refresh translog location has been refreshed. If there is no pending
-     * refresh location registered the listener will be invoked immediately.
+     * Registers the given listener and invokes it once the shard is active again and all
+     * pending refresh translog location has been refreshed. If there is no pending refresh location registered the listener will be
+     * invoked immediately.
      * @param listener the listener to invoke once the pending refresh location is visible. The listener will be called with
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
-    public void awaitPendingRefresh(Consumer<Boolean> listener) {
+    public final void awaitShardSearchActive(Consumer<Boolean> listener) {
         if (isSearchIdle()) {
             markSearcherAccessed(); // move the shard into non-search idle
         }

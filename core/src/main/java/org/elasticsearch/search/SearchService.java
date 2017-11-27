@@ -53,7 +53,6 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -998,7 +997,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // now we need to check if there is a pending refresh and register
                 ActionListener<Rewriteable> finalListener = actionListener;
                 actionListener = ActionListener.wrap(r ->
-                        shardOrNull.awaitPendingRefresh(b -> finalListener.onResponse(r)), finalListener::onFailure);
+                        shardOrNull.awaitShardSearchActive(b -> finalListener.onResponse(r)), finalListener::onFailure);
         }
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not

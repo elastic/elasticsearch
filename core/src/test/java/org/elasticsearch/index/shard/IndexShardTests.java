@@ -2654,7 +2654,7 @@ public class IndexShardTests extends IndexShardTestCase {
         awaitBusy(() -> primary.getThreadPool().relativeTimeInMillis() > lastSearchAccess);
         CountDownLatch latch = new CountDownLatch(10);
         for (int i = 0; i < 10; i++) {
-            primary.awaitPendingRefresh(refreshed -> {
+            primary.awaitShardSearchActive(refreshed -> {
                 assertTrue(refreshed);
                 try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
                     assertEquals(2, searcher.reader().numDocs());
@@ -2663,7 +2663,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             });
         }
-        assertNotEquals("awaitPendingRefresh must access a searcher to remove search idle state", lastSearchAccess,
+        assertNotEquals("awaitShardSearchActive must access a searcher to remove search idle state", lastSearchAccess,
             primary.getLastSearcherAccess());
         assertTrue(lastSearchAccess < primary.getLastSearcherAccess());
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
@@ -2673,7 +2673,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(primary.scheduledRefresh());
         latch.await();
         CountDownLatch latch1 = new CountDownLatch(1);
-        primary.awaitPendingRefresh(refreshed -> {
+        primary.awaitShardSearchActive(refreshed -> {
             assertFalse(refreshed);
             try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
                 assertEquals(2, searcher.reader().numDocs());

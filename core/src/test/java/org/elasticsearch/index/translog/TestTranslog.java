@@ -49,6 +49,11 @@ import static org.hamcrest.Matchers.not;
 public class TestTranslog {
     static final Pattern TRANSLOG_FILE_PATTERN = Pattern.compile("translog-(\\d+)\\.tlog");
 
+    /**
+     * Corrupts some translog files (translog-N.tlog) from the given translog directories.
+     *
+     * @return a collection of tlog files that have been corrupted.
+     */
     public static Set<Path> corruptTranslogFiles(Logger logger, Random random, Collection<Path> translogDirs) throws IOException {
         Set<Path> candidates = new TreeSet<>(); // TreeSet makes sure iteration order is deterministic
 
@@ -60,6 +65,7 @@ public class TestTranslog {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir)) {
                     for (Path item : stream) {
                         if (Files.isRegularFile(item)) {
+                            // Makes sure that we will corrupt tlog files that are referenced by the Checkpoint.
                             final Matcher matcher = TRANSLOG_FILE_PATTERN.matcher(item.getFileName().toString());
                             if (matcher.matches() && Long.parseLong(matcher.group(1)) >= minTranslogGeneration) {
                                 candidates.add(item);

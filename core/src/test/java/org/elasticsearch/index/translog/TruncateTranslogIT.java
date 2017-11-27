@@ -268,7 +268,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
 
         // Corrupt the translog file(s)
         logger.info("--> corrupting translog");
-        corruptTranslogFiles(translogDirs);
+        TestTranslog.corruptTranslogFiles(logger, random(), translogDirs);
 
         // Restart the single node
         logger.info("--> starting node");
@@ -349,10 +349,6 @@ public class TruncateTranslogIT extends ESIntegTestCase {
 
     private void corruptRandomTranslogFiles(String indexName) throws IOException {
         Set<Path> translogDirs = getTranslogDirs(indexName);
-        corruptTranslogFiles(translogDirs);
-    }
-
-    private void corruptTranslogFiles(Set<Path> translogDirs) throws IOException {
         TestTranslog.corruptTranslogFiles(logger, random(), translogDirs);
     }
 

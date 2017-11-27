@@ -114,7 +114,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         assertTrue(shardRouting.assignedToNode());
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
-        Set<Path> translogDirs = new HashSet<>(); // treeset makes sure iteration order is deterministic
+        Set<Path> translogDirs = new HashSet<>();
         for (FsInfo.Path fsPath : nodeStatses.getNodes().get(0).getFs()) {
             String path = fsPath.getPath();
             String relativeDataLocationPath = "indices/" + test.getUUID() + "/" + Integer.toString(shardRouting.getId()) + "/translog";

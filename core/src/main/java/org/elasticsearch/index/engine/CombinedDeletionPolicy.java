@@ -95,7 +95,7 @@ class CombinedDeletionPolicy extends IndexDeletionPolicy {
         private final IndexCommit commit;
         private boolean markedAsDeleted;
 
-        public TrackedIndexCommit(IndexCommit commit) {
+        TrackedIndexCommit(IndexCommit commit) {
             this.commit = commit;
         }
 

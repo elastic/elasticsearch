@@ -332,7 +332,7 @@ public class MetaDataTests extends ESTestCase {
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(
                 new String[]{"index1", "index2" , "index3"},
                 new String[]{"doc"}, (index, field) -> (index.equals("index3") && field.endsWith("keyword") == false) ||
-                        (index.equals("index1") && (field.startsWith("properties.key.")
+                        (index.equals("index1") && (field.startsWith("name.") || field.startsWith("properties.key.")
                         || field.equals("age") || field.equals("address.location"))));
 
         assertEquals(3, mappings.size());
@@ -359,8 +359,7 @@ public class MetaDataTests extends ESTestCase {
             assertEquals(1, name.size());
             Map<String, Object> nameProperties = (Map<String, Object>) name.get("properties");
             assertNotNull(nameProperties);
-            assertEquals(2, nameProperties.size());
-            assertLeafs(nameProperties, "first", "last");
+            assertEquals(0, nameProperties.size());
 
             Map<String, Object> address = (Map<String, Object>) typeProperties.get("address");
             assertNotNull(address);
@@ -468,15 +467,8 @@ public class MetaDataTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             Map<String, Object> fieldProp = (Map<String, Object>)properties.get(field);
             assertNotNull(fieldProp);
-
-            Map<String, Object> subProperties = (Map<String, Object>)fieldProp.get("properties");
-            if (subProperties != null && subProperties.size() > 0) {
-                fail("leaf fields holds properties: " + subProperties);
-            }
-            Map<String, Object> subFields = (Map<String, Object>)fieldProp.get("fields");
-            if (subFields != null && subFields.size() > 0) {
-                fail("leaf fields holds subfields: " + subFields);
-            }
+            assertFalse(fieldProp.containsKey("properties"));
+            assertFalse(fieldProp.containsKey("fields"));
         }
     }
 

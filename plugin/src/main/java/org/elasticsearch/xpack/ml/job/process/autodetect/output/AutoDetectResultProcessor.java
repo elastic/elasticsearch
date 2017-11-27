@@ -324,7 +324,7 @@ public class AutoDetectResultProcessor {
                     .setEstablishedModelMemory(establishedModelMemory).build();
             UpdateJobAction.Request updateRequest = new UpdateJobAction.Request(jobId, update);
 
-            client.execute(UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
+            executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
                 @Override
                 public void onResponse(PutJobAction.Response response) {
                     latestEstablishedModelMemory = establishedModelMemory;

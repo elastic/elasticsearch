@@ -205,7 +205,6 @@ import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_INDEX_FORMAT;
-import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_SECURITY_INDEX;
 
 public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin {
 
@@ -308,13 +307,12 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         return modules;
     }
 
-    public Collection<Object> createComponents(Client nodeClient, ThreadPool threadPool, ClusterService clusterService,
+    public Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                                ResourceWatcherService resourceWatcherService,
                                                List<XPackExtension> extensions) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
-        final InternalSecurityClient client = new InternalSecurityClient(settings, threadPool, nodeClient);
         threadContext.set(threadPool.getThreadContext());
         List<Object> components = new ArrayList<>();
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));

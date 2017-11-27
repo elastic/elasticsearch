@@ -13,11 +13,11 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.watcher.WatcherClientHelper;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
@@ -31,7 +31,6 @@ import org.joda.time.DateTime;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -92,7 +91,6 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         indexRequest.id(docId);
 
         data = addTimestampToDocument(data, ctx.executionTime());
-        IndexResponse response;
         BytesReference bytesReference;
         try (XContentBuilder builder = jsonBuilder()) {
             indexRequest.source(builder.prettyPrint().map(data));
@@ -103,7 +101,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                     XContentType.JSON));
         }
 
-        response = client.index(indexRequest).get(indexDefaultTimeout.millis(), TimeUnit.MILLISECONDS);
+        IndexResponse response = WatcherClientHelper.execute(ctx.watch(), client,
+                () -> client.index(indexRequest).actionGet(indexDefaultTimeout));
         try (XContentBuilder builder = jsonBuilder()) {
             indexResponseToXContent(builder, response);
             bytesReference = builder.bytes();
@@ -136,7 +135,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             }
             bulkRequest.add(indexRequest);
         }
-        BulkResponse bulkResponse = client.bulk(bulkRequest).get(bulkDefaultTimeout.millis(), TimeUnit.MILLISECONDS);
+        BulkResponse bulkResponse = WatcherClientHelper.execute(ctx.watch(), client,
+                () -> client.bulk(bulkRequest).actionGet(bulkDefaultTimeout));
         try (XContentBuilder jsonBuilder = jsonBuilder().startArray()) {
             for (BulkItemResponse item : bulkResponse) {
                 itemResponseToXContent(jsonBuilder, item);
@@ -174,7 +174,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         return data instanceof HashMap ? data : new HashMap<>(data);
     }
 
-    static void itemResponseToXContent(XContentBuilder builder, BulkItemResponse item) throws IOException {
+    private static void itemResponseToXContent(XContentBuilder builder, BulkItemResponse item) throws IOException {
         if (item.isFailed()) {
             builder.startObject()
                     .field("failed", item.isFailed())

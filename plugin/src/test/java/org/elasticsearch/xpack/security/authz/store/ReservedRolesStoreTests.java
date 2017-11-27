@@ -151,7 +151,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(false));
     }
 
-    public void testKibanaRole() {
+    public void testKibanaSystemRole() {
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_system");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
@@ -160,7 +160,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(ClusterHealthAction.NAME), is(true));
         assertThat(kibanaRole.cluster().check(ClusterStateAction.NAME), is(true));
         assertThat(kibanaRole.cluster().check(ClusterStatsAction.NAME), is(true));
-        assertThat(kibanaRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
+        assertThat(kibanaRole.cluster().check(PutIndexTemplateAction.NAME), is(true));
+        assertThat(kibanaRole.cluster().check(GetIndexTemplatesAction.NAME), is(true));
         assertThat(kibanaRole.cluster().check(ClusterRerouteAction.NAME), is(false));
         assertThat(kibanaRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
         assertThat(kibanaRole.cluster().check(MonitoringBulkAction.NAME), is(true));

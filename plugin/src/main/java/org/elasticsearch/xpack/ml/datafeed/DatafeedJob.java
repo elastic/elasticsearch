@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
@@ -30,6 +31,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 
 class DatafeedJob {
 
@@ -263,8 +267,10 @@ class DatafeedJob {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         Streams.copy(inputStream, outputStream);
         request.setContent(new BytesArray(outputStream.toByteArray()), xContentType);
-        PostDataAction.Response response = client.execute(PostDataAction.INSTANCE, request).actionGet();
-        return response.getDataCounts();
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            PostDataAction.Response response = client.execute(PostDataAction.INSTANCE, request).actionGet();
+            return response.getDataCounts();
+        }
     }
 
     private boolean isConflictException(Exception e) {
@@ -284,7 +290,9 @@ class DatafeedJob {
     private FlushJobAction.Response flushJob(FlushJobAction.Request flushRequest) {
         try {
             LOGGER.trace("[" + jobId + "] Sending flush request");
-            return client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
+            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+                return client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
+            }
         } catch (Exception e) {
             LOGGER.debug("[" + jobId + "] error while flushing job", e);
 

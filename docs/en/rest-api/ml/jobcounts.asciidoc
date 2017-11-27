@@ -31,7 +31,7 @@ progress of a job.
 `state`::
   (string) The status of the job, which can be one of the following values:
 
-  `open`::: The job is available to receive and process data.
+  `opened`::: The job is available to receive and process data.
   `closed`::: The job finished successfully with its model state persisted.
   The job must be opened before it can accept further data.
   `closing`::: The job close action is in progress and has not yet completed.
@@ -40,6 +40,7 @@ progress of a job.
   This situation can occur due to invalid input data.
   If the job had irrevocably failed, it must be force closed and then deleted.
   If the {dfeed} can be corrected, the job can be closed and then re-opened.
+  `opening`::: The job open action is in progress and has not yet completed.
 
 [float]
 [[ml-datacounts]]

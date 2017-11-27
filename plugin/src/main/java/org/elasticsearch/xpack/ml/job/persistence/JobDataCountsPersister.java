@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -19,6 +21,8 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Update a job's dataCounts
@@ -47,9 +51,11 @@ public class JobDataCountsPersister extends AbstractComponent {
      */
     public void persistDataCounts(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
         try (XContentBuilder content = serialiseCounts(counts)) {
-            client.prepareIndex(AnomalyDetectorsIndex.resultsWriteAlias(jobId), ElasticsearchMappings.DOC_TYPE,
+            final IndexRequest request = client.prepareIndex(AnomalyDetectorsIndex.resultsWriteAlias(jobId), ElasticsearchMappings.DOC_TYPE,
                     DataCounts.documentId(jobId))
-            .setSource(content).execute(new ActionListener<IndexResponse>() {
+                    .setSource(content)
+                    .request();
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {
                     listener.onResponse(true);

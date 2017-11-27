@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -38,6 +40,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 public class JobStorageDeletionTask extends Task {
     private final Logger logger;
@@ -88,7 +93,7 @@ public class JobStorageDeletionTask extends Task {
                     request.setAbortOnVersionConflict(false);
                     request.setRefresh(true);
 
-                    client.execute(DeleteByQueryAction.INSTANCE, request, dbqHandler);
+                    executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, dbqHandler);
                 },
                 failureHandler);
 
@@ -119,7 +124,7 @@ public class JobStorageDeletionTask extends Task {
         request.setAbortOnVersionConflict(false);
         request.setRefresh(true);
 
-        client.execute(DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(
                 response -> finishedHandler.onResponse(true),
                 e -> {
                     // It's not a problem for us if the index wasn't found - it's equivalent to document not found
@@ -155,7 +160,7 @@ public class JobStorageDeletionTask extends Task {
         request.setAbortOnVersionConflict(false);
         request.setRefresh(true);
 
-        client.execute(DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(
                 response -> {
                     // If we successfully deleted a document try the next one; if not we're done
                     if (response.getDeleted() > 0) {
@@ -183,27 +188,30 @@ public class JobStorageDeletionTask extends Task {
         // first find the concrete indices associated with the aliases
         GetAliasesRequest aliasesRequest = new GetAliasesRequest().aliases(readAliasName, writeAliasName)
                 .indicesOptions(IndicesOptions.lenientExpandOpen());
-        client.admin().indices().getAliases(aliasesRequest, ActionListener.wrap(
-                getAliasesResponse -> {
-                    Set<String> aliases = new HashSet<>();
-                    getAliasesResponse.getAliases().valuesIt().forEachRemaining(
-                            metaDataList -> metaDataList.forEach(metadata -> aliases.add(metadata.getAlias())));
-                    if (aliases.isEmpty()) {
-                        // don't error if the job's aliases have already been deleted - carry on and delete the rest of the job's data
-                        finishedHandler.onResponse(true);
-                        return;
-                    }
-                    List<String> indices = new ArrayList<>();
-                    getAliasesResponse.getAliases().keysIt().forEachRemaining(indices::add);
-                    // remove the aliases from the concrete indices found in the first step
-                    IndicesAliasesRequest removeRequest = new IndicesAliasesRequest().addAliasAction(
-                            IndicesAliasesRequest.AliasActions.remove()
-                                    .aliases(aliases.toArray(new String[aliases.size()]))
-                                    .indices(indices.toArray(new String[indices.size()])));
-                    client.admin().indices().aliases(removeRequest, ActionListener.wrap(
-                            removeResponse -> finishedHandler.onResponse(true),
-                            finishedHandler::onFailure));
-                },
-                finishedHandler::onFailure));
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, aliasesRequest,
+                ActionListener.<GetAliasesResponse>wrap(
+                        getAliasesResponse -> {
+                            Set<String> aliases = new HashSet<>();
+                            getAliasesResponse.getAliases().valuesIt().forEachRemaining(
+                                    metaDataList -> metaDataList.forEach(metadata -> aliases.add(metadata.getAlias())));
+                            if (aliases.isEmpty()) {
+                                // don't error if the job's aliases have already been deleted - carry on and delete the
+                                // rest of the job's data
+                                finishedHandler.onResponse(true);
+                                return;
+                            }
+                            List<String> indices = new ArrayList<>();
+                            getAliasesResponse.getAliases().keysIt().forEachRemaining(indices::add);
+                            // remove the aliases from the concrete indices found in the first step
+                            IndicesAliasesRequest removeRequest = new IndicesAliasesRequest().addAliasAction(
+                                    IndicesAliasesRequest.AliasActions.remove()
+                                            .aliases(aliases.toArray(new String[aliases.size()]))
+                                            .indices(indices.toArray(new String[indices.size()])));
+                            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, removeRequest,
+                                    ActionListener.<IndicesAliasesResponse>wrap(removeResponse -> finishedHandler.onResponse(true),
+                                            finishedHandler::onFailure),
+                                    client.admin().indices()::aliases);
+                        },
+                        finishedHandler::onFailure), client.admin().indices()::getAliases);
     }
 }

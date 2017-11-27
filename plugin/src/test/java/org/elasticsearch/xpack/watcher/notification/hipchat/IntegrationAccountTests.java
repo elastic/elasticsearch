@@ -24,6 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class IntegrationAccountTests extends ESTestCase {
+
     public void testSettings() throws Exception {
         String accountName = "_name";
 
@@ -113,11 +114,12 @@ public class IntegrationAccountTests extends ESTestCase {
 
     public void testSend() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
+        String room = "Room with Spaces";
         IntegrationAccount account = new IntegrationAccount("_name", Settings.builder()
                 .put("host", "_host")
                 .put("port", "443")
                 .put("auth_token", "_token")
-                .put("room", "_room")
+                .put("room", room)
                 .build(), HipChatServer.DEFAULT, httpClient, mock(Logger.class));
 
         HipChatMessage.Format format = randomFrom(HipChatMessage.Format.values());
@@ -128,7 +130,8 @@ public class IntegrationAccountTests extends ESTestCase {
         HttpRequest req = HttpRequest.builder("_host", 443)
                 .method(HttpMethod.POST)
                 .scheme(Scheme.HTTPS)
-                .path("/v2/room/_room/notification")
+                // url encoded already
+                .path("/v2/room/Room+with+Spaces/notification")
                 .setHeader("Content-Type", "application/json")
                 .setHeader("Authorization", "Bearer _token")
                 .body(Strings.toString((builder, params) -> {

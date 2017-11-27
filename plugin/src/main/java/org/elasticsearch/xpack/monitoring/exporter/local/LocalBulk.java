@@ -9,7 +9,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,11 +20,13 @@ import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Arrays;
 import java.util.Collection;
+
+import static org.elasticsearch.xpack.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * LocalBulk exports monitoring data in the local cluster using bulk requests. Its usage is not thread safe since the
@@ -32,14 +36,14 @@ import java.util.Collection;
 public class LocalBulk extends ExportBulk {
 
     private final Logger logger;
-    private final InternalClient client;
+    private final Client client;
     private final DateTimeFormatter formatter;
     private final boolean usePipeline;
 
     private BulkRequestBuilder requestBuilder;
 
 
-    LocalBulk(String name, Logger logger, InternalClient client, DateTimeFormatter dateTimeFormatter, boolean usePipeline) {
+    LocalBulk(String name, Logger logger, Client client, DateTimeFormatter dateTimeFormatter, boolean usePipeline) {
         super(name, client.threadPool().getThreadContext());
         this.logger = logger;
         this.client = client;
@@ -101,13 +105,15 @@ public class LocalBulk extends ExportBulk {
         } else {
             try {
                 logger.trace("exporter [{}] - exporting {} documents", name, requestBuilder.numberOfActions());
-                requestBuilder.execute(ActionListener.wrap(bulkResponse -> {
-                    if (bulkResponse.hasFailures()) {
-                        throwExportException(bulkResponse.getItems(), listener);
-                    } else {
-                        listener.onResponse(null);
-                    }
-                }, e -> listener.onFailure(new ExportException("failed to flush export bulk [{}]", e, name))));
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, requestBuilder.request(),
+                        ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                            if (bulkResponse.hasFailures()) {
+                                throwExportException(bulkResponse.getItems(), listener);
+                            } else {
+                                listener.onResponse(null);
+                            }
+                        }, e -> listener.onFailure(new ExportException("failed to flush export bulk [{}]", e, name))),
+                        client::bulk);
             } finally {
                 requestBuilder = null;
             }

@@ -10,15 +10,22 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -32,6 +39,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,7 +50,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -56,6 +64,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.watcher.watch.Watch.INDEX;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -74,10 +83,9 @@ public class WatcherServiceTests extends ESTestCase {
         ExecutionService executionService = mock(ExecutionService.class);
         when(executionService.validate(anyObject())).thenReturn(true);
         Watch.Parser parser = mock(Watch.Parser.class);
-        InternalClient client = mock(InternalClient.class);
 
         WatcherService service = new WatcherService(Settings.EMPTY, triggerService, triggeredWatchStore,
-                executionService, parser, client);
+                executionService, parser, mock(Client.class));
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDataBuilder = MetaData.builder();
@@ -102,9 +110,10 @@ public class WatcherServiceTests extends ESTestCase {
         Watch.Parser parser = mock(Watch.Parser.class);
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        InternalClient internalClient = new InternalClient(settings, threadPool, client);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         WatcherService service = new WatcherService(settings, triggerService, triggeredWatchStore,
-                executionService, parser, internalClient);
+                executionService, parser, client);
 
 
         // cluster state setup, with one node, one shard
@@ -136,11 +145,21 @@ public class WatcherServiceTests extends ESTestCase {
         RefreshResponse refreshResponse = mock(RefreshResponse.class);
         when(refreshResponse.getSuccessfulShards())
                 .thenReturn(clusterState.getMetaData().getIndices().get(Watch.INDEX).getNumberOfShards());
+        AdminClient adminClient = mock(AdminClient.class);
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        when(client.admin()).thenReturn(adminClient);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+        PlainActionFuture<RefreshResponse> refreshFuture = new PlainActionFuture<>();
+        when(indicesAdminClient.refresh(any(RefreshRequest.class))).thenReturn(refreshFuture);
+        refreshFuture.onResponse(refreshResponse);
 
         // empty scroll response, no further scrolling needed
         SearchResponseSections scrollSearchSections = new SearchResponseSections(SearchHits.empty(), null, null, false, false, null, 1);
         SearchResponse scrollSearchResponse = new SearchResponse(scrollSearchSections, "scrollId", 1, 1, 0, 10,
                 ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        PlainActionFuture<SearchResponse> searchScrollResponseFuture = new PlainActionFuture<>();
+        when(client.searchScroll(any(SearchScrollRequest.class))).thenReturn(searchScrollResponseFuture);
+        searchScrollResponseFuture.onResponse(scrollSearchResponse);
 
         // one search response containing active and inactive watches
         int count = randomIntBetween(2, 200);
@@ -168,27 +187,13 @@ public class WatcherServiceTests extends ESTestCase {
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
         SearchResponse searchResponse = new SearchResponse(sections, "scrollId", 1, 1, 0, 10, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
+        PlainActionFuture<SearchResponse> searchResponseFuture = new PlainActionFuture<>();
+        when(client.search(any(SearchRequest.class))).thenReturn(searchResponseFuture);
+        searchResponseFuture.onResponse(searchResponse);
 
-        // we do need to to use this kind of mocking because of the internal client, which calls doExecute at the end on the supplied
-        // client instance
-        doAnswer(invocation -> {
-            Action action = (Action) invocation.getArguments()[0];
-            ActionListener listener = (ActionListener) invocation.getArguments()[2];
-
-            if (RefreshAction.NAME.equals(action.name())) {
-                listener.onResponse(refreshResponse);
-            } else if (ClearScrollAction.NAME.equals(action.name())) {
-                listener.onResponse(new ClearScrollResponse(true, 1));
-            } else if (SearchAction.NAME.equals(action.name())) {
-                listener.onResponse(searchResponse);
-            } else if (SearchScrollAction.NAME.equals(action.name())) {
-                listener.onResponse(scrollSearchResponse);
-            } else {
-                listener.onFailure(new ElasticsearchException("Unknown action call " + action.name()));
-            }
-
-            return null;
-        }).when(client).execute(any(), any(), any());
+        PlainActionFuture<ClearScrollResponse> clearScrollFuture = new PlainActionFuture<>();
+        when(client.clearScroll(any(ClearScrollRequest.class))).thenReturn(clearScrollFuture);
+        clearScrollFuture.onResponse(new ClearScrollResponse(true, 1));
 
         service.start(clusterState);
 

@@ -71,7 +71,9 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     }
 
     @Override
-    public void apply(Task task, String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
+                                                                                       ActionListener<Response> listener,
+                                                                                       ActionFilterChain<Request, Response> chain) {
 
         /*
          A functional requirement - when the license of security is disabled (invalid/expires), security will continue
@@ -85,11 +87,11 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         }
 
         if (licenseState.isAuthAllowed()) {
-            final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
-            final ActionListener<ActionResponse> contextPreservingListener =
+            final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
             ActionListener<Void> authenticatedListener = ActionListener.wrap(
                     (aVoid) -> chain.proceed(task, action, request, contextPreservingListener), contextPreservingListener::onFailure);
+            final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
             try {
                 if (useSystemUser) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
@@ -99,6 +101,14 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                             listener.onFailure(e);
                         }
                     }, Version.CURRENT);
+                } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
+                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, (original) -> {
+                        try {
+                            applyInternal(action, request, authenticatedListener);
+                        } catch (IOException e) {
+                            listener.onFailure(e);
+                        }
+                    });
                 } else {
                     try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
                         applyInternal(action, request, authenticatedListener);
@@ -119,7 +129,8 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         return Integer.MIN_VALUE;
     }
 
-    private void applyInternal(String action, final ActionRequest request, ActionListener<Void> listener) throws IOException {
+    private <Request extends ActionRequest> void applyInternal(String action, Request request,
+                                                               ActionListener<Void> listener) throws IOException {
         if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
@@ -145,7 +156,8 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                 ActionListener.wrap((authc) -> authorizeRequest(authc, securityAction, request, listener), listener::onFailure));
     }
 
-    void authorizeRequest(Authentication authentication, String securityAction, ActionRequest request, ActionListener listener) {
+    private <Request extends ActionRequest> void authorizeRequest(Authentication authentication, String securityAction, Request request,
+                                                          ActionListener<Void> listener) {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
         } else {

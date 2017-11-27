@@ -5,18 +5,26 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -27,7 +35,9 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsStats;
@@ -84,6 +94,8 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -99,6 +111,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
+import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
@@ -138,7 +151,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksNodeService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.template.TemplateUtils;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -147,7 +160,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.XPackPlugin.MACHINE_LEARNING;
@@ -174,6 +189,8 @@ public class MachineLearning implements ActionPlugin {
             Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 90, Property.Dynamic, Property.NodeScope);
 
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
+
+    private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
     private final Settings settings;
     private final Environment env;
@@ -310,19 +327,19 @@ public class MachineLearning implements ActionPlugin {
         );
     }
 
-    public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, ThreadPool threadPool,
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                NamedXContentRegistry xContentRegistry, PersistentTasksService persistentTasksService) {
         if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
             return emptyList();
         }
 
-        Auditor auditor = new Auditor(internalClient, clusterService);
-        JobProvider jobProvider = new JobProvider(internalClient, settings);
-        UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, internalClient, clusterService, threadPool);
-        JobManager jobManager = new JobManager(settings, jobProvider, clusterService, auditor, internalClient, notifier);
+        Auditor auditor = new Auditor(client, clusterService);
+        JobProvider jobProvider = new JobProvider(client, settings);
+        UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, client, clusterService, threadPool);
+        JobManager jobManager = new JobManager(settings, jobProvider, clusterService, auditor, client, notifier);
 
-        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, internalClient);
-        JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, internalClient);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
 
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
@@ -333,7 +350,7 @@ public class MachineLearning implements ActionPlugin {
                     // This will only only happen when path.home is not set, which is disallowed in production
                     throw new ElasticsearchException("Failed to create native process controller for Machine Learning");
                 }
-                autodetectProcessFactory = new NativeAutodetectProcessFactory(env, settings, nativeController, internalClient);
+                autodetectProcessFactory = new NativeAutodetectProcessFactory(env, settings, nativeController, client);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(env, settings, nativeController);
             } catch (IOException e) {
                 // This also should not happen in production, as the MachineLearningFeatureSet should have
@@ -349,12 +366,12 @@ public class MachineLearning implements ActionPlugin {
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
-        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, internalClient, threadPool,
+        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, client, threadPool,
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, xContentRegistry, auditor);
         this.autodetectProcessManager.set(autodetectProcessManager);
-        DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(internalClient, jobProvider, auditor, System::currentTimeMillis);
-        DatafeedManager datafeedManager = new DatafeedManager(threadPool, internalClient, clusterService, datafeedJobBuilder,
+        DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, jobProvider, auditor, System::currentTimeMillis);
+        DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor, persistentTasksService);
         this.datafeedManager.set(datafeedManager);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(env, clusterService, datafeedManager, autodetectProcessManager);
@@ -366,8 +383,7 @@ public class MachineLearning implements ActionPlugin {
                 jobProvider,
                 jobManager,
                 autodetectProcessManager,
-                new MachineLearningTemplateRegistry(settings, clusterService, internalClient, threadPool),
-                new MlInitializationService(settings, threadPool, clusterService, internalClient),
+                new MlInitializationService(settings, threadPool, clusterService, client),
                 jobDataCountsPersister,
                 datafeedManager,
                 auditor,
@@ -514,6 +530,100 @@ public class MachineLearning implements ActionPlugin {
         FixedExecutorBuilder datafeed = new FixedExecutorBuilder(settings, DATAFEED_THREAD_POOL_NAME,
                 maxNumberOfJobs, 200, "xpack.ml.datafeed_thread_pool");
         return Arrays.asList(autoDetect, renormalizer, datafeed);
+    }
+
+    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+        return templates -> {
+            final TimeValue delayedNodeTimeOutSetting;
+            // Whether we are using native process is a good way to detect whether we are in dev / test mode:
+            if (MachineLearning.AUTODETECT_PROCESS.get(settings)) {
+                delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
+            } else {
+                delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);
+            }
+
+            try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
+                IndexTemplateMetaData notificationMessageTemplate = IndexTemplateMetaData.builder(Auditor.NOTIFICATIONS_INDEX)
+                        .putMapping(AuditMessage.TYPE.getPreferredName(), auditMapping.string())
+                        .patterns(Collections.singletonList(Auditor.NOTIFICATIONS_INDEX))
+                        .version(Version.CURRENT.id)
+                        .settings(Settings.builder()
+                                // Our indexes are small and one shard puts the
+                                // least possible burden on Elasticsearch
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                        .build();
+                templates.put(Auditor.NOTIFICATIONS_INDEX, notificationMessageTemplate);
+            } catch (IOException e) {
+                logger.warn("Error loading the template for the notification message index", e);
+            }
+
+            try (XContentBuilder docMapping = MlMetaIndex.docMapping()) {
+                IndexTemplateMetaData metaTemplate = IndexTemplateMetaData.builder(MlMetaIndex.INDEX_NAME)
+                        .patterns(Collections.singletonList(MlMetaIndex.INDEX_NAME))
+                        .settings(Settings.builder()
+                                // Our indexes are small and one shard puts the
+                                // least possible burden on Elasticsearch
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
+                        .version(Version.CURRENT.id)
+                        .putMapping(MlMetaIndex.TYPE, docMapping.string())
+                        .build();
+                templates.put(MlMetaIndex.INDEX_NAME, metaTemplate);
+            } catch (IOException e) {
+                logger.warn("Error loading the template for the " + MlMetaIndex.INDEX_NAME + " index", e);
+            }
+
+            try (XContentBuilder stateMapping = ElasticsearchMappings.stateMapping()) {
+                IndexTemplateMetaData stateTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobStateIndexName())
+                        .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexName()))
+                        // TODO review these settings
+                        .settings(Settings.builder()
+                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
+                                // Sacrifice durability for performance: in the event of power
+                                // failure we can lose the last 5 seconds of changes, but it's
+                                // much faster
+                                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async"))
+                        .putMapping(ElasticsearchMappings.DOC_TYPE, stateMapping.string())
+                        .version(Version.CURRENT.id)
+                        .build();
+                templates.put(AnomalyDetectorsIndex.jobStateIndexName(), stateTemplate);
+            } catch (IOException e) {
+                logger.error("Error loading the template for the " + AnomalyDetectorsIndex.jobStateIndexName() + " index", e);
+            }
+
+            try (XContentBuilder docMapping = ElasticsearchMappings.docMapping()) {
+                IndexTemplateMetaData jobResultsTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
+                        .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
+                        .settings(Settings.builder()
+                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
+                                // Sacrifice durability for performance: in the event of power
+                                // failure we can lose the last 5 seconds of changes, but it's
+                                // much faster
+                                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async")
+                                // set the default all search field
+                                .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES))
+                        .putMapping(ElasticsearchMappings.DOC_TYPE, docMapping.string())
+                        .version(Version.CURRENT.id)
+                        .build();
+                templates.put(AnomalyDetectorsIndex.jobResultsIndexPrefix(), jobResultsTemplate);
+            } catch (IOException e) {
+                logger.error("Error loading the template for the " + AnomalyDetectorsIndex.jobResultsIndexPrefix() + " indices", e);
+            }
+
+            return templates;
+        };
+    }
+
+    public static boolean allTemplatesInstalled(ClusterState clusterState) {
+        boolean allPresent = true;
+        List<String> templateNames = Arrays.asList(Auditor.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
+                AnomalyDetectorsIndex.jobStateIndexName(), AnomalyDetectorsIndex.jobResultsIndexPrefix());
+        for (String templateName : templateNames) {
+            allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
+        }
+
+        return allPresent;
     }
 
     /**

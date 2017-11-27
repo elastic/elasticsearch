@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
-import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
 import org.elasticsearch.xpack.test.rest.XPackRestTestCase;
 import org.junit.Before;
@@ -33,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 public class UpgradeClusterClientYamlTestSuiteIT extends SecurityClusterClientYamlTestCase {
 
     /**
-     * Waits for the Machine Learning templates to be created by {@link MachineLearningTemplateRegistry}
+     * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetaDataUpgrader}
      */
     @Before
     public void waitForTemplates() throws Exception {

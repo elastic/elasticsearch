@@ -75,7 +75,7 @@ public class SearchTransformTests extends ESTestCase {
         ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
 
         Client client = mock(Client.class);
-        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, client, xContentRegistry(), scriptService);
+        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, client,  xContentRegistry(), scriptService);
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());

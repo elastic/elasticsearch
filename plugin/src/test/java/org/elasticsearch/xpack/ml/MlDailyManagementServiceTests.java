@@ -22,6 +22,7 @@ import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MlDailyManagementServiceTests extends ESTestCase {
 
@@ -32,6 +33,7 @@ public class MlDailyManagementServiceTests extends ESTestCase {
     public void setUpTests() {
         threadPool = new TestThreadPool("MlDailyManagementServiceTests");
         client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
     }
 
     @After

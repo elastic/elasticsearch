@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenResponse;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.After;
 import org.junit.Before;
@@ -29,6 +30,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -56,7 +58,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     public void testTokenServiceBootstrapOnNodeJoin() throws Exception {
-        final Client client = internalSecurityClient();
+        final Client client = client();
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse response = securityClient.prepareCreateToken()
                 .setGrantType("password")
@@ -84,7 +86,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
 
     public void testTokenServiceCanRotateKeys() throws Exception {
-        final Client client = internalSecurityClient();
+        final Client client = client();
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse response = securityClient.prepareCreateToken()
                 .setGrantType("password")
@@ -116,7 +118,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
-        final Client client = internalSecurityClient();
+        final Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                        SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse response = securityClient.prepareCreateToken()
                 .setGrantType("password")

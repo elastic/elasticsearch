@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateServi
 import java.io.IOException;
 
 public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Result, ExecutableSearchInput> {
+
     private final Client client;
     private final TimeValue defaultTimeout;
     private final WatcherSearchTemplateService searchTemplateService;

@@ -12,8 +12,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -61,6 +63,9 @@ public class StateProcessorTests extends ESTestCase {
         ActionFuture<BulkResponse> bulkResponseFuture = mock(ActionFuture.class);
         stateProcessor = spy(new StateProcessor(Settings.EMPTY, client));
         when(client.bulk(any(BulkRequest.class))).thenReturn(bulkResponseFuture);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
     }
 
     @After
@@ -80,6 +85,7 @@ public class StateProcessorTests extends ESTestCase {
         assertEquals(threeStates[1], capturedBytes.get(1).utf8ToString());
         assertEquals(threeStates[2], capturedBytes.get(2).utf8ToString());
         verify(client, times(3)).bulk(any(BulkRequest.class));
+        verify(client, times(3)).threadPool();
     }
 
     public void testStateReadGivenConsecutiveZeroBytes() throws IOException {
@@ -122,5 +128,6 @@ public class StateProcessorTests extends ESTestCase {
         stateProcessor.process("_id", stream);
         verify(stateProcessor, times(NUM_LARGE_DOCS)).persist(eq("_id"), any());
         verify(client, times(NUM_LARGE_DOCS)).bulk(any(BulkRequest.class));
+        verify(client, times(NUM_LARGE_DOCS)).threadPool();
     }
 }

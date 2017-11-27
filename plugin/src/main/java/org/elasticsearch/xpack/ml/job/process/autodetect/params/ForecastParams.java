@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -16,16 +17,30 @@ import java.util.Objects;
 
 public class ForecastParams {
 
+    private final String forecastId;
+    private final long createTime;
     private final long endTime;
     private final long duration;
     private final long expiresIn;
-    private final long forecastId;
 
-    private ForecastParams(long forecastId, long endTime, long duration, long expiresIn) {
+    private ForecastParams(String forecastId, long createTime, long endTime, long duration, long expiresIn) {
         this.forecastId = forecastId;
+        this.createTime = createTime;
         this.endTime = endTime;
         this.duration = duration;
         this.expiresIn = expiresIn;
+    }
+
+    public String getForecastId() {
+        return forecastId;
+    }
+
+    /**
+     * The forecast create time in seconds from the epoch
+     * @return The create time in seconds from the epoch
+     */
+    public long getCreateTime() {
+        return createTime;
     }
 
     /**
@@ -52,18 +67,9 @@ public class ForecastParams {
         return expiresIn;
     }
 
-    /**
-     * The forecast id
-     * 
-     * @return The forecast Id
-     */
-    public long getForecastId() {
-        return forecastId;
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(forecastId, endTime, duration, expiresIn);
+        return Objects.hash(forecastId, createTime, endTime, duration, expiresIn);
     }
 
     @Override
@@ -75,8 +81,11 @@ public class ForecastParams {
             return false;
         }
         ForecastParams other = (ForecastParams) obj;
-        return Objects.equals(forecastId, other.forecastId) && Objects.equals(endTime, other.endTime) &&
-               Objects.equals(duration, other.duration) && Objects.equals(expiresIn, other.expiresIn);
+        return Objects.equals(forecastId, other.forecastId)
+                && Objects.equals(createTime, other.createTime)
+                && Objects.equals(endTime, other.endTime)
+                && Objects.equals(duration, other.duration)
+                && Objects.equals(expiresIn, other.expiresIn);
     }
 
     public static Builder builder() {
@@ -84,24 +93,20 @@ public class ForecastParams {
     }
 
     public static class Builder {
+        private final String forecastId;
+        private final long createTimeEpochSecs;
         private long endTimeEpochSecs;
         private long durationSecs;
         private long expiresInSecs;
-        private long startTime;
-        private long forecastId;
 
         private Builder() {
-            startTime = System.currentTimeMillis();
+            forecastId = UUIDs.base64UUID();
+            createTimeEpochSecs = System.currentTimeMillis() / 1000;
             endTimeEpochSecs = 0;
-            forecastId = generateId();
             durationSecs = 0;
 
             // because 0 means never expire, the default is -1
             expiresInSecs = -1;
-        }
-
-        private long generateId() {
-            return startTime;
         }
 
         public Builder endTime(String endTime, ParseField paramName) {
@@ -132,7 +137,7 @@ public class ForecastParams {
                 throw new ElasticsearchParseException(Messages.getMessage(Messages.REST_INVALID_DURATION_AND_ENDTIME));
             }
 
-            return new ForecastParams(forecastId, endTimeEpochSecs, durationSecs, expiresInSecs);
+            return new ForecastParams(forecastId, createTimeEpochSecs, endTimeEpochSecs, durationSecs, expiresInSecs);
         }
     }
 }

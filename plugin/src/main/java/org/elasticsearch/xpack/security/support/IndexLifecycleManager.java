@@ -5,16 +5,6 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiConsumer;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -26,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
@@ -37,11 +28,22 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.elasticsearch.xpack.upgrade.IndexUpgradeCheck;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
 /**
@@ -57,20 +59,14 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     private final String indexName;
     private final String templateName;
-    private final InternalSecurityClient client;
+    private final Client client;
 
     private final List<BiConsumer<ClusterIndexHealth, ClusterIndexHealth>> indexHealthChangeListeners = new CopyOnWriteArrayList<>();
     private final List<BiConsumer<Boolean, Boolean>> indexOutOfDateListeners = new CopyOnWriteArrayList<>();
 
-    private volatile boolean templateIsUpToDate;
-    private volatile boolean indexExists;
-    private volatile boolean isIndexUpToDate;
-    private volatile boolean indexAvailable;
-    private volatile boolean canWriteToIndex;
-    private volatile boolean mappingIsUpToDate;
-    private volatile Version mappingVersion;
+    private volatile State indexState = new State(false, false, false, false, null);
 
-    public IndexLifecycleManager(Settings settings, InternalSecurityClient client, String indexName, String templateName) {
+    public IndexLifecycleManager(Settings settings, Client client, String indexName, String templateName) {
         super(settings);
         this.client = client;
         this.indexName = indexName;
@@ -78,23 +74,29 @@ public class IndexLifecycleManager extends AbstractComponent {
     }
 
     public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
-        return this.mappingVersion == null || requiredVersion.test(this.mappingVersion);
+        // pull value into local variable for consistent view
+        final State currentIndexState = this.indexState;
+        return currentIndexState.mappingVersion == null || requiredVersion.test(currentIndexState.mappingVersion);
     }
 
     public boolean indexExists() {
-        return indexExists;
+        return this.indexState.indexExists;
     }
 
+    /**
+     * Returns whether the index is on the current format if it exists. If the index does not exist
+     * we treat the index as up to date as we expect it to be created with the current format.
+     */
     public boolean isIndexUpToDate() {
-        return isIndexUpToDate;
+        return this.indexState.isIndexUpToDate;
     }
 
     public boolean isAvailable() {
-        return indexAvailable;
+        return this.indexState.indexAvailable;
     }
 
     public boolean isWritable() {
-        return canWriteToIndex;
+        return this.indexState.canWriteToIndex;
     }
 
     /**
@@ -116,26 +118,27 @@ public class IndexLifecycleManager extends AbstractComponent {
     }
 
     public void clusterChanged(ClusterChangedEvent event) {
-        final boolean previousUpToDate = this.isIndexUpToDate;
+        final boolean previousUpToDate = this.indexState.isIndexUpToDate;
         processClusterState(event.state());
         checkIndexHealthChange(event);
-        if (previousUpToDate != this.isIndexUpToDate) {
-            notifyIndexOutOfDateListeners(previousUpToDate, this.isIndexUpToDate);
+        if (previousUpToDate != this.indexState.isIndexUpToDate) {
+            notifyIndexOutOfDateListeners(previousUpToDate, this.indexState.isIndexUpToDate);
         }
     }
 
-    private void processClusterState(ClusterState state) {
-        assert state != null;
-        final IndexMetaData securityIndex = resolveConcreteIndex(indexName, state.metaData());
-        this.indexExists = securityIndex != null;
-        this.isIndexUpToDate = (securityIndex != null
-                                  && INDEX_FORMAT_SETTING.get(securityIndex.getSettings()).intValue() == INTERNAL_INDEX_FORMAT);
-        this.indexAvailable = checkIndexAvailable(state);
-        this.templateIsUpToDate = TemplateUtils.checkTemplateExistsAndIsUpToDate(templateName,
-            SECURITY_VERSION_STRING, state, logger);
-        this.mappingIsUpToDate = checkIndexMappingUpToDate(state);
-        this.canWriteToIndex = templateIsUpToDate && (mappingIsUpToDate || isIndexUpToDate);
-        this.mappingVersion = oldestIndexMappingVersion(state);
+    private void processClusterState(ClusterState clusterState) {
+        assert clusterState != null;
+        final IndexMetaData securityIndex = resolveConcreteIndex(indexName, clusterState.metaData());
+        final boolean indexExists = securityIndex != null;
+        final boolean isIndexUpToDate = indexExists == false ||
+                INDEX_FORMAT_SETTING.get(securityIndex.getSettings()).intValue() == INTERNAL_INDEX_FORMAT;
+        final boolean indexAvailable = checkIndexAvailable(clusterState);
+        final boolean templateIsUpToDate = TemplateUtils.checkTemplateExistsAndIsUpToDate(templateName,
+            SECURITY_VERSION_STRING, clusterState, logger);
+        final boolean mappingIsUpToDate = checkIndexMappingUpToDate(clusterState);
+        final boolean canWriteToIndex = templateIsUpToDate && (mappingIsUpToDate || isIndexUpToDate);
+        final Version mappingVersion = oldestIndexMappingVersion(clusterState);
+        this.indexState = new State(indexExists, isIndexUpToDate, indexAvailable, canWriteToIndex, mappingVersion);
     }
 
     private void checkIndexHealthChange(ClusterChangedEvent event) {
@@ -285,33 +288,54 @@ public class IndexLifecycleManager extends AbstractComponent {
      * action on the security index.
      */
     public <T> void createIndexIfNeededThenExecute(final ActionListener<T> listener, final Runnable andThen) {
-        if (indexExists) {
+        if (this.indexState.indexExists) {
             andThen.run();
         } else {
             CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX);
             request.alias(new Alias(SECURITY_INDEX_NAME));
-            client.admin().indices().create(request, new ActionListener<CreateIndexResponse>() {
-                @Override
-                public void onResponse(CreateIndexResponse createIndexResponse) {
-                    if (createIndexResponse.isAcknowledged()) {
-                        andThen.run();
-                    } else {
-                        listener.onFailure(new ElasticsearchException("Failed to create security index"));
-                    }
-                }
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                    new ActionListener<CreateIndexResponse>() {
+                        @Override
+                        public void onResponse(CreateIndexResponse createIndexResponse) {
+                            if (createIndexResponse.isAcknowledged()) {
+                                andThen.run();
+                            } else {
+                                listener.onFailure(new ElasticsearchException("Failed to create security index"));
+                            }
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof ResourceAlreadyExistsException) {
-                        // the index already exists - it was probably just created so this
-                        // node hasn't yet received the cluster state update with the index
-                        andThen.run();
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }
-            });
+                        @Override
+                        public void onFailure(Exception e) {
+                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                            if (cause instanceof ResourceAlreadyExistsException) {
+                                // the index already exists - it was probably just created so this
+                                // node hasn't yet received the cluster state update with the index
+                                andThen.run();
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    }, client.admin().indices()::create);
+        }
+    }
+
+    /**
+     * Holder class so we can update all values at once
+     */
+    private static class State {
+        private final boolean indexExists;
+        private final boolean isIndexUpToDate;
+        private final boolean indexAvailable;
+        private final boolean canWriteToIndex;
+        private final Version mappingVersion;
+
+        private State(boolean indexExists, boolean isIndexUpToDate, boolean indexAvailable,
+                      boolean canWriteToIndex, Version mappingVersion) {
+            this.indexExists = indexExists;
+            this.isIndexUpToDate = isIndexUpToDate;
+            this.indexAvailable = indexAvailable;
+            this.canWriteToIndex = canWriteToIndex;
+            this.mappingVersion = mappingVersion;
         }
     }
 }

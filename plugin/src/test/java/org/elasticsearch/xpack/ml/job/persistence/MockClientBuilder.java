@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -43,10 +44,12 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
@@ -89,6 +92,9 @@ public class MockClientBuilder {
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         Settings settings = Settings.builder().put("cluster.name", clusterName).build();
         when(client.settings()).thenReturn(settings);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
     }
 
     @SuppressWarnings({ "unchecked" })
@@ -302,11 +308,11 @@ public class MockClientBuilder {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
                 ActionListener<IndicesAliasesResponse> listener =
-                        (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[0];
+                        (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[1];
                 listener.onResponse(mock(IndicesAliasesResponse.class));
                 return null;
             }
-        }).when(aliasesRequestBuilder).execute(any());
+        }).when(indicesAdminClient).aliases(any(IndicesAliasesRequest.class), any(ActionListener.class));
         return this;
     }
 

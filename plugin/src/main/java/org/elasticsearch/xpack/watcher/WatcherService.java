@@ -26,11 +26,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
@@ -51,6 +51,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 import static org.elasticsearch.xpack.watcher.watch.Watch.INDEX;
 
@@ -69,7 +71,7 @@ public class WatcherService extends AbstractComponent {
     private final TimeValue defaultSearchTimeout;
 
     public WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
-                          ExecutionService executionService, Watch.Parser parser, InternalClient client) {
+                          ExecutionService executionService, Watch.Parser parser, Client client) {
         super(settings);
         this.triggerService = triggerService;
         this.triggeredWatchStore = triggeredWatchStore;
@@ -200,35 +202,36 @@ public class WatcherService extends AbstractComponent {
             return Collections.emptyList();
         }
 
-        RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(INDEX))
-                .actionGet(TimeValue.timeValueSeconds(5));
-        if (refreshResponse.getSuccessfulShards() < indexMetaData.getNumberOfShards()) {
-            throw illegalState("not all required shards have been refreshed");
-        }
-
-        // find out local shards
-        String watchIndexName = indexMetaData.getIndex().getName();
-        RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.nodes().getLocalNodeId());
-        // yes, this can happen, if the state is not recovered
-        if (routingNode == null) {
-            return Collections.emptyList();
-        }
-        List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED);
-
-        // find out all allocation ids
-        List<ShardRouting> watchIndexShardRoutings = clusterState.getRoutingTable().allShards(watchIndexName);
-
+        SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+            RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(INDEX))
+                    .actionGet(TimeValue.timeValueSeconds(5));
+            if (refreshResponse.getSuccessfulShards() < indexMetaData.getNumberOfShards()) {
+                throw illegalState("not all required shards have been refreshed");
+            }
 
-        SearchRequest searchRequest = new SearchRequest(INDEX)
-                .scroll(scrollTimeout)
-                .preference(Preference.ONLY_LOCAL.toString())
-                .source(new SearchSourceBuilder()
-                        .size(scrollSize)
-                        .sort(SortBuilders.fieldSort("_doc"))
-                        .version(true));
-        SearchResponse response = client.search(searchRequest).actionGet(defaultSearchTimeout);
-        try {
+            // find out local shards
+            String watchIndexName = indexMetaData.getIndex().getName();
+            RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.nodes().getLocalNodeId());
+            // yes, this can happen, if the state is not recovered
+            if (routingNode == null) {
+                return Collections.emptyList();
+            }
+            List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED);
+
+            // find out all allocation ids
+            List<ShardRouting> watchIndexShardRoutings = clusterState.getRoutingTable().allShards(watchIndexName);
+
+            SearchRequest searchRequest = new SearchRequest(INDEX)
+                    .scroll(scrollTimeout)
+                    .preference(Preference.ONLY_LOCAL.toString())
+                    .source(new SearchSourceBuilder()
+                            .size(scrollSize)
+                            .sort(SortBuilders.fieldSort("_doc"))
+                            .version(true));
+            response = client.search(searchRequest).actionGet(defaultSearchTimeout);
+
             if (response.getTotalShards() != response.getSuccessfulShards()) {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
@@ -283,9 +286,13 @@ public class WatcherService extends AbstractComponent {
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
-            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-            clearScrollRequest.addScrollId(response.getScrollId());
-            client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
+            if (response != null) {
+                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+                    ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+                    clearScrollRequest.addScrollId(response.getScrollId());
+                    client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
+                }
+            }
         }
 
         logger.debug("Loaded [{}] watches for execution", watches.size());

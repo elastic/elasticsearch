@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.input.search;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.watcher.WatcherClientHelper;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
@@ -40,8 +42,8 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
     private final WatcherSearchTemplateService searchTemplateService;
     private final TimeValue timeout;
 
-    public ExecutableSearchInput(SearchInput input, Logger logger, Client client,
-                                 WatcherSearchTemplateService searchTemplateService, TimeValue defaultTimeout) {
+    public ExecutableSearchInput(SearchInput input, Logger logger, Client client, WatcherSearchTemplateService searchTemplateService,
+                                 TimeValue defaultTimeout) {
         super(input, logger);
         this.client = client;
         this.searchTemplateService = searchTemplateService;
@@ -67,7 +69,9 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), request.getSearchSource().utf8ToString());
         }
 
-        SearchResponse response = client.search(searchTemplateService.toSearchRequest(request)).actionGet(timeout);
+        SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
+        final SearchResponse response = WatcherClientHelper.execute(ctx.watch(), client,
+                () -> client.search(searchRequest).actionGet(timeout));
 
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());

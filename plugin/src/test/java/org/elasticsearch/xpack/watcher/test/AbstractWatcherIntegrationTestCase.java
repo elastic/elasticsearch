@@ -51,25 +51,25 @@ import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.watcher.notification.email.Authentication;
-import org.elasticsearch.xpack.watcher.notification.email.Email;
-import org.elasticsearch.xpack.watcher.notification.email.EmailService;
-import org.elasticsearch.xpack.watcher.notification.email.Profile;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
+import org.elasticsearch.xpack.watcher.notification.email.Authentication;
+import org.elasticsearch.xpack.watcher.notification.email.Email;
+import org.elasticsearch.xpack.watcher.notification.email.EmailService;
+import org.elasticsearch.xpack.watcher.notification.email.Profile;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.clock.ClockMock;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -86,6 +86,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -184,10 +185,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @Override
     protected Set<String> excludeTemplates() {
         Set<String> excludes = new HashSet<>();
-        for (WatcherIndexTemplateRegistry.TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
-            excludes.add(templateConfig.getTemplateName());
-        }
-        return excludes;
+        excludes.addAll(Arrays.asList(WatcherIndexTemplateRegistry.TEMPLATE_NAMES));
+        return Collections.unmodifiableSet(excludes);
     }
 
     @Override
@@ -440,6 +439,22 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return randomBoolean() ? new XPackClient(client).watcher() : new WatcherClient(client);
     }
 
+    /**
+     * This watcher client needs to be used whenenver an index action is about to be called in a watch
+     * as otherwise there is no permission to index data with the default transport client user called admin
+     * This is important if the watch is executed, as the watch is run as the user who stored the watch
+     * when security is enabled
+     */
+    protected WatcherClient watcherClientWithWatcherUser() {
+        if (securityEnabled) {
+            return watcherClient()
+                    .filterWithHeader(Collections.singletonMap("Authorization",
+                            basicAuthHeaderValue("watcher_test", new SecureString(SecuritySettings.TEST_PASSWORD.toCharArray()))));
+        } else {
+            return watcherClient();
+        }
+    }
+
     protected IndexNameExpressionResolver indexNameExpressionResolver() {
         return internalCluster().getInstance(IndexNameExpressionResolver.class);
     }
@@ -681,13 +696,15 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 "transport_client:" + TEST_PASSWORD_HASHED + "\n" +
                 TEST_USERNAME + ":" + TEST_PASSWORD_HASHED + "\n" +
                 "admin:" + TEST_PASSWORD_HASHED + "\n" +
+                "watcher_test:" + TEST_PASSWORD_HASHED + "\n" +
                 "monitor:" + TEST_PASSWORD_HASHED;
 
         public static final String USER_ROLES =
                 "transport_client:transport_client\n" +
                 "test:test\n" +
                 "admin:admin\n" +
-                "monitor:monitor";
+                "monitor:monitor\n" +
+                "watcher_test:watcher_test,watcher_admin,watcher_user\n";
 
         public static final String ROLES =
                 "test:\n" + // a user for the test infra.
@@ -701,8 +718,15 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 "\n" +
                 "admin:\n" +
                 "  cluster: [ 'manage' ]\n" +
+                "\n" +
                 "monitor:\n" +
-                "  cluster: [ 'monitor' ]\n"
+                "  cluster: [ 'monitor' ]\n" +
+                "\n" +
+                "watcher_test:\n" +
+                "  cluster: [ 'manage_watcher', 'cluster:admin/xpack/watcher/watch/put' ]\n" +
+                "  indices:\n" +
+                "    - names: 'my_watcher_index'\n" +
+                "      privileges: [ all ]\n"
                 ;
 
 

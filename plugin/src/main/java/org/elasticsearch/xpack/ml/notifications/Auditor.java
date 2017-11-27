@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 public class Auditor {
 
@@ -51,17 +53,17 @@ public class Auditor {
         IndexRequest indexRequest = new IndexRequest(NOTIFICATIONS_INDEX, type);
         indexRequest.source(toXContentBuilder(toXContent));
         indexRequest.timeout(TimeValue.timeValueSeconds(5));
-        client.index(indexRequest, new ActionListener<IndexResponse>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    LOGGER.trace("Successfully persisted {}", type);
-                }
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, new ActionListener<IndexResponse>() {
+            @Override
+            public void onResponse(IndexResponse indexResponse) {
+                LOGGER.trace("Successfully persisted {}", type);
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    LOGGER.debug(new ParameterizedMessage("Error writing {}", new Object[]{type}, e));
-                }
-            });
+            @Override
+            public void onFailure(Exception e) {
+                LOGGER.debug(new ParameterizedMessage("Error writing {}", new Object[]{type}, e));
+            }
+        }, client::index);
     }
 
     private XContentBuilder toXContentBuilder(ToXContent toXContent) {

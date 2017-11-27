@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -19,7 +18,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -203,10 +201,7 @@ public class IndexActionTests extends ESIntegTestCase {
             builder.field(IndexAction.Field.TIMEOUT.getPreferredName(), writeTimeout.millis());
         }
         builder.endObject();
-        Client client = client();
-        InternalClient internalClient = new InternalClient(client.settings(), client.threadPool(), client);
-
-        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, internalClient);
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client());
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
@@ -234,10 +229,7 @@ public class IndexActionTests extends ESIntegTestCase {
             }
         }
         builder.endObject();
-        Client client = client();
-        InternalClient internalClient = new InternalClient(client.settings(), client.threadPool(), client);
-
-        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, internalClient);
+        IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client());
         XContentParser parser = createParser(builder);
         parser.nextToken();
         try {
@@ -257,8 +249,8 @@ public class IndexActionTests extends ESIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         IndexAction action = new IndexAction("test-index", "test-type", null, "@timestamp", null, null);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client(), TimeValue.timeValueSeconds(30),
-                TimeValue.timeValueSeconds(30));
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client(),
+                TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
         List<Map<String, Object>> docs = new ArrayList<>();
         boolean addSuccessfulIndexedDoc = randomBoolean();
@@ -280,8 +272,8 @@ public class IndexActionTests extends ESIntegTestCase {
 
     public void testUsingParameterIdWithBulkOrIdFieldThrowsIllegalState() {
         final IndexAction action = new IndexAction("test-index", "test-type", "123", null, null, null);
-        final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client(), TimeValue.timeValueSeconds(30),
-                TimeValue.timeValueSeconds(30));
+        final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client(),
+                TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
         final Map<String, Object> docWithId = MapBuilder.<String, Object>newMapBuilder().put("foo", "bar").put("_id", "0").immutableMap();
         final DateTime executionTime = DateTime.now(UTC);
 

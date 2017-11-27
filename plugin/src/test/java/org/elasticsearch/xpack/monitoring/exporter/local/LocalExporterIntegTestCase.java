@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -103,7 +102,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
         final CleanerService cleanerService =
                 new CleanerService(settings, clusterService().getClusterSettings(), THREADPOOL, licenseState);
 
-        return new LocalExporter(config, new InternalClient(settings, THREADPOOL, client()), cleanerService);
+        return new LocalExporter(config, client(), cleanerService);
     }
 
 }

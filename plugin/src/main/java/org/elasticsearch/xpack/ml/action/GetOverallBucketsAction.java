@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -66,6 +67,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * <p>
@@ -458,20 +462,22 @@ public class GetOverallBucketsAction
                     maxBucketSpanMillis, jobsContext.indices);
             searchRequest.source().aggregation(AggregationBuilders.min(EARLIEST_TIME).field(Result.TIMESTAMP.getPreferredName()));
             searchRequest.source().aggregation(AggregationBuilders.max(LATEST_TIME).field(Result.TIMESTAMP.getPreferredName()));
-            client.search(searchRequest, ActionListener.wrap(searchResponse -> {
-                long totalHits = searchResponse.getHits().getTotalHits();
-                if (totalHits > 0) {
-                    Aggregations aggregations = searchResponse.getAggregations();
-                    Min min = aggregations.get(EARLIEST_TIME);
-                    long earliestTime = Intervals.alignToFloor((long) min.getValue(), maxBucketSpanMillis);
-                    Max max = aggregations.get(LATEST_TIME);
-                    long latestTime = Intervals.alignToCeil((long) max.getValue() + 1, maxBucketSpanMillis);
-                    listener.onResponse(new ChunkedBucketSearcher(jobsContext, earliestTime, latestTime, request.isExcludeInterim(),
-                            overallBucketsProvider, overallBucketsProcessor));
-                } else {
-                    listener.onResponse(null);
-                }
-            }, listener::onFailure));
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                    ActionListener.<SearchResponse>wrap(searchResponse -> {
+                        long totalHits = searchResponse.getHits().getTotalHits();
+                        if (totalHits > 0) {
+                            Aggregations aggregations = searchResponse.getAggregations();
+                            Min min = aggregations.get(EARLIEST_TIME);
+                            long earliestTime = Intervals.alignToFloor((long) min.getValue(), maxBucketSpanMillis);
+                            Max max = aggregations.get(LATEST_TIME);
+                            long latestTime = Intervals.alignToCeil((long) max.getValue() + 1, maxBucketSpanMillis);
+                            listener.onResponse(new ChunkedBucketSearcher(jobsContext, earliestTime, latestTime, request.isExcludeInterim(),
+                                    overallBucketsProvider, overallBucketsProcessor));
+                        } else {
+                            listener.onResponse(null);
+                        }
+                    }, listener::onFailure),
+                    client::search);
         }
 
         private static class JobsContext {
@@ -540,16 +546,19 @@ public class GetOverallBucketsAction
                     listener.onResponse(overallBucketsProcessor.finish());
                     return;
                 }
-                client.search(nextSearch(), ActionListener.wrap(searchResponse -> {
-                    Histogram histogram = searchResponse.getAggregations().get(Result.TIMESTAMP.getPreferredName());
-                    overallBucketsProcessor.process(overallBucketsProvider.computeOverallBuckets(histogram));
-                    if (overallBucketsProcessor.size() > MAX_RESULT_COUNT) {
-                        listener.onFailure(ExceptionsHelper.badRequestException("Unable to return more than [{}] results; please use " +
-                                "parameters [{}] and [{}] to limit the time range", MAX_RESULT_COUNT, Request.START, Request.END));
-                        return;
-                    }
-                    searchAndComputeOverallBuckets(listener);
-                }, listener::onFailure));
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, nextSearch(),
+                        ActionListener.<SearchResponse>wrap(searchResponse -> {
+                            Histogram histogram = searchResponse.getAggregations().get(Result.TIMESTAMP.getPreferredName());
+                            overallBucketsProcessor.process(overallBucketsProvider.computeOverallBuckets(histogram));
+                            if (overallBucketsProcessor.size() > MAX_RESULT_COUNT) {
+                                listener.onFailure(
+                                        ExceptionsHelper.badRequestException("Unable to return more than [{}] results; please use " +
+                                        "parameters [{}] and [{}] to limit the time range", MAX_RESULT_COUNT, Request.START, Request.END));
+                                return;
+                            }
+                            searchAndComputeOverallBuckets(listener);
+                        }, listener::onFailure),
+                        client::search);
             }
 
             SearchRequest nextSearch() {

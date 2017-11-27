@@ -43,6 +43,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
 public class DatafeedManager extends AbstractComponent {
@@ -415,20 +417,21 @@ public class DatafeedManager extends AbstractComponent {
                         for the close job api call.
                     */
                     closeJobRequest.setLocal(true);
-                    client.execute(CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<CloseJobAction.Response>() {
+                    executeAsyncWithOrigin(client, ML_ORIGIN, CloseJobAction.INSTANCE, closeJobRequest,
+                            new ActionListener<CloseJobAction.Response>() {
 
-                        @Override
-                        public void onResponse(CloseJobAction.Response response) {
-                            if (!response.isClosed()) {
-                                logger.error("[{}] job close action was not acknowledged", getJobId());
-                            }
-                        }
+                                @Override
+                                public void onResponse(CloseJobAction.Response response) {
+                                    if (!response.isClosed()) {
+                                        logger.error("[{}] job close action was not acknowledged", getJobId());
+                                    }
+                                }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.error("[" + getJobId() + "] failed to auto-close job", e);
-                        }
-                    });
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.error("[" + getJobId() + "] failed to auto-close job", e);
+                                }
+                            });
                 }
 
                 @Override

@@ -144,8 +144,10 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
                 cluster2.wipe(Collections.emptySet());
                 try {
                     // this is a hack to clean up the .security index since only the XPackSecurity user or superusers can delete it
-                    internalSecurityClient(cluster2.client())
-                            .admin().indices().prepareDelete(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get();
+                    final Client cluster2Client = cluster2.client().filterWithHeader(Collections.singletonMap("Authorization",
+                            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                                    SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)));
+                    cluster2Client.admin().indices().prepareDelete(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get();
                 } catch (IndexNotFoundException e) {
                     // ignore it since not all tests create this index...
                 }

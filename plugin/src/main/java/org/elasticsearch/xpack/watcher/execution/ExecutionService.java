@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -59,6 +60,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class ExecutionService extends AbstractComponent {
@@ -355,11 +358,12 @@ public class ExecutionService extends AbstractComponent {
         UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
         updateRequest.doc(source);
         updateRequest.version(watch.version());
-        try {
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
             client.update(updateRequest).actionGet(indexDefaultTimeout);
         } catch (DocumentMissingException e) {
             // do not rethrow this exception, otherwise the watch history will contain an exception
             // even though the execution might have been fine
+            // TODO should we really just drop this exception on the floor?
         }
     }
 
@@ -505,10 +509,12 @@ public class ExecutionService extends AbstractComponent {
      * @return The GetResponse of calling the get API of this watch
      */
     private GetResponse getWatch(String id) {
-        GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
-        PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
-        client.get(getRequest, future);
-        return future.actionGet();
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+            GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
+            PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
+            client.get(getRequest, future);
+            return future.actionGet();
+        }
     }
 
     public Map<String, Object> usageStats() {

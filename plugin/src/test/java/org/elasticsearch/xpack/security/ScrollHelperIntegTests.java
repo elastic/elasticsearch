@@ -12,12 +12,15 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
@@ -31,9 +34,10 @@ import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 
-public class InternalClientIntegTests extends ESSingleNodeTestCase {
+public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
 
     public void testFetchAllEntities() throws ExecutionException, InterruptedException {
         Client client = client();
@@ -50,7 +54,7 @@ public class InternalClientIntegTests extends ESSingleNodeTestCase {
                 .request();
         request.indicesOptions().ignoreUnavailable();
         PlainActionFuture<Collection<Integer>> future = new PlainActionFuture<>();
-        InternalClient.fetchAllByEntity(client(), request, future,
+        ScrollHelper.fetchAllByEntity(client(), request, future,
                 (hit) -> Integer.parseInt(hit.getSourceAsMap().get("number").toString()));
         Collection<Integer> integers = future.actionGet();
         ArrayList<Integer> list = new ArrayList<>(integers);
@@ -63,13 +67,16 @@ public class InternalClientIntegTests extends ESSingleNodeTestCase {
 
     /**
      * Tests that
-     * {@link InternalClient#fetchAllByEntity(Client, SearchRequest, org.elasticsearch.action.ActionListener, java.util.function.Function)}
+     * {@link ScrollHelper#fetchAllByEntity(Client, SearchRequest, ActionListener, Function)}
      * defends against scrolls broken in such a way that the remote Elasticsearch returns infinite results. While Elasticsearch
      * <strong>shouldn't</strong> do this it has in the past and it is <strong>very</strong> when it does. It takes out the whole node. So
      * this makes sure we defend against it properly.
      */
     public void testFetchAllByEntityWithBrokenScroll() {
         Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         SearchRequest request = new SearchRequest();
 
         String scrollId = randomAlphaOfLength(5);
@@ -91,7 +98,7 @@ public class InternalClientIntegTests extends ESSingleNodeTestCase {
         doAnswer(returnResponse).when(client).searchScroll(anyObject(), anyObject());
 
         AtomicReference<Exception> failure = new AtomicReference<>();
-        InternalClient.fetchAllByEntity(client, request, new ActionListener<Collection<SearchHit>>() {
+        ScrollHelper.fetchAllByEntity(client, request, new ActionListener<Collection<SearchHit>>() {
             @Override
             public void onResponse(Collection<SearchHit> response) {
                 fail("This shouldn't succeed.");

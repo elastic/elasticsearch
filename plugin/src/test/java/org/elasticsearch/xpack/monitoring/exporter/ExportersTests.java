@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -43,7 +42,6 @@ import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -70,7 +68,6 @@ public class ExportersTests extends ESTestCase {
         threadContext = new ThreadContext(Settings.EMPTY);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        InternalClient internalClient = new InternalClient(Settings.EMPTY, threadPool, client);
         clusterService = mock(ClusterService.class);
         // default state.version() will be 0, which is "valid"
         state = mock(ClusterState.class);
@@ -80,7 +77,7 @@ public class ExportersTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, internalClient, mock(CleanerService.class)));
+        factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, mock(CleanerService.class)));
 
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, licenseState, threadContext);
     }

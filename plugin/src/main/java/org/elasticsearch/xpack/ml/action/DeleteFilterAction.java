@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -36,13 +38,15 @@ import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 
 public class DeleteFilterAction extends Action<DeleteFilterAction.Request, DeleteFilterAction.Response, DeleteFilterAction.RequestBuilder> {
@@ -144,14 +148,14 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final InternalClient client;
+        private final Client client;
         private final ClusterService clusterService;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool,
                 TransportService transportService, ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                ClusterService clusterService, InternalClient client) {
+                ClusterService clusterService, Client client) {
             super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.clusterService = clusterService;
@@ -184,22 +188,23 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             bulkRequestBuilder.add(deleteRequest);
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
-                @Override
-                public void onResponse(BulkResponse bulkResponse) {
-                    if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
-                        listener.onFailure(new ResourceNotFoundException("Could not delete filter with ID [" + filterId
-                                + "] because it does not exist"));
-                    } else {
-                        listener.onResponse(new Response(true));
-                    }
-                }
+            executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(),
+                    new ActionListener<BulkResponse>() {
+                        @Override
+                        public void onResponse(BulkResponse bulkResponse) {
+                            if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
+                                listener.onFailure(new ResourceNotFoundException("Could not delete filter with ID [" + filterId
+                                        + "] because it does not exist"));
+                            } else {
+                                listener.onResponse(new Response(true));
+                            }
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Could not delete filter with ID [" + filterId + "]", e);
-                    listener.onFailure(new IllegalStateException("Could not delete filter with ID [" + filterId + "]", e));
-                }
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("Could not delete filter with ID [" + filterId + "]", e);
+                            listener.onFailure(new IllegalStateException("Could not delete filter with ID [" + filterId + "]", e));
+                        }
             });
         }
     }

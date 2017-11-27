@@ -58,17 +58,20 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     public static final SecureString TEST_PASSWORD_SECURE_STRING = new SecureString("x-pack-test-password".toCharArray());
     public static final String TEST_PASSWORD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
     public static final String TEST_ROLE = "user";
+    public static final String TEST_SUPERUSER = "test_superuser";
 
     public static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "transport_client";
     public static final String DEFAULT_TRANSPORT_CLIENT_USER_NAME = "test_trans_client_user";
 
     public static final String CONFIG_STANDARD_USER =
             TEST_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n" +
-            DEFAULT_TRANSPORT_CLIENT_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
+            DEFAULT_TRANSPORT_CLIENT_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n" +
+            TEST_SUPERUSER + ":" + TEST_PASSWORD_HASHED + "\n";
 
     public static final String CONFIG_STANDARD_USER_ROLES =
             TEST_ROLE + ":" + TEST_USER_NAME + "," + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n" +
-            DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME+ "\n";
+            DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n" +
+            "superuser:" + TEST_SUPERUSER + "\n";
 
     public static final String CONFIG_ROLE_ALLOW_ALL =
             TEST_ROLE + ":\n" +

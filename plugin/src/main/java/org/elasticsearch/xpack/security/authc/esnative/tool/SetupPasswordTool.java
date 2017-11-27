@@ -24,6 +24,7 @@ import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
@@ -51,7 +52,7 @@ import org.elasticsearch.xpack.security.user.LogstashSystemUser;
  * if successful. After the elastic user password is set you have to use the
  * `security` API to manipulate passwords.
  */
-public class SetupPasswordTool extends MultiCommand {
+public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~!@#$%^&*-_=+?").toCharArray();
     public static final List<String> USERS = Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME);

@@ -1,5 +1,5 @@
 {
-  "index_patterns" : ".logstash",
+  "index_patterns" : [ ".logstash" ],
   "settings": {
     "index": {
       "number_of_shards": 1,

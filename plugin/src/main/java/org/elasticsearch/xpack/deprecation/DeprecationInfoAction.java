@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -23,6 +22,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBui
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -34,17 +34,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.deprecation.DeprecationIssue.Level;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,11 +49,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.ClientHelper.DEPRECATION_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.NODE_SETTINGS_CHECKS;
@@ -281,14 +279,14 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
     public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
 
         private final XPackLicenseState licenseState;
-        private final InternalClient client;
+        private final NodeClient client;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver,
-                               XPackLicenseState licenseState, InternalClient client) {
+                               XPackLicenseState licenseState, NodeClient client) {
             super(settings, DeprecationInfoAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 Request::new, indexNameExpressionResolver);
             this.licenseState = licenseState;
@@ -318,22 +316,26 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest("_local").settings(true).plugins(true);
                 NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("_local").fs(true);
 
-                client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(
-                    nodesInfoResponse -> {
-                        if (nodesInfoResponse.hasFailures()) {
-                            throw nodesInfoResponse.failures().get(0);
-                        }
-                        client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.wrap(
-                            nodesStatsResponse -> {
-                                if (nodesStatsResponse.hasFailures()) {
-                                    throw nodesStatsResponse.failures().get(0);
-                                }
-                                listener.onResponse(Response.from(nodesInfoResponse.getNodes(),
-                                    nodesStatsResponse.getNodes(), state, indexNameExpressionResolver,
-                                    request.indices(), request.indicesOptions(), CLUSTER_SETTINGS_CHECKS,
-                                    NODE_SETTINGS_CHECKS, INDEX_SETTINGS_CHECKS));
-                            }, listener::onFailure));
-                    },listener::onFailure));
+                final ThreadContext threadContext = client.threadPool().getThreadContext();
+                executeAsyncWithOrigin(threadContext, DEPRECATION_ORIGIN, nodesInfoRequest, ActionListener.<NodesInfoResponse>wrap(
+                        nodesInfoResponse -> {
+                            if (nodesInfoResponse.hasFailures()) {
+                                throw nodesInfoResponse.failures().get(0);
+                            }
+                            executeAsyncWithOrigin(threadContext, DEPRECATION_ORIGIN, nodesStatsRequest,
+                                    ActionListener.<NodesStatsResponse>wrap(
+                                        nodesStatsResponse -> {
+                                            if (nodesStatsResponse.hasFailures()) {
+                                                throw nodesStatsResponse.failures().get(0);
+                                            }
+                                            listener.onResponse(Response.from(nodesInfoResponse.getNodes(),
+                                                    nodesStatsResponse.getNodes(), state, indexNameExpressionResolver,
+                                                    request.indices(), request.indicesOptions(),
+                                                    CLUSTER_SETTINGS_CHECKS, NODE_SETTINGS_CHECKS,
+                                                    INDEX_SETTINGS_CHECKS));
+                                        }, listener::onFailure),
+                                    client.admin().cluster()::nodesStats);
+                        }, listener::onFailure), client.admin().cluster()::nodesInfo);
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.DEPRECATION));
             }

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -870,6 +871,9 @@ public class JobProviderTests extends ESTestCase {
 
     private Client getMockedClient(Consumer<QueryBuilder> queryBuilderConsumer, SearchResponse response) {
         Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         doAnswer(invocationOnMock -> {
             MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocationOnMock.getArguments()[0];
             queryBuilderConsumer.accept(multiSearchRequest.requests().get(0).source().query());
@@ -889,22 +893,6 @@ public class JobProviderTests extends ESTestCase {
             actionListener.onResponse(response);
             return null;
         }).when(client).search(any(), any());
-        return client;
-    }
-
-    private Client getMockedClient(GetResponse response) {
-        Client client = mock(Client.class);
-        @SuppressWarnings("unchecked")
-        ActionFuture<GetResponse> actionFuture = mock(ActionFuture.class);
-        when(client.get(any())).thenReturn(actionFuture);
-        when(actionFuture.actionGet()).thenReturn(response);
-
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<GetResponse> actionListener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
-            actionListener.onResponse(response);
-            return null;
-        }).when(client).get(any(), any());
         return client;
     }
 }

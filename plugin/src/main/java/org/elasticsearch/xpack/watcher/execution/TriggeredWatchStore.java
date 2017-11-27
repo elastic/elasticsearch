@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -45,6 +46,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
 public class TriggeredWatchStore extends AbstractComponent {
@@ -107,7 +111,8 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
 
         ensureStarted();
-        client.bulk(createBulkRequest(triggeredWatches, DOC_TYPE), listener);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, createBulkRequest(triggeredWatches, DOC_TYPE),
+                listener, client::bulk);
     }
 
     public BulkResponse putAll(final List<TriggeredWatch> triggeredWatches) throws IOException {
@@ -140,7 +145,9 @@ public class TriggeredWatchStore extends AbstractComponent {
     public void delete(Wid wid) {
         ensureStarted();
         DeleteRequest request = new DeleteRequest(INDEX_NAME, DOC_TYPE, wid.value());
-        client.delete(request);
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+            client.delete(request); // FIXME shouldn't we wait before saying the delete was successful
+        }
         logger.trace("successfully deleted triggered watch with id [{}]", wid);
     }
 
@@ -170,7 +177,7 @@ public class TriggeredWatchStore extends AbstractComponent {
             return Collections.emptyList();
         }
 
-        try {
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
             client.admin().indices().refresh(new RefreshRequest(TriggeredWatchStore.INDEX_NAME)).actionGet(TimeValue.timeValueSeconds(5));
         } catch (IndexNotFoundException e) {
             return Collections.emptyList();
@@ -187,9 +194,10 @@ public class TriggeredWatchStore extends AbstractComponent {
                         .sort(SortBuilders.fieldSort("_doc"))
                         .version(true));
 
-        SearchResponse response = client.search(searchRequest).actionGet(defaultSearchTimeout);
-        logger.debug("trying to find triggered watches for ids {}: found [{}] docs", ids, response.getHits().getTotalHits());
-        try {
+        SearchResponse response = null;
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+            response = client.search(searchRequest).actionGet(defaultSearchTimeout);
+            logger.debug("trying to find triggered watches for ids {}: found [{}] docs", ids, response.getHits().getTotalHits());
             while (response.getHits().getHits().length != 0) {
                 for (SearchHit hit : response.getHits()) {
                     Wid wid = new Wid(hit.getId());
@@ -203,9 +211,13 @@ public class TriggeredWatchStore extends AbstractComponent {
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
-            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-            clearScrollRequest.addScrollId(response.getScrollId());
-            client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
+            if (response != null) {
+                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+                    ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+                    clearScrollRequest.addScrollId(response.getScrollId());
+                    client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
+                }
+            }
         }
 
         return triggeredWatches;

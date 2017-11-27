@@ -133,7 +133,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
-        return searchRequestBuilder.get();
+            return searchRequestBuilder.get();
     }
 
     private Optional<InputStream> getNextStream() throws IOException {

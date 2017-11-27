@@ -5,95 +5,27 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.XPackUser;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
-/**
- * A special filter client for internal node communication which adds the internal xpack user to the headers.
- * An optionally secured client for internal node communication.
- *
- * When secured, the XPack user is added to the execution context before each action is executed.
- */
-public class InternalClient extends FilterClient {
+public final class ScrollHelper {
 
-    private final String nodeName;
-    private final boolean securityEnabled;
-    private final User user;
-
-    /**
-     * Constructs an InternalClient.
-     * If security is enabled the client is secure. Otherwise this client is a passthrough.
-     */
-    public InternalClient(Settings settings, ThreadPool threadPool, Client in) {
-        this(settings, threadPool, in, XPackUser.INSTANCE);
-    }
-
-    InternalClient(Settings settings, ThreadPool threadPool, Client in, User user) {
-        super(settings, threadPool, in);
-        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.securityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        this.user = user;
-    }
-
-    @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
-        ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
-        Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-
-        if (securityEnabled) {
-            final ThreadContext threadContext = threadPool().getThreadContext();
-            final Supplier<ThreadContext.StoredContext> storedContext = threadContext.newRestorableContext(true);
-            // we need to preserve the context here otherwise we execute the response with the XPack user which we can cause problems
-            // since we expect the callback to run with the authenticated user calling the doExecute method
-            try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-                processContext(threadContext);
-                super.doExecute(action, request, new ContextPreservingActionListener<>(storedContext, listener));
-            }
-        } else {
-            super.doExecute(action, request, listener);
-        }
-    }
-
-    protected void processContext(ThreadContext threadContext) {
-        try {
-            Authentication authentication = new Authentication(user,
-                    new Authentication.RealmRef("__attach", "__attach", nodeName), null);
-            authentication.writeToContext(threadContext);
-        } catch (IOException ioe) {
-            throw new ElasticsearchException("failed to attach internal user to request", ioe);
-        }
-    }
+    private ScrollHelper() {}
 
     /**
      * This method fetches all results for the given search request, parses them using the given hit parser and calls the
@@ -114,7 +46,8 @@ public class InternalClient extends FilterClient {
         };
         // This function is MADNESS! But it works, don't think about it too hard...
         // simon edit: just watch this if you got this far https://www.youtube.com/watch?v=W-lF106Dgk8
-        client.search(request, new ActionListener<SearchResponse>() {
+        client.search(request, new ContextPreservingActionListener<>(client.threadPool().getThreadContext().newRestorableContext(true),
+                new ActionListener<SearchResponse>() {
             private volatile SearchResponse lastResponse = null;
 
             @Override
@@ -163,6 +96,6 @@ public class InternalClient extends FilterClient {
                     }
                 }
             }
-        });
+        }));
     }
 }

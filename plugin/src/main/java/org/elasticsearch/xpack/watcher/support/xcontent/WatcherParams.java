@@ -18,7 +18,7 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
     public static final WatcherParams HIDE_SECRETS = WatcherParams.builder().hideSecrets(true).build();
 
     static final String HIDE_SECRETS_KEY = "hide_secrets";
-    static final String COLLAPSE_ARRAYS_KEY = "collapse_arrays";
+    public static final String HIDE_HEADERS = "hide_headers";
     static final String DEBUG_KEY = "debug";
 
     public static boolean hideSecrets(ToXContent.Params params) {
@@ -39,6 +39,10 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
 
     public boolean debug() {
         return paramAsBoolean(DEBUG_KEY, false);
+    }
+
+    public boolean hideHeaders() {
+        return paramAsBoolean(HIDE_HEADERS, true);
     }
 
     public static WatcherParams wrap(ToXContent.Params params) {
@@ -66,6 +70,11 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
 
         public Builder hideSecrets(boolean hideSecrets) {
             params.put(HIDE_SECRETS_KEY, String.valueOf(hideSecrets));
+            return this;
+        }
+
+        public Builder hideHeaders(boolean hideHeaders) {
+            params.put(HIDE_HEADERS, String.valueOf(hideHeaders));
             return this;
         }
 

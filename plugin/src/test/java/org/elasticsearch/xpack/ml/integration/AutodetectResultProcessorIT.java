@@ -5,21 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.XPackSingleNodeTestCase;
-import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
@@ -64,11 +61,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -256,22 +250,11 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     }
 
     private void putIndexTemplates() throws Exception {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = mock(ExecutorService.class);
-        doAnswer(invocation -> {
-            ((Runnable) invocation.getArguments()[0]).run();
-            return null;
-        }).when(executorService).execute(any(Runnable.class));
-        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
-
-        new MachineLearningTemplateRegistry(Settings.EMPTY, mock(ClusterService.class), client(), threadPool)
-                .addTemplatesIfMissing(client().admin().cluster().state(new ClusterStateRequest().all()).actionGet().getState());
-
         // block until the templates are installed
         assertBusy(() -> {
-            MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearningTemplateRegistry.allTemplatesInstalled(metaData));
+                    MachineLearning.allTemplatesInstalled(state));
         });
     }
 

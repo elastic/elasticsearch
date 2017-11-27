@@ -12,12 +12,14 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
@@ -43,11 +45,13 @@ import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.Request,
         UpdateModelSnapshotAction.Response, UpdateModelSnapshotAction.RequestBuilder> {
@@ -266,11 +270,11 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final JobProvider jobProvider;
-        private final InternalClient client;
+        private final Client client;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider, InternalClient client) {
+                               IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider, Client client) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobProvider = jobProvider;
             this.client = client;
@@ -318,17 +322,18 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             bulkRequestBuilder.add(indexRequest);
             bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
-                @Override
-                public void onResponse(BulkResponse indexResponse) {
-                    handler.accept(true);
-                }
+            executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(),
+                    new ActionListener<BulkResponse>() {
+                        @Override
+                        public void onResponse(BulkResponse indexResponse) {
+                            handler.accept(true);
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    errorHandler.accept(e);
-                }
-            });
+                        @Override
+                        public void onFailure(Exception e) {
+                            errorHandler.accept(e);
+                        }
+                    });
         }
     }
 }

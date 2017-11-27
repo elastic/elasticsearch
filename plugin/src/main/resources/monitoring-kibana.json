@@ -1,5 +1,5 @@
 {
-  "index_patterns": ".monitoring-kibana-${monitoring.template.version}-*",
+  "index_patterns": [ ".monitoring-kibana-${monitoring.template.version}-*" ],
   "version": 7000001,
   "settings": {
     "index.number_of_shards": 1,

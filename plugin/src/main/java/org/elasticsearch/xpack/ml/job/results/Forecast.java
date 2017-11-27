@@ -45,11 +45,11 @@ public class Forecast implements ToXContentObject, Writeable {
 
     public static final ConstructingObjectParser<Forecast, Void> PARSER =
             new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a ->
-            new Forecast((String) a[0], (long) a[1], (Date) a[2], (long) a[3], (int) a[4]));
+            new Forecast((String) a[0], (String) a[1], (Date) a[2], (long) a[3], (int) a[4]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), FORECAST_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), FORECAST_ID);
         PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
@@ -73,7 +73,7 @@ public class Forecast implements ToXContentObject, Writeable {
     }
 
     private final String jobId;
-    private final long forecastId;
+    private final String forecastId;
     private final Date timestamp;
     private final long bucketSpan;
     private int detectorIndex;
@@ -86,9 +86,9 @@ public class Forecast implements ToXContentObject, Writeable {
     private double forecastUpper;
     private double forecastPrediction;
 
-    public Forecast(String jobId, long forecastId, Date timestamp, long bucketSpan, int detectorIndex) {
-        this.jobId = jobId;
-        this.forecastId = forecastId;
+    public Forecast(String jobId, String forecastId, Date timestamp, long bucketSpan, int detectorIndex) {
+        this.jobId = Objects.requireNonNull(jobId);
+        this.forecastId = Objects.requireNonNull(forecastId);
         this.timestamp = timestamp;
         this.bucketSpan = bucketSpan;
         this.detectorIndex = detectorIndex;
@@ -96,7 +96,7 @@ public class Forecast implements ToXContentObject, Writeable {
 
     public Forecast(StreamInput in) throws IOException {
         jobId = in.readString();
-        forecastId = in.readLong();
+        forecastId = in.readString();
         timestamp = new Date(in.readLong());
         partitionFieldName = in.readOptionalString();
         partitionFieldValue = in.readOptionalString();
@@ -113,7 +113,7 @@ public class Forecast implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        out.writeLong(forecastId);
+        out.writeString(forecastId);
         out.writeLong(timestamp.getTime());
         out.writeOptionalString(partitionFieldName);
         out.writeOptionalString(partitionFieldValue);
@@ -165,7 +165,7 @@ public class Forecast implements ToXContentObject, Writeable {
         return jobId;
     }
 
-    public long getForecastId() {
+    public String getForecastId() {
         return forecastId;
     }
 
@@ -264,7 +264,7 @@ public class Forecast implements ToXContentObject, Writeable {
         }
         Forecast that = (Forecast) other;
         return Objects.equals(this.jobId, that.jobId) &&
-                forecastId == that.forecastId &&
+                Objects.equals(this.forecastId, that.forecastId) &&
                 Objects.equals(this.timestamp, that.timestamp) &&
                 Objects.equals(this.partitionFieldValue, that.partitionFieldValue) &&
                 Objects.equals(this.partitionFieldName, that.partitionFieldName) &&

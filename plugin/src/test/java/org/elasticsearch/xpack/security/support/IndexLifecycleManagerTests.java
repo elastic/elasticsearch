@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,7 +45,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.hamcrest.Matchers;
@@ -69,9 +69,11 @@ public class IndexLifecycleManagerTests extends ESTestCase {
         final Client mockClient = mock(Client.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(mockClient.threadPool()).thenReturn(threadPool);
+        when(mockClient.settings()).thenReturn(Settings.EMPTY);
 
         actions = new LinkedHashMap<>();
-        final InternalSecurityClient client = new InternalSecurityClient(Settings.EMPTY, threadPool, mockClient) {
+        final Client client = new FilterClient(mockClient) {
             @Override
             protected <Request extends ActionRequest,
                     Response extends ActionResponse,
@@ -205,28 +207,38 @@ public class IndexLifecycleManagerTests extends ESTestCase {
 
     public void testIndexOutOfDateListeners() throws Exception {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
         manager.addIndexOutOfDateListener((prev, current) -> {
             listenerCalled.set(true);
             assertNotEquals(prev, current);
         });
-        assertFalse(manager.isIndexUpToDate());
+        assertTrue(manager.isIndexUpToDate());
 
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
         assertFalse(listenerCalled.get());
-        assertFalse(manager.isIndexUpToDate());
+        assertTrue(manager.isIndexUpToDate());
 
-        // index doesn't exist and now exists
-        final ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME);
+        // index doesn't exist and now exists with wrong format
+        ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME,
+                IndexLifecycleManager.INTERNAL_INDEX_FORMAT - 1);
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
         assertTrue(listenerCalled.get());
-        assertTrue(manager.isIndexUpToDate());
+        assertFalse(manager.isIndexUpToDate());
 
         listenerCalled.set(false);
         assertFalse(listenerCalled.get());
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
         assertTrue(listenerCalled.get());
-        assertFalse(manager.isIndexUpToDate());
+        assertTrue(manager.isIndexUpToDate());
+
+        listenerCalled.set(false);
+        // index doesn't exist and now exists with correct format
+        clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME, IndexLifecycleManager.INTERNAL_INDEX_FORMAT);
+        markShardsAvailable(clusterStateBuilder);
+        manager.clusterChanged(event(clusterStateBuilder));
+        assertFalse(listenerCalled.get());
+        assertTrue(manager.isIndexUpToDate());
     }
 
     private void assertInitialState() {
@@ -242,13 +254,17 @@ public class IndexLifecycleManagerTests extends ESTestCase {
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String templateName) throws IOException {
-        return createClusterState(indexName, templateName, templateName);
+        return createClusterState(indexName, templateName, templateName, IndexLifecycleManager.INTERNAL_INDEX_FORMAT);
     }
 
-    private static ClusterState.Builder createClusterState(String indexName, String templateName, String buildMappingFrom)
+    public static ClusterState.Builder createClusterState(String indexName, String templateName, int format) throws IOException {
+        return createClusterState(indexName, templateName, templateName, format);
+    }
+
+    private static ClusterState.Builder createClusterState(String indexName, String templateName, String buildMappingFrom, int format)
             throws IOException {
         IndexTemplateMetaData.Builder templateBuilder = getIndexTemplateMetaData(templateName);
-        IndexMetaData.Builder indexMeta = getIndexMetadata(indexName, buildMappingFrom);
+        IndexMetaData.Builder indexMeta = getIndexMetadata(indexName, buildMappingFrom, format);
 
         MetaData.Builder metaDataBuilder = new MetaData.Builder();
         metaDataBuilder.put(templateBuilder);
@@ -269,13 +285,13 @@ public class IndexLifecycleManagerTests extends ESTestCase {
                 .build();
     }
 
-    private static IndexMetaData.Builder getIndexMetadata(String indexName, String templateName) throws IOException {
+    private static IndexMetaData.Builder getIndexMetadata(String indexName, String templateName, int format) throws IOException {
         IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
         indexMetaData.settings(Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), IndexLifecycleManager.INTERNAL_INDEX_FORMAT)
+                .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), format)
                 .build());
 
         final Map<String, String> mappings = getTemplateMappings(templateName);

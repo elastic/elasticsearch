@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.collector;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -17,11 +18,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.monitoring.Monitoring;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.function.Function;
 
@@ -36,7 +38,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     protected DiscoveryNodes nodes;
     protected MetaData metaData;
     protected XPackLicenseState licenseState;
-    protected InternalClient client;
+    protected Client client;
     protected Settings settings;
 
     @Override
@@ -48,7 +50,10 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
         nodes = mock(DiscoveryNodes.class);
         metaData = mock(MetaData.class);
         licenseState = mock(XPackLicenseState.class);
-        client = mock(InternalClient.class);
+        client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         settings = Settings.EMPTY;
     }
 

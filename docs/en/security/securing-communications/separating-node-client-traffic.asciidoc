@@ -57,7 +57,7 @@ set the following value in the `elasticsearch.yml` file:
 
 [source, yaml]
 --------------------------------------------------
-transport.profiles.client.xpack.security.ssl.client_authentication: no
+transport.profiles.client.xpack.security.ssl.client_authentication: none
 --------------------------------------------------
 
 This setting keeps certificate authentication active for node-to-node traffic,

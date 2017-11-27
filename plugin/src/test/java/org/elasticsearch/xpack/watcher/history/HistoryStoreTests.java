@@ -13,20 +13,21 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.common.http.HttpClient;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
-import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
-import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
+import org.elasticsearch.xpack.watcher.common.http.HttpClient;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
+import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.xpack.watcher.execution.Wid;
-import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
+import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
+import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
@@ -39,6 +40,7 @@ import org.junit.Before;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.watcher.history.HistoryStore.getHistoryIndexNameForTime;
+import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -59,6 +61,9 @@ public class HistoryStoreTests extends ESTestCase {
     @Before
     public void init() {
         client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         historyStore = new HistoryStore(Settings.EMPTY, client);
         historyStore.start();
     }
@@ -105,7 +110,7 @@ public class HistoryStoreTests extends ESTestCase {
     }
 
     public void testIndexNameGeneration() {
-        String indexTemplateVersion = WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
+        String indexTemplateVersion = INDEX_TEMPLATE_VERSION;
         assertThat(getHistoryIndexNameForTime(new DateTime(0, UTC)),
                 equalTo(".watcher-history-"+ indexTemplateVersion +"-1970.01.01"));
         assertThat(getHistoryIndexNameForTime(new DateTime(100000000000L, UTC)),

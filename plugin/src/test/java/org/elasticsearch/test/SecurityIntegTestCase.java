@@ -25,6 +25,9 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
@@ -32,9 +35,8 @@ import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.InternalSecurityClient;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -419,18 +421,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 
-    protected InternalClient internalClient() {
-        return internalCluster().getInstance(InternalClient.class);
-    }
-
-    protected InternalSecurityClient internalSecurityClient() {
-        return internalSecurityClient(client());
-    }
-
-    protected InternalSecurityClient internalSecurityClient(Client client) {
-        return new InternalSecurityClient(client.settings(), client.threadPool(), client);
-    }
-
     protected SecurityClient securityClient() {
         return securityClient(client());
     }
@@ -459,7 +449,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             assertBusy(() -> {
                 ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-                assertTrue(securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
+                XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
+                assertTrue("security index mapping and template not sufficient to read:\n" +
+                                clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject().string(),
+                        securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
@@ -480,7 +473,10 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             assertBusy(() -> {
                 ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-                assertTrue(securityIndexMappingAndTemplateUpToDate(clusterState, logger));
+                XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
+                assertTrue("security index mapping and template not up to date:\n" +
+                                clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject().string(),
+                        securityIndexMappingAndTemplateUpToDate(clusterState, logger));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
@@ -493,15 +489,17 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     protected void deleteSecurityIndex() {
-        final InternalSecurityClient securityClient = internalSecurityClient();
+        final Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                        SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)));
         GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(SECURITY_INDEX_NAME);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        GetIndexResponse getIndexResponse = securityClient.admin().indices().getIndex(getIndexRequest).actionGet();
+        GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet();
         if (getIndexResponse.getIndices().length > 0) {
-            // this is a hack to clean up the .security index since only the XPack user can delete it
+            // this is a hack to clean up the .security index since only a superuser can delete it
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
-            securityClient.admin().indices().delete(deleteIndexRequest).actionGet();
+            client.admin().indices().delete(deleteIndexRequest).actionGet();
         }
     }
 

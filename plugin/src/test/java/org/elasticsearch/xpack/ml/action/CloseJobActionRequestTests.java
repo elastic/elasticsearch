@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -292,7 +292,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
 
         CloseJobAction.TransportAction transportAction = new CloseJobAction.TransportAction(Settings.EMPTY,
                 mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
-                clusterService, mock(InternalClient.class), mock(Auditor.class), mock(PersistentTasksService.class));
+                clusterService, mock(Client.class), mock(Auditor.class), mock(PersistentTasksService.class));
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         CloseJobAction.Request request = new Request("foo");

@@ -87,12 +87,12 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             modelPlot = null;
         }
         if (randomBoolean()) {
-            forecast = new Forecast(jobId, randomNonNegativeLong(), new Date(randomLong()), randomNonNegativeLong(), randomInt());
+            forecast = new Forecast(jobId, randomAlphaOfLength(20), new Date(randomLong()), randomNonNegativeLong(), randomInt());
         } else {
             forecast = null;
         }
         if (randomBoolean()) {
-            forecastRequestStats = new ForecastRequestStats(jobId, randomNonNegativeLong());
+            forecastRequestStats = new ForecastRequestStats(jobId, randomAlphaOfLength(20));
         } else {
             forecastRequestStats = null;
         }

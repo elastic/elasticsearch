@@ -12,7 +12,7 @@ public class ForecastJobActionResponseTests extends AbstractStreamableTestCase<R
 
     @Override
     protected Response createTestInstance() {
-        return new Response(randomBoolean(), randomNonNegativeLong());
+        return new Response(randomBoolean(), randomAlphaOfLength(20));
     }
 
     @Override

@@ -151,9 +151,9 @@ public class ControlMsgToProcessWriter {
     }
 
     public void writeForecastMessage(ForecastParams params) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("forecast_id", params.getForecastId());
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        builder.field("forecast_id", params.getForecastId());
+        builder.field("create_time", params.getCreateTime());
 
         if (params.getEndTime() != 0) {
             builder.field("end_time", params.getEndTime());

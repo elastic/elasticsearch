@@ -12,7 +12,11 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -32,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -88,6 +93,10 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 
 public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
@@ -200,7 +209,8 @@ public class JobProvider {
             }
         };
 
-        msearch.execute(searchResponseActionListener);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, msearch.request(), searchResponseActionListener,
+                client::multiSearch);
     }
 
 
@@ -214,15 +224,14 @@ public class JobProvider {
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String indexName = job.getResultsIndexName();
 
-        final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success ->
-                    client.admin().indices().prepareAliases()
-                            .addAlias(indexName, readAliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
-                            .addAlias(indexName, writeAliasName)
-                            // we could return 'success && r.isAcknowledged()' instead of 'true', but that makes
-                            // testing not possible as we can't create IndicesAliasesResponse instance or
-                            // mock IndicesAliasesResponse#isAcknowledged()
-                            .execute(ActionListener.wrap(r -> finalListener.onResponse(true), finalListener::onFailure)),
-                finalListener::onFailure);
+        final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
+            final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
+                    .addAlias(indexName, readAliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                    .addAlias(indexName, writeAliasName).request();
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
+                    ActionListener.<IndicesAliasesResponse>wrap(r -> finalListener.onResponse(true), finalListener::onFailure),
+                    client.admin().indices()::aliases);
+            }, finalListener::onFailure);
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
         // already in the CS
@@ -234,8 +243,8 @@ public class JobProvider {
             try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(ElasticsearchMappings.DOC_TYPE, termFields)) {
                 createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, termFieldsMapping);
             }
-            client.admin().indices().create(createIndexRequest,
-                    ActionListener.wrap(
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
+                    ActionListener.<CreateIndexResponse>wrap(
                             r -> createAliasListener.onResponse(r.isAcknowledged()),
                             e -> {
                                 // Possible that the index was created while the request was executing,
@@ -248,7 +257,7 @@ public class JobProvider {
                                     finalListener.onFailure(e);
                                 }
                             }
-                    ));
+                    ), client.admin().indices()::create);
         } else {
             long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
             if (violatedFieldCountLimit(indexName, termFields.size(), fieldCountLimit, state)) {
@@ -297,19 +306,19 @@ public class JobProvider {
     private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
         // Put the whole "doc" mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
         try (XContentBuilder termFieldsMapping = ElasticsearchMappings.docMapping(termFields)) {
-            client.admin().indices().preparePutMapping(indexName).setType(ElasticsearchMappings.DOC_TYPE)
-                    .setSource(termFieldsMapping)
-                    .execute(new ActionListener<PutMappingResponse>() {
-                        @Override
-                        public void onResponse(PutMappingResponse putMappingResponse) {
-                            listener.onResponse(putMappingResponse.isAcknowledged());
-                        }
+            final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName).setType(ElasticsearchMappings.DOC_TYPE)
+                    .setSource(termFieldsMapping).request();
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<PutMappingResponse>() {
+                @Override
+                public void onResponse(PutMappingResponse putMappingResponse) {
+                    listener.onResponse(putMappingResponse.isAcknowledged());
+                }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            }, client.admin().indices()::putMapping);
         } catch (IOException e) {
             listener.onFailure(e);
         }
@@ -353,43 +362,44 @@ public class JobProvider {
             msearch.add(createDocIdSearch(MlMetaIndex.INDEX_NAME, filterId));
         }
 
-        msearch.execute(ActionListener.wrap(
-                response -> {
-                    for (int i = 0; i < response.getResponses().length; i++) {
-                        MultiSearchResponse.Item itemResponse = response.getResponses()[i];
-                        if (itemResponse.isFailure()) {
-                            errorHandler.accept(itemResponse.getFailure());
-                        } else {
-                            SearchResponse searchResponse = itemResponse.getResponse();
-                            ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
-                            int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                            if (shardFailures != null && shardFailures.length > 0) {
-                                LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
-                                        Arrays.toString(shardFailures));
-                                errorHandler.accept(new ElasticsearchException(
-                                        ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
-                            } else if (unavailableShards > 0) {
-                                errorHandler.accept(new ElasticsearchException("[" + jobId
-                                        + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
-                            } else {
-                                SearchHits hits = searchResponse.getHits();
-                                long hitsCount = hits.getHits().length;
-                                if (hitsCount == 0) {
-                                    SearchRequest searchRequest = msearch.request().requests().get(i);
-                                    LOGGER.debug("Found 0 hits for [{}/{}]", searchRequest.indices(), searchRequest.types());
-                                } else if (hitsCount == 1) {
-                                    parseAutodetectParamSearchHit(jobId, paramsBuilder, hits.getAt(0), errorHandler);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, msearch.request(),
+                ActionListener.<MultiSearchResponse>wrap(
+                        response -> {
+                            for (int i = 0; i < response.getResponses().length; i++) {
+                                MultiSearchResponse.Item itemResponse = response.getResponses()[i];
+                                if (itemResponse.isFailure()) {
+                                    errorHandler.accept(itemResponse.getFailure());
                                 } else {
-                                    errorHandler.accept(new IllegalStateException("Expected hits count to be 0 or 1, but got ["
-                                            + hitsCount + "]"));
+                                    SearchResponse searchResponse = itemResponse.getResponse();
+                                    ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                                    int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
+                                    if (shardFailures != null && shardFailures.length > 0) {
+                                        LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
+                                                Arrays.toString(shardFailures));
+                                        errorHandler.accept(new ElasticsearchException(
+                                                ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                                    } else if (unavailableShards > 0) {
+                                        errorHandler.accept(new ElasticsearchException("[" + jobId
+                                                + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                                    } else {
+                                        SearchHits hits = searchResponse.getHits();
+                                        long hitsCount = hits.getHits().length;
+                                        if (hitsCount == 0) {
+                                            SearchRequest searchRequest = msearch.request().requests().get(i);
+                                            LOGGER.debug("Found 0 hits for [{}/{}]", searchRequest.indices(), searchRequest.types());
+                                        } else if (hitsCount == 1) {
+                                            parseAutodetectParamSearchHit(jobId, paramsBuilder, hits.getAt(0), errorHandler);
+                                        } else {
+                                            errorHandler.accept(new IllegalStateException("Expected hits count to be 0 or 1, but got ["
+                                                    + hitsCount + "]"));
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
-                    consumer.accept(paramsBuilder.build());
-                },
-                errorHandler
-        ));
+                            consumer.accept(paramsBuilder.build());
+                        },
+                        errorHandler
+                ), client::multiSearch);
     }
 
     private SearchRequestBuilder createDocIdSearch(String index, String id) {
@@ -456,33 +466,34 @@ public class JobProvider {
         searchRequest.source(query.build());
         searchRequest.indicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
 
-        client.search(searchRequest, ActionListener.wrap(searchResponse -> {
-            SearchHits hits = searchResponse.getHits();
-            List<Bucket> results = new ArrayList<>();
-            for (SearchHit hit : hits.getHits()) {
-                BytesReference source = hit.getSourceRef();
-                try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
-                    Bucket bucket = Bucket.PARSER.apply(parser, null);
-                    results.add(bucket);
-                } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to parse bucket", e);
-                }
-            }
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(searchResponse -> {
+                    SearchHits hits = searchResponse.getHits();
+                    List<Bucket> results = new ArrayList<>();
+                    for (SearchHit hit : hits.getHits()) {
+                        BytesReference source = hit.getSourceRef();
+                        try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                            Bucket bucket = Bucket.PARSER.apply(parser, null);
+                            results.add(bucket);
+                        } catch (IOException e) {
+                            throw new ElasticsearchParseException("failed to parse bucket", e);
+                        }
+                    }
 
-            if (query.hasTimestamp() && results.isEmpty()) {
-                throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
-            }
+                    if (query.hasTimestamp() && results.isEmpty()) {
+                        throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
+                    }
 
-            QueryPage<Bucket> buckets = new QueryPage<>(results, searchResponse.getHits().getTotalHits(), Bucket.RESULTS_FIELD);
+                    QueryPage<Bucket> buckets = new QueryPage<>(results, searchResponse.getHits().getTotalHits(), Bucket.RESULTS_FIELD);
 
-            if (query.isExpand()) {
-                Iterator<Bucket> bucketsToExpand = buckets.results().stream()
-                        .filter(bucket -> bucket.getBucketInfluencers().size() > 0).iterator();
-                expandBuckets(jobId, query, buckets, bucketsToExpand, handler, errorHandler, client);
-            } else {
-                handler.accept(buckets);
-            }
-        }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetBucketsAction.NAME))));
+                    if (query.isExpand()) {
+                        Iterator<Bucket> bucketsToExpand = buckets.results().stream()
+                                .filter(bucket -> bucket.getBucketInfluencers().size() > 0).iterator();
+                        expandBuckets(jobId, query, buckets, bucketsToExpand, handler, errorHandler, client);
+                    } else {
+                        handler.accept(buckets);
+                    }
+                }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetBucketsAction.NAME))), client::search);
     }
 
     private void expandBuckets(String jobId, BucketsQueryBuilder query, QueryPage<Bucket> buckets, Iterator<Bucket> bucketsToExpand,
@@ -585,22 +596,23 @@ public class JobProvider {
             throw new IllegalStateException("Both categoryId and pageParams are not specified");
         }
         searchRequest.source(sourceBuilder);
-        client.search(searchRequest, ActionListener.wrap(searchResponse -> {
-            SearchHit[] hits = searchResponse.getHits().getHits();
-            List<CategoryDefinition> results = new ArrayList<>(hits.length);
-            for (SearchHit hit : hits) {
-                BytesReference source = hit.getSourceRef();
-                try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
-                    CategoryDefinition categoryDefinition = CategoryDefinition.PARSER.apply(parser, null);
-                    results.add(categoryDefinition);
-                } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to parse category definition", e);
-                }
-            }
-            QueryPage<CategoryDefinition> result =
-                    new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
-            handler.accept(result);
-        }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetCategoriesAction.NAME))));
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(searchResponse -> {
+                    SearchHit[] hits = searchResponse.getHits().getHits();
+                    List<CategoryDefinition> results = new ArrayList<>(hits.length);
+                    for (SearchHit hit : hits) {
+                        BytesReference source = hit.getSourceRef();
+                        try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                            CategoryDefinition categoryDefinition = CategoryDefinition.PARSER.apply(parser, null);
+                            results.add(categoryDefinition);
+                        } catch (IOException e) {
+                            throw new ElasticsearchParseException("failed to parse category definition", e);
+                        }
+                    }
+                    QueryPage<CategoryDefinition> result =
+                            new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
+                    handler.accept(result);
+                }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetCategoriesAction.NAME))), client::search);
     }
 
     /**
@@ -618,20 +630,21 @@ public class JobProvider {
         searchRequest.source(recordsQueryBuilder.build());
 
         LOGGER.trace("ES API CALL: search all of records from index {} with query {}", indexName, searchSourceBuilder);
-        client.search(searchRequest, ActionListener.wrap(searchResponse -> {
-            List<AnomalyRecord> results = new ArrayList<>();
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                BytesReference source = hit.getSourceRef();
-                try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
-                    results.add(AnomalyRecord.PARSER.apply(parser, null));
-                } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to parse records", e);
-                }
-            }
-            QueryPage<AnomalyRecord> queryPage =
-                    new QueryPage<>(results, searchResponse.getHits().getTotalHits(), AnomalyRecord.RESULTS_FIELD);
-            handler.accept(queryPage);
-        }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetRecordsAction.NAME))));
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(searchResponse -> {
+                    List<AnomalyRecord> results = new ArrayList<>();
+                    for (SearchHit hit : searchResponse.getHits().getHits()) {
+                        BytesReference source = hit.getSourceRef();
+                        try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                            results.add(AnomalyRecord.PARSER.apply(parser, null));
+                        } catch (IOException e) {
+                            throw new ElasticsearchParseException("failed to parse records", e);
+                        }
+                    }
+                    QueryPage<AnomalyRecord> queryPage =
+                            new QueryPage<>(results, searchResponse.getHits().getTotalHits(), AnomalyRecord.RESULTS_FIELD);
+                    handler.accept(queryPage);
+                }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetRecordsAction.NAME))), client::search);
     }
 
     /**
@@ -664,19 +677,21 @@ public class JobProvider {
                 : new FieldSortBuilder(query.getSortField()).order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
         searchRequest.source(new SearchSourceBuilder().query(qb).from(query.getFrom()).size(query.getSize()).sort(sb));
 
-        client.search(searchRequest, ActionListener.wrap(response -> {
-            List<Influencer> influencers = new ArrayList<>();
-            for (SearchHit hit : response.getHits().getHits()) {
-                BytesReference source = hit.getSourceRef();
-                try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
-                    influencers.add(Influencer.PARSER.apply(parser, null));
-                } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to parse influencer", e);
-                }
-            }
-            QueryPage<Influencer> result = new QueryPage<>(influencers, response.getHits().getTotalHits(), Influencer.RESULTS_FIELD);
-            handler.accept(result);
-        }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetInfluencersAction.NAME))));
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(response -> {
+                    List<Influencer> influencers = new ArrayList<>();
+                    for (SearchHit hit : response.getHits().getHits()) {
+                        BytesReference source = hit.getSourceRef();
+                        try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                            influencers.add(Influencer.PARSER.apply(parser, null));
+                        } catch (IOException e) {
+                            throw new ElasticsearchParseException("failed to parse influencer", e);
+                        }
+                    }
+                    QueryPage<Influencer> result =
+                            new QueryPage<>(influencers, response.getHits().getTotalHits(), Influencer.RESULTS_FIELD);
+                    handler.accept(result);
+                }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetInfluencersAction.NAME))), client::search);
     }
 
     /**
@@ -780,16 +795,17 @@ public class JobProvider {
         sourceBuilder.from(from);
         sourceBuilder.size(size);
         searchRequest.source(sourceBuilder);
-        client.search(searchRequest, ActionListener.wrap(searchResponse -> {
-            List<ModelSnapshot> results = new ArrayList<>();
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                results.add(ModelSnapshot.fromJson(hit.getSourceRef()));
-            }
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(searchResponse -> {
+                    List<ModelSnapshot> results = new ArrayList<>();
+                    for (SearchHit hit : searchResponse.getHits().getHits()) {
+                        results.add(ModelSnapshot.fromJson(hit.getSourceRef()));
+                    }
 
-            QueryPage<ModelSnapshot> result =
-                    new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
-            handler.accept(result);
-        }, errorHandler));
+                    QueryPage<ModelSnapshot> result =
+                            new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
+                    handler.accept(result);
+                }, errorHandler), client::search);
     }
 
     public QueryPage<ModelPlot> modelPlot(String jobId, int from, int size) {
@@ -797,11 +813,13 @@ public class JobProvider {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         LOGGER.trace("ES API CALL: search model plots from index {} from {} size {}", indexName, from, size);
 
-        searchResponse = client.prepareSearch(indexName)
-                .setIndicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
-                .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ModelPlot.RESULT_TYPE_VALUE))
-                .setFrom(from).setSize(size)
-                .get();
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            searchResponse = client.prepareSearch(indexName)
+                    .setIndicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
+                    .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ModelPlot.RESULT_TYPE_VALUE))
+                    .setFrom(from).setSize(size)
+                    .get();
+        }
 
         List<ModelPlot> results = new ArrayList<>();
 
@@ -834,20 +852,21 @@ public class JobProvider {
     private <U, T> void searchSingleResult(String jobId, String resultDescription, SearchRequestBuilder search,
                                         BiFunction<XContentParser, U, T> objectParser, Consumer<Result<T>> handler,
                                         Consumer<Exception> errorHandler, Supplier<T> notFoundSupplier) {
-        search.execute(ActionListener.wrap(
-                response -> {
-                    SearchHit[] hits = response.getHits().getHits();
-                    if (hits.length == 0) {
-                        LOGGER.trace("No {} for job with id {}", resultDescription, jobId);
-                        handler.accept(new Result<>(null, notFoundSupplier.get()));
-                    } else if (hits.length == 1) {
-                        handler.accept(new Result<>(hits[0].getIndex(), parseSearchHit(hits[0], objectParser, errorHandler)));
-                    } else {
-                        errorHandler.accept(new IllegalStateException("Search for unique [" + resultDescription + "] returned ["
-                                + hits.length + "] hits even though size was 1"));
-                    }
-                }, errorHandler
-        ));
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, search.request(),
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            SearchHit[] hits = response.getHits().getHits();
+                            if (hits.length == 0) {
+                                LOGGER.trace("No {} for job with id {}", resultDescription, jobId);
+                                handler.accept(new Result<>(null, notFoundSupplier.get()));
+                            } else if (hits.length == 1) {
+                                handler.accept(new Result<>(hits[0].getIndex(), parseSearchHit(hits[0], objectParser, errorHandler)));
+                            } else {
+                                errorHandler.accept(new IllegalStateException("Search for unique [" + resultDescription + "] returned ["
+                                        + hits.length + "] hits even though size was 1"));
+                            }
+                        }, errorHandler
+                ), client::search);
     }
 
     private SearchRequestBuilder createLatestModelSizeStatsSearch(String indexName) {
@@ -892,36 +911,38 @@ public class JobProvider {
                                 .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(searchFromTimeMs))
                                 .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE)))
                         .addAggregation(AggregationBuilders.extendedStats("es").field(ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName()));
-                search.execute(ActionListener.wrap(
-                        response -> {
-                            List<Aggregation> aggregations = response.getAggregations().asList();
-                            if (aggregations.size() == 1) {
-                                ExtendedStats extendedStats = (ExtendedStats) aggregations.get(0);
-                                long count = extendedStats.getCount();
-                                if (count <= 0) {
-                                    // model size stats haven't changed in the last N buckets, so the latest (older) ones are established
-                                    handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
-                                } else if (count == 1) {
-                                    // no need to do an extra search in the case of exactly one document being aggregated
-                                    handler.accept((long) extendedStats.getAvg());
-                                } else {
-                                    double coefficientOfVaration = extendedStats.getStdDeviation() / extendedStats.getAvg();
-                                    LOGGER.trace("[{}] Coefficient of variation [{}] when calculating established memory use", jobId,
-                                            coefficientOfVaration);
-                                    // is there sufficient stability in the latest model size stats readings?
-                                    if (coefficientOfVaration <= ESTABLISHED_MEMORY_CV_THRESHOLD) {
-                                        // yes, so return the latest model size as established
-                                        handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, search.request(),
+                        ActionListener.<SearchResponse>wrap(
+                                response -> {
+                                    List<Aggregation> aggregations = response.getAggregations().asList();
+                                    if (aggregations.size() == 1) {
+                                        ExtendedStats extendedStats = (ExtendedStats) aggregations.get(0);
+                                        long count = extendedStats.getCount();
+                                        if (count <= 0) {
+                                            // model size stats haven't changed in the last N buckets,
+                                            // so the latest (older) ones are established
+                                            handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
+                                        } else if (count == 1) {
+                                            // no need to do an extra search in the case of exactly one document being aggregated
+                                            handler.accept((long) extendedStats.getAvg());
+                                        } else {
+                                            double coefficientOfVaration = extendedStats.getStdDeviation() / extendedStats.getAvg();
+                                            LOGGER.trace("[{}] Coefficient of variation [{}] when calculating established memory use",
+                                                    jobId, coefficientOfVaration);
+                                            // is there sufficient stability in the latest model size stats readings?
+                                            if (coefficientOfVaration <= ESTABLISHED_MEMORY_CV_THRESHOLD) {
+                                                // yes, so return the latest model size as established
+                                                handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
+                                            } else {
+                                                // no - we don't have an established model size
+                                                handler.accept(0L);
+                                            }
+                                        }
                                     } else {
-                                        // no - we don't have an established model size
                                         handler.accept(0L);
                                     }
-                                }
-                            } else {
-                                handler.accept(0L);
-                            }
-                        }, errorHandler
-                ));
+                                }, errorHandler
+                        ), client::search);
             } else {
                 LOGGER.trace("[{}] Insufficient history to calculate established memory use", jobId);
                 handler.accept(0L);

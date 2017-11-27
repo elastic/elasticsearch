@@ -9,10 +9,13 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
-import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
+import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.integration.MlRestTestStateCleaner;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.junit.After;
@@ -43,14 +46,14 @@ public class XPackRestIT extends XPackRestTestCase {
     }
 
     /**
-     * Waits for the Security template to be created by the {@link SecurityLifecycleService} and
-     * the Machine Learning templates to be created by {@link MachineLearningTemplateRegistry}
+     * Waits for the Security template and the Machine Learning templates to be created by the {@link MetaDataUpgrader}
      */
     @Before
     public void waitForTemplates() throws Exception {
         List<String> templates = new ArrayList<>();
         templates.add(SecurityLifecycleService.SECURITY_TEMPLATE_NAME);
-        templates.addAll(Arrays.asList(MachineLearningTemplateRegistry.TEMPLATE_NAMES));
+        templates.addAll(Arrays.asList(Auditor.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME, AnomalyDetectorsIndex.jobStateIndexName(),
+                AnomalyDetectorsIndex.jobResultsIndexPrefix()));
         templates.addAll(Arrays.asList(WatcherIndexTemplateRegistry.TEMPLATE_NAMES));
 
         for (String template : templates) {

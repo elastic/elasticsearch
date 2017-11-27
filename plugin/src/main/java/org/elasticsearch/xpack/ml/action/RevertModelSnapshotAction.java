@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Date;
@@ -252,7 +252,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final InternalClient client;
+        private final Client client;
         private final JobManager jobManager;
         private final JobProvider jobProvider;
         private final JobDataCountsPersister jobDataCountsPersister;
@@ -260,7 +260,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager, JobProvider jobProvider,
-                               ClusterService clusterService, InternalClient client, JobDataCountsPersister jobDataCountsPersister) {
+                               ClusterService clusterService, Client client, JobDataCountsPersister jobDataCountsPersister) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.client = client;
             this.jobManager = jobManager;

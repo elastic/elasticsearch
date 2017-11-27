@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.Input;
@@ -54,6 +56,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -74,7 +77,11 @@ public class SearchInputTests extends ESTestCase {
         contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
         scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
 
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
     }
 
     public void testExecute() throws Exception {
@@ -85,12 +92,16 @@ public class SearchInputTests extends ESTestCase {
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
+        ArgumentCaptor<Map> headersCaptor = ArgumentCaptor.forClass(Map.class);
+        when(client.filterWithHeader(headersCaptor.capture())).thenReturn(client);
+
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery().must(matchQuery("event_type", "a")));
 
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder);
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
                 client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
         assertThat(result.status(), is(Input.Result.Status.SUCCESS));
@@ -98,6 +109,7 @@ public class SearchInputTests extends ESTestCase {
         assertThat(searchRequest.searchType(), is(request.getSearchType()));
         assertThat(searchRequest.indicesOptions(), is(request.getIndicesOptions()));
         assertThat(searchRequest.indices(), is(arrayContainingInAnyOrder(request.getIndices())));
+        assertThat(headersCaptor.getAllValues(), hasSize(0));
     }
 
     public void testDifferentSearchType() throws Exception {

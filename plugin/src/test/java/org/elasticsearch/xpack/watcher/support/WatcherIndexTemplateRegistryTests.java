@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.support;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.AdminClient;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -43,7 +41,6 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -61,20 +58,20 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
 
         client = mock(Client.class);
-        InternalClient internalClient = new InternalClient(Settings.EMPTY, threadPool, client);
+        when(client.threadPool()).thenReturn(threadPool);
         AdminClient adminClient = mock(AdminClient.class);
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);
         doAnswer(invocationOnMock -> {
             ActionListener<PutIndexTemplateResponse> listener =
-                    (ActionListener<PutIndexTemplateResponse>) invocationOnMock.getArguments()[2];
+                    (ActionListener<PutIndexTemplateResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(new TestPutIndexTemplateResponse(true));
             return null;
-        }).when(client).execute(same(PutIndexTemplateAction.INSTANCE), any(), any());
+        }).when(indicesAdminClient).putTemplate(any(PutIndexTemplateRequest.class), any(ActionListener.class));
 
         ClusterService clusterService = mock(ClusterService.class);
-        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, internalClient);
+        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client);
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() {
@@ -84,13 +81,13 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), nodes);
         registry.clusterChanged(event);
         ArgumentCaptor<PutIndexTemplateRequest> argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client, times(3)).execute(anyObject(), argumentCaptor.capture(), anyObject());
+        verify(client.admin().indices(), times(3)).putTemplate(argumentCaptor.capture(), anyObject());
 
         // now delete one template from the cluster state and lets retry
         ClusterChangedEvent newEvent = createClusterChangedEvent(Arrays.asList(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME,
                 WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME), nodes);
         registry.clusterChanged(newEvent);
-        verify(client, times(4)).execute(anyObject(), argumentCaptor.capture(), anyObject());
+        verify(client.admin().indices(), times(4)).putTemplate(argumentCaptor.capture(), anyObject());
     }
 
     public void testThatTemplatesExist() {
@@ -115,7 +112,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
 
         ArgumentCaptor<PutIndexTemplateRequest> argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client, times(1)).execute(anyObject(), argumentCaptor.capture(), anyObject());
+        verify(client.admin().indices(), times(1)).putTemplate(argumentCaptor.capture(), anyObject());
         assertThat(argumentCaptor.getValue().name(), is(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME));
     }
 

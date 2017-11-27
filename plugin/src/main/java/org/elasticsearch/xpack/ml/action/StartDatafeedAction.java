@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -65,12 +66,14 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.clientWithOrigin;
 
 public class StartDatafeedAction
         extends Action<StartDatafeedAction.Request, StartDatafeedAction.Response, StartDatafeedAction.RequestBuilder> {
@@ -422,7 +425,7 @@ public class StartDatafeedAction
     // The start datafeed api is a low through put api, so the fact that we redirect to elected master node shouldn't be an issue.
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final InternalClient client;
+        private final Client client;
         private final XPackLicenseState licenseState;
         private final PersistentTasksService persistentTasksService;
 
@@ -430,11 +433,11 @@ public class StartDatafeedAction
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
                                XPackLicenseState licenseState, PersistentTasksService persistentTasksService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               InternalClient client) {
+                               Client client) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
             this.persistentTasksService = persistentTasksService;
-            this.client = client;
+            this.client = clientWithOrigin(client, ML_ORIGIN);
         }
 
         @Override

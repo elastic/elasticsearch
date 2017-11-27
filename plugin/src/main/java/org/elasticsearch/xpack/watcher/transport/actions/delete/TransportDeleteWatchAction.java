@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.transport.actions.delete;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -17,8 +18,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+
+import static org.elasticsearch.xpack.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Performs the delete operation. This inherits directly from HandledTransportAction, because deletion should always work
@@ -31,7 +34,7 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
     @Inject
     public TransportDeleteWatchAction(Settings settings, TransportService transportService,ThreadPool threadPool,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      InternalClient client) {
+                                      Client client) {
         super(settings, DeleteWatchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 DeleteWatchRequest::new);
         this.client = client;
@@ -41,11 +44,11 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
     protected void doExecute(DeleteWatchRequest request, ActionListener<DeleteWatchResponse> listener) {
         DeleteRequest deleteRequest = new DeleteRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        client.delete(deleteRequest, ActionListener.wrap(deleteResponse -> {
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, deleteRequest,
+                ActionListener.<DeleteResponse>wrap(deleteResponse -> {
                     boolean deleted = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
                     DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleted);
                     listener.onResponse(response);
-                },
-                listener::onFailure));
+                }, listener::onFailure), client::delete);
     }
 }

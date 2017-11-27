@@ -12,12 +12,16 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 
 /**
  * A {@code StateStreamer} fetches the various state documents and
@@ -66,13 +70,15 @@ public class StateStreamer {
 
             LOGGER.trace("ES API CALL: get ID {} from index {}", stateDocId, indexName);
 
-            GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, stateDocId).get();
-            if (!stateResponse.isExists()) {
-                LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
-                        modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
-                break;
+            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+                GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, stateDocId).get();
+                if (!stateResponse.isExists()) {
+                    LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
+                            modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
+                    break;
+                }
+                writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
             }
-            writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
         }
 
         // Secondly try to restore categorizer state. This must come after model state because that's
@@ -88,11 +94,13 @@ public class StateStreamer {
 
             LOGGER.trace("ES API CALL: get ID {} from index {}", docId, indexName);
 
-            GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, docId).get();
-            if (!stateResponse.isExists()) {
-                break;
+            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+                GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, docId).get();
+                if (!stateResponse.isExists()) {
+                    break;
+                }
+                writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
             }
-            writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
         }
 
     }

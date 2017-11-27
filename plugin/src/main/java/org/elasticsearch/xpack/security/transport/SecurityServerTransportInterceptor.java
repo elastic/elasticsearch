@@ -36,9 +36,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
-import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.Collections;
@@ -111,14 +109,11 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                         securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
                                 new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
                                         , handler), sender), minVersion);
-                    } else if (reservedRealmEnabled && connection.getVersion().before(Version.V_5_2_0) &&
-                            KibanaUser.NAME.equals(securityContext.getUser().principal())) {
-                        final User kibanaUser = securityContext.getUser();
-                        final User bwcKibanaUser = new User(kibanaUser.principal(), new String[] { "kibana" }, kibanaUser.fullName(),
-                                kibanaUser.email(), kibanaUser.metadata(), kibanaUser.enabled());
-                        securityContext.executeAsUser(bwcKibanaUser, (original) -> sendWithUser(connection, action, request, options,
-                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original),
-                                        handler), sender), connection.getVersion());
+                    } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
+                        AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
+                                (original) -> sendWithUser(connection, action, request, options,
+                                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
+                                                , handler), sender));
                     } else if (securityContext.getAuthentication() != null &&
                             securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
                         // re-write the authentication since we want the authentication version to match the version of the connection

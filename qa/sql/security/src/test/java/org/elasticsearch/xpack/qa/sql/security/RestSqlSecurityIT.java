@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.columnInfo;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -125,7 +126,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
 
         private static Map<String, Object> runSql(@Nullable String asUser, HttpEntity entity) throws IOException {
             Header[] headers = asUser == null ? new Header[0] : new Header[] {new BasicHeader("es-security-runas-user", asUser)};
-            Response response = client().performRequest("POST", "/_sql", emptyMap(), entity, headers);
+            Response response = client().performRequest("POST", "/_sql", singletonMap("format", "json"), entity, headers);
             return toMap(response);
         }
 

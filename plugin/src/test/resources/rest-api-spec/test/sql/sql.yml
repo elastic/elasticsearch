@@ -19,6 +19,7 @@
 
   - do:
       xpack.sql:
+        format: json
         body:
           query: "SELECT * FROM test ORDER BY int asc"
   - match: { columns.0.name: int }
@@ -27,3 +28,16 @@
   - match: { rows.0.1: test1 }
   - match: { rows.1.0: 2 }
   - match: { rows.1.1: test2 }
+
+  - do:
+      xpack.sql:
+        format: text
+        body:
+          query: "SELECT * FROM test ORDER BY int asc"
+  - match:
+      $body: |
+               /^  \s+   int \s+  \| \s+  str \s+  \n
+                   ---------------\+---------------\n
+                   1      \s+     \|test1   \s+    \n
+                   2      \s+     \|test2   \s+    \n
+               $/

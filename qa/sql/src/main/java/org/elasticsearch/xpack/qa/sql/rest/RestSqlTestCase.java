@@ -9,6 +9,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -17,8 +19,11 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -99,7 +104,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
         assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON)));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/2074")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testTimeZone() throws IOException {
         StringBuilder bulk = new StringBuilder();
         bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
@@ -147,26 +152,17 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
         return runSql(suffix, new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
     }
 
-    private Map<String, Object> runSql(String sql, String filter, String suffix) throws IOException {
-        return runSql(suffix, new StringEntity("{\"query\":\"" + sql + "\", \"filter\":" + filter + "}", ContentType.APPLICATION_JSON));
-    }
-
     private Map<String, Object> runSql(HttpEntity sql) throws IOException {
         return runSql("", sql);
     }
 
     private Map<String, Object> runSql(String suffix, HttpEntity sql) throws IOException {
-        Response response = client().performRequest("POST", "/_sql" + suffix, singletonMap("error_trace", "true"), sql);
+        Map<String, String> params = new HashMap<>();
+        params.put("error_trace", "true");
+        params.put("format", "json");
+        Response response = client().performRequest("POST", "/_sql" + suffix, params, sql);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-        }
-    }
-
-    private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
-        if (false == expected.equals(actual)) {
-            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
-            message.compareMaps(actual, expected);
-            fail("Response does not match:\n" + message.toString());
         }
     }
 
@@ -201,7 +197,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
         expected.put("columns", singletonList(columnInfo("test", "text")));
         expected.put("rows", singletonList(singletonList("foo")));
         expected.put("size", 1);
-        assertResponse(expected, runSql("SELECT * FROM test", "{\"match\": {\"test\": \"foo\"}}", ""));
+        assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT * FROM test\", \"filter\":{\"match\": {\"test\": \"foo\"}}}",
+                ContentType.APPLICATION_JSON)));
     }
 
     public void testBasicTranslateQueryWithFilter() throws IOException {
@@ -213,7 +210,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
         client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        Map<String, Object> response = runSql("SELECT * FROM test", "{\"match\": {\"test\": \"foo\"}}", "/translate/");
+        Map<String, Object> response = runSql("/translate/",
+                new StringEntity("{\"query\":\"SELECT * FROM test\", \"filter\":{\"match\": {\"test\": \"foo\"}}}",
+                        ContentType.APPLICATION_JSON));
+
         assertEquals(response.get("size"), 1000);
         @SuppressWarnings("unchecked")
         Map<String, Object> source = (Map<String, Object>) response.get("_source");
@@ -241,6 +241,81 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
         Map<String, Object> matchQuery = (Map<String, Object>) match.get("test");
         assertNotNull(matchQuery);
         assertEquals("foo", matchQuery.get("query"));
+    }
+
+    public void testBasicQueryText() throws IOException {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"test\":\"test\"}\n");
+        bulk.append("{\"index\":{\"_id\":\"2\"}}\n");
+        bulk.append("{\"test\":\"test\"}\n");
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        String expected =
+                "test           \n" +
+                "---------------\n" +
+                "test           \n" +
+                "test           \n";
+        Tuple<String, String> response = runSqlAsText("SELECT * FROM test");
+        logger.warn(expected);
+        logger.warn(response.v1());
+    }
+
+    public void testNextPageText() throws IOException {
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < 20; i++) {
+            bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
+            bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + "}\n");
+        }
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        String request = "{\"query\":\"SELECT text, number, number + 5 AS sum FROM test ORDER BY number\", \"fetch_size\":2}";
+
+        String cursor = null;
+        for (int i = 0; i < 20; i += 2) {
+            Tuple<String, String> response;
+            if (i == 0) {
+                response = runSqlAsText("", new StringEntity(request, ContentType.APPLICATION_JSON));
+            } else {
+                response = runSqlAsText("", new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON));
+            }
+
+            StringBuilder expected = new StringBuilder();
+            if (i == 0) {
+                expected.append("     text      |    number     |      sum      \n");
+                expected.append("---------------+---------------+---------------\n");
+            }
+            expected.append(String.format(Locale.ROOT, "%-15s|%-15d|%-15d\n", "text" + i, i, i + 5));
+            expected.append(String.format(Locale.ROOT, "%-15s|%-15d|%-15d\n", "text" + (i + 1), i + 1, i + 6));
+            cursor = response.v2();
+            assertEquals(expected.toString(), response.v1());
+            assertNotNull(cursor);
+        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("size", 0);
+        expected.put("rows", emptyList());
+        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON)));
+    }
+
+    private Tuple<String, String> runSqlAsText(String sql) throws IOException {
+        return runSqlAsText("", new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
+    }
+
+    private Tuple<String, String> runSqlAsText(String suffix, HttpEntity sql) throws IOException {
+        Response  response = client().performRequest("POST", "/_sql" + suffix, singletonMap("error_trace", "true"), sql);
+        return new Tuple<>(
+                Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
+                response.getHeader("Cursor")
+        );
+    }
+
+    private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
+        if (false == expected.equals(actual)) {
+            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+            message.compareMaps(actual, expected);
+            fail("Response does not match:\n" + message.toString());
+        }
     }
 
 }

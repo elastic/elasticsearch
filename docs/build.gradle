@@ -29,7 +29,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/security/tribe-clients-integrations/beats.asciidoc',
         'en/security/tribe-clients-integrations/http.asciidoc',
         'en/security/tribe-clients-integrations/monitoring.asciidoc',
-        'en/security/tribe-clients-integrations/cross-cluster.asciidoc',
         'en/security/authorization/custom-roles-provider.asciidoc',
         'en/watcher/actions/email.asciidoc',
         'en/watcher/actions/hipchat.asciidoc',

@@ -137,6 +137,7 @@ public class MockIndexLifecycleContextTests extends ESTestCase {
         };
 
         MockAction action = new MockAction();
+        action.setCompleteOnExecute(true);
 
         assertFalse(action.wasCompleted());
         assertEquals(0L, action.getExecutedCount());

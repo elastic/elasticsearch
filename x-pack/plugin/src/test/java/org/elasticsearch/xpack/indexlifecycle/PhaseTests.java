@@ -83,7 +83,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         return new Phase(name, after, actions);
     }
 
-    public void testExecuteNewIndex() throws Exception {
+    public void testExecuteNewIndexCompleteActions() throws Exception {
         String indexName = randomAlphaOfLengthBetween(1, 20);
         String phaseName = randomAlphaOfLengthBetween(1, 20);
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
@@ -94,6 +94,60 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "first_action";
             }
         };
+        firstAction.setCompleteOnExecute(true);
+        actions.add(firstAction);
+        MockAction secondAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "second_action";
+            }
+        };
+        secondAction.setCompleteOnExecute(true);
+        actions.add(secondAction);
+        MockAction thirdAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "third_action";
+            }
+        };
+        thirdAction.setCompleteOnExecute(true);
+        actions.add(thirdAction);
+        Phase phase = new Phase(phaseName, after, actions);
+
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "") {
+
+            @Override
+            public boolean canExecute(Phase phase) {
+                throw new AssertionError("canExecute should not have been called");
+            }
+        };
+
+        phase.execute(context);
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(Phase.PHASE_COMPLETED, context.getAction());
+
+        assertTrue(firstAction.wasCompleted());
+        assertEquals(1L, firstAction.getExecutedCount());
+        assertTrue(secondAction.wasCompleted());
+        assertEquals(1L, secondAction.getExecutedCount());
+        assertTrue(thirdAction.wasCompleted());
+        assertEquals(1L, thirdAction.getExecutedCount());
+    }
+
+    public void testExecuteNewIndexIncompleteFirstAction() throws Exception {
+        String indexName = randomAlphaOfLengthBetween(1, 20);
+        String phaseName = randomAlphaOfLengthBetween(1, 20);
+        TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
+        List<LifecycleAction> actions = new ArrayList<>();
+        MockAction firstAction = new MockAction() {
+            @Override
+            public String getWriteableName() {
+                return "first_action";
+            }
+        };
+        firstAction.setCompleteOnExecute(false);
         actions.add(firstAction);
         MockAction secondAction = new MockAction() {
             @Override
@@ -125,7 +179,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(phaseName, context.getPhase());
         assertEquals(firstAction.getWriteableName(), context.getAction());
 
-        assertTrue(firstAction.wasCompleted());
+        assertFalse(firstAction.wasCompleted());
         assertEquals(1L, firstAction.getExecutedCount());
         assertFalse(secondAction.wasCompleted());
         assertEquals(0L, secondAction.getExecutedCount());
@@ -268,6 +322,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "first_action";
             }
         };
+        firstAction.setCompleteOnExecute(false);
         actions.add(firstAction);
         MockAction secondAction = new MockAction() {
             @Override
@@ -275,6 +330,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "second_action";
             }
         };
+        secondAction.setCompleteOnExecute(false);
         actions.add(secondAction);
         MockAction thirdAction = new MockAction() {
             @Override
@@ -282,6 +338,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "third_action";
             }
         };
+        thirdAction.setCompleteOnExecute(false);
         actions.add(thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
@@ -299,10 +356,25 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(phaseName, context.getPhase());
         assertEquals(firstAction.getWriteableName(), context.getAction());
 
-        assertTrue(firstAction.wasCompleted());
+        assertFalse(firstAction.wasCompleted());
         assertEquals(1L, firstAction.getExecutedCount());
         assertFalse(secondAction.wasCompleted());
         assertEquals(0L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(0L, thirdAction.getExecutedCount());
+
+        firstAction.setCompleteOnExecute(true);
+
+        phase.execute(context);
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(secondAction.getWriteableName(), context.getAction());
+
+        assertTrue(firstAction.wasCompleted());
+        assertEquals(2L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(1L, secondAction.getExecutedCount());
         assertFalse(thirdAction.wasCompleted());
         assertEquals(0L, thirdAction.getExecutedCount());
     }
@@ -318,6 +390,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "first_action";
             }
         };
+        firstAction.setCompleteOnExecute(false);
         actions.add(firstAction);
         MockAction secondAction = new MockAction() {
             @Override
@@ -325,6 +398,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "second_action";
             }
         };
+        secondAction.setCompleteOnExecute(false);
         actions.add(secondAction);
         MockAction thirdAction = new MockAction() {
             @Override
@@ -332,6 +406,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "third_action";
             }
         };
+        thirdAction.setCompleteOnExecute(false);
         actions.add(thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
@@ -351,10 +426,25 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
         assertFalse(firstAction.wasCompleted());
         assertEquals(0L, firstAction.getExecutedCount());
-        assertTrue(secondAction.wasCompleted());
+        assertFalse(secondAction.wasCompleted());
         assertEquals(1L, secondAction.getExecutedCount());
         assertFalse(thirdAction.wasCompleted());
         assertEquals(0L, thirdAction.getExecutedCount());
+
+        secondAction.setCompleteOnExecute(true);
+
+        phase.execute(context);
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(thirdAction.getWriteableName(), context.getAction());
+
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertTrue(secondAction.wasCompleted());
+        assertEquals(2L, secondAction.getExecutedCount());
+        assertFalse(thirdAction.wasCompleted());
+        assertEquals(1L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteThirdAction() throws Exception {
@@ -368,6 +458,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "first_action";
             }
         };
+        firstAction.setCompleteOnExecute(false);
         actions.add(firstAction);
         MockAction secondAction = new MockAction() {
             @Override
@@ -375,6 +466,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "second_action";
             }
         };
+        secondAction.setCompleteOnExecute(false);
         actions.add(secondAction);
         MockAction thirdAction = new MockAction() {
             @Override
@@ -382,6 +474,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
                 return "third_action";
             }
         };
+        thirdAction.setCompleteOnExecute(false);
         actions.add(thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
@@ -395,7 +488,6 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
         phase.execute(context);
 
-
         assertEquals(indexName, context.getLifecycleTarget());
         assertEquals(phaseName, context.getPhase());
         assertEquals(thirdAction.getWriteableName(), context.getAction());
@@ -404,8 +496,23 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         assertEquals(0L, firstAction.getExecutedCount());
         assertFalse(secondAction.wasCompleted());
         assertEquals(0L, secondAction.getExecutedCount());
-        assertTrue(thirdAction.wasCompleted());
+        assertFalse(thirdAction.wasCompleted());
         assertEquals(1L, thirdAction.getExecutedCount());
+
+        thirdAction.setCompleteOnExecute(true);
+
+        phase.execute(context);
+
+        assertEquals(indexName, context.getLifecycleTarget());
+        assertEquals(phaseName, context.getPhase());
+        assertEquals(Phase.PHASE_COMPLETED, context.getAction());
+
+        assertFalse(firstAction.wasCompleted());
+        assertEquals(0L, firstAction.getExecutedCount());
+        assertFalse(secondAction.wasCompleted());
+        assertEquals(0L, secondAction.getExecutedCount());
+        assertTrue(thirdAction.wasCompleted());
+        assertEquals(2L, thirdAction.getExecutedCount());
     }
 
     public void testExecuteMissingAction() throws Exception {

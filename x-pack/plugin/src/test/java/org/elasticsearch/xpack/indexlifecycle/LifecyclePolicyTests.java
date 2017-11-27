@@ -181,7 +181,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(firstPhase.getName(), context.getPhase());
         assertEquals(MockAction.NAME, context.getAction());
 
-        assertTrue(firstAction.wasCompleted());
+        assertFalse(firstAction.wasCompleted());
         assertEquals(1L, firstAction.getExecutedCount());
         assertFalse(secondAction.wasCompleted());
         assertEquals(0L, secondAction.getExecutedCount());
@@ -281,7 +281,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(firstPhase.getName(), context.getPhase());
         assertEquals(MockAction.NAME, context.getAction());
 
-        assertTrue(firstAction.wasCompleted());
+        assertFalse(firstAction.wasCompleted());
         assertEquals(1L, firstAction.getExecutedCount());
         assertFalse(secondAction.wasCompleted());
         assertEquals(0L, secondAction.getExecutedCount());
@@ -329,7 +329,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
         assertFalse(firstAction.wasCompleted());
         assertEquals(0L, firstAction.getExecutedCount());
-        assertTrue(secondAction.wasCompleted());
+        assertFalse(secondAction.wasCompleted());
         assertEquals(1L, secondAction.getExecutedCount());
         assertFalse(thirdAction.wasCompleted());
         assertEquals(0L, thirdAction.getExecutedCount());
@@ -377,7 +377,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(0L, firstAction.getExecutedCount());
         assertFalse(secondAction.wasCompleted());
         assertEquals(0L, secondAction.getExecutedCount());
-        assertTrue(thirdAction.wasCompleted());
+        assertFalse(thirdAction.wasCompleted());
         assertEquals(1L, thirdAction.getExecutedCount());
     }
 
@@ -524,7 +524,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
         assertFalse(firstAction.wasCompleted());
         assertEquals(0L, firstAction.getExecutedCount());
-        assertTrue(secondAction.wasCompleted());
+        assertFalse(secondAction.wasCompleted());
         assertEquals(1L, secondAction.getExecutedCount());
         assertFalse(thirdAction.wasCompleted());
         assertEquals(0L, thirdAction.getExecutedCount());
@@ -626,7 +626,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(0L, firstAction.getExecutedCount());
         assertFalse(secondAction.wasCompleted());
         assertEquals(0L, secondAction.getExecutedCount());
-        assertTrue(thirdAction.wasCompleted());
+        assertFalse(thirdAction.wasCompleted());
         assertEquals(1L, thirdAction.getExecutedCount());
     }
 

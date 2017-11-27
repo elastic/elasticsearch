@@ -77,7 +77,7 @@ PUT /my_source_index/_settings
     changes like deleting the index.
 
 [float]
-=== Spitting an index
+=== Splitting an index
 
 To split `my_source_index` into a new index called `my_target_index`, issue
 the following request:

@@ -1376,6 +1376,8 @@ public class InternalEngine extends Engine {
             commitIndexWriter(indexWriter, translog, syncId);
             logger.debug("successfully sync committed. sync id [{}].", syncId);
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            // we are guaranteed to have no operations in the version map here!
+            versionMap.adjustMapSizeUnderLock();
             return SyncedFlushResult.SUCCESS;
         } catch (IOException ex) {
             maybeFailEngine("sync commit", ex);
@@ -1394,7 +1396,6 @@ public class InternalEngine extends Engine {
                 commitIndexWriter(indexWriter, translog, syncId);
                 logger.debug("successfully sync committed. sync id [{}].", syncId);
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                versionMap.adjustMapSizeUnderLock();
                 renewed = true;
             }
         } catch (IOException ex) {

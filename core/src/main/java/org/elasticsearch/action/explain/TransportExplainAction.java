@@ -91,13 +91,13 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected void shardOperation(ExplainRequest request, ShardId shardId, ActionListener<ExplainResponse> listener) throws IOException {
+    protected void asyncShardOperation(ExplainRequest request, ShardId shardId, ActionListener<ExplainResponse> listener) throws IOException {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         indexShard.awaitPendingRefresh(b -> {
             try {
-                super.shardOperation(request, shardId, listener);
-            } catch (IOException ex) {
+                super.asyncShardOperation(request, shardId, listener);
+            } catch (Exception ex) {
                 listener.onFailure(ex);
             }
         });

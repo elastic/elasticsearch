@@ -86,16 +86,20 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     }
 
     @Override
-    protected void shardOperation(TermVectorsRequest request, ShardId shardId, ActionListener<TermVectorsResponse> listener) throws IOException {
+    protected void asyncShardOperation(TermVectorsRequest request, ShardId shardId, ActionListener<TermVectorsResponse> listener) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        indexShard.awaitPendingRefresh(b -> {
-            try {
-                super.shardOperation(request, shardId, listener);
-            } catch (IOException ex) {
-                listener.onFailure(ex);
-            }
-        });
+        if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
+            listener.onResponse(shardOperation(request, shardId));
+        } else {
+            indexShard.awaitPendingRefresh(b -> {
+                try {
+                    super.asyncShardOperation(request, shardId, listener);
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
+                }
+            });
+        }
     }
 
     @Override

@@ -2589,7 +2589,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
     }
 
-    public void testIsSearchIdle() throws IOException {
+    public void testIsSearchIdle() throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -2618,9 +2618,7 @@ public class IndexShardTests extends IndexShardTestCase {
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(10))
             .build();
         scopedSettings.applySettings(settings);
-        while (primary.isSearchIdle() == false) {
-            // wait for it to become idle
-        }
+        assertBusy(() -> assertFalse(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
             primary.acquireSearcher("test").close();

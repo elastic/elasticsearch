@@ -100,7 +100,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
 
-    protected void shardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
+    protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
         threadPool.executor(this.executor).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -307,7 +307,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             if (logger.isTraceEnabled()) {
                 logger.trace("executing [{}] on shard [{}]", request, request.internalShardId);
             }
-            shardOperation(request, request.internalShardId, new ActionListener<Response>() {
+            asyncShardOperation(request, request.internalShardId, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
                     try {

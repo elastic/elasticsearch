@@ -82,16 +82,20 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected void shardOperation(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
+    protected void asyncShardOperation(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        indexShard.awaitPendingRefresh(b -> {
-            try {
-                super.shardOperation(request, shardId, listener);
-            } catch (IOException ex) {
-                listener.onFailure(ex);
-            }
-        });
+        if (request.realtime()) { // we are not tied to a refresh cycle here anyway
+            listener.onResponse(shardOperation(request, shardId));
+        } else {
+            indexShard.awaitPendingRefresh(b -> {
+                try {
+                    super.asyncShardOperation(request, shardId, listener);
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
+                }
+            });
+        }
     }
 
     @Override

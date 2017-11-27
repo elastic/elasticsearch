@@ -600,11 +600,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertNoSearchHits(client().prepareSearch().get());
         client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
-        // with ZERO we are guaranteed to see the doc since we will wait for a refresh in the background
         assertFalse(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
         CountDownLatch refreshLatch = new CountDownLatch(1);
-        client().admin().indices().prepareRefresh().execute(ActionListener.wrap(refreshLatch::countDown)); // async on purpose
+        client().admin().indices().prepareRefresh()
+            .execute(ActionListener.wrap(refreshLatch::countDown));// async on purpose to make sure it happens concurrently
         assertHitCount(client().prepareSearch().get(), 1);
         client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertFalse(shard.scheduledRefresh());

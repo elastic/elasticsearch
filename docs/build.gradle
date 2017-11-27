@@ -76,7 +76,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/get-record.asciidoc',
         'en/rest-api/ml/open-job.asciidoc',
         'en/rest-api/ml/preview-datafeed.asciidoc',
-        'en/rest-api/ml/start-datafeed.asciidoc',
         'en/rest-api/ml/update-datafeed.asciidoc',
         'en/rest-api/ml/update-job.asciidoc',
         'en/rest-api/ml/update-snapshot.asciidoc',
@@ -250,6 +249,55 @@ setups['server_metrics_job'] = '''
             }
           }
 '''
+setups['server_metrics_openjob'] = '''
+  - do:
+      indices.create:
+        index: server-metrics
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            metric:
+              properties:
+                timestamp:
+                  type: date
+                total:
+                  type: long
+  - do:
+      xpack.ml.put_job:
+        job_id: "total-requests"
+        body:  >
+          {
+            "description" : "Total sum of requests",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "detector_description": "Sum of total",
+                "function": "sum",
+                "field_name": "total"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: "datafeed-total-requests"
+        body:  >
+          {
+          "job_id":"total-requests",
+          "indexes":"server-metrics",
+          "types":"metric"
+          }
+  - do:
+      xpack.ml.open_job:
+        job_id: "total-requests"
+'''
+
 setups['server_metrics_startdf'] = '''
   - do:
       indices.create:

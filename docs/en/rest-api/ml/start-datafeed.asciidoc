@@ -84,13 +84,13 @@ The following example starts the `datafeed-it-ops-kpi` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-it-ops-kpi/_start
+POST _xpack/ml/datafeeds/datafeed-total-requests/_start
 {
   "start": "2017-04-07T18:22:16Z"
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[setup:server_metrics_openjob]
 
 When the {dfeed} starts, you receive the following results:
 [source,js]
@@ -99,3 +99,5 @@ When the {dfeed} starts, you receive the following results:
   "started": true
 }
 ----
+// CONSOLE
+// TESTRESPONSE

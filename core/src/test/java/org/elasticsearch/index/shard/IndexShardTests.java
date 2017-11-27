@@ -2649,7 +2649,11 @@ public class IndexShardTests extends IndexShardTestCase {
         assertFalse(primary.getEngine().refreshNeeded());
         indexDoc(primary, "test", "1", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
+        long lastSearchAccess = primary.getLastSearcherAccess();
         assertFalse(primary.scheduledRefresh());
+        assertEquals(lastSearchAccess, primary.getLastSearcherAccess());
+        // wait until the thread-pool has moved the timestamp otherwise we can't assert on this below
+        awaitBusy(() -> primary.getThreadPool().relativeTimeInMillis() > lastSearchAccess);
         CountDownLatch latch = new CountDownLatch(10);
         for (int i = 0; i < 10; i++) {
             primary.awaitPendingRefresh(refreshed -> {
@@ -2661,6 +2665,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             });
         }
+        assertNotEquals("awaitPendingRefresh must access a searcher to remove search idle state", lastSearchAccess,
+            primary.getLastSearcherAccess());
+        assertTrue(lastSearchAccess < primary.getLastSearcherAccess());
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(1, searcher.reader().numDocs());
         }

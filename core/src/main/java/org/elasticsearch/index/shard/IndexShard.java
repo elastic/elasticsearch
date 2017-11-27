@@ -1137,9 +1137,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
     }
 
+    private void markSearcherAccessed() {
+        lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
+    }
+
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
-        lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
+        markSearcherAccessed();
         final Engine engine = getEngine();
         final Engine.Searcher searcher = engine.acquireSearcher(source, scope);
         boolean success = false;
@@ -2468,11 +2472,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return (threadPool.relativeTimeInMillis() - lastSearcherAccess.get()) >= indexSettings.getSearchIdleAfter().getMillis();
     }
 
+    /**
+     * Returns the last timestamp the searcher was accessed. This is a relative timestamp in milliseconds.
+     */
+    final long getLastSearcherAccess() {
+        return lastSearcherAccess.get();
+    }
+
     private void setRefreshPending() {
         Engine engine = getEngine();
-        if (isSearchIdle()) {
-            acquireSearcher("setRefreshPending").close(); // move the shard into non-search idle
-        }
         Translog.Location lastWriteLocation = engine.getTranslog().getLastWriteLocation();
         Translog.Location location;
         do {
@@ -2490,6 +2498,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
     public void awaitPendingRefresh(Consumer<Boolean> listener) {
+        if (isSearchIdle()) {
+            markSearcherAccessed(); // move the shard into non-search idle
+        }
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
             addRefreshListener(location, (b) -> {

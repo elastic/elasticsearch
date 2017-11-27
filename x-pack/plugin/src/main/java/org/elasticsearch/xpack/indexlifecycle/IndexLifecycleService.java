@@ -33,9 +33,9 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.indexlifecycle.IndexLifecycle.NAME;
 
-public class IndexLifecycleInitialisationService extends AbstractComponent
+public class IndexLifecycleService extends AbstractComponent
         implements ClusterStateListener, SchedulerEngine.Listener, Closeable {
-    private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleInitialisationService.class);
+    private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleService.class);
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final Clock clock;
@@ -44,7 +44,7 @@ public class IndexLifecycleInitialisationService extends AbstractComponent
     private ThreadPool threadPool;
     private LongSupplier nowSupplier;
 
-    public IndexLifecycleInitialisationService(Settings settings, Client client, ClusterService clusterService, Clock clock,
+    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock,
             ThreadPool threadPool) {
         super(settings);
         this.client = client;

@@ -26,6 +26,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Represents set of {@link LifecycleAction}s which should be executed at a
+ * particular point in the lifecycle of an index.
+ */
 public class Phase implements ToXContentObject, Writeable {
     public static final String PHASE_COMPLETED = "ACTIONS COMPLETED";
 
@@ -54,12 +58,26 @@ public class Phase implements ToXContentObject, Writeable {
     private List<LifecycleAction> actions;
     private TimeValue after;
 
+    /**
+     * @param name
+     *            the name of this {@link Phase}.
+     * @param after
+     *            the age of the index when the index should move to this
+     *            {@link Phase}.
+     * @param actions
+     *            a {@link List} of the {@link LifecycleAction}s to run when
+     *            during his {@link Phase}. The order of this list defines the
+     *            order in which the {@link LifecycleAction}s will be run.
+     */
     public Phase(String name, TimeValue after, List<LifecycleAction> actions) {
         this.name = name;
         this.after = after;
         this.actions = actions;
     }
 
+    /**
+     * For Serialization
+     */
     public Phase(StreamInput in) throws IOException {
         this.name = in.readString();
         this.after = new TimeValue(in);
@@ -73,66 +91,75 @@ public class Phase implements ToXContentObject, Writeable {
         out.writeNamedWriteableList(actions);
     }
 
+    /**
+     * @return the age of the index when the index should move to this
+     *         {@link Phase}.
+     */
     public TimeValue getAfter() {
         return after;
     }
 
+    /**
+     * @return the name of this {@link Phase}
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * @return a {@link List} of the {@link LifecycleAction}s to run when during
+     *         his {@link Phase}. The order of this list defines the order in
+     *         which the {@link LifecycleAction}s will be run.
+     */
     public List<LifecycleAction> getActions() {
         return actions;
     }
 
+    /**
+     * Checks the current state and executes the appropriate
+     * {@link LifecycleAction}.
+     * 
+     * @param context
+     *            the {@link IndexLifecycleContext} to use to execute the
+     *            {@link Phase}.
+     */
     protected void execute(IndexLifecycleContext context) {
         String currentActionName = context.getAction();
         String indexName = context.getLifecycleTarget();
         if (Strings.isNullOrEmpty(currentActionName)) {
+            // This is is the first time this phase has been called so get the first action and execute it.
             String firstActionName;
             LifecycleAction firstAction;
             if (actions.isEmpty()) {
+                // There are no actions in this phase so use the PHASE_COMPLETE action name.
                 firstAction = null;
                 firstActionName = PHASE_COMPLETED;
             } else {
                 firstAction = actions.get(0);
                 firstActionName = firstAction.getWriteableName();
             }
+            // Set the action on the context to this first action so we know where we are next time we execute
             context.setAction(firstActionName, new Listener() {
 
                 @Override
                 public void onSuccess() {
                     logger.info("Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
+                    // Now execute the action unless its PHASE_COMPLETED
                     if (firstActionName.equals(PHASE_COMPLETED) == false) {
-                        context.executeAction(firstAction, new LifecycleAction.Listener() {
-
-                            @Override
-                            public void onSuccess(boolean completed) {
-                                if (completed) {
-                                    logger.info("Action [" + firstActionName + "] for index [" + indexName
-                                            + "] complete, moving to next action");
-                                    moveToAction(context, indexName, 1);
-                                } else {
-                                    logger.info("Action [" + firstActionName + "] for index [" + indexName
-                                            + "] executed sucessfully but is not yet complete");
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.info("Action [" + firstActionName + "] for index [" + indexName + "] failed", e);
-                            }
-                        });
+                        executeAction(context, indexName, 0, firstAction);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    // Something went wrong so log the error and hopfully it will succeed next time execute is called. NOCOMMIT can we do better here?
                     logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]", e);
                 }
             });
         } else if (currentActionName.equals(PHASE_COMPLETED) == false) {
+            // We have an action name and its not PHASE COMPLETED so we need to execute the action
             int currentActionIndex = -1;
+            // First find the action in the actions list.
             for (int i = 0; i < actions.size(); i++) {
                 if (actions.get(i).getWriteableName().equals(currentActionName)) {
                     currentActionIndex = i;
@@ -144,26 +171,30 @@ public class Phase implements ToXContentObject, Writeable {
                         + getName() + "] for index [" + indexName + "]");
             }
             LifecycleAction currentAction = actions.get(currentActionIndex);
-            final int nextActionIndex = currentActionIndex + 1;
-            context.executeAction(currentAction, new LifecycleAction.Listener() {
-
-                @Override
-                public void onSuccess(boolean completed) {
-                    if (completed) {
-                        logger.info("Action [" + currentActionName + "] for index [" + indexName + "] complete, moving to next action");
-                        moveToAction(context, indexName, nextActionIndex);
-                    } else {
-                        logger.info("Action [" + currentActionName + "] for index [" + indexName
-                                + "] executed sucessfully but is not yet complete");
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.info("Action [" + currentActionName + "] for index [" + indexName + "] failed", e);
-                }
-            });
+            executeAction(context, indexName, currentActionIndex, currentAction);
         }
+    }
+
+    private void executeAction(IndexLifecycleContext context, String indexName, int actionIndex, LifecycleAction action) {
+        String actionName = action.getWriteableName();
+        context.executeAction(action, new LifecycleAction.Listener() {
+
+            @Override
+            public void onSuccess(boolean completed) {
+                if (completed) {
+                    logger.info("Action [" + actionName + "] for index [" + indexName + "] complete, moving to next action");
+                    // Since we completed the current action move to the next action
+                    moveToAction(context, indexName, actionIndex + 1);
+                } else {
+                    logger.info("Action [" + actionName + "] for index [" + indexName + "] executed sucessfully but is not yet complete");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.info("Action [" + actionName + "] for index [" + indexName + "] failed", e);
+            }
+        });
     }
 
     private void moveToAction(IndexLifecycleContext context, String indexName, final int nextActionIndex) {
@@ -175,6 +206,7 @@ public class Phase implements ToXContentObject, Writeable {
                 public void onSuccess() {
                     logger.info("Successfully initialised action [" + nextAction.getWriteableName() + "] in phase [" + getName()
                             + "] for index [" + indexName + "]");
+                    // We might as well execute the new action now rather than waiting for execute to be called again
                     execute(context);
                 }
 
@@ -185,6 +217,7 @@ public class Phase implements ToXContentObject, Writeable {
                 }
             });
         } else {
+            // There is no next action so set the action to PHASE_COMPLETED
             context.setAction(Phase.PHASE_COMPLETED, new Listener() {
 
                 @Override

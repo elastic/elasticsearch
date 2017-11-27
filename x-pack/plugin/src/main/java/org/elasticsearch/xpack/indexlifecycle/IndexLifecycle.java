@@ -53,7 +53,7 @@ public class IndexLifecycle extends Plugin {
     public static final String NAME = "index_lifecycle";
     public static final String BASE_PATH = "/_xpack/index_lifecycle/";
     public static final String THREAD_POOL_NAME = NAME;
-    private final SetOnce<IndexLifecycleInitialisationService> indexLifecycleInitialisationService = new SetOnce<>();
+    private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
     private Settings settings;
     private boolean enabled;
     private boolean transportClientMode;
@@ -97,7 +97,7 @@ public class IndexLifecycle extends Plugin {
             return emptyList();
         }
         indexLifecycleInitialisationService
-                .set(new IndexLifecycleInitialisationService(settings, client, clusterService, clock, threadPool));
+                .set(new IndexLifecycleService(settings, client, clusterService, clock, threadPool));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
     }
 

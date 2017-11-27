@@ -14,12 +14,25 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.function.LongSupplier;
 
+/**
+ * An Implementation of {@link IndexLifecycleContext} which writes lifecycle
+ * state to index settings.
+ */
 public class InternalIndexLifecycleContext implements IndexLifecycleContext {
 
     private Client client;
     private IndexMetaData idxMeta;
     private LongSupplier nowSupplier;
 
+    /**
+     * @param idxMeta
+     *            the {@link IndexMetaData} for the index.
+     * @param client
+     *            the {@link Client} to use when modifying the index settings.
+     * @param nowSupplier
+     *            a {@link LongSupplier} to provide the current timestamp when
+     *            required.
+     */
     public InternalIndexLifecycleContext(IndexMetaData idxMeta, Client client, LongSupplier nowSupplier) {
         this.idxMeta = idxMeta;
         this.client = client;
@@ -54,12 +67,14 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
         return idxMeta.getIndex().getName();
     }
 
+    @Override
     public boolean canExecute(Phase phase) {
         long now = nowSupplier.getAsLong();
         long indexCreated = idxMeta.getCreationDate();
         return (indexCreated + phase.getAfter().millis()) <= now;
     }
 
+    @Override
     public void executeAction(LifecycleAction action, LifecycleAction.Listener listener) {
         action.execute(idxMeta.getIndex(), client, listener);
     }

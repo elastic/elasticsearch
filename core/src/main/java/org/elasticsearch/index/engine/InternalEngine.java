@@ -815,41 +815,41 @@ public class InternalEngine extends Engine {
                  */
                 final IndexingStrategy plan;
 
-            if (index.origin() == Operation.Origin.PRIMARY) {
-                plan = planIndexingAsPrimary(index);
-            } else {
-                // non-primary mode (i.e., replica or recovery)
-                plan = planIndexingAsNonPrimary(index);
-            }
-
-            final IndexResult indexResult;
-            if (plan.earlyResultOnPreFlightError.isPresent()) {
-                indexResult = plan.earlyResultOnPreFlightError.get();
-                assert indexResult.hasFailure();
-            } else if (plan.indexIntoLucene) {
-                indexResult = indexIntoLucene(index, plan);
-            } else {
-                indexResult = new IndexResult(
-                        plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
-            }
-            if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-                final Translog.Location location;
-                if (indexResult.hasFailure() == false) {
-                    location = translog.add(new Translog.Index(index, indexResult));
-                } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    // if we have document failure, record it as a no-op in the translog with the generated seq_no
-                    location = translog.add(new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().getMessage()));
+                if (index.origin() == Operation.Origin.PRIMARY) {
+                    plan = planIndexingAsPrimary(index);
                 } else {
-                    location = null;
+                    // non-primary mode (i.e., replica or recovery)
+                    plan = planIndexingAsNonPrimary(index);
                 }
-                indexResult.setTranslogLocation(location);
-            }
-            if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                seqNoService.markSeqNoAsCompleted(indexResult.getSeqNo());
-            }
-            indexResult.setTook(System.nanoTime() - index.startTime());
-            indexResult.freeze();
-            return indexResult;
+
+                final IndexResult indexResult;
+                if (plan.earlyResultOnPreFlightError.isPresent()) {
+                    indexResult = plan.earlyResultOnPreFlightError.get();
+                    assert indexResult.hasFailure();
+                } else if (plan.indexIntoLucene) {
+                    indexResult = indexIntoLucene(index, plan);
+                } else {
+                    indexResult = new IndexResult(
+                            plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
+                }
+                if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                    final Translog.Location location;
+                    if (indexResult.hasFailure() == false) {
+                        location = translog.add(new Translog.Index(index, indexResult));
+                    } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        // if we have document failure, record it as a no-op in the translog with the generated seq_no
+                        location = translog.add(new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().getMessage()));
+                    } else {
+                        location = null;
+                    }
+                    indexResult.setTranslogLocation(location);
+                }
+                if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    seqNoService.markSeqNoAsCompleted(indexResult.getSeqNo());
+                }
+                indexResult.setTook(System.nanoTime() - index.startTime());
+                indexResult.freeze();
+                return indexResult;
             }
         } catch (RuntimeException | IOException e) {
             try {
@@ -870,7 +870,7 @@ public class InternalEngine extends Engine {
         } else {
             // drop out of order operations
             assert index.versionType().versionTypeForReplicationAndRecovery() == index.versionType() :
-            "resolving out of order delivery based on versioning but version type isn't fit for it. got [" + index.versionType() + "]";
+                "resolving out of order delivery based on versioning but version type isn't fit for it. got [" + index.versionType() + "]";
             // unlike the primary, replicas don't really care to about creation status of documents
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
@@ -879,7 +879,7 @@ public class InternalEngine extends Engine {
                 // This can happen if the primary is still on an old node and send traffic without seq# or we recover from translog
                 // created by an old version.
                 assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
-                "index is newly created but op has no sequence numbers. op: " + index;
+                    "index is newly created but op has no sequence numbers. op: " + index;
                 opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
             } else if (index.seqNo() <= seqNoService.getLocalCheckpoint()){
                 // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
@@ -897,7 +897,7 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
             } else {
                 plan = IndexingStrategy.processNormally(
-                        opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.seqNo(), index.version()
+                    opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.seqNo(), index.version()
                 );
             }
         }
@@ -927,14 +927,14 @@ public class InternalEngine extends Engine {
                 currentNotFoundOrDeleted = versionValue.isDelete();
             }
             if (index.versionType().isVersionConflictForWrites(
-                            currentVersion, index.version(), currentNotFoundOrDeleted)) {
+                currentVersion, index.version(), currentNotFoundOrDeleted)) {
                 final VersionConflictEngineException e =
                         new VersionConflictEngineException(shardId, index, currentVersion, currentNotFoundOrDeleted);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
             } else {
                 plan = IndexingStrategy.processNormally(currentNotFoundOrDeleted,
-                        generateSeqNoForOperation(index),
-                        index.versionType().updateVersion(currentVersion, index.version())
+                    generateSeqNoForOperation(index),
+                    index.versionType().updateVersion(currentVersion, index.version())
                 );
             }
         }
@@ -942,7 +942,7 @@ public class InternalEngine extends Engine {
     }
 
     private IndexResult indexIntoLucene(Index index, IndexingStrategy plan)
-            throws IOException {
+        throws IOException {
         assert assertSequenceNumberBeforeIndexing(index.origin(), plan.seqNoForIndexing);
         assert plan.versionForIndexing >= 0 : "version must be set. got " + plan.versionForIndexing;
         assert plan.indexIntoLucene;
@@ -961,7 +961,7 @@ public class InternalEngine extends Engine {
                 index(index.docs(), indexWriter);
             }
             versionMap.putUnderLock(index.uid().bytes(),
-                    new VersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
+                new VersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
             return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
@@ -1003,7 +1003,7 @@ public class InternalEngine extends Engine {
                     break;
                 }
             } while (maxUnsafeAutoIdTimestamp.compareAndSet(deOptimizeTimestamp,
-                            index.getAutoGeneratedIdTimestamp()) == false);
+                index.getAutoGeneratedIdTimestamp()) == false);
             assert maxUnsafeAutoIdTimestamp.get() >= index.getAutoGeneratedIdTimestamp();
         } else {
             // in this case we force
@@ -1032,9 +1032,9 @@ public class InternalEngine extends Engine {
                                  boolean indexIntoLucene, long seqNoForIndexing,
                                  long versionForIndexing, IndexResult earlyResultOnPreFlightError) {
             assert useLuceneUpdateDocument == false || indexIntoLucene :
-                    "use lucene update is set to true, but we're not indexing into lucene";
+                "use lucene update is set to true, but we're not indexing into lucene";
             assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false :
-                    "can only index into lucene or have a preflight result but not both." +
+                "can only index into lucene or have a preflight result but not both." +
                     "indexIntoLucene: " + indexIntoLucene
                     + "  earlyResultOnPreFlightError:" + earlyResultOnPreFlightError;
             this.currentNotFoundOrDeleted = currentNotFoundOrDeleted;
@@ -1043,7 +1043,7 @@ public class InternalEngine extends Engine {
             this.versionForIndexing = versionForIndexing;
             this.indexIntoLucene = indexIntoLucene;
             this.earlyResultOnPreFlightError =
-                    earlyResultOnPreFlightError == null ? Optional.empty() :
+                earlyResultOnPreFlightError == null ? Optional.empty() :
                     Optional.of(earlyResultOnPreFlightError);
         }
 
@@ -1061,18 +1061,18 @@ public class InternalEngine extends Engine {
         static IndexingStrategy processNormally(boolean currentNotFoundOrDeleted,
                                                 long seqNoForIndexing, long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, currentNotFoundOrDeleted == false,
-                    true, seqNoForIndexing, versionForIndexing, null);
+                true, seqNoForIndexing, versionForIndexing, null);
         }
 
         static IndexingStrategy overrideExistingAsIfNotThere(
-                long seqNoForIndexing, long versionForIndexing) {
+            long seqNoForIndexing, long versionForIndexing) {
             return new IndexingStrategy(true, true, true, seqNoForIndexing, versionForIndexing, null);
         }
 
         static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted,
                                                      long seqNoForIndexing, long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, false,
-                    false, seqNoForIndexing, versionForIndexing, null);
+                false, seqNoForIndexing, versionForIndexing, null);
         }
     }
 
@@ -1135,7 +1135,7 @@ public class InternalEngine extends Engine {
                     location = translog.add(new Translog.Delete(delete, deleteResult));
                 } else if (deleteResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     location = translog.add(new Translog.NoOp(deleteResult.getSeqNo(),
-                                    delete.primaryTerm(), deleteResult.getFailure().getMessage()));
+                            delete.primaryTerm(), deleteResult.getFailure().getMessage()));
                 } else {
                     location = null;
                 }
@@ -1162,7 +1162,7 @@ public class InternalEngine extends Engine {
         assert delete.origin() != Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
         // drop out of order operations
         assert delete.versionType().versionTypeForReplicationAndRecovery() == delete.versionType() :
-        "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
+            "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
                 + delete.versionType() + "]";
         // unlike the primary, replicas don't really care to about found status of documents
         // this allows to ignore the case where a document was found in the live version maps in
@@ -1170,7 +1170,7 @@ public class InternalEngine extends Engine {
         final OpVsLuceneDocStatus opVsLucene;
         if (delete.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
-            "index is newly created but op has no sequence numbers. op: " + delete;
+                "index is newly created but op has no sequence numbers. op: " + delete;
             opVsLucene = compareOpToLuceneDocBasedOnVersions(delete);
         } else if (delete.seqNo() <= seqNoService.getLocalCheckpoint()) {
             // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
@@ -1190,8 +1190,8 @@ public class InternalEngine extends Engine {
             plan = DeletionStrategy.processButSkipLucene(false, delete.seqNo(), delete.version());
         } else {
             plan = DeletionStrategy.processNormally(
-                    opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
-                    delete.seqNo(), delete.version());
+                opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
+                delete.seqNo(), delete.version());
         }
         return plan;
     }
@@ -1224,7 +1224,7 @@ public class InternalEngine extends Engine {
     }
 
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan)
-            throws IOException {
+        throws IOException {
         try {
             if (plan.currentlyDeleted == false) {
                 // any exception that comes from this is a either an ACE or a fatal exception there
@@ -1232,10 +1232,10 @@ public class InternalEngine extends Engine {
                 indexWriter.deleteDocuments(delete.uid());
             }
             versionMap.putUnderLock(delete.uid().bytes(),
-                    new DeleteVersionValue(plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(),
-                            engineConfig.getThreadPool().relativeTimeInMillis()));
+                new DeleteVersionValue(plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(),
+                    engineConfig.getThreadPool().relativeTimeInMillis()));
             return new DeleteResult(
-                    plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
+                plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
                 // there is no tragic event and such it must be a document level failure
@@ -1259,7 +1259,7 @@ public class InternalEngine extends Engine {
                                  long seqNoOfDeletion, long versionOfDeletion,
                                  DeleteResult earlyResultOnPreflightError) {
             assert (deleteFromLucene && earlyResultOnPreflightError != null) == false :
-                    "can only delete from lucene or have a preflight result but not both." +
+                "can only delete from lucene or have a preflight result but not both." +
                     "deleteFromLucene: " + deleteFromLucene
                     + "  earlyResultOnPreFlightError:" + earlyResultOnPreflightError;
             this.deleteFromLucene = deleteFromLucene;
@@ -1267,7 +1267,7 @@ public class InternalEngine extends Engine {
             this.seqNoOfDeletion = seqNoOfDeletion;
             this.versionOfDeletion = versionOfDeletion;
             this.earlyResultOnPreflightError = earlyResultOnPreflightError == null ?
-                    Optional.empty() : Optional.of(earlyResultOnPreflightError);
+                Optional.empty() : Optional.of(earlyResultOnPreflightError);
         }
 
         static DeletionStrategy skipDueToVersionConflict(
@@ -1503,12 +1503,12 @@ public class InternalEngine extends Engine {
     }
 
     private void refreshLastCommittedSegmentInfos() {
-        /*
-         * we have to inc-ref the store here since if the engine is closed by a tragic event
-         * we don't acquire the write lock and wait until we have exclusive access. This might also
-         * dec the store reference which can essentially close the store and unless we can inc the reference
-         * we can't use it.
-         */
+    /*
+     * we have to inc-ref the store here since if the engine is closed by a tragic event
+     * we don't acquire the write lock and wait until we have exclusive access. This might also
+     * dec the store reference which can essentially close the store and unless we can inc the reference
+     * we can't use it.
+     */
         store.incRef();
         try {
             // reread the last committed segment infos
@@ -2077,19 +2077,19 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                        final Map<String, String> commitData = new HashMap<>(6);
-                        commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
-                        commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-                        commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
-                        if (syncId != null) {
-                            commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-                        }
-                        commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService.getMaxSeqNo()));
-                        commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
-                        commitData.put(HISTORY_UUID_KEY, historyUUID);
-                        logger.trace("committing writer with commit data [{}]", commitData);
-                        return commitData.entrySet().iterator();
-                    });
+                final Map<String, String> commitData = new HashMap<>(6);
+                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
+                commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
+                if (syncId != null) {
+                    commitData.put(Engine.SYNC_COMMIT_ID, syncId);
+                }
+                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService.getMaxSeqNo()));
+                commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                commitData.put(HISTORY_UUID_KEY, historyUUID);
+                logger.trace("committing writer with commit data [{}]", commitData);
+                return commitData.entrySet().iterator();
+            });
 
             writer.commit();
         } catch (final Exception ex) {

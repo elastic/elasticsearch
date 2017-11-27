@@ -118,8 +118,8 @@ public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @After
-    public void cleanMlState() {
-        new MlRestTestStateCleaner(logger, adminClient(), this);
+    public void cleanMlState() throws Exception {
+        new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
     }
 
     @Override

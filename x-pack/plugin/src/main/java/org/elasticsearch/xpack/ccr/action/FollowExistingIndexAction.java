@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -27,7 +28,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -107,12 +107,12 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final InternalClient client;
+        private final Client client;
         private final PersistentTasksService persistentTasksService;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, InternalClient client,
+                               IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                PersistentTasksService persistentTasksService) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.client = client;

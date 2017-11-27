@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.settings.Settings;
@@ -22,7 +23,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.persistent.AllocatedPersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.Arrays;
 import java.util.Optional;
@@ -37,10 +37,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private static final long BATCH_SIZE = 256;
     private static final TimeValue RETRY_TIMEOUT = TimeValue.timeValueMillis(500);
 
-    private final InternalClient client;
+    private final Client client;
     private final ThreadPool threadPool;
 
-    public ShardFollowTasksExecutor(Settings settings, InternalClient client, ThreadPool threadPool) {
+    public ShardFollowTasksExecutor(Settings settings, Client client, ThreadPool threadPool) {
         super(settings, ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;

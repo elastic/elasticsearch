@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
-import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
@@ -32,13 +31,14 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
+import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -73,7 +74,8 @@ public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getMetadataMappers(mapperPlugins));
+        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getMetadataMappers(mapperPlugins),
+                getFieldFilter(mapperPlugins));
         registerBuiltinWritables();
     }
 
@@ -150,6 +152,24 @@ public class IndicesModule extends AbstractModule {
         // we register _field_names here so that it has a chance to see all other mappers, including from plugins
         metadataMappers.put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser());
         return Collections.unmodifiableMap(metadataMappers);
+    }
+
+    private static FieldFilter getFieldFilter(List<MapperPlugin> mapperPlugins) {
+        FieldFilter fieldFilter = FieldFilter.NOOP;
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            fieldFilter = or(fieldFilter, mapperPlugin.getFieldFilter());
+        }
+        return fieldFilter;
+    }
+
+    private static FieldFilter or(FieldFilter first, FieldFilter second) {
+        if (first.isNoOp()) {
+            return second;
+        }
+        if (second.isNoOp()) {
+            return first;
+        }
+        return (index, field) -> first.excludeField(index, field) || second.excludeField(index, field);
     }
 
     @Override

@@ -81,6 +81,7 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -1261,5 +1262,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesRequestCache.clear(new IndexShardCacheEntity(shard));
             }
         }
+    }
+
+    public FieldFilter getFieldFilter() {
+        return mapperRegistry.getFieldFilter();
     }
 }

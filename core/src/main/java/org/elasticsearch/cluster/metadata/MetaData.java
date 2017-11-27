@@ -53,6 +53,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -330,26 +331,27 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      * types array, null or {"_all"} will be expanded to all types available for
      * the given indices.
      */
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices, final String[] types) {
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices,
+                                                                                            final String[] types,
+                                                                                            FieldFilter fieldFilter) throws IOException {
         assert types != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
         }
 
+        boolean isAllTypes = isAllTypes(types);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings;
-            if (isAllTypes(types)) {
-                indexMapBuilder.put(index, indexMetaData.getMappings()); // No types specified means get it all
-
+            if (isAllTypes) {
+                indexMapBuilder.put(index, filterFields(index, indexMetaData.getMappings(), fieldFilter));
             } else {
-                filteredMappings = ImmutableOpenMap.builder();
+                ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings = ImmutableOpenMap.builder();
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     if (Regex.simpleMatch(types, cursor.key)) {
-                        filteredMappings.put(cursor.key, cursor.value);
+                        filteredMappings.put(cursor.key, filterFields(index, cursor.value, fieldFilter));
                     }
                 }
                 if (!filteredMappings.isEmpty()) {
@@ -358,6 +360,88 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
         }
         return indexMapBuilder.build();
+    }
+
+    private static ImmutableOpenMap<String, MappingMetaData> filterFields(String index,
+                                                                          ImmutableOpenMap<String, MappingMetaData> mappings,
+                                                                          FieldFilter fieldFilter) throws IOException {
+        if (fieldFilter.isNoOp()) {
+            return mappings;
+        }
+        ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(mappings.size());
+        for (ObjectObjectCursor<String, MappingMetaData> cursor : mappings) {
+            builder.put(cursor.key, filterFields(index, cursor.value, fieldFilter));
+        }
+        return builder.build(); // No types specified means return them all
+    }
+
+    @SuppressWarnings("unchecked")
+    private static MappingMetaData filterFields(String index, MappingMetaData mappingMetaData, FieldFilter fieldFilter) throws IOException {
+        if (fieldFilter.isNoOp()) {
+            return mappingMetaData;
+        }
+        Map<String, Object> sourceAsMap = mappingMetaData.getSourceAsMap();
+        Map<String, Object> properties = (Map<String, Object>)sourceAsMap.get("properties");
+        if (properties == null || properties.isEmpty()) {
+            return mappingMetaData;
+        }
+
+        filterFields(index, "", properties, fieldFilter);
+
+        return new MappingMetaData(mappingMetaData.type(), sourceAsMap);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean filterFields(String index, String currentPath, Map<String, Object> fields, FieldFilter fieldFilter) {
+        Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
+        while (entryIterator.hasNext()) {
+            Map.Entry<String, Object> entry = entryIterator.next();
+            String newPath = mergePaths(currentPath, entry.getKey());
+            Object value = entry.getValue();
+            boolean mayRemove = true;
+            boolean isMultiField = false;
+            if (value instanceof Map) {
+                Map<String, Object> map = (Map<String, Object>) value;
+                Map<String, Object> properties = (Map<String, Object>)map.get("properties");
+                if (properties != null) {
+                    mayRemove = filterFields(index, newPath, properties, fieldFilter);
+                } else {
+                    Map<String, Object> subFields = (Map<String, Object>)map.get("fields");
+                    if (subFields != null) {
+                        isMultiField = true;
+                        if (mayRemove = filterFields(index, newPath, subFields, fieldFilter)) {
+                            map.remove("fields");
+                        }
+                    }
+                }
+            } else {
+                throw new IllegalStateException("cannot filter mappings, found unknown element of type [" + value.getClass() + "]");
+            }
+
+            //only remove a field if it has no sub-fields left and it has to be excluded
+            if (fieldFilter.excludeField(index, newPath)) {
+                if (mayRemove) {
+                    entryIterator.remove();
+                } else if (isMultiField) {
+                    //multi fields that should be excluded but hold subfields that don't have to be excluded are converted to objects
+                    Map<String, Object> map = (Map<String, Object>) value;
+                    Map<String, Object> subFields = (Map<String, Object>)map.get("fields");
+                    assert subFields.size() > 0;
+                    map.put("properties", subFields);
+                    map.remove("fields");
+                    map.remove("type");
+                }
+            }
+        }
+        //return true if the ancestor may be removed, as it has no sub-fields left
+        return fields.size() == 0;
+    }
+
+    private static String mergePaths(String path, String field) {
+        if (path.length() == 0) {
+            return field;
+        }
+        return path + "." + field;
     }
 
     /**

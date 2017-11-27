@@ -19,12 +19,7 @@
 
 package org.elasticsearch.indices;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
+import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -36,6 +31,12 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class IndicesModuleTests extends ESTestCase {
 
@@ -59,7 +60,7 @@ public class IndicesModuleTests extends ESTestCase {
         }
     }
 
-    List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
+    private final List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
             return Collections.singletonMap("fake-mapper", new FakeMapperParser());
@@ -147,15 +148,60 @@ public class IndicesModuleTests extends ESTestCase {
 
     public void testFieldNamesIsLast() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
-        List<String> fieldNames = module.getMapperRegistry().getMetadataMapperParsers().keySet()
-            .stream().collect(Collectors.toList());
+        List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers().keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }
 
     public void testFieldNamesIsLastWithPlugins() {
         IndicesModule module = new IndicesModule(fakePlugins);
-        List<String> fieldNames = module.getMapperRegistry().getMetadataMapperParsers().keySet()
-            .stream().collect(Collectors.toList());
+        List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers().keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
+    }
+
+    public void testGetFieldFilter() {
+        List<MapperPlugin> mapperPlugins = Arrays.asList(
+            new MapperPlugin() {
+                @Override
+                public FieldFilter getFieldFilter() {
+                    return (index, field) -> index.equals("hidden_index");
+                }
+            },
+            new MapperPlugin() {
+                @Override
+                public FieldFilter getFieldFilter() {
+                    return (index, field) -> field.equals("hidden_field");
+                }
+            },
+            new MapperPlugin() {
+                @Override
+                public FieldFilter getFieldFilter() {
+                    return (index, field) -> index.equals("filtered") && field.equals("visible") == false;
+                }
+            });
+
+        IndicesModule indicesModule = new IndicesModule(mapperPlugins);
+        MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
+        FieldFilter fieldFilter = mapperRegistry.getFieldFilter();
+        assertFalse(fieldFilter.isNoOp());
+
+        assertTrue(fieldFilter.excludeField("hidden_index", randomAlphaOfLengthBetween(3, 5)));
+        assertFalse(fieldFilter.excludeField(randomAlphaOfLengthBetween(3, 5), randomAlphaOfLengthBetween(3, 5)));
+        assertTrue(fieldFilter.excludeField(randomAlphaOfLengthBetween(3, 5), "hidden_field"));
+        assertFalse(fieldFilter.excludeField("filtered", "visible"));
+        assertTrue(fieldFilter.excludeField("filtered", randomAlphaOfLengthBetween(3, 5)));
+        assertTrue(fieldFilter.excludeField("filtered", "hidden_field"));
+        assertFalse(fieldFilter.excludeField(randomAlphaOfLengthBetween(3, 5), "visible"));
+        assertTrue(fieldFilter.excludeField("hidden_index", "visible"));
+        assertTrue(fieldFilter.excludeField("hidden_index", "hidden_field"));
+    }
+
+    public void testGetFieldFilterIsNoOp() {
+        int numPlugins = randomIntBetween(0, 10);
+        List<MapperPlugin> mapperPlugins = new ArrayList<>(numPlugins);
+        for (int i = 0; i < numPlugins; i++) {
+            mapperPlugins.add(new MapperPlugin() {});
+        }
+        IndicesModule indicesModule = new IndicesModule(mapperPlugins);
+        assertTrue(indicesModule.getMapperRegistry().getFieldFilter().isNoOp());
     }
 }

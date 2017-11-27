@@ -69,7 +69,8 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     public TransportGetFieldMappingsIndexAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, GetFieldMappingsIndexRequest::new, ThreadPool.Names.MANAGEMENT);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+                GetFieldMappingsIndexRequest::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -88,6 +89,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
 
     @Override
     protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) {
+        //TODO filter mappings here too
         assert shardId != null;
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         Collection<String> typeIntersection;

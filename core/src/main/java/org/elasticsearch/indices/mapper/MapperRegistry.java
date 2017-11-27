@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.mapper;
 
+import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 
@@ -33,11 +34,14 @@ public final class MapperRegistry {
 
     private final Map<String, Mapper.TypeParser> mapperParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
+    private final FieldFilter fieldFilter;
+
 
     public MapperRegistry(Map<String, Mapper.TypeParser> mapperParsers,
-            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers) {
+            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers, FieldFilter fieldFilter) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));
+        this.fieldFilter = fieldFilter;
     }
 
     /**
@@ -54,5 +58,9 @@ public final class MapperRegistry {
      */
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers() {
         return metadataMapperParsers;
+    }
+
+    public FieldFilter getFieldFilter() {
+        return fieldFilter;
     }
 }

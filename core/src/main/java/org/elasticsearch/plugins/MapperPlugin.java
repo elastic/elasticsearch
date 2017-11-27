@@ -19,11 +19,12 @@
 
 package org.elasticsearch.plugins;
 
-import java.util.Collections;
-import java.util.Map;
-
+import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom mappers
@@ -51,5 +52,9 @@ public interface MapperPlugin {
      */
     default Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
         return Collections.emptyMap();
+    }
+
+    default FieldFilter getFieldFilter() {
+        return FieldFilter.NOOP;
     }
 }

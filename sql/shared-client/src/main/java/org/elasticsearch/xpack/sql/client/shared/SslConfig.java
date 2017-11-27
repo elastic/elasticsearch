@@ -51,11 +51,11 @@ class SslConfig {
 
     private static final String SSL_TRUSTSTORE_TYPE = "ssl.truststore.type";
     private static final String SSL_TRUSTSTORE_TYPE_DEFAULT = "JKS";
-    
-    static final Set<String> OPTION_NAMES = new LinkedHashSet<>(Arrays.asList(SSL, SSL_PROTOCOL, 
-            SSL_KEYSTORE_LOCATION, SSL_KEYSTORE_PASS, SSL_KEYSTORE_TYPE, 
+
+    static final Set<String> OPTION_NAMES = new LinkedHashSet<>(Arrays.asList(SSL, SSL_PROTOCOL,
+            SSL_KEYSTORE_LOCATION, SSL_KEYSTORE_PASS, SSL_KEYSTORE_TYPE,
             SSL_TRUSTSTORE_LOCATION, SSL_TRUSTSTORE_PASS, SSL_TRUSTSTORE_TYPE));
-    
+
     private final boolean enabled;
     private final String protocol, keystoreLocation, keystorePass, keystoreType;
     private final String truststoreLocation, truststorePass, truststoreType;
@@ -116,15 +116,15 @@ class SslConfig {
 
         if (!Files.exists(path)) {
            throw new ClientException(
-                   "Expected to find keystore file at [%s] but was unable to. Make sure you have specified a valid URI.", location); 
+                   "Expected to find keystore file at [%s] but was unable to. Make sure you have specified a valid URI.", location);
         }
-        
+
         try (InputStream in = Files.newInputStream(Paths.get(location), StandardOpenOption.READ)) {
             keyStore.load(in, pass);
         } catch (Exception ex) {
             throw new ClientException(ex, "Cannot open keystore [%s] - %s", location, ex.getMessage());
         } finally {
-            
+
         }
         return keyStore;
     }
@@ -147,11 +147,11 @@ class SslConfig {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         SslConfig other = (SslConfig) obj;
         return Objects.equals(enabled, other.enabled)
                 && Objects.equals(protocol, other.protocol)

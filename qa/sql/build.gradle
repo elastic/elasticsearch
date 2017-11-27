@@ -24,7 +24,7 @@ dependencies {
   runtime "com.h2database:h2:1.4.194"
   // used for running debug tests
   runtime 'org.antlr:antlr4-runtime:4.5.3'
-  
+
   // There are *no* CLI testing dependencies because we
   // communicate fork a new CLI process when we need it.
 
@@ -88,12 +88,9 @@ thirdPartyAudit.excludes = [
 
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
-  apply plugin: 'elasticsearch.rest-test'
-
   configurations {
     cliFixture
   }
-
   dependencies {
     /* Since we're a standalone rest test we actually get transitive
      * dependencies but we don't really want them because they cause
@@ -135,39 +132,44 @@ subprojects {
     testRuntime "org.elasticsearch.client:transport:${version}"
   }
 
-  task cliFixture(type: org.elasticsearch.gradle.test.AntFixture) {
-    Project cli = project(':x-pack-elasticsearch:sql:cli')
-    dependsOn project.configurations.cliFixture
-    dependsOn cli.jar
-    executable = new File(project.javaHome, 'bin/java')
-    env 'CLASSPATH', "${ -> project.configurations.cliFixture.asPath }"
-    args 'org.elasticsearch.xpack.sql.cli.fixture.CliFixture',
-        baseDir, "${ -> cli.jar.outputs.files.singleFile}"
-  }
+  if (project.name != 'security') {
+    // The security project just configures it subprojects
+    apply plugin: 'elasticsearch.rest-test'
 
-  integTestCluster {
-    distribution = 'zip'
-    plugin project(':x-pack-elasticsearch:plugin').path
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'script.max_compilations_rate', '1000/1m'
-    dependsOn cliFixture
-  }
+    task cliFixture(type: org.elasticsearch.gradle.test.AntFixture) {
+      Project cli = project(':x-pack-elasticsearch:sql:cli')
+      dependsOn project.configurations.cliFixture
+      dependsOn cli.jar
+      executable = new File(project.javaHome, 'bin/java')
+      env 'CLASSPATH', "${ -> project.configurations.cliFixture.asPath }"
+      args 'org.elasticsearch.xpack.sql.cli.fixture.CliFixture',
+          baseDir, "${ -> cli.jar.outputs.files.singleFile}"
+    }
 
-  integTestRunner {
-    systemProperty 'tests.cli.fixture', "${ -> cliFixture.addressAndPort }"
-    finalizedBy cliFixture.stopTask
-  }
+    integTestCluster {
+      distribution = 'zip'
+      plugin project(':x-pack-elasticsearch:plugin').path
+      setting 'xpack.monitoring.enabled', 'false'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+      setting 'script.max_compilations_rate', '1000/1m'
+      dependsOn cliFixture
+    }
 
-  task run(type: RunTask) {
-    distribution = 'zip'
-    plugin project(':x-pack-elasticsearch:plugin').path
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'script.max_compilations_rate', '1000/1m'
-    dependsOn cliFixture
+    integTestRunner {
+      systemProperty 'tests.cli.fixture', "${ -> cliFixture.addressAndPort }"
+      finalizedBy cliFixture.stopTask
+    }
+
+    task run(type: RunTask) {
+      distribution = 'zip'
+      plugin project(':x-pack-elasticsearch:plugin').path
+      setting 'xpack.monitoring.enabled', 'false'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+      setting 'script.max_compilations_rate', '1000/1m'
+      dependsOn cliFixture
+    }
+    run.finalizedBy cliFixture.stopTask
   }
-  run.finalizedBy cliFixture.stopTask
 }

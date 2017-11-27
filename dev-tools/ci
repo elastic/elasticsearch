@@ -67,6 +67,8 @@ case $key in
             ":x-pack-elasticsearch:qa:sql:multinode:check"
             ":x-pack-elasticsearch:qa:sql:no-security:check"
             ":x-pack-elasticsearch:qa:sql:security:check"
+            ":x-pack-elasticsearch:qa:sql:security:no-ssl:check"
+            ":x-pack-elasticsearch:qa:sql:security:ssl:check"
         )
         ;;
     releaseTest)

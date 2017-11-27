@@ -29,6 +29,7 @@ import java.sql.SQLInvalidAuthorizationSpecException;
 import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;

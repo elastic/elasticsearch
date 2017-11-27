@@ -33,7 +33,6 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMapping;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -50,6 +49,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongUnaryOperator;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
@@ -295,9 +295,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      */
     static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
 
+        private LongUnaryOperator mapping;
         private IntArray segmentDocCounts;
-        private SortedSetDocValues globalOrds;
-        private SortedSetDocValues segmentOrds;
 
         LowCardinality(String name,
                        AggregatorFactories factories,
@@ -321,14 +320,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
                                                     final LeafBucketCollector sub) throws IOException {
-            if (segmentOrds != null) {
-                mapSegmentCountsToGlobalCounts();
+            if (mapping != null) {
+                mapSegmentCountsToGlobalCounts(mapping);
             }
-            globalOrds = valuesSource.globalOrdinalsValues(ctx);
-            segmentOrds = valuesSource.ordinalsValues(ctx);
+            final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
+            mapping = valuesSource.globalOrdinalsMapping(ctx);
             if (singleValues != null) {
                 return new LeafBucketCollectorBase(sub, segmentOrds) {
                     @Override
@@ -356,9 +355,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        protected void doPostCollection() {
-            if (segmentOrds != null) {
-                mapSegmentCountsToGlobalCounts();
+        protected void doPostCollection() throws IOException {
+            if (mapping != null) {
+                mapSegmentCountsToGlobalCounts(mapping);
+                mapping = null;
             }
         }
 
@@ -367,16 +367,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             Releasables.close(segmentDocCounts);
         }
 
-        private void mapSegmentCountsToGlobalCounts() {
-            // There is no public method in Ordinals.Docs that allows for this mapping...
-            // This is the cleanest way I can think of so far
-
-            GlobalOrdinalMapping mapping;
-            if (globalOrds.getValueCount() == segmentOrds.getValueCount()) {
-                mapping = null;
-            } else {
-                mapping = (GlobalOrdinalMapping) globalOrds;
-            }
+        private void mapSegmentCountsToGlobalCounts(LongUnaryOperator mapping) throws IOException {
             for (long i = 1; i < segmentDocCounts.size(); i++) {
                 // We use set(...) here, because we need to reset the slow to 0.
                 // segmentDocCounts get reused over the segments and otherwise counts would be too high.
@@ -385,7 +376,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     continue;
                 }
                 final long ord = i - 1; // remember we do +1 when counting
-                final long globalOrd = mapping == null ? ord : mapping.getGlobalOrd(ord);
+                final long globalOrd = mapping.applyAsLong(ord);
                 long bucketOrd = getBucketOrd(globalOrd);
                 incrementBucketDocCount(bucketOrd, inc);
             }

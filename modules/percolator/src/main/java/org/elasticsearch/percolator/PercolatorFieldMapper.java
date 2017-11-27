@@ -244,20 +244,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         Query percolateQuery(String name, PercolateQuery.QueryStore queryStore, List<BytesReference> documents,
                              IndexSearcher searcher, Version indexVersion) throws IOException {
             IndexReader indexReader = searcher.getIndexReader();
-            Tuple<List<Query>, Boolean> t = createCandidateQueryClauses(indexReader);
-            BooleanQuery.Builder candidateQuery = new BooleanQuery.Builder();
-            if (t.v2() && indexVersion.onOrAfter(Version.V_6_1_0)) {
-                LongValuesSource valuesSource = LongValuesSource.fromIntField(minimumShouldMatchField.name());
-                candidateQuery.add(new CoveringQuery(t.v1(), valuesSource), BooleanClause.Occur.SHOULD);
-            } else {
-                for (Query query : t.v1()) {
-                    candidateQuery.add(query, BooleanClause.Occur.SHOULD);
-                }
-            }
-            // include extractionResultField:failed, because docs with this term have no extractedTermsField
-            // and otherwise we would fail to return these docs. Docs that failed query term extraction
-            // always need to be verified by MemoryIndex:
-            candidateQuery.add(new TermQuery(new Term(extractionResultField.name(), EXTRACTION_FAILED)), BooleanClause.Occur.SHOULD);
+            Tuple<BooleanQuery, Boolean> t = createCandidateQuery(indexReader, indexVersion);
+            Query candidateQuery = t.v1();
+            boolean canUseMinimumShouldMatchField = t.v2();
 
             Query verifiedMatchesQuery;
             // We can only skip the MemoryIndex verification when percolating a single non nested document. We cannot
@@ -265,15 +254,55 @@ public class PercolatorFieldMapper extends FieldMapper {
             // ranges are extracted from IndexReader backed by a RamDirectory holding multiple documents we do
             // not know to which document the terms belong too and for certain queries we incorrectly emit candidate
             // matches as actual match.
-            if (t.v2() && indexReader.maxDoc() == 1) {
+            if (canUseMinimumShouldMatchField && indexReader.maxDoc() == 1) {
                 verifiedMatchesQuery = new TermQuery(new Term(extractionResultField.name(), EXTRACTION_COMPLETE));
             } else {
                 verifiedMatchesQuery = new MatchNoDocsQuery("multiple or nested docs or CoveringQuery could not be used");
             }
-            return new PercolateQuery(name, queryStore, documents, candidateQuery.build(), searcher, verifiedMatchesQuery);
+            return new PercolateQuery(name, queryStore, documents, candidateQuery, searcher, verifiedMatchesQuery);
         }
 
-        Tuple<List<Query>, Boolean> createCandidateQueryClauses(IndexReader indexReader) throws IOException {
+        Tuple<BooleanQuery, Boolean> createCandidateQuery(IndexReader indexReader, Version indexVersion) throws IOException {
+            Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = extractTermsAndRanges(indexReader);
+            List<BytesRef> extractedTerms = t.v1();
+            Map<String, List<byte[]>> encodedPointValuesByField = t.v2();
+            // `1 + ` is needed to take into account the EXTRACTION_FAILED should clause
+            boolean canUseMinimumShouldMatchField = 1 + extractedTerms.size() + encodedPointValuesByField.size() <=
+                BooleanQuery.getMaxClauseCount();
+
+            List<Query> subQueries = new ArrayList<>();
+            for (Map.Entry<String, List<byte[]>> entry : encodedPointValuesByField.entrySet()) {
+                String rangeFieldName = entry.getKey();
+                List<byte[]> encodedPointValues = entry.getValue();
+                byte[] min = encodedPointValues.get(0);
+                byte[] max = encodedPointValues.get(1);
+                Query query = BinaryRange.newIntersectsQuery(rangeField.name(), encodeRange(rangeFieldName, min, max));
+                subQueries.add(query);
+            }
+
+            BooleanQuery.Builder candidateQuery = new BooleanQuery.Builder();
+            if (canUseMinimumShouldMatchField && indexVersion.onOrAfter(Version.V_6_1_0)) {
+                LongValuesSource valuesSource = LongValuesSource.fromIntField(minimumShouldMatchField.name());
+                for (BytesRef extractedTerm : extractedTerms) {
+                    subQueries.add(new TermQuery(new Term(queryTermsField.name(), extractedTerm)));
+                }
+                candidateQuery.add(new CoveringQuery(subQueries, valuesSource), BooleanClause.Occur.SHOULD);
+            } else {
+                candidateQuery.add(new TermInSetQuery(queryTermsField.name(), extractedTerms), BooleanClause.Occur.SHOULD);
+                for (Query subQuery : subQueries) {
+                    candidateQuery.add(subQuery, BooleanClause.Occur.SHOULD);
+                }
+            }
+            // include extractionResultField:failed, because docs with this term have no extractedTermsField
+            // and otherwise we would fail to return these docs. Docs that failed query term extraction
+            // always need to be verified by MemoryIndex:
+            candidateQuery.add(new TermQuery(new Term(extractionResultField.name(), EXTRACTION_FAILED)), BooleanClause.Occur.SHOULD);
+            return new Tuple<>(candidateQuery.build(), canUseMinimumShouldMatchField);
+        }
+
+        // This was extracted the method above, because otherwise it is difficult to test what terms are included in
+        // the query in case a CoveringQuery is used (it does not have a getter to retrieve the clauses)
+        Tuple<List<BytesRef>, Map<String, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader) throws IOException {
             List<BytesRef> extractedTerms = new ArrayList<>();
             Map<String, List<byte[]>> encodedPointValuesByField = new HashMap<>();
 
@@ -299,28 +328,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                     encodedPointValuesByField.put(info.name, encodedPointValues);
                 }
             }
-
-            final boolean canUseMinimumShouldMatchField;
-            final List<Query> queries = new ArrayList<>();
-            if (extractedTerms.size() + encodedPointValuesByField.size() <= BooleanQuery.getMaxClauseCount()) {
-                canUseMinimumShouldMatchField = true;
-                for (BytesRef extractedTerm : extractedTerms) {
-                    queries.add(new TermQuery(new Term(queryTermsField.name(), extractedTerm)));
-                }
-            } else {
-                canUseMinimumShouldMatchField = false;
-                queries.add(new TermInSetQuery(queryTermsField.name(), extractedTerms));
-            }
-
-            for (Map.Entry<String, List<byte[]>> entry : encodedPointValuesByField.entrySet()) {
-                String rangeFieldName = entry.getKey();
-                List<byte[]> encodedPointValues = entry.getValue();
-                byte[] min = encodedPointValues.get(0);
-                byte[] max = encodedPointValues.get(1);
-                Query query = BinaryRange.newIntersectsQuery(rangeField.name(), encodeRange(rangeFieldName, min, max));
-                queries.add(query);
-            }
-            return new Tuple<>(queries, canUseMinimumShouldMatchField);
+            return new Tuple<>(extractedTerms, encodedPointValuesByField);
         }
 
     }

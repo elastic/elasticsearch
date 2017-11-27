@@ -75,7 +75,6 @@ import org.junit.Before;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
@@ -84,11 +83,13 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -107,10 +108,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
-import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
+import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -221,7 +222,7 @@ public class TranslogTests extends ESTestCase {
         return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
     }
 
-    private void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) throws IOException {
+    private void addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
         list.add(op);
         translog.add(op);
     }
@@ -524,7 +525,7 @@ public class TranslogTests extends ESTestCase {
             Translog.Snapshot snapshot2 = translog.newSnapshot();
             toClose.add(snapshot2);
             markCurrentGenAsCommitted(translog);
-            assertThat(snapshot2, SnapshotMatchers.equalsTo(ops));
+            assertThat(snapshot2, containsOperationsInAnyOrder(ops));
             assertThat(snapshot2.totalOperations(), equalTo(ops.size()));
         } finally {
             IOUtils.closeWhileHandlingException(toClose);
@@ -1032,7 +1033,7 @@ public class TranslogTests extends ESTestCase {
         }
 
         assertEquals(max.generation, translog.currentFileGeneration());
-        try (Translog.Snapshot snap = translog.newSnapshot()) {
+        try (Translog.Snapshot snap = new SortedSnapshot(translog.newSnapshot())) {
             Translog.Operation next;
             Translog.Operation maxOp = null;
             while ((next = snap.next()) != null) {
@@ -1256,7 +1257,7 @@ public class TranslogTests extends ESTestCase {
             assertNotNull(translogGeneration);
             assertEquals("lastCommitted must be 2 less than current - we never finished the commit", translogGeneration.translogFileGeneration + 2, translog.currentFileGeneration());
             assertFalse(translog.syncNeeded());
-            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            try (Translog.Snapshot snapshot = new SortedSnapshot(translog.newSnapshot())) {
                 int upTo = sync ? translogOperations : prepareOp;
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
@@ -1270,7 +1271,7 @@ public class TranslogTests extends ESTestCase {
                 assertNotNull(translogGeneration);
                 assertEquals("lastCommitted must be 3 less than current - we never finished the commit and run recovery twice", translogGeneration.translogFileGeneration + 3, translog.currentFileGeneration());
                 assertFalse(translog.syncNeeded());
-                try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                try (Translog.Snapshot snapshot = new SortedSnapshot(translog.newSnapshot())) {
                     int upTo = sync ? translogOperations : prepareOp;
                     for (int i = 0; i < upTo; i++) {
                         Translog.Operation next = snapshot.next();
@@ -1314,7 +1315,7 @@ public class TranslogTests extends ESTestCase {
             assertNotNull(translogGeneration);
             assertEquals("lastCommitted must be 2 less than current - we never finished the commit", translogGeneration.translogFileGeneration + 2, translog.currentFileGeneration());
             assertFalse(translog.syncNeeded());
-            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            try (Translog.Snapshot snapshot = new SortedSnapshot(translog.newSnapshot())) {
                 int upTo = sync ? translogOperations : prepareOp;
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
@@ -1329,7 +1330,7 @@ public class TranslogTests extends ESTestCase {
                 assertNotNull(translogGeneration);
                 assertEquals("lastCommitted must be 3 less than current - we never finished the commit and run recovery twice", translogGeneration.translogFileGeneration + 3, translog.currentFileGeneration());
                 assertFalse(translog.syncNeeded());
-                try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                try (Translog.Snapshot snapshot = new SortedSnapshot(translog.newSnapshot())) {
                     int upTo = sync ? translogOperations : prepareOp;
                     for (int i = 0; i < upTo; i++) {
                         Translog.Operation next = snapshot.next();
@@ -1378,7 +1379,7 @@ public class TranslogTests extends ESTestCase {
             assertNotNull(translogGeneration);
             assertEquals("lastCommitted must be 2 less than current - we never finished the commit", translogGeneration.translogFileGeneration + 2, translog.currentFileGeneration());
             assertFalse(translog.syncNeeded());
-            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            try (Translog.Snapshot snapshot = new SortedSnapshot(translog.newSnapshot())) {
                 int upTo = sync ? translogOperations : prepareOp;
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
@@ -2065,7 +2066,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testRecoverWithUnbackedNextGen() throws IOException {
-        translog.add(new Translog.Index("test", "" + 0, 0, Integer.toString(0).getBytes(Charset.forName("UTF-8"))));
+        translog.add(new Translog.Index("test", "" + 0, 0, Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
         translog.close();
         TranslogConfig config = translog.getConfig();
 
@@ -2076,21 +2077,25 @@ public class TranslogTests extends ESTestCase {
         try (Translog tlog = createTranslog(config, translog.getTranslogUUID());
              Translog.Snapshot snapshot = tlog.newSnapshot()) {
             assertFalse(tlog.syncNeeded());
-            for (int i = 0; i < 1; i++) {
-                Translog.Operation next = snapshot.next();
-                assertNotNull("operation " + i + " must be non-null", next);
-                assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.utf8ToString()));
-            }
-            tlog.add(new Translog.Index("test", "" + 1, 1, Integer.toString(1).getBytes(Charset.forName("UTF-8"))));
+
+            Translog.Operation op = snapshot.next();
+            assertNotNull("operation 1 must be non-null", op);
+            assertEquals("payload mismatch for operation 1", 1, Integer.parseInt(op.getSource().source.utf8ToString()));
+
+            tlog.add(new Translog.Index("test", "" + 1, 1, Integer.toString(2).getBytes(Charset.forName("UTF-8"))));
         }
+
         try (Translog tlog = createTranslog(config, translog.getTranslogUUID());
              Translog.Snapshot snapshot = tlog.newSnapshot()) {
             assertFalse(tlog.syncNeeded());
-            for (int i = 0; i < 2; i++) {
-                Translog.Operation next = snapshot.next();
-                assertNotNull("operation " + i + " must be non-null", next);
-                assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.utf8ToString()));
-            }
+
+            Translog.Operation secondOp = snapshot.next();
+            assertNotNull("operation 2 must be non-null", secondOp);
+            assertEquals("payload mismatch for operation 2", Integer.parseInt(secondOp.getSource().source.utf8ToString()), 2);
+
+            Translog.Operation firstOp = snapshot.next();
+            assertNotNull("operation 1 must be non-null", firstOp);
+            assertEquals("payload mismatch for operation 1", Integer.parseInt(firstOp.getSource().source.utf8ToString()), 1);
         }
     }
 
@@ -2493,6 +2498,7 @@ public class TranslogTests extends ESTestCase {
                     assertThat(Tuple.tuple(op.seqNo(), op.primaryTerm()), isIn(seenSeqNos));
                     readFromSnapshot++;
                 }
+                readFromSnapshot += snapshot.overriddenOperations();
             }
             assertThat(readFromSnapshot, equalTo(expectedSnapshotOps));
             final long seqNoLowerBound = seqNo;
@@ -2568,6 +2574,86 @@ public class TranslogTests extends ESTestCase {
                 }
                 assertThat(deletionPolicy.getTranslogRefCount(minGen), equalTo(0L));
             }
+        }
+    }
+
+    public void testSnapshotReadOperationInReverse() throws Exception {
+        final Deque<List<Translog.Operation>> views = new ArrayDeque<>();
+        views.push(new ArrayList<>());
+        final AtomicLong seqNo = new AtomicLong();
+
+        final int generations = randomIntBetween(2, 20);
+        for (int gen = 0; gen < generations; gen++) {
+            final int operations = randomIntBetween(1, 100);
+            for (int i = 0; i < operations; i++) {
+                Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), seqNo.getAndIncrement(), new byte[]{1});
+                translog.add(op);
+                views.peek().add(op);
+            }
+            if (frequently()) {
+                translog.rollGeneration();
+                views.push(new ArrayList<>());
+            }
+        }
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            final List<Translog.Operation> expectedSeqNo = new ArrayList<>();
+            while (views.isEmpty() == false) {
+                expectedSeqNo.addAll(views.pop());
+            }
+            assertThat(snapshot, SnapshotMatchers.equalsTo(expectedSeqNo));
+        }
+    }
+
+    public void testSnapshotDedupOperations() throws Exception {
+        final Map<Long, Translog.Operation> latestOperations = new HashMap<>();
+        final int generations = between(2, 20);
+        for (int gen = 0; gen < generations; gen++) {
+            List<Long> batch = LongStream.rangeClosed(0, between(0, 500)).boxed().collect(Collectors.toList());
+            Randomness.shuffle(batch);
+            for (Long seqNo : batch) {
+                Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), seqNo, new byte[]{1});
+                translog.add(op);
+                latestOperations.put(op.seqNo(), op);
+            }
+            translog.rollGeneration();
+        }
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            assertThat(snapshot, containsOperationsInAnyOrder(latestOperations.values()));
+        }
+    }
+
+    static class SortedSnapshot implements Translog.Snapshot {
+        private final Translog.Snapshot snapshot;
+        private List<Translog.Operation> operations = null;
+
+        SortedSnapshot(Translog.Snapshot snapshot) {
+            this.snapshot = snapshot;
+        }
+
+        @Override
+        public int totalOperations() {
+            return snapshot.totalOperations();
+        }
+
+        @Override
+        public Translog.Operation next() throws IOException {
+            if (operations == null) {
+                operations = new ArrayList<>();
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    operations.add(op);
+                }
+                operations.sort(Comparator.comparing(Translog.Operation::seqNo));
+            }
+            if (operations.isEmpty()) {
+                return null;
+            }
+            return operations.remove(0);
+        }
+
+        @Override
+        public void close() throws IOException {
+            snapshot.close();
         }
     }
 }

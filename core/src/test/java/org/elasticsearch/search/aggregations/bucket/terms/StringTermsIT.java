@@ -90,7 +90,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     @Before
     public void randomizeOptimizations() {
-        TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = randomBoolean();
+        TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = false;randomBoolean();
         TermsAggregatorFactory.REMAP_GLOBAL_ORDS = randomBoolean();
     }
 

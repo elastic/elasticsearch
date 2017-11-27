@@ -156,7 +156,8 @@ public abstract class ValuesSource {
 
                 @Override
                 public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
-                    final OrdinalMap map = indexFieldData.getOrdinalMap();
+                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
+                    final OrdinalMap map = global.getOrdinalMap();
                     if (map == null) {
                         // segments and global ordinals are the same
                         return LongUnaryOperator.identity();

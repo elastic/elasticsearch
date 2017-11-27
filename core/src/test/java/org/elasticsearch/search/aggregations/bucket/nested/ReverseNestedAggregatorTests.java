@@ -29,6 +29,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -108,6 +109,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                             TypeFieldMapper.Defaults.FIELD_TYPE));
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
+                    document.add(SeqNoFieldMapper.SequenceIDFields.emptySeqID().primaryTerm);
                     if (numNestedDocs > 0) {
                         expectedMaxValue = Math.max(expectedMaxValue, value);
                         expectedParentDocs++;

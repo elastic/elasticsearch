@@ -28,8 +28,8 @@ import java.nio.channels.SocketChannel;
 
 public class DoNotRegisterChannel extends NioSocketChannel {
 
-    public DoNotRegisterChannel(String profile, SocketChannel socketChannel, SocketSelector selector) throws IOException {
-        super(profile, socketChannel, selector);
+    public DoNotRegisterChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
+        super(socketChannel, selector);
     }
 
     @Override

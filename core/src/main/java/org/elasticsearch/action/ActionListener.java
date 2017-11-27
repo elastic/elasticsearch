@@ -24,6 +24,7 @@ import org.elasticsearch.common.CheckedConsumer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -65,6 +66,42 @@ public interface ActionListener<Response> {
             @Override
             public void onFailure(Exception e) {
                 onFailure.accept(e);
+            }
+        };
+    }
+
+    /**
+     * Creates a listener that listens for a response (or failure) and executes the
+     * corresponding runnable when the response (or failure) is received.
+     *
+     * @param runnable the runnable that will be called in event of success or failure
+     * @param <Response> the type of the response
+     * @return a listener that listens for responses and invokes the runnable when received
+     */
+    static <Response> ActionListener<Response> wrap(Runnable runnable) {
+        return wrap(r -> runnable.run(), e -> runnable.run());
+    }
+
+    /**
+     * Converts a listener to a {@link BiConsumer} for compatibility with the {@link java.util.concurrent.CompletableFuture}
+     * api.
+     *
+     * @param listener that will be wrapped
+     * @param <Response> the type of the response
+     * @return a bi consumer that will complete the wrapped listener
+     */
+    static <Response> BiConsumer<Response, Throwable> toBiConsumer(ActionListener<Response> listener) {
+        return (response, throwable) -> {
+            if (throwable == null) {
+                listener.onResponse(response);
+            } else {
+                if (throwable instanceof Exception) {
+                    listener.onFailure((Exception) throwable);
+                } else if (throwable instanceof Error) {
+                    throw (Error) throwable;
+                } else {
+                    throw new AssertionError("Should have been either Error or Exception", throwable);
+                }
             }
         };
     }

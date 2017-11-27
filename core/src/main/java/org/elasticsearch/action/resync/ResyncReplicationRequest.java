@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.resync;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,35 +26,60 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Arrays;
 
+/**
+ * Represents a batch of operations sent from the primary to its replicas during the primary-replica resync.
+ */
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest> {
 
-    private List<Translog.Operation> operations;
+    private Translog.Operation[] operations;
 
     ResyncReplicationRequest() {
         super();
     }
 
-    public ResyncReplicationRequest(ShardId shardId, List<Translog.Operation> operations) {
+    public ResyncReplicationRequest(final ShardId shardId, final Translog.Operation[] operations) {
         super(shardId);
         this.operations = operations;
     }
 
-    public List<Translog.Operation> getOperations() {
+    public Translog.Operation[] getOperations() {
         return operations;
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public void readFrom(final StreamInput in) throws IOException {
+        assert Version.CURRENT.major <= 7;
+        if (in.getVersion().equals(Version.V_6_0_0)) {
+            /*
+             * Resync replication request serialization was broken in 6.0.0 due to the elements of the stream not being prefixed with a
+             * byte indicating the type of the operation.
+             */
+            // TODO: remove this check in 8.0.0 which provides no BWC guarantees with 6.x.
+            throw new IllegalStateException("resync replication request serialization is broken in 6.0.0");
+        }
         super.readFrom(in);
-        operations = in.readList(Translog.Operation::readType);
+        operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(operations);
+        out.writeArray(Translog.Operation::writeOperation, operations);
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final ResyncReplicationRequest that = (ResyncReplicationRequest) o;
+        return Arrays.equals(operations, that.operations);
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(operations);
     }
 
     @Override
@@ -62,7 +88,8 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
             "shardId=" + shardId +
             ", timeout=" + timeout +
             ", index='" + index + '\'' +
-            ", ops=" + operations.size() +
+            ", ops=" + operations.length +
             "}";
     }
+
 }

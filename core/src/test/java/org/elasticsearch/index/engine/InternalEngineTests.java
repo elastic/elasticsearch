@@ -3882,7 +3882,7 @@ public class InternalEngineTests extends EngineTestCase {
         List<LeafReaderContext> rightLeaves = ElasticsearchDirectoryReader.unwrap(right.getDirectoryReader()).leaves();
         assertEquals(rightLeaves.size(), leftLeaves.size());
         for (int i = 0; i < leftLeaves.size(); i++) {
-            assertSame(leftLeaves.get(i).reader(), rightLeaves.get(0).reader());
+            assertSame(leftLeaves.get(i).reader(), rightLeaves.get(i).reader());
         }
     }
 
@@ -3891,7 +3891,7 @@ public class InternalEngineTests extends EngineTestCase {
         List<LeafReaderContext> rightLeaves = ElasticsearchDirectoryReader.unwrap(right.getDirectoryReader()).leaves();
         if (rightLeaves.size() == leftLeaves.size()) {
             for (int i = 0; i < leftLeaves.size(); i++) {
-                if (leftLeaves.get(i).reader() != rightLeaves.get(0).reader()) {
+                if (leftLeaves.get(i).reader() != rightLeaves.get(i).reader()) {
                     return; // all is well
                 }
             }
@@ -3919,7 +3919,6 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(0, searchSearcher.reader().numDocs());
             assertNotSameReader(getSearcher, searchSearcher);
         }
-
         engine.refresh("test", Engine.SearcherScope.EXTERNAL);
 
         try (Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
@@ -3927,6 +3926,36 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(10, getSearcher.reader().numDocs());
             assertEquals(10, searchSearcher.reader().numDocs());
             assertSameReader(getSearcher, searchSearcher);
+        }
+
+        // now ensure external refreshes are reflected on the internal reader
+        final String docId = Integer.toString(10);
+        final ParsedDocument doc =
+            testParsedDocument(docId, null, testDocumentWithTextField(), SOURCE, null);
+        Engine.Index primaryResponse = indexForDoc(doc);
+        engine.index(primaryResponse);
+
+        engine.refresh("test", Engine.SearcherScope.EXTERNAL);
+
+        try (Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+             Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)){
+            assertEquals(11, getSearcher.reader().numDocs());
+            assertEquals(11, searchSearcher.reader().numDocs());
+            assertSameReader(getSearcher, searchSearcher);
+        }
+
+        try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)){
+            engine.refresh("test", Engine.SearcherScope.INTERNAL);
+            try (Searcher nextSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)){
+                assertSame(searcher.searcher(), nextSearcher.searcher());
+            }
+        }
+
+        try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)){
+            engine.refresh("test", Engine.SearcherScope.EXTERNAL);
+            try (Searcher nextSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)){
+                assertSame(searcher.searcher(), nextSearcher.searcher());
+            }
         }
     }
 

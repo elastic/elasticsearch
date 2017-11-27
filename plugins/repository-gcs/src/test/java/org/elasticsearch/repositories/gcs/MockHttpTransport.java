@@ -271,7 +271,7 @@ public class MockHttpTransport extends com.google.api.client.testing.http.MockHt
             //            content-id: 1
             //            content-transfer-encoding: binary
             //
-            //            DELETE https://www.googleapis.com/storage/v1/b/ohifkgu/o/foo%2Ftest
+            //            DELETE https://www.googleapis.com/storage/v1/b/ohifkgu/o/foo%2Ftest HTTP/1.1
             //
             //
             //            --__END_OF_PART__
@@ -280,7 +280,7 @@ public class MockHttpTransport extends com.google.api.client.testing.http.MockHt
             //            content-id: 2
             //            content-transfer-encoding: binary
             //
-            //            DELETE https://www.googleapis.com/storage/v1/b/ohifkgu/o/bar%2Ftest
+            //            DELETE https://www.googleapis.com/storage/v1/b/ohifkgu/o/bar%2Ftest HTTP/1.1
             //
             //
             //            --__END_OF_PART__--
@@ -291,6 +291,11 @@ public class MockHttpTransport extends com.google.api.client.testing.http.MockHt
                 req.getStreamingContent().writeTo(os);
 
                 Streams.readAllLines(new ByteArrayInputStream(os.toByteArray()), line -> {
+                    final int indexOfHttp = line.indexOf(" HTTP/1.1");
+                    if (indexOfHttp > 0) {
+                        line = line.substring(0, indexOfHttp);
+                    }
+
                     Handler handler = handlers.retrieve(line, params);
                     if (handler != null) {
                         try {

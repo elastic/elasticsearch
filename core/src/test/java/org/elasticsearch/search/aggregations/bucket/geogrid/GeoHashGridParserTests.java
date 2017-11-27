@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -93,12 +94,8 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":false}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
-        try {
-            GeoGridAggregationBuilder.parse("geohash_grid", stParser);
-            fail();
-        } catch (IllegalArgumentException ex) {
-            assertEquals("[geohash_grid] precision doesn't support values of type: VALUE_BOOLEAN", ex.getMessage());
-        }
+        Exception e = expectThrows(ParsingException.class, () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
+        assertThat(e.getMessage(), containsString("[geohash_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {

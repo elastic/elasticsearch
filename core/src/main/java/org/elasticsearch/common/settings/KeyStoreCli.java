@@ -19,13 +19,14 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 
 /**
  * A cli tool for managing secrets in the elasticsearch keystore.
  */
-public class KeyStoreCli extends MultiCommand {
+public class KeyStoreCli extends LoggingAwareMultiCommand {
 
     private KeyStoreCli() {
         super("A tool for managing settings stored in the elasticsearch keystore");
@@ -39,4 +40,5 @@ public class KeyStoreCli extends MultiCommand {
     public static void main(String[] args) throws Exception {
         exit(new KeyStoreCli().main(args, Terminal.DEFAULT));
     }
+
 }

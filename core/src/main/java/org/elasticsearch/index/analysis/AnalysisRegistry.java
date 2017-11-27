@@ -300,6 +300,7 @@ public final class AnalysisRegistry implements Closeable {
         };
     }
 
+    @SuppressWarnings("unchecked")
     private <T> Map<String, T> buildMapping(Component component, IndexSettings settings, Map<String, Settings> settingsMap,
                     Map<String, ? extends AnalysisModule.AnalysisProvider<T>> providerMap,
                     Map<String, ? extends AnalysisModule.AnalysisProvider<T>> defaultInstance) throws IOException {

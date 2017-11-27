@@ -1,0 +1,9 @@
+---
+"Get an empty remote info":
+  - skip:
+      version: " - 5.3.99"
+      reason: this API doesn't exist in 5.3.x yet
+  - do:
+      cluster.remote_info: {}
+  - is_true: ''
+

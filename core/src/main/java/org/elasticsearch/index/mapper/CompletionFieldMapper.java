@@ -30,9 +30,9 @@ import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
@@ -560,7 +560,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 }
             }
         } else {
-            throw new ElasticsearchParseException("failed to parse expected text or object got" + token.name());
+            throw new ParsingException(parser.getTokenLocation(), "failed to parse [" + parser.currentName() + "]: expected text or object, but got " + token.name());
         }
     }
 

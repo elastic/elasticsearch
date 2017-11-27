@@ -208,8 +208,7 @@ In order to create a distribution, simply run the @gradle assemble@ command in t
 
 The distribution for each project will be created under the @build/distributions@ directory in that project.
 
-See the "TESTING":TESTING.asciidoc file for more information about
-running the Elasticsearch test suite.
+See the "TESTING":TESTING.asciidoc file for more information about running the Elasticsearch test suite.
 
 h3. Upgrading from Elasticsearch 1.x?
 

@@ -86,6 +86,10 @@ by improving point performance on a `geo_shape` field so that `geo_shape` querie
 optimal on a point only field.
 | `false`
 
+|`ignore_malformed` |If true, malformed geojson shapes are ignored. If false (default),
+malformed geojson shapes throw an exception and reject the whole document.
+| `false`
+
 
 |=======================================================================
 

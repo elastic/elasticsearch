@@ -48,6 +48,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
@@ -57,7 +58,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -108,7 +108,7 @@ public class InternalEngine extends Engine {
 
     private final IndexWriter indexWriter;
 
-    private final SearcherManager externalSearcherManager;
+    private final ExternalSearcherManager externalSearcherManager;
     private final SearcherManager internalSearcherManager;
 
     private final Lock flushLock = new ReentrantLock();
@@ -172,7 +172,7 @@ public class InternalEngine extends Engine {
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;
-        SearcherManager externalSearcherManager = null;
+        ExternalSearcherManager externalSearcherManager = null;
         SearcherManager internalSearcherManager = null;
         EngineMergeScheduler scheduler = null;
         boolean success = false;
@@ -224,8 +224,8 @@ public class InternalEngine extends Engine {
                     throw e;
                 }
             }
-            internalSearcherManager = createSearcherManager(new SearcherFactory(), false);
-            externalSearcherManager = createSearcherManager(new SearchFactory(logger, isClosed, engineConfig), true);
+            externalSearcherManager = createSearcherManager(new SearchFactory(logger, isClosed, engineConfig));
+            internalSearcherManager = externalSearcherManager.internalSearcherManager;
             this.internalSearcherManager = internalSearcherManager;
             this.externalSearcherManager = externalSearcherManager;
             internalSearcherManager.addListener(versionMap);
@@ -238,7 +238,7 @@ public class InternalEngine extends Engine {
             success = true;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(writer, translog, externalSearcherManager, internalSearcherManager, scheduler);
+                IOUtils.closeWhileHandlingException(writer, translog, internalSearcherManager, externalSearcherManager, scheduler);
                 if (isClosed.get() == false) {
                     // failure we need to dec the store reference
                     store.decRef();
@@ -246,6 +246,75 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
+    }
+
+    /**
+     * This reference manager delegates all it's refresh calls to another (internal) SearcherManager
+     * The main purpose for this is that if we have external refreshes happening we don't issue extra
+     * refreshes to clear version map memory etc. this can cause excessive segment creation if heavy indexing
+     * is happening and the refresh interval is low (ie. 1 sec)
+     *
+     * This also prevents segment starvation where an internal reader holds on to old segments literally forever
+     * since no indexing is happening and refreshes are only happening to the external reader manager, while with
+     * this specialized implementation an external refresh will immediately be reflected on the internal reader
+     * and old segments can be released in the same way previous version did this (as a side-effect of _refresh)
+     */
+    @SuppressForbidden(reason = "reference counting is required here")
+    private static final class ExternalSearcherManager extends ReferenceManager<IndexSearcher> {
+        private final SearcherFactory searcherFactory;
+        private final SearcherManager internalSearcherManager;
+
+        ExternalSearcherManager(SearcherManager internalSearcherManager, SearcherFactory searcherFactory) throws IOException {
+            IndexSearcher acquire = internalSearcherManager.acquire();
+            try {
+                IndexReader indexReader = acquire.getIndexReader();
+                assert indexReader instanceof ElasticsearchDirectoryReader:
+                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + indexReader;
+                indexReader.incRef(); // steal the reader - getSearcher will decrement if it fails
+                current = SearcherManager.getSearcher(searcherFactory, indexReader, null);
+            } finally {
+                internalSearcherManager.release(acquire);
+            }
+            this.searcherFactory = searcherFactory;
+            this.internalSearcherManager = internalSearcherManager;
+        }
+
+        @Override
+        protected IndexSearcher refreshIfNeeded(IndexSearcher referenceToRefresh) throws IOException {
+            // we simply run a blocking refresh on the internal reference manager and then steal it's reader
+            // it's a save operation since we acquire the reader which incs it's reference but then down the road
+            // steal it by calling incRef on the "stolen" reader
+            internalSearcherManager.maybeRefreshBlocking();
+            IndexSearcher acquire = internalSearcherManager.acquire();
+            final IndexReader previousReader = referenceToRefresh.getIndexReader();
+            assert previousReader instanceof ElasticsearchDirectoryReader:
+                "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + previousReader;
+            try {
+                final IndexReader newReader = acquire.getIndexReader();
+                if (newReader == previousReader) {
+                    // nothing has changed - both ref managers share the same instance so we can use reference equality
+                    return null;
+                } else {
+                    newReader.incRef(); // steal the reader - getSearcher will decrement if it fails
+                    return SearcherManager.getSearcher(searcherFactory, newReader, previousReader);
+                }
+            } finally {
+                internalSearcherManager.release(acquire);
+            }
+        }
+
+        @Override
+        protected boolean tryIncRef(IndexSearcher reference) {
+            return reference.getIndexReader().tryIncRef();
+        }
+
+        @Override
+        protected int getRefCount(IndexSearcher reference) {
+            return reference.getIndexReader().getRefCount();
+        }
+
+        @Override
+        protected void decRef(IndexSearcher reference) throws IOException { reference.getIndexReader().decRef(); }
     }
 
     @Override
@@ -456,18 +525,18 @@ public class InternalEngine extends Engine {
         return uuid;
     }
 
-    private SearcherManager createSearcherManager(SearcherFactory searcherFactory, boolean readSegmentsInfo) throws EngineException {
+    private ExternalSearcherManager createSearcherManager(SearchFactory externalSearcherFactory) throws EngineException {
         boolean success = false;
-        SearcherManager searcherManager = null;
+        SearcherManager internalSearcherManager = null;
         try {
             try {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                searcherManager = new SearcherManager(directoryReader, searcherFactory);
-                if (readSegmentsInfo) {
-                    lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
-                }
+                internalSearcherManager = new SearcherManager(directoryReader, new SearcherFactory());
+                lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
+                ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
+                    externalSearcherFactory);
                 success = true;
-                return searcherManager;
+                return externalSearcherManager;
             } catch (IOException e) {
                 maybeFailEngine("start", e);
                 try {
@@ -479,7 +548,7 @@ public class InternalEngine extends Engine {
             }
         } finally {
             if (success == false) { // release everything we created on a failure
-                IOUtils.closeWhileHandlingException(searcherManager, indexWriter);
+                IOUtils.closeWhileHandlingException(internalSearcherManager, indexWriter);
             }
         }
     }
@@ -1229,24 +1298,24 @@ public class InternalEngine extends Engine {
     }
 
     final void refresh(String source, SearcherScope scope) throws EngineException {
-        long bytes = 0;
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
+        // both refresh types will result in an internal refresh but only the external will also
+        // pass the new reader reference to the external reader manager.
+
+        // this will also cause version map ram to be freed hence we always account for it.
+        final long bytes = indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
+        writingBytes.addAndGet(bytes);
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            bytes = indexWriter.ramBytesUsed();
             switch (scope) {
                 case EXTERNAL:
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
                     // the second refresh will only do the extra work we have to do for warming caches etc.
-                    writingBytes.addAndGet(bytes);
                     externalSearcherManager.maybeRefreshBlocking();
                     // the break here is intentional we never refresh both internal / external together
                     break;
                 case INTERNAL:
-                    final long versionMapBytes = versionMap.ramBytesUsedForRefresh();
-                    bytes += versionMapBytes;
-                    writingBytes.addAndGet(bytes);
                     internalSearcherManager.maybeRefreshBlocking();
                     break;
                 default:
@@ -1709,7 +1778,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected SearcherManager getSearcherManager(String source, SearcherScope scope) {
+    protected ReferenceManager<IndexSearcher> getSearcherManager(String source, SearcherScope scope) {
         switch (scope) {
             case INTERNAL:
                 return internalSearcherManager;

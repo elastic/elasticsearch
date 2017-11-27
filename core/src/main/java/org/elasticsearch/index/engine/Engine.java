@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
@@ -36,7 +35,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -144,33 +143,18 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Tries to extract a segment reader from the given index reader.
-     * If no SegmentReader can be extracted an {@link IllegalStateException} is thrown.
-     */
-    protected static SegmentReader segmentReader(LeafReader reader) {
-        if (reader instanceof SegmentReader) {
-            return (SegmentReader) reader;
-        } else if (reader instanceof FilterLeafReader) {
-            final FilterLeafReader fReader = (FilterLeafReader) reader;
-            return segmentReader(FilterLeafReader.unwrap(fReader));
-        }
-        // hard fail - we can't get a SegmentReader
-        throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
-    }
-
-    /**
      * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
      */
     protected static boolean isMergedSegment(LeafReader reader) {
         // We expect leaves to be segment readers
-        final Map<String, String> diagnostics = segmentReader(reader).getSegmentInfo().info.getDiagnostics();
+        final Map<String, String> diagnostics = Lucene.segmentReader(reader).getSegmentInfo().info.getDiagnostics();
         final String source = diagnostics.get(IndexWriter.SOURCE);
         assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH,
                 IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
         return IndexWriter.SOURCE_MERGE.equals(source);
     }
 
-    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
+    protected Searcher newSearcher(String source, IndexSearcher searcher, ReferenceManager<IndexSearcher> manager) {
         return new EngineSearcher(source, searcher, manager, store, logger);
     }
 
@@ -531,7 +515,7 @@ public abstract class Engine implements Closeable {
           * the searcher is acquired. */
         store.incRef();
         try {
-            final SearcherManager manager = getSearcherManager(source, scope); // can never be null
+            final ReferenceManager<IndexSearcher> manager = getSearcherManager(source, scope); // can never be null
             /* This might throw NPE but that's fine we will run ensureOpen()
             *  in the catch block and throw the right exception */
             final IndexSearcher searcher = manager.acquire();
@@ -585,7 +569,7 @@ public abstract class Engine implements Closeable {
     /**
      * Read the last segments info from the commit pointed to by the searcher manager
      */
-    protected static SegmentInfos readLastCommittedSegmentInfos(final SearcherManager sm, final Store store) throws IOException {
+    protected static SegmentInfos readLastCommittedSegmentInfos(final ReferenceManager<IndexSearcher> sm, final Store store) throws IOException {
         IndexSearcher searcher = sm.acquire();
         try {
             IndexCommit latestCommit = ((DirectoryReader) searcher.getIndexReader()).getIndexCommit();
@@ -611,7 +595,7 @@ public abstract class Engine implements Closeable {
         try (Searcher searcher = acquireSearcher("segments_stats")) {
             SegmentsStats stats = new SegmentsStats();
             for (LeafReaderContext reader : searcher.reader().leaves()) {
-                final SegmentReader segmentReader = segmentReader(reader.reader());
+                final SegmentReader segmentReader = Lucene.segmentReader(reader.reader());
                 stats.add(1, segmentReader.ramBytesUsed());
                 stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
                 stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
@@ -718,7 +702,7 @@ public abstract class Engine implements Closeable {
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments")){
             for (LeafReaderContext reader : searcher.reader().leaves()) {
-                final SegmentReader segmentReader = segmentReader(reader.reader());
+                final SegmentReader segmentReader = Lucene.segmentReader(reader.reader());
                 SegmentCommitInfo info = segmentReader.getSegmentInfo();
                 assert !segments.containsKey(info.info.name);
                 Segment segment = new Segment(info.info.name);
@@ -787,13 +771,19 @@ public abstract class Engine implements Closeable {
     public final boolean refreshNeeded() {
         if (store.tryIncRef()) {
             /*
-              we need to inc the store here since searcherManager.isSearcherCurrent()
-              acquires a searcher internally and that might keep a file open on the
+              we need to inc the store here since we acquire a searcher and that might keep a file open on the
               store. this violates the assumption that all files are closed when
               the store is closed so we need to make sure we increment it here
              */
             try {
-                return getSearcherManager("refresh_needed", SearcherScope.EXTERNAL).isSearcherCurrent() == false;
+                ReferenceManager<IndexSearcher> manager = getSearcherManager("refresh_needed", SearcherScope.EXTERNAL);
+                final IndexSearcher searcher =  manager.acquire();
+                try {
+                    final IndexReader r = searcher.getIndexReader();
+                    return ((DirectoryReader) r).isCurrent() == false;
+                } finally {
+                    manager.release(searcher);
+                }
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
                 failEngine("failed to access searcher manager", e);
@@ -1331,7 +1321,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected abstract SearcherManager getSearcherManager(String source, SearcherScope scope);
+    protected abstract ReferenceManager<IndexSearcher> getSearcherManager(String source, SearcherScope scope);
 
     /**
      * Method to close the engine while the write lock is held.

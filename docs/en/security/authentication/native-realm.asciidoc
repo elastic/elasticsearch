@@ -92,7 +92,7 @@ You manage users in the `native` realm through the
 
 [[migrating-from-file]]
 NOTE: To migrate file-based users to the `native` realm, use the
-<<migrate-tool, migrate>> tool.
+{ref}/migrate-tool.html[migrate tool].
 
 [float]
 [[native-add]]

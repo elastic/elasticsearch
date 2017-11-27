@@ -34,6 +34,23 @@ import java.io.IOException;
         return version;
     }
 
+    /**
+     * Override the built-in {@link DataInput#readUTF()}
+     * to support strings that need more than 65535 charcters.
+     */
+    @Override
+    public String readUTF() throws IOException {
+        int splits = delegate.readInt();
+        if (splits == 0) {
+            return delegate.readUTF();
+        }
+        StringBuilder b = new StringBuilder(SqlDataOutput.WORST_CASE_SPLIT * splits);
+        for (int i = 0; i < splits; i++) {
+            b.append(delegate.readUTF());
+        }
+        return b.toString();
+    }
+
     @Override
     public void readFully(byte[] b) throws IOException {
         delegate.readFully(b);
@@ -102,10 +119,5 @@ import java.io.IOException;
     @Override
     public String readLine() throws IOException {
         return delegate.readLine();
-    }
-
-    @Override
-    public String readUTF() throws IOException {
-        return delegate.readUTF();
     }
 }

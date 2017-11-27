@@ -35,6 +35,34 @@ public final class SqlDataOutput implements DataOutput {
         return version;
     }
 
+    /**
+     * The maximum size of a string to submit to {@link #delegate}'s
+     * {@link DataOutput#writeUTF(String)}. The {@code 65535} is the
+     * number of bytes that the string can be encoded to. The {@code 3}
+     * is the "worst case" for the number of bytes used to encode each
+     * char.
+     */
+    static final int WORST_CASE_SPLIT = 65535 / 3;
+    /**
+     * Override the built-in {@link DataOutput#writeUTF(String)}
+     * to support strings that need more than 65535 charcters.
+     */
+    @Override
+    public void writeUTF(String s) throws IOException {
+        int splits = s.length() / WORST_CASE_SPLIT + 1;
+        delegate.writeInt(splits);
+
+        int start = 0;
+        while (true) {
+            int end = Math.min(s.length(), start + WORST_CASE_SPLIT);
+            delegate.writeUTF(s.substring(start, end));
+            if (end == s.length()) {
+                break;
+            }
+            start = end;
+        }
+    }
+
     @Override
     public void write(int b) throws IOException {
         delegate.write(b);
@@ -98,10 +126,5 @@ public final class SqlDataOutput implements DataOutput {
     @Override
     public void writeChars(String s) throws IOException {
         delegate.writeChars(s);
-    }
-
-    @Override
-    public void writeUTF(String s) throws IOException {
-        delegate.writeUTF(s);
     }
 }

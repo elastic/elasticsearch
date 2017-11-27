@@ -55,7 +55,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -426,25 +425,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
-
-                final Runnable adjustBreaker = () -> {
-                    CircuitBreaker cb = circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-                    synchronized (breakerMutex) {
-                        final SegmentsStats ss = segmentStats(false);
-                        final long newMemory = ss.getMemoryInBytes();
-                        final long currentMemory = memoryAccountingBytes.get();
-                        if (newMemory != currentMemory) {
-                            memoryAccountingBytes.set(newMemory) ;
-                            cb.addWithoutBreaking(newMemory - currentMemory);
-                        }
-                    }
-                };
-                // Adjust initially, because a refresh may never happen and this
-                // could be a large shard that was just relocated here
-                adjustBreaker.run();
-                // Add listener for circuit breaking so we adjust accounting every time a refresh occurs
-                boolean listenerAdded = this.addRecurringRefreshListener(adjustBreaker);
-                assert listenerAdded : "unable to add recurring refresh listener";
             } else if (state == IndexShardState.RELOCATED &&
                 (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
                 // if the shard is marked as RELOCATED we have to fail when any changes in shard routing occur (e.g. due to recovery
@@ -1203,19 +1183,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         engine.flushAndClose();
                     }
                 } finally {
-                    try {
-                        // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                        // Also closing refreshListeners to prevent us from accumulating any more listeners
-                        IOUtils.close(engine, refreshListeners);
-                        indexShardOperationPermits.close();
-                    } finally {
-                        final CircuitBreaker cb = circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-                        // Likely not needed to set memoryAccountingBytes to 0
-                        // as the index shard will not be re-opened, but you
-                        // never know in the future! It's happened before
-                        // with shadow replicas
-                        cb.addWithoutBreaking(-memoryAccountingBytes.getAndSet(0L));
-                    }
+                    // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                    // Also closing refreshListeners to prevent us from accumulating any more listeners
+                    IOUtils.close(engine, refreshListeners);
+                    indexShardOperationPermits.close();
                 }
             }
         }
@@ -2215,7 +2186,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort,
-            this::runTranslogRecovery);
+            this::runTranslogRecovery, circuitBreakerService);
     }
 
     /**
@@ -2577,34 +2548,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             // we're not yet ready fo ready for reads, just ignore refresh cycles
             listener.accept(false);
-        }
-    }
-
-    /**
-     * Add a listener for refreshes. If reads are not allowed, the listener is not added.
-     * Unlike the {@code addRefreshListener} method, this listener will be called for every
-     * refresh where a Lucune flush occurred (skipped for noop refreshes).
-     *
-     * @param listener for the refresh.
-     * @return true if the listener was added, false otherwise
-     */
-    public boolean addRecurringRefreshListener(Runnable listener) {
-        final boolean readAllowed;
-        if (isReadAllowed()) {
-            readAllowed = true;
-        } else {
-            // check again under mutex. this is important to create a happens before relationship
-            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
-            // to a listener before a refresh actually happened that contained that operation.
-            synchronized (mutex) {
-                readAllowed = isReadAllowed();
-            }
-        }
-        if (readAllowed) {
-            refreshListeners.addRecurringNotifier(listener);
-            return true;
-        } else {
-            return false;
         }
     }
 

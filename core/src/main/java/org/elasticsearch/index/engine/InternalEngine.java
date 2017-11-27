@@ -31,6 +31,7 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -50,6 +51,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -77,10 +79,12 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +99,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 public class InternalEngine extends Engine {
 
@@ -140,6 +145,7 @@ public class InternalEngine extends Engine {
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
+    private final CircuitBreakerService breakerService;
     /**
      * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
      * across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
@@ -235,6 +241,7 @@ public class InternalEngine extends Engine {
             for (ReferenceManager.RefreshListener listener: engineConfig.getRefreshListeners()) {
                 this.externalSearcherManager.addListener(listener);
             }
+            this.breakerService = engineConfig.getCircuitBreakerService();
             success = true;
         } finally {
             if (success == false) {
@@ -269,7 +276,7 @@ public class InternalEngine extends Engine {
             try {
                 IndexReader indexReader = acquire.getIndexReader();
                 assert indexReader instanceof ElasticsearchDirectoryReader:
-                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + indexReader;
+                        "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + indexReader;
                 indexReader.incRef(); // steal the reader - getSearcher will decrement if it fails
                 current = SearcherManager.getSearcher(searcherFactory, indexReader, null);
             } finally {
@@ -288,7 +295,7 @@ public class InternalEngine extends Engine {
             IndexSearcher acquire = internalSearcherManager.acquire();
             final IndexReader previousReader = referenceToRefresh.getIndexReader();
             assert previousReader instanceof ElasticsearchDirectoryReader:
-                "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + previousReader;
+                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + previousReader;
             try {
                 final IndexReader newReader = acquire.getIndexReader();
                 if (newReader == previousReader) {
@@ -366,15 +373,15 @@ public class InternalEngine extends Engine {
     }
 
     static SequenceNumbersService sequenceNumberService(
-        final EngineConfig engineConfig,
-        final SeqNoStats seqNoStats) {
+            final EngineConfig engineConfig,
+            final SeqNoStats seqNoStats) {
         return new SequenceNumbersService(
-            engineConfig.getShardId(),
-            engineConfig.getAllocationId(),
-            engineConfig.getIndexSettings(),
-            seqNoStats.getMaxSeqNo(),
-            seqNoStats.getLocalCheckpoint(),
-            seqNoStats.getGlobalCheckpoint());
+                engineConfig.getShardId(),
+                engineConfig.getAllocationId(),
+                engineConfig.getIndexSettings(),
+                seqNoStats.getMaxSeqNo(),
+                seqNoStats.getLocalCheckpoint(),
+                seqNoStats.getGlobalCheckpoint());
     }
 
     @Override
@@ -420,7 +427,7 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
         if (opsRecovered > 0) {
             logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
-                opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
+                    opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
             flush(true, true);
             refresh("translog_recovery");
         } else if (translog.isCurrent(translogGeneration) == false) {
@@ -468,7 +475,7 @@ public class InternalEngine extends Engine {
         }
         if (needsCommit) {
             commitIndexWriter(indexWriter, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
-                ? commitUserData.get(SYNC_COMMIT_ID) : null);
+                    ? commitUserData.get(SYNC_COMMIT_ID) : null);
         }
     }
 
@@ -516,10 +523,10 @@ public class InternalEngine extends Engine {
         String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
         if (uuid == null || forceNew) {
             assert
-                forceNew || // recovery from a local store creates an index that doesn't have yet a history_uuid
-                openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG ||
-                config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
-                "existing index was created after 6_0_0_rc1 but has no history uuid";
+                    forceNew || // recovery from a local store creates an index that doesn't have yet a history_uuid
+                    openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG ||
+                    config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
+            "existing index was created after 6_0_0_rc1 but has no history uuid";
             uuid = UUIDs.randomBase64UUID();
         }
         return uuid;
@@ -531,10 +538,35 @@ public class InternalEngine extends Engine {
         try {
             try {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                internalSearcherManager = new SearcherManager(directoryReader, new SearcherFactory());
+                internalSearcherManager = new SearcherManager(directoryReader, new SearcherFactory() {
+                    @Override
+                    public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
+                        if (breakerService != null) {
+                            final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
+
+                            // get all new segment readers and account for their ram usage
+                            Set<SegmentReader> readers = reader.leaves().stream()
+                                    .map(c -> Lucene.segmentReader(c.reader())).collect(Collectors.toSet());
+                            Set<SegmentReader> prevReaders =
+                                    previousReader == null ? Collections.emptySet() : previousReader.leaves().stream()
+                                    .map(c -> Lucene.segmentReader(c.reader()))
+                                    .collect(Collectors.toSet());
+                            readers.removeAll(prevReaders);
+                            long totalNewRamBytesUsed = 0;
+                            for (SegmentReader r : readers) {
+                                final long ramBytesUsed = r.ramBytesUsed();
+                                totalNewRamBytesUsed += ramBytesUsed;
+                                // we release the ram usage once the reader is closed
+                                r.getCoreCacheHelper().addClosedListener(k -> breaker.addWithoutBreaking(-ramBytesUsed));
+                            }
+                            breaker.addWithoutBreaking(totalNewRamBytesUsed);
+                        }
+                        return super.newSearcher(reader, previousReader);
+                    }
+                });
                 lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
-                    externalSearcherFactory);
+                        externalSearcherFactory);
                 success = true;
                 return externalSearcherManager;
             } catch (IOException e) {
@@ -567,7 +599,7 @@ public class InternalEngine extends Engine {
                     }
                     if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
-                            get.versionType().explainConflictForReads(versionValue.version, get.version()));
+                                get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
                     refresh("realtime_get", SearcherScope.INTERNAL);
                 }
@@ -602,7 +634,7 @@ public class InternalEngine extends Engine {
         assert incrementVersionLookup();
         if (versionValue != null) {
             if  (op.seqNo() > versionValue.seqNo ||
-                (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term))
+                    (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term))
                 status = OpVsLuceneDocStatus.OP_NEWER;
             else {
                 status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
@@ -643,14 +675,14 @@ public class InternalEngine extends Engine {
                 versionValue = new VersionValue(currentVersion, SequenceNumbers.UNASSIGNED_SEQ_NO, 0L);
             }
         } else if (engineConfig.isEnableGcDeletes() && versionValue.isDelete() &&
-            (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue)versionValue).time) > getGcDeletesInMillis()) {
+                (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue)versionValue).time) > getGcDeletesInMillis()) {
             versionValue = null;
         }
         return versionValue;
     }
 
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnVersions(final Operation op)
-        throws IOException {
+            throws IOException {
         assert op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : "op is resolved based on versions but have a seq#";
         assert op.version() >= 0 : "versions should be non-negative. got " + op.version();
         final VersionValue versionValue = resolveDocVersion(op);
@@ -658,23 +690,23 @@ public class InternalEngine extends Engine {
             return OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
         } else {
             return op.versionType().isVersionConflictForWrites(versionValue.version, op.version(), versionValue.isDelete()) ?
-                OpVsLuceneDocStatus.OP_STALE_OR_EQUAL : OpVsLuceneDocStatus.OP_NEWER;
+                    OpVsLuceneDocStatus.OP_STALE_OR_EQUAL : OpVsLuceneDocStatus.OP_NEWER;
         }
     }
 
     private boolean canOptimizeAddDocument(Index index) {
         if (index.getAutoGeneratedIdTimestamp() != IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP) {
             assert index.getAutoGeneratedIdTimestamp() >= 0 : "autoGeneratedIdTimestamp must be positive but was: "
-                + index.getAutoGeneratedIdTimestamp();
+                    + index.getAutoGeneratedIdTimestamp();
             switch (index.origin()) {
                 case PRIMARY:
                     assert (index.version() == Versions.MATCH_ANY && index.versionType() == VersionType.INTERNAL)
-                        : "version: " + index.version() + " type: " + index.versionType();
+                            : "version: " + index.version() + " type: " + index.versionType();
                     return true;
                 case PEER_RECOVERY:
                 case REPLICA:
                     assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
-                        : "version: " + index.version() + " type: " + index.versionType();
+                            : "version: " + index.version() + " type: " + index.versionType();
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:
                     assert index.isRetry();
@@ -704,7 +736,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             // legacy support
             assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no.;" +
-                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ", seqNo: " + seqNo;
+                    " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ", seqNo: " + seqNo;
         } else if (origin == Operation.Origin.PRIMARY) {
             assert assertOriginPrimarySequenceNumber(seqNo);
         } else if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
@@ -723,7 +755,7 @@ public class InternalEngine extends Engine {
 
     private boolean assertSequenceNumberBeforeIndexing(final Engine.Operation.Origin origin, final long seqNo) {
         if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1) ||
-            origin == Operation.Origin.PRIMARY) {
+                origin == Operation.Origin.PRIMARY) {
             // sequence number should be set when operation origin is primary or when all shards are on new nodes
             assert seqNo >= 0 : "ops should have an assigned seq no.; origin: " + origin;
         }
@@ -754,70 +786,70 @@ public class InternalEngine extends Engine {
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             assert assertVersionType(index);
             try (Releasable ignored = acquireLock(index.uid());
-                Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
-                lastWriteNanos = index.startTime();
-                /* A NOTE ABOUT APPEND ONLY OPTIMIZATIONS:
-                 * if we have an autoGeneratedID that comes into the engine we can potentially optimize
-                 * and just use addDocument instead of updateDocument and skip the entire version and index lookupVersion across the board.
-                 * Yet, we have to deal with multiple document delivery, for this we use a property of the document that is added
-                 * to detect if it has potentially been added before. We use the documents timestamp for this since it's something
-                 * that:
-                 *  - doesn't change per document
-                 *  - is preserved in the transaction log
-                 *  - and is assigned before we start to index / replicate
-                 * NOTE: it's not important for this timestamp to be consistent across nodes etc. it's just a number that is in the common
-                 * case increasing and can be used in the failure case when we retry and resent documents to establish a happens before relationship.
-                 * for instance:
-                 *  - doc A has autoGeneratedIdTimestamp = 10, isRetry = false
-                 *  - doc B has autoGeneratedIdTimestamp = 9, isRetry = false
-                 *
-                 *  while both docs are in in flight, we disconnect on one node, reconnect and send doc A again
-                 *  - now doc A' has autoGeneratedIdTimestamp = 10, isRetry = true
-                 *
-                 *  if A' arrives on the shard first we update maxUnsafeAutoIdTimestamp to 10 and use update document. All subsequent
-                 *  documents that arrive (A and B) will also use updateDocument since their timestamps are less than maxUnsafeAutoIdTimestamp.
-                 *  While this is not strictly needed for doc B it is just much simpler to implement since it will just de-optimize some doc in the worst case.
-                 *
-                 *  if A arrives on the shard first we use addDocument since maxUnsafeAutoIdTimestamp is < 10. A` will then just be skipped or calls
-                 *  updateDocument.
-                 */
-                final IndexingStrategy plan;
+                    Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
+            lastWriteNanos = index.startTime();
+            /* A NOTE ABOUT APPEND ONLY OPTIMIZATIONS:
+             * if we have an autoGeneratedID that comes into the engine we can potentially optimize
+             * and just use addDocument instead of updateDocument and skip the entire version and index lookupVersion across the board.
+             * Yet, we have to deal with multiple document delivery, for this we use a property of the document that is added
+             * to detect if it has potentially been added before. We use the documents timestamp for this since it's something
+             * that:
+             *  - doesn't change per document
+             *  - is preserved in the transaction log
+             *  - and is assigned before we start to index / replicate
+             * NOTE: it's not important for this timestamp to be consistent across nodes etc. it's just a number that is in the common
+             * case increasing and can be used in the failure case when we retry and resent documents to establish a happens before relationship.
+             * for instance:
+             *  - doc A has autoGeneratedIdTimestamp = 10, isRetry = false
+             *  - doc B has autoGeneratedIdTimestamp = 9, isRetry = false
+             *
+             *  while both docs are in in flight, we disconnect on one node, reconnect and send doc A again
+             *  - now doc A' has autoGeneratedIdTimestamp = 10, isRetry = true
+             *
+             *  if A' arrives on the shard first we update maxUnsafeAutoIdTimestamp to 10 and use update document. All subsequent
+             *  documents that arrive (A and B) will also use updateDocument since their timestamps are less than maxUnsafeAutoIdTimestamp.
+             *  While this is not strictly needed for doc B it is just much simpler to implement since it will just de-optimize some doc in the worst case.
+             *
+             *  if A arrives on the shard first we use addDocument since maxUnsafeAutoIdTimestamp is < 10. A` will then just be skipped or calls
+             *  updateDocument.
+             */
+            final IndexingStrategy plan;
 
-                if (index.origin() == Operation.Origin.PRIMARY) {
-                    plan = planIndexingAsPrimary(index);
-                } else {
-                    // non-primary mode (i.e., replica or recovery)
-                    plan = planIndexingAsNonPrimary(index);
-                }
+            if (index.origin() == Operation.Origin.PRIMARY) {
+                plan = planIndexingAsPrimary(index);
+            } else {
+                // non-primary mode (i.e., replica or recovery)
+                plan = planIndexingAsNonPrimary(index);
+            }
 
-                final IndexResult indexResult;
-                if (plan.earlyResultOnPreFlightError.isPresent()) {
-                    indexResult = plan.earlyResultOnPreFlightError.get();
-                    assert indexResult.hasFailure();
-                } else if (plan.indexIntoLucene) {
-                    indexResult = indexIntoLucene(index, plan);
+            final IndexResult indexResult;
+            if (plan.earlyResultOnPreFlightError.isPresent()) {
+                indexResult = plan.earlyResultOnPreFlightError.get();
+                assert indexResult.hasFailure();
+            } else if (plan.indexIntoLucene) {
+                indexResult = indexIntoLucene(index, plan);
+            } else {
+                indexResult = new IndexResult(
+                        plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
+            }
+            if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                final Translog.Location location;
+                if (indexResult.hasFailure() == false) {
+                    location = translog.add(new Translog.Index(index, indexResult));
+                } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    // if we have document failure, record it as a no-op in the translog with the generated seq_no
+                    location = translog.add(new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().getMessage()));
                 } else {
-                    indexResult = new IndexResult(
-                            plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
+                    location = null;
                 }
-                if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-                    final Translog.Location location;
-                    if (indexResult.hasFailure() == false) {
-                        location = translog.add(new Translog.Index(index, indexResult));
-                    } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        // if we have document failure, record it as a no-op in the translog with the generated seq_no
-                        location = translog.add(new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().getMessage()));
-                    } else {
-                        location = null;
-                    }
-                    indexResult.setTranslogLocation(location);
-                }
-                if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    seqNoService.markSeqNoAsCompleted(indexResult.getSeqNo());
-                }
-                indexResult.setTook(System.nanoTime() - index.startTime());
-                indexResult.freeze();
-                return indexResult;
+                indexResult.setTranslogLocation(location);
+            }
+            if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                seqNoService.markSeqNoAsCompleted(indexResult.getSeqNo());
+            }
+            indexResult.setTook(System.nanoTime() - index.startTime());
+            indexResult.freeze();
+            return indexResult;
             }
         } catch (RuntimeException | IOException e) {
             try {
@@ -838,7 +870,7 @@ public class InternalEngine extends Engine {
         } else {
             // drop out of order operations
             assert index.versionType().versionTypeForReplicationAndRecovery() == index.versionType() :
-                "resolving out of order delivery based on versioning but version type isn't fit for it. got [" + index.versionType() + "]";
+            "resolving out of order delivery based on versioning but version type isn't fit for it. got [" + index.versionType() + "]";
             // unlike the primary, replicas don't really care to about creation status of documents
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
@@ -847,7 +879,7 @@ public class InternalEngine extends Engine {
                 // This can happen if the primary is still on an old node and send traffic without seq# or we recover from translog
                 // created by an old version.
                 assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
-                    "index is newly created but op has no sequence numbers. op: " + index;
+                "index is newly created but op has no sequence numbers. op: " + index;
                 opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
             } else if (index.seqNo() <= seqNoService.getLocalCheckpoint()){
                 // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
@@ -865,7 +897,7 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
             } else {
                 plan = IndexingStrategy.processNormally(
-                    opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.seqNo(), index.version()
+                        opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.seqNo(), index.version()
                 );
             }
         }
@@ -895,14 +927,14 @@ public class InternalEngine extends Engine {
                 currentNotFoundOrDeleted = versionValue.isDelete();
             }
             if (index.versionType().isVersionConflictForWrites(
-                currentVersion, index.version(), currentNotFoundOrDeleted)) {
+                            currentVersion, index.version(), currentNotFoundOrDeleted)) {
                 final VersionConflictEngineException e =
                         new VersionConflictEngineException(shardId, index, currentVersion, currentNotFoundOrDeleted);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
             } else {
                 plan = IndexingStrategy.processNormally(currentNotFoundOrDeleted,
-                    generateSeqNoForOperation(index),
-                    index.versionType().updateVersion(currentVersion, index.version())
+                        generateSeqNoForOperation(index),
+                        index.versionType().updateVersion(currentVersion, index.version())
                 );
             }
         }
@@ -910,7 +942,7 @@ public class InternalEngine extends Engine {
     }
 
     private IndexResult indexIntoLucene(Index index, IndexingStrategy plan)
-        throws IOException {
+            throws IOException {
         assert assertSequenceNumberBeforeIndexing(index.origin(), plan.seqNoForIndexing);
         assert plan.versionForIndexing >= 0 : "version must be set. got " + plan.versionForIndexing;
         assert plan.indexIntoLucene;
@@ -929,7 +961,7 @@ public class InternalEngine extends Engine {
                 index(index.docs(), indexWriter);
             }
             versionMap.putUnderLock(index.uid().bytes(),
-                new VersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
+                    new VersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
             return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
@@ -971,7 +1003,7 @@ public class InternalEngine extends Engine {
                     break;
                 }
             } while (maxUnsafeAutoIdTimestamp.compareAndSet(deOptimizeTimestamp,
-                index.getAutoGeneratedIdTimestamp()) == false);
+                            index.getAutoGeneratedIdTimestamp()) == false);
             assert maxUnsafeAutoIdTimestamp.get() >= index.getAutoGeneratedIdTimestamp();
         } else {
             // in this case we force
@@ -1000,9 +1032,9 @@ public class InternalEngine extends Engine {
                                  boolean indexIntoLucene, long seqNoForIndexing,
                                  long versionForIndexing, IndexResult earlyResultOnPreFlightError) {
             assert useLuceneUpdateDocument == false || indexIntoLucene :
-                "use lucene update is set to true, but we're not indexing into lucene";
+                    "use lucene update is set to true, but we're not indexing into lucene";
             assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false :
-                "can only index into lucene or have a preflight result but not both." +
+                    "can only index into lucene or have a preflight result but not both." +
                     "indexIntoLucene: " + indexIntoLucene
                     + "  earlyResultOnPreFlightError:" + earlyResultOnPreFlightError;
             this.currentNotFoundOrDeleted = currentNotFoundOrDeleted;
@@ -1011,7 +1043,7 @@ public class InternalEngine extends Engine {
             this.versionForIndexing = versionForIndexing;
             this.indexIntoLucene = indexIntoLucene;
             this.earlyResultOnPreFlightError =
-                earlyResultOnPreFlightError == null ? Optional.empty() :
+                    earlyResultOnPreFlightError == null ? Optional.empty() :
                     Optional.of(earlyResultOnPreFlightError);
         }
 
@@ -1029,18 +1061,18 @@ public class InternalEngine extends Engine {
         static IndexingStrategy processNormally(boolean currentNotFoundOrDeleted,
                                                 long seqNoForIndexing, long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, currentNotFoundOrDeleted == false,
-                true, seqNoForIndexing, versionForIndexing, null);
+                    true, seqNoForIndexing, versionForIndexing, null);
         }
 
         static IndexingStrategy overrideExistingAsIfNotThere(
-            long seqNoForIndexing, long versionForIndexing) {
+                long seqNoForIndexing, long versionForIndexing) {
             return new IndexingStrategy(true, true, true, seqNoForIndexing, versionForIndexing, null);
         }
 
         static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted,
                                                      long seqNoForIndexing, long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, false,
-                false, seqNoForIndexing, versionForIndexing, null);
+                    false, seqNoForIndexing, versionForIndexing, null);
         }
     }
 
@@ -1103,7 +1135,7 @@ public class InternalEngine extends Engine {
                     location = translog.add(new Translog.Delete(delete, deleteResult));
                 } else if (deleteResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     location = translog.add(new Translog.NoOp(deleteResult.getSeqNo(),
-                            delete.primaryTerm(), deleteResult.getFailure().getMessage()));
+                                    delete.primaryTerm(), deleteResult.getFailure().getMessage()));
                 } else {
                     location = null;
                 }
@@ -1130,7 +1162,7 @@ public class InternalEngine extends Engine {
         assert delete.origin() != Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
         // drop out of order operations
         assert delete.versionType().versionTypeForReplicationAndRecovery() == delete.versionType() :
-            "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
+        "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
                 + delete.versionType() + "]";
         // unlike the primary, replicas don't really care to about found status of documents
         // this allows to ignore the case where a document was found in the live version maps in
@@ -1138,7 +1170,7 @@ public class InternalEngine extends Engine {
         final OpVsLuceneDocStatus opVsLucene;
         if (delete.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
-                "index is newly created but op has no sequence numbers. op: " + delete;
+            "index is newly created but op has no sequence numbers. op: " + delete;
             opVsLucene = compareOpToLuceneDocBasedOnVersions(delete);
         } else if (delete.seqNo() <= seqNoService.getLocalCheckpoint()) {
             // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
@@ -1158,8 +1190,8 @@ public class InternalEngine extends Engine {
             plan = DeletionStrategy.processButSkipLucene(false, delete.seqNo(), delete.version());
         } else {
             plan = DeletionStrategy.processNormally(
-                opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
-                delete.seqNo(), delete.version());
+                    opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
+                    delete.seqNo(), delete.version());
         }
         return plan;
     }
@@ -1192,7 +1224,7 @@ public class InternalEngine extends Engine {
     }
 
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan)
-        throws IOException {
+            throws IOException {
         try {
             if (plan.currentlyDeleted == false) {
                 // any exception that comes from this is a either an ACE or a fatal exception there
@@ -1200,10 +1232,10 @@ public class InternalEngine extends Engine {
                 indexWriter.deleteDocuments(delete.uid());
             }
             versionMap.putUnderLock(delete.uid().bytes(),
-                new DeleteVersionValue(plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(),
-                    engineConfig.getThreadPool().relativeTimeInMillis()));
+                    new DeleteVersionValue(plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(),
+                            engineConfig.getThreadPool().relativeTimeInMillis()));
             return new DeleteResult(
-                plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
+                    plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
                 // there is no tragic event and such it must be a document level failure
@@ -1227,7 +1259,7 @@ public class InternalEngine extends Engine {
                                  long seqNoOfDeletion, long versionOfDeletion,
                                  DeleteResult earlyResultOnPreflightError) {
             assert (deleteFromLucene && earlyResultOnPreflightError != null) == false :
-                "can only delete from lucene or have a preflight result but not both." +
+                    "can only delete from lucene or have a preflight result but not both." +
                     "deleteFromLucene: " + deleteFromLucene
                     + "  earlyResultOnPreFlightError:" + earlyResultOnPreflightError;
             this.deleteFromLucene = deleteFromLucene;
@@ -1235,7 +1267,7 @@ public class InternalEngine extends Engine {
             this.seqNoOfDeletion = seqNoOfDeletion;
             this.versionOfDeletion = versionOfDeletion;
             this.earlyResultOnPreflightError = earlyResultOnPreflightError == null ?
-                Optional.empty() : Optional.of(earlyResultOnPreflightError);
+                    Optional.empty() : Optional.of(earlyResultOnPreflightError);
         }
 
         static DeletionStrategy skipDueToVersionConflict(
@@ -1471,12 +1503,12 @@ public class InternalEngine extends Engine {
     }
 
     private void refreshLastCommittedSegmentInfos() {
-    /*
-     * we have to inc-ref the store here since if the engine is closed by a tragic event
-     * we don't acquire the write lock and wait until we have exclusive access. This might also
-     * dec the store reference which can essentially close the store and unless we can inc the reference
-     * we can't use it.
-     */
+        /*
+         * we have to inc-ref the store here since if the engine is closed by a tragic event
+         * we don't acquire the write lock and wait until we have exclusive access. This might also
+         * dec the store reference which can essentially close the store and unless we can inc the reference
+         * we can't use it.
+         */
         store.incRef();
         try {
             // reread the last committed segment infos
@@ -2045,19 +2077,19 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(6);
-                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
-                commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
-                if (syncId != null) {
-                    commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-                }
-                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService.getMaxSeqNo()));
-                commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
-                commitData.put(HISTORY_UUID_KEY, historyUUID);
-                logger.trace("committing writer with commit data [{}]", commitData);
-                return commitData.entrySet().iterator();
-            });
+                        final Map<String, String> commitData = new HashMap<>(6);
+                        commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
+                        commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+                        commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
+                        if (syncId != null) {
+                            commitData.put(Engine.SYNC_COMMIT_ID, syncId);
+                        }
+                        commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqNoService.getMaxSeqNo()));
+                        commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                        commitData.put(HISTORY_UUID_KEY, historyUUID);
+                        logger.trace("committing writer with commit data [{}]", commitData);
+                        return commitData.entrySet().iterator();
+                    });
 
             writer.commit();
         } catch (final Exception ex) {

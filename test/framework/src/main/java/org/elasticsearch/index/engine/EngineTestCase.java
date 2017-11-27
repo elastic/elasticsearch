@@ -162,7 +162,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 config.getWarmer(), config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
                 config.getForceNewHistoryUUID(), config.getTranslogConfig(), config.getFlushMergesAfter(), config.getRefreshListeners(),
-                config.getIndexSort(), config.getTranslogRecoveryRunner());
+                config.getIndexSort(), config.getTranslogRecoveryRunner(), config.getCircuitBreakerService());
     }
 
     @Override
@@ -401,7 +401,7 @@ public abstract class EngineTestCase extends ESTestCase {
         EngineConfig config = new EngineConfig(openMode, shardId, allocationId.getId(), threadPool, indexSettings, null, store,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
-                TimeValue.timeValueMinutes(5), refreshListenerList, indexSort, handler);
+                TimeValue.timeValueMinutes(5), refreshListenerList, indexSort, handler, null);
 
         return config;
     }

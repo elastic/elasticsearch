@@ -32,10 +32,7 @@ public class ByteBufferReferenceTests extends AbstractBytesReferenceTestCase {
 
     @Override
     protected BytesReference newBytesReference(int length) throws IOException {
-        int offset = randomInt(27);
-        byte[] bytes = new byte[length + offset];
-        initializeBytes(bytes);
-        return new ByteBufferReference(ByteBuffer.wrap(bytes, offset, length));
+        return newBytesReferenceWithOffsetOfZero(length);
     }
 
     @Override

@@ -22,9 +22,7 @@ package org.elasticsearch.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.InternalSettingsPreparer;
@@ -40,8 +38,25 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     private final OptionSpec<KeyValuePair> settingOption;
 
-    public EnvironmentAwareCommand(String description) {
-        super(description);
+    /**
+     * Construct the command with the specified command description. This command will have logging configured without reading Elasticsearch
+     * configuration files.
+     *
+     * @param description the command description
+     */
+    public EnvironmentAwareCommand(final String description) {
+        this(description, CommandLoggingConfigurator::configureLoggingWithoutConfig);
+    }
+
+    /**
+     * Construct the command with the specified command description and runnable to execute before main is invoked. Commands constructed
+     * with this constructor must take ownership of configuring logging.
+     *
+     * @param description the command description
+     * @param beforeMain the before-main runnable
+     */
+    public EnvironmentAwareCommand(final String description, final Runnable beforeMain) {
+        super(description, beforeMain);
         this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
     }
 
@@ -102,26 +117,6 @@ public abstract class EnvironmentAwareCommand extends Command {
                 settings.put(setting, value);
             }
         }
-    }
-
-    @Override
-    protected final void beforeExecute() {
-        if (shouldConfigureLoggingWithoutConfig()) {
-            // initialize default for es.logger.level because we will not read the log4j2.properties
-            final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
-            final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
-            LogConfigurator.configureWithoutConfig(settings);
-        }
-    }
-
-    /**
-     * Indicate whether or not logging should be configured without reading a log4j2.properties. Most commands should do this because we do
-     * not configure logging for CLI tools. Only commands that configure logging on their own should not do this.
-     *
-     * @return true if logging should be configured without reading a log4j2.properties file
-     */
-    protected boolean shouldConfigureLoggingWithoutConfig() {
-        return true;
     }
 
     /** Execute the command with the initialized {@link Environment}. */

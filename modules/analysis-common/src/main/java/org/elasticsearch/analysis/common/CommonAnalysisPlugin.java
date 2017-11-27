@@ -103,7 +103,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("czech_stem", CzechStemTokenFilterFactory::new);
         filters.put("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
-        filters.put("delimited_payload_filter", DelimitedPayloadTokenFilterFactory::new);
+        filters.put("delimited_payload_filter", LegacyDelimitedPayloadTokenFilterFactory::new);
+        filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
         filters.put("dictionary_decompounder", requriesAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
@@ -192,6 +193,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("czech_stem", false, CzechStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("decimal_digit", true, DecimalDigitFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("delimited_payload_filter", false, input ->
+                new DelimitedPayloadTokenFilter(input,
+                        DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
+                        DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));
+        filters.add(PreConfiguredTokenFilter.singleton("delimited_payload", false, input ->
                 new DelimitedPayloadTokenFilter(input,
                         DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
                         DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));

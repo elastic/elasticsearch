@@ -24,6 +24,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleInputTests extends ESTestCase {
+
     public void testExecute() throws Exception {
         Map<String, Object> data = new HashMap<>();
         data.put("foo", "bar");

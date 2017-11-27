@@ -47,3 +47,46 @@ path set by a `simple` input:
 
 To reference data loaded by a particular input, you use the input's name,
 `ctx.payload.<input-name>.<value>`.
+
+==== Transforming Chained Input Data
+
+In certain use-cases the output of the first input should be used as input
+in a subsequent input. This requires you to do a transform, before you pass
+the data on to the next input.
+
+In order to achieve this you can use a transform input between the two
+specified inputs, see the following example. Note, that the first input will
+still be available in its original form in `ctx.payload.first`.
+
+[source,js]
+--------------------------------------------------
+"input" : {
+  "chain" : {
+    "inputs" : [ <1>
+      {
+        "first" : {
+          "simple" : { "path" : "/_search" }
+        }
+      },
+      {
+        "second" : {
+          "transform" : {
+            "script" : "return [ 'path' : 'ctx.payload.first.path' + '/' ]"
+          }
+        }
+      },
+      {
+        "third" : {
+          "http" : {
+            "request" : {
+              "host" : "localhost",
+              "port" : 9200,
+              "path" : "{{ctx.payload.second.path}}" <2>
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------

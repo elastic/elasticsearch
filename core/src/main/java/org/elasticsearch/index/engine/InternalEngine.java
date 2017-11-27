@@ -276,7 +276,7 @@ public class InternalEngine extends Engine {
             try {
                 IndexReader indexReader = acquire.getIndexReader();
                 assert indexReader instanceof ElasticsearchDirectoryReader:
-                        "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + indexReader;
+                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + indexReader;
                 indexReader.incRef(); // steal the reader - getSearcher will decrement if it fails
                 current = SearcherManager.getSearcher(searcherFactory, indexReader, null);
             } finally {
@@ -295,7 +295,7 @@ public class InternalEngine extends Engine {
             IndexSearcher acquire = internalSearcherManager.acquire();
             final IndexReader previousReader = referenceToRefresh.getIndexReader();
             assert previousReader instanceof ElasticsearchDirectoryReader:
-                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + previousReader;
+                "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + previousReader;
             try {
                 final IndexReader newReader = acquire.getIndexReader();
                 if (newReader == previousReader) {
@@ -373,15 +373,15 @@ public class InternalEngine extends Engine {
     }
 
     static SequenceNumbersService sequenceNumberService(
-            final EngineConfig engineConfig,
-            final SeqNoStats seqNoStats) {
+        final EngineConfig engineConfig,
+        final SeqNoStats seqNoStats) {
         return new SequenceNumbersService(
-                engineConfig.getShardId(),
-                engineConfig.getAllocationId(),
-                engineConfig.getIndexSettings(),
-                seqNoStats.getMaxSeqNo(),
-                seqNoStats.getLocalCheckpoint(),
-                seqNoStats.getGlobalCheckpoint());
+            engineConfig.getShardId(),
+            engineConfig.getAllocationId(),
+            engineConfig.getIndexSettings(),
+            seqNoStats.getMaxSeqNo(),
+            seqNoStats.getLocalCheckpoint(),
+            seqNoStats.getGlobalCheckpoint());
     }
 
     @Override
@@ -427,7 +427,7 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
         if (opsRecovered > 0) {
             logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
-                    opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
+                opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
             flush(true, true);
             refresh("translog_recovery");
         } else if (translog.isCurrent(translogGeneration) == false) {
@@ -475,7 +475,7 @@ public class InternalEngine extends Engine {
         }
         if (needsCommit) {
             commitIndexWriter(indexWriter, translog, openMode == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG
-                    ? commitUserData.get(SYNC_COMMIT_ID) : null);
+                ? commitUserData.get(SYNC_COMMIT_ID) : null);
         }
     }
 
@@ -523,10 +523,10 @@ public class InternalEngine extends Engine {
         String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
         if (uuid == null || forceNew) {
             assert
-                    forceNew || // recovery from a local store creates an index that doesn't have yet a history_uuid
-                    openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG ||
-                    config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
-            "existing index was created after 6_0_0_rc1 but has no history uuid";
+                forceNew || // recovery from a local store creates an index that doesn't have yet a history_uuid
+                openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG ||
+                config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
+                "existing index was created after 6_0_0_rc1 but has no history uuid";
             uuid = UUIDs.randomBase64UUID();
         }
         return uuid;
@@ -566,7 +566,7 @@ public class InternalEngine extends Engine {
                 });
                 lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
-                        externalSearcherFactory);
+                    externalSearcherFactory);
                 success = true;
                 return externalSearcherManager;
             } catch (IOException e) {
@@ -599,7 +599,7 @@ public class InternalEngine extends Engine {
                     }
                     if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
-                                get.versionType().explainConflictForReads(versionValue.version, get.version()));
+                            get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
                     refresh("realtime_get", SearcherScope.INTERNAL);
                 }
@@ -634,7 +634,7 @@ public class InternalEngine extends Engine {
         assert incrementVersionLookup();
         if (versionValue != null) {
             if  (op.seqNo() > versionValue.seqNo ||
-                    (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term))
+                (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term))
                 status = OpVsLuceneDocStatus.OP_NEWER;
             else {
                 status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
@@ -675,14 +675,14 @@ public class InternalEngine extends Engine {
                 versionValue = new VersionValue(currentVersion, SequenceNumbers.UNASSIGNED_SEQ_NO, 0L);
             }
         } else if (engineConfig.isEnableGcDeletes() && versionValue.isDelete() &&
-                (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue)versionValue).time) > getGcDeletesInMillis()) {
+            (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue)versionValue).time) > getGcDeletesInMillis()) {
             versionValue = null;
         }
         return versionValue;
     }
 
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnVersions(final Operation op)
-            throws IOException {
+        throws IOException {
         assert op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : "op is resolved based on versions but have a seq#";
         assert op.version() >= 0 : "versions should be non-negative. got " + op.version();
         final VersionValue versionValue = resolveDocVersion(op);
@@ -690,23 +690,23 @@ public class InternalEngine extends Engine {
             return OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
         } else {
             return op.versionType().isVersionConflictForWrites(versionValue.version, op.version(), versionValue.isDelete()) ?
-                    OpVsLuceneDocStatus.OP_STALE_OR_EQUAL : OpVsLuceneDocStatus.OP_NEWER;
+                OpVsLuceneDocStatus.OP_STALE_OR_EQUAL : OpVsLuceneDocStatus.OP_NEWER;
         }
     }
 
     private boolean canOptimizeAddDocument(Index index) {
         if (index.getAutoGeneratedIdTimestamp() != IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP) {
             assert index.getAutoGeneratedIdTimestamp() >= 0 : "autoGeneratedIdTimestamp must be positive but was: "
-                    + index.getAutoGeneratedIdTimestamp();
+                + index.getAutoGeneratedIdTimestamp();
             switch (index.origin()) {
                 case PRIMARY:
                     assert (index.version() == Versions.MATCH_ANY && index.versionType() == VersionType.INTERNAL)
-                            : "version: " + index.version() + " type: " + index.versionType();
+                        : "version: " + index.version() + " type: " + index.versionType();
                     return true;
                 case PEER_RECOVERY:
                 case REPLICA:
                     assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
-                            : "version: " + index.version() + " type: " + index.versionType();
+                        : "version: " + index.version() + " type: " + index.versionType();
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:
                     assert index.isRetry();
@@ -736,7 +736,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             // legacy support
             assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no.;" +
-                    " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ", seqNo: " + seqNo;
+                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ", seqNo: " + seqNo;
         } else if (origin == Operation.Origin.PRIMARY) {
             assert assertOriginPrimarySequenceNumber(seqNo);
         } else if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
@@ -755,7 +755,7 @@ public class InternalEngine extends Engine {
 
     private boolean assertSequenceNumberBeforeIndexing(final Engine.Operation.Origin origin, final long seqNo) {
         if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1) ||
-                origin == Operation.Origin.PRIMARY) {
+            origin == Operation.Origin.PRIMARY) {
             // sequence number should be set when operation origin is primary or when all shards are on new nodes
             assert seqNo >= 0 : "ops should have an assigned seq no.; origin: " + origin;
         }
@@ -786,34 +786,34 @@ public class InternalEngine extends Engine {
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             assert assertVersionType(index);
             try (Releasable ignored = acquireLock(index.uid());
-                    Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
-            lastWriteNanos = index.startTime();
-            /* A NOTE ABOUT APPEND ONLY OPTIMIZATIONS:
-             * if we have an autoGeneratedID that comes into the engine we can potentially optimize
-             * and just use addDocument instead of updateDocument and skip the entire version and index lookupVersion across the board.
-             * Yet, we have to deal with multiple document delivery, for this we use a property of the document that is added
-             * to detect if it has potentially been added before. We use the documents timestamp for this since it's something
-             * that:
-             *  - doesn't change per document
-             *  - is preserved in the transaction log
-             *  - and is assigned before we start to index / replicate
-             * NOTE: it's not important for this timestamp to be consistent across nodes etc. it's just a number that is in the common
-             * case increasing and can be used in the failure case when we retry and resent documents to establish a happens before relationship.
-             * for instance:
-             *  - doc A has autoGeneratedIdTimestamp = 10, isRetry = false
-             *  - doc B has autoGeneratedIdTimestamp = 9, isRetry = false
-             *
-             *  while both docs are in in flight, we disconnect on one node, reconnect and send doc A again
-             *  - now doc A' has autoGeneratedIdTimestamp = 10, isRetry = true
-             *
-             *  if A' arrives on the shard first we update maxUnsafeAutoIdTimestamp to 10 and use update document. All subsequent
-             *  documents that arrive (A and B) will also use updateDocument since their timestamps are less than maxUnsafeAutoIdTimestamp.
-             *  While this is not strictly needed for doc B it is just much simpler to implement since it will just de-optimize some doc in the worst case.
-             *
-             *  if A arrives on the shard first we use addDocument since maxUnsafeAutoIdTimestamp is < 10. A` will then just be skipped or calls
-             *  updateDocument.
-             */
-            final IndexingStrategy plan;
+                Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
+                lastWriteNanos = index.startTime();
+                /* A NOTE ABOUT APPEND ONLY OPTIMIZATIONS:
+                 * if we have an autoGeneratedID that comes into the engine we can potentially optimize
+                 * and just use addDocument instead of updateDocument and skip the entire version and index lookupVersion across the board.
+                 * Yet, we have to deal with multiple document delivery, for this we use a property of the document that is added
+                 * to detect if it has potentially been added before. We use the documents timestamp for this since it's something
+                 * that:
+                 *  - doesn't change per document
+                 *  - is preserved in the transaction log
+                 *  - and is assigned before we start to index / replicate
+                 * NOTE: it's not important for this timestamp to be consistent across nodes etc. it's just a number that is in the common
+                 * case increasing and can be used in the failure case when we retry and resent documents to establish a happens before relationship.
+                 * for instance:
+                 *  - doc A has autoGeneratedIdTimestamp = 10, isRetry = false
+                 *  - doc B has autoGeneratedIdTimestamp = 9, isRetry = false
+                 *
+                 *  while both docs are in in flight, we disconnect on one node, reconnect and send doc A again
+                 *  - now doc A' has autoGeneratedIdTimestamp = 10, isRetry = true
+                 *
+                 *  if A' arrives on the shard first we update maxUnsafeAutoIdTimestamp to 10 and use update document. All subsequent
+                 *  documents that arrive (A and B) will also use updateDocument since their timestamps are less than maxUnsafeAutoIdTimestamp.
+                 *  While this is not strictly needed for doc B it is just much simpler to implement since it will just de-optimize some doc in the worst case.
+                 *
+                 *  if A arrives on the shard first we use addDocument since maxUnsafeAutoIdTimestamp is < 10. A` will then just be skipped or calls
+                 *  updateDocument.
+                 */
+                final IndexingStrategy plan;
 
             if (index.origin() == Operation.Origin.PRIMARY) {
                 plan = planIndexingAsPrimary(index);

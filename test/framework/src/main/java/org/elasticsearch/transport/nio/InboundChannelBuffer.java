@@ -143,10 +143,6 @@ public class InboundChannelBuffer {
         return index & pageMask;
     }
 
-    public int getOffset() {
-        return offset;
-    }
-
     public static class Page implements Releasable {
 
         private final ByteBuffer buffer;

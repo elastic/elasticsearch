@@ -50,17 +50,17 @@ For more information, see
 
 ==== Examples
 
-The following example stops the `datafeed-it-ops-kpi` {dfeed}:
+The following example stops the `datafeed-total-requests` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-it-ops-kpi/_stop
+POST _xpack/ml/datafeeds/datafeed-total-requests/_stop
 {
   "timeout": "30s"
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[setup:server_metrics_startdf]
 
 When the {dfeed} stops, you receive the following results:
 [source,js]
@@ -69,3 +69,5 @@ When the {dfeed} stops, you receive the following results:
   "stopped": true
 }
 ----
+// CONSOLE
+// TESTRESPONSE

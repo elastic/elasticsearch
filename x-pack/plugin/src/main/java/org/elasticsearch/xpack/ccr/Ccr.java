@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -32,10 +33,8 @@ import org.elasticsearch.xpack.ccr.rest.RestFollowExistingIndexAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowIndexAction;
 import org.elasticsearch.xpack.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
-import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -68,8 +67,8 @@ public final class Ccr {
         this.tribeNodeClient = XPackPlugin.isTribeClientNode(settings);
     }
 
-    public List<PersistentTasksExecutor<?>> createPersistentTasksExecutors(InternalClient internalClient, ThreadPool threadPool) {
-        return Collections.singletonList(new ShardFollowTasksExecutor(settings, internalClient, threadPool));
+    public List<PersistentTasksExecutor<?>> createPersistentTasksExecutors(Client client, ThreadPool threadPool) {
+        return Collections.singletonList(new ShardFollowTasksExecutor(settings, client, threadPool));
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

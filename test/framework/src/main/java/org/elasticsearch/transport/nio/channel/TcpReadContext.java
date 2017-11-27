@@ -34,16 +34,16 @@ public class TcpReadContext implements ReadContext {
     private static final int DEFAULT_READ_LENGTH = 1 << 14;
 
     private final TcpReadHandler handler;
-    private final NioSocketChannel channel;
+    private final TcpNioSocketChannel channel;
     private final TcpFrameDecoder frameDecoder;
     private final LinkedList<NetworkBytesReference> references = new LinkedList<>();
     private int rawBytesCount = 0;
 
     public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler) {
-        this(channel, handler, new TcpFrameDecoder());
+        this((TcpNioSocketChannel) channel, handler, new TcpFrameDecoder());
     }
 
-    public TcpReadContext(NioSocketChannel channel, TcpReadHandler handler, TcpFrameDecoder frameDecoder) {
+    public TcpReadContext(TcpNioSocketChannel channel, TcpReadHandler handler, TcpFrameDecoder frameDecoder) {
         this.handler = handler;
         this.channel = channel;
         this.frameDecoder = frameDecoder;

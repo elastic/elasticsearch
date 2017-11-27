@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 
@@ -31,25 +30,24 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
     private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final SocketSelector socketSelector;
+    private final AtomicBoolean contextsSet = new AtomicBoolean(false);
     private WriteContext writeContext;
     private ReadContext readContext;
+    private BiConsumer<NioSocketChannel, Exception> exceptionContext;
     private Exception connectException;
 
     public NioSocketChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
         super(socketChannel, selector);
         this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
         this.socketSelector = selector;
-    }
-
-    @Override
-    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        writeContext.sendMessage(reference, listener);
     }
 
     @Override
@@ -99,9 +97,14 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return bytesRead;
     }
 
-    public void setContexts(ReadContext readContext, WriteContext writeContext) {
-        this.readContext = readContext;
-        this.writeContext = writeContext;
+    public void setContexts(ReadContext readContext, WriteContext writeContext, BiConsumer<NioSocketChannel, Exception> exceptionContext) {
+        if (contextsSet.compareAndSet(false, true)) {
+            this.readContext = readContext;
+            this.writeContext = writeContext;
+            this.exceptionContext = exceptionContext;
+        } else {
+            throw new IllegalStateException("Contexts on this channel were already set. They should only be once.");
+        }
     }
 
     public WriteContext getWriteContext() {
@@ -110,6 +113,10 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     public ReadContext getReadContext() {
         return readContext;
+    }
+
+    public BiConsumer<NioSocketChannel, Exception> getExceptionContext() {
+        return exceptionContext;
     }
 
     public InetSocketAddress getRemoteAddress() {

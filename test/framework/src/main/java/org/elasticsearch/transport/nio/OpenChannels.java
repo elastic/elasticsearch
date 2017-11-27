@@ -25,6 +25,8 @@ import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
+import org.elasticsearch.transport.nio.channel.TcpNioServerSocketChannel;
+import org.elasticsearch.transport.nio.channel.TcpNioSocketChannel;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -38,9 +40,9 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 public class OpenChannels implements Releasable {
 
     // TODO: Maybe set concurrency levels?
-    private final ConcurrentMap<NioSocketChannel, Long> openClientChannels = newConcurrentMap();
-    private final ConcurrentMap<NioSocketChannel, Long> openAcceptedChannels = newConcurrentMap();
-    private final ConcurrentMap<NioServerSocketChannel, Long> openServerChannels = newConcurrentMap();
+    private final ConcurrentMap<TcpNioSocketChannel, Long> openClientChannels = newConcurrentMap();
+    private final ConcurrentMap<TcpNioSocketChannel, Long> openAcceptedChannels = newConcurrentMap();
+    private final ConcurrentMap<TcpNioServerSocketChannel, Long> openServerChannels = newConcurrentMap();
 
     private final Logger logger;
 
@@ -48,7 +50,7 @@ public class OpenChannels implements Releasable {
         this.logger = logger;
     }
 
-    public void serverChannelOpened(NioServerSocketChannel channel) {
+    public void serverChannelOpened(TcpNioServerSocketChannel channel) {
         boolean added = openServerChannels.putIfAbsent(channel, System.nanoTime()) == null;
         if (added && logger.isTraceEnabled()) {
             logger.trace("server channel opened: {}", channel);
@@ -59,7 +61,7 @@ public class OpenChannels implements Releasable {
         return openServerChannels.size();
     }
 
-    public void acceptedChannelOpened(NioSocketChannel channel) {
+    public void acceptedChannelOpened(TcpNioSocketChannel channel) {
         boolean added = openAcceptedChannels.putIfAbsent(channel, System.nanoTime()) == null;
         if (added && logger.isTraceEnabled()) {
             logger.trace("accepted channel opened: {}", channel);
@@ -70,14 +72,14 @@ public class OpenChannels implements Releasable {
         return new HashSet<>(openAcceptedChannels.keySet());
     }
 
-    public void clientChannelOpened(NioSocketChannel channel) {
+    public void clientChannelOpened(TcpNioSocketChannel channel) {
         boolean added = openClientChannels.putIfAbsent(channel, System.nanoTime()) == null;
         if (added && logger.isTraceEnabled()) {
             logger.trace("client channel opened: {}", channel);
         }
     }
 
-    public Map<NioSocketChannel, Long> getClientChannels() {
+    public Map<TcpNioSocketChannel, Long> getClientChannels() {
         return openClientChannels;
     }
 
@@ -105,7 +107,7 @@ public class OpenChannels implements Releasable {
 
     @Override
     public void close() {
-        Stream<NioChannel> channels = Stream.concat(openClientChannels.keySet().stream(), openAcceptedChannels.keySet().stream());
+        Stream<TcpChannel> channels = Stream.concat(openClientChannels.keySet().stream(), openAcceptedChannels.keySet().stream());
         TcpChannel.closeChannels(channels.collect(Collectors.toList()), true);
 
         openClientChannels.clear();

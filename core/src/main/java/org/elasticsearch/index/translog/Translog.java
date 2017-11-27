@@ -831,9 +831,18 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public interface Snapshot extends Closeable {
 
         /**
-         * The total number of operations in the translog.
+         * The total estimated number of operations in the snapshot.
          */
         int totalOperations();
+
+        /**
+         * The number of operations have been overridden (eg. superseded) in the snapshot so far.
+         * If two operations have the same sequence number, the operation with a lower term will be overridden by the operation
+         * with a higher term. Unlike {@link #totalOperations()}, this value is updated each time after {@link #next()}) is called.
+         */
+        default int overriddenOperations() {
+            return 0;
+        }
 
         /**
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.

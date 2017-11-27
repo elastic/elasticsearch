@@ -119,7 +119,11 @@ final class Security {
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        final String[] classesThatCanExit = new String[]{ElasticsearchUncaughtExceptionHandler.class.getName(), Command.class.getName()};
+        final String[] classesThatCanExit =
+                new String[]{
+                        // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
+                        ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
+                        Command.class.getName()};
         System.setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests

@@ -65,12 +65,10 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
         }
     }
 
-    // visible for testing
     static boolean isFatalUncaught(Throwable e) {
         return e instanceof Error;
     }
 
-    // visible for testing
     void onFatalUncaught(final String threadName, final Throwable t) {
         final Logger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class, loggingPrefixSupplier.get());
         logger.error(
@@ -78,24 +76,32 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
                 () -> new ParameterizedMessage("fatal error in thread [{}], exiting", threadName), t);
     }
 
-    // visible for testing
     void onNonFatalUncaught(final String threadName, final Throwable t) {
         final Logger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class, loggingPrefixSupplier.get());
         logger.warn((org.apache.logging.log4j.util.Supplier<?>)
             () -> new ParameterizedMessage("uncaught exception in thread [{}]", threadName), t);
     }
 
-    // visible for testing
     void halt(int status) {
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @SuppressForbidden(reason = "halt")
-            @Override
-            public Void run() {
-                // we halt to prevent shutdown hooks from running
-                Runtime.getRuntime().halt(status);
-                return null;
-            }
-        });
+        AccessController.doPrivileged(new PrivilegedHaltAction(status));
+    }
+
+    static class PrivilegedHaltAction implements PrivilegedAction<Void> {
+
+        private final int status;
+
+        private PrivilegedHaltAction(final int status) {
+            this.status = status;
+        }
+
+        @SuppressForbidden(reason = "halt")
+        @Override
+        public Void run() {
+            // we halt to prevent shutdown hooks from running
+            Runtime.getRuntime().halt(status);
+            return null;
+        }
+
     }
 
 }

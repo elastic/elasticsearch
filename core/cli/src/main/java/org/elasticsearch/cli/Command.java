@@ -38,6 +38,8 @@ public abstract class Command implements Closeable {
     /** A description of the command, used in the help output. */
     protected final String description;
 
+    private final Runnable beforeMain;
+
     /** The option parser for this command. */
     protected final OptionParser parser = new OptionParser();
 
@@ -46,8 +48,15 @@ public abstract class Command implements Closeable {
     private final OptionSpec<Void> verboseOption =
         parser.acceptsAll(Arrays.asList("v", "verbose"), "show verbose output").availableUnless(silentOption);
 
-    public Command(String description) {
+    /**
+     * Construct the command with the specified command description and runnable to execute before main is invoked.
+     *
+     * @param description the command description
+     * @param beforeMain the before-main runnable
+     */
+    public Command(final String description, final Runnable beforeMain) {
         this.description = description;
+        this.beforeMain = beforeMain;
     }
 
     private Thread shutdownHookThread;
@@ -75,7 +84,7 @@ public abstract class Command implements Closeable {
             Runtime.getRuntime().addShutdownHook(shutdownHookThread);
         }
 
-        beforeExecute();
+        beforeMain.run();
 
         try {
             mainWithoutErrorHandling(args, terminal);
@@ -92,12 +101,6 @@ public abstract class Command implements Closeable {
         }
         return ExitCodes.OK;
     }
-
-    /**
-     * Setup method to be executed before parsing or execution of the command being run. Any exceptions thrown by the
-     * method will not be cleanly caught by the parser.
-     */
-    protected void beforeExecute() {}
 
     /**
      * Executes the command, but all errors are thrown.

@@ -21,6 +21,9 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 
+/**
+ * A {@link LifecycleAction} which deletes the index.
+ */
 public class DeleteAction implements LifecycleAction {
     public static final String NAME = "delete";
 

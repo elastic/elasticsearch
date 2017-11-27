@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.index.Index;
-
 /**
  * Provides the context to a {@link LifecyclePolicy} for a particular target.
  * This context provides the state of the lifecycle target (hereafter referred
@@ -80,9 +77,7 @@ public interface IndexLifecycleContext {
     public static interface Listener {
 
         /**
-         * Called if the call to
-         * {@link LifecycleAction#execute(Index, Client, Listener)} was
-         * successful
+         * Called if the call to set the action/phase name was successful.
          */
         void onSuccess();
 

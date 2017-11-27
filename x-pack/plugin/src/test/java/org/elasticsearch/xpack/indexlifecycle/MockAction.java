@@ -28,7 +28,7 @@ public class MockAction implements LifecycleAction {
     private final SetOnce<Boolean> completed = new SetOnce<>();
     private final AtomicLong executedCount;
     private Exception exceptionToThrow = null;
-    private boolean completeOnExecute = true;
+    private boolean completeOnExecute = false;
 
     private static final ConstructingObjectParser<MockAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
             a -> new MockAction((Boolean) a[0], (Long) a[1]));

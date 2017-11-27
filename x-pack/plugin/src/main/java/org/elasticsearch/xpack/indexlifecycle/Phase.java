@@ -110,10 +110,11 @@ public class Phase implements ToXContentObject, Writeable {
                             public void onSuccess(boolean completed) {
                                 if (completed) {
                                     logger.info("Action [" + firstActionName + "] for index [" + indexName
-                                            + "] executed sucessfully but is not yet complete");
+                                            + "] complete, moving to next action");
+                                    moveToAction(context, indexName, 1);
                                 } else {
                                     logger.info("Action [" + firstActionName + "] for index [" + indexName
-                                            + "] complete, moving to next action");
+                                            + "] executed sucessfully but is not yet complete");
                                 }
                             }
 
@@ -131,24 +132,69 @@ public class Phase implements ToXContentObject, Writeable {
                 }
             });
         } else if (currentActionName.equals(PHASE_COMPLETED) == false) {
-            LifecycleAction currentAction = actions.stream().filter(action -> action.getWriteableName().equals(currentActionName)).findAny()
-                    .orElseThrow(() -> new IllegalStateException("Current action [" + currentActionName + "] not found in phase ["
-                            + getName() + "] for index [" + indexName + "]"));
+            int currentActionIndex = -1;
+            for (int i = 0; i < actions.size(); i++) {
+                if (actions.get(i).getWriteableName().equals(currentActionName)) {
+                    currentActionIndex = i;
+                    break;
+                }
+            }
+            if (currentActionIndex == -1) {
+                throw new IllegalStateException("Current action [" + currentActionName + "] not found in phase ["
+                        + getName() + "] for index [" + indexName + "]");
+            }
+            LifecycleAction currentAction = actions.get(currentActionIndex);
+            final int nextActionIndex = currentActionIndex + 1;
             context.executeAction(currentAction, new LifecycleAction.Listener() {
 
                 @Override
                 public void onSuccess(boolean completed) {
                     if (completed) {
+                        logger.info("Action [" + currentActionName + "] for index [" + indexName + "] complete, moving to next action");
+                        moveToAction(context, indexName, nextActionIndex);
+                    } else {
                         logger.info("Action [" + currentActionName + "] for index [" + indexName
                                 + "] executed sucessfully but is not yet complete");
-                    } else {
-                        logger.info("Action [" + currentActionName + "] for index [" + indexName + "] complete, moving to next action");
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.info("Action [" + currentActionName + "] for index [" + indexName + "] failed", e);
+                }
+            });
+        }
+    }
+
+    private void moveToAction(IndexLifecycleContext context, String indexName, final int nextActionIndex) {
+        if (nextActionIndex < actions.size()) {
+            LifecycleAction nextAction = actions.get(nextActionIndex);
+            context.setAction(nextAction.getWriteableName(), new Listener() {
+
+                @Override
+                public void onSuccess() {
+                    logger.info("Successfully initialised action [" + nextAction.getWriteableName() + "] in phase [" + getName()
+                            + "] for index [" + indexName + "]");
+                    execute(context);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Failed to initialised action [" + nextAction.getWriteableName() + "] in phase [" + getName()
+                            + "] for index [" + indexName + "]", e);
+                }
+            });
+        } else {
+            context.setAction(Phase.PHASE_COMPLETED, new Listener() {
+
+                @Override
+                public void onSuccess() {
+                    logger.info("Successfully completed phase [" + getName() + "] for index [" + indexName + "]");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Failed to complete phase [" + getName() + "] for index [" + indexName + "]", e);
                 }
             });
         }

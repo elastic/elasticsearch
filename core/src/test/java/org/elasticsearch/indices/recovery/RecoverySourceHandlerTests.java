@@ -181,8 +181,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             operations.add(new Translog.Index(index, new Engine.IndexResult(1, i - initialNumberOfDocs, true)));
         }
         operations.add(null);
-        final long startingSeqNo = randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomIntBetween(0, 16);
-        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, new Translog.Snapshot() {
+        final long startingSeqNo = randomIntBetween(0, 16);
+        // todo add proper tests
+        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, startingSeqNo, 16, new Translog.Snapshot() {
             @Override
             public void close() {
 
@@ -200,11 +201,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 return operations.get(counter++);
             }
         });
-        if (startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            assertThat(result.totalOperations, equalTo(initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers));
-        } else {
-            assertThat(result.totalOperations, equalTo(Math.toIntExact(numberOfDocsWithValidSequenceNumbers - startingSeqNo)));
-        }
+        assertThat(result.totalOperations, equalTo(Math.toIntExact(numberOfDocsWithValidSequenceNumbers - startingSeqNo)));
     }
 
     private Engine.Index getIndex(final String id) {

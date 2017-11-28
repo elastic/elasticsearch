@@ -149,9 +149,8 @@ public class RecoverySourceHandler {
 
             final long startingSeqNo;
             final long requiredSeqNoRangeStart;
-            final long endingSeqNo = determineEndingSeqNo();
             final boolean isSequenceNumberBasedRecoveryPossible = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&
-                isTargetSameHistory() && isTranslogReadyForSequenceNumberBasedRecovery(endingSeqNo);
+                isTargetSameHistory() && isTranslogReadyForSequenceNumberBasedRecovery();
             if (isSequenceNumberBasedRecoveryPossible) {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
                 startingSeqNo = request.startingSeqNo();
@@ -191,6 +190,7 @@ public class RecoverySourceHandler {
             } catch (final Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e);
             }
+            final long endingSeqNo = determineEndingSeqNo();
 
             logger.trace("snapshot translog for recovery; current size is [{}]", translog.estimateTotalOperationsFromMinSeq(startingSeqNo));
             final long targetLocalCheckpoint;
@@ -241,17 +241,19 @@ public class RecoverySourceHandler {
 
     /**
      * Determines if the source translog is ready for a sequence-number-based peer recovery. The main condition here is that the source
-     * translog contains all operations between the local checkpoint on the target and desired endingSeqNo.
+     * translog contains all operations above the local checkpoint on the target. We already know the that translog contains or will contain
+     * all ops above the source local checkpoint, so we can stop check there.
      *
      * @return {@code true} if the source is ready for a sequence-number-based recovery
      * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
-    boolean isTranslogReadyForSequenceNumberBasedRecovery(final long endingSeqNo) throws IOException {
+    boolean isTranslogReadyForSequenceNumberBasedRecovery() throws IOException {
         final long startingSeqNo = request.startingSeqNo();
         assert startingSeqNo >= 0;
-        logger.trace("testing sequence numbers in range: [{}, {}]", startingSeqNo, endingSeqNo);
+        final long localCheckpoint = shard.getLocalCheckpoint();
+        logger.trace("testing sequence numbers in range: [{}, {}]", startingSeqNo, localCheckpoint);
         // the start recovery request is initialized with the starting sequence number set to the target shard's local checkpoint plus one
-        if (startingSeqNo - 1 <= endingSeqNo) {
+        if (startingSeqNo - 1 <= localCheckpoint) {
             final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
             try (Translog.Snapshot snapshot = shard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
                 Translog.Operation operation;
@@ -261,7 +263,7 @@ public class RecoverySourceHandler {
                     }
                 }
             }
-            return tracker.getCheckpoint() >= endingSeqNo;
+            return tracker.getCheckpoint() >= localCheckpoint;
         } else {
             return false;
         }
@@ -443,10 +445,10 @@ public class RecoverySourceHandler {
      *
      * @param startingSeqNo the sequence number to start recovery from, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if all
      *                      ops should be sent
-     * @param requiredSeqNoRangeStart
-     *@param endingSeqNo
+     * @param requiredSeqNoRangeStart the lower sequence number of the required range (ending with endingSeqNo)
+     * @param endingSeqNo   the highest sequence number that should be sent
      * @param snapshot      a snapshot of the translog
-     *  @return the local checkpoint on the target
+     * @return the local checkpoint on the target
      */
     long phase2(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, final Translog.Snapshot snapshot) throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
@@ -521,9 +523,10 @@ public class RecoverySourceHandler {
      * Operations are bulked into a single request depending on an operation count limit or size-in-bytes limit.
      *
      * @param startingSeqNo the sequence number for which only operations with a sequence number greater than this will be sent
-     * @param requiredSeqNoRangeStart
-     *@param endingSeqNo
-     * @param snapshot      the translog snapshot to replay operations from  @return the local checkpoint on the target and the total number of operations sent
+     * @param requiredSeqNoRangeStart the lower sequence number of the required range (ending with endingSeqNo)
+     * @param endingSeqNo   the highest sequence number that should be sent
+     * @param snapshot      the translog snapshot to replay operations from  @return the local checkpoint on the target and the total
+     *                      number of operations sent
      * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
     protected SendSnapshotResult sendSnapshot(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, final Translog.Snapshot snapshot) throws IOException {
@@ -556,12 +559,9 @@ public class RecoverySourceHandler {
                 throw new IndexShardClosedException(request.shardId());
             }
             cancellableThreads.checkForCancel();
-            /*
-             * If we are doing a sequence-number-based recovery, we have to skip older ops for which no sequence number was assigned, and
-             * any ops before the starting sequence number.
-             */
+
             final long seqNo = operation.seqNo();
-            if (seqNo < startingSeqNo) {
+            if (seqNo < startingSeqNo && seqNo > endingSeqNo) {
                 skippedOps++;
                 continue;
             }

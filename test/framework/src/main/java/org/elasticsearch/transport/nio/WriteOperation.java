@@ -54,7 +54,7 @@ public class WriteOperation {
         length = offset;
     }
 
-    public ByteBuffer[] getByteReferences() {
+    public ByteBuffer[] getByteBuffers() {
         return buffers;
     }
 

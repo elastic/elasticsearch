@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
@@ -213,6 +212,11 @@ public final class EAssignment extends AExpression {
         // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
         if (lhs.isDefOptimized()) {
             rhs.analyze(locals);
+
+            if (rhs.actual.clazz == void.class) {
+                throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
+            }
+
             rhs.expected = rhs.actual;
             lhs.updateActual(rhs.actual);
         // Otherwise, we must adapt the rhs type to the lhs type with a cast.

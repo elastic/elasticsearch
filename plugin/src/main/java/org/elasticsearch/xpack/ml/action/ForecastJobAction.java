@@ -34,8 +34,6 @@ import org.elasticsearch.xpack.ml.job.results.Forecast;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ml.action.ForecastJobAction.Request.END_TIME;
-
 public class ForecastJobAction extends Action<ForecastJobAction.Request, ForecastJobAction.Response, ForecastJobAction.RequestBuilder> {
 
     public static final ForecastJobAction INSTANCE = new ForecastJobAction();
@@ -57,7 +55,6 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
 
     public static class Request extends TransportJobTaskAction.JobTaskRequest<Request> implements ToXContentObject {
 
-        public static final ParseField END_TIME = new ParseField("end");
         public static final ParseField DURATION = new ParseField("duration");
         public static final ParseField EXPIRES_IN = new ParseField("expires_in");
 
@@ -65,7 +62,6 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
 
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
-            PARSER.declareString(Request::setEndTime, END_TIME);
             PARSER.declareString(Request::setDuration, DURATION);
             PARSER.declareString(Request::setExpiresIn, EXPIRES_IN);
         }
@@ -78,7 +74,6 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             return request;
         }
 
-        private String endTime;
         private TimeValue duration;
         private TimeValue expiresIn;
 
@@ -89,20 +84,16 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
             super(jobId);
         }
 
-        public String getEndTime() {
-            return endTime;
-        }
-
-        public void setEndTime(String endTime) {
-            this.endTime = endTime;
-        }
-
         public TimeValue getDuration() {
             return duration;
         }
 
         public void setDuration(String duration) {
-            this.duration = TimeValue.parseTimeValue(duration, DURATION.getPreferredName());
+            setDuration(TimeValue.parseTimeValue(duration, DURATION.getPreferredName()));
+        }
+
+        public void setDuration(TimeValue duration) {
+            this.duration = duration;
         }
 
         public TimeValue getExpiresIn() {
@@ -110,13 +101,16 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         }
 
         public void setExpiresIn(String expiration) {
-            this.expiresIn = TimeValue.parseTimeValue(expiration, EXPIRES_IN.getPreferredName());
+            setExpiresIn(TimeValue.parseTimeValue(expiration, EXPIRES_IN.getPreferredName()));
+        }
+
+        public void setExpiresIn(TimeValue expiresIn) {
+            this.expiresIn = expiresIn;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.endTime = in.readOptionalString();
             this.duration = in.readOptionalWriteable(TimeValue::new);
             this.expiresIn = in.readOptionalWriteable(TimeValue::new);
         }
@@ -124,14 +118,13 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(endTime);
             out.writeOptionalWriteable(duration);
             out.writeOptionalWriteable(expiresIn);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, endTime, duration, expiresIn);
+            return Objects.hash(jobId, duration, expiresIn);
         }
 
         @Override
@@ -143,17 +136,15 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(endTime, other.endTime) &&
-                   Objects.equals(duration, other.duration) && Objects.equals(expiresIn, other.expiresIn);
+            return Objects.equals(jobId, other.jobId)
+                    && Objects.equals(duration, other.duration)
+                    && Objects.equals(expiresIn, other.expiresIn);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
-            if (endTime != null) {
-                builder.field(END_TIME.getPreferredName(), endTime);
-            }
             if (duration != null) {
                 builder.field(DURATION.getPreferredName(), duration.getStringRep());
             }
@@ -258,9 +249,6 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         @Override
         protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             ForecastParams.Builder paramsBuilder = ForecastParams.builder();
-            if (request.getEndTime() != null) {
-                paramsBuilder.endTime(request.getEndTime(), END_TIME);
-            }
             if (request.getDuration() != null) {
                 paramsBuilder.duration(request.getDuration());
             }

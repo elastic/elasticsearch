@@ -183,7 +183,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         operations.add(null);
         final long startingSeqNo = randomIntBetween(0, 16);
         // todo add proper tests
-        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, startingSeqNo, 16, new Translog.Snapshot() {
+        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, startingSeqNo,
+            numberOfDocsWithValidSequenceNumbers, new Translog.Snapshot() {
             @Override
             public void close() {
 

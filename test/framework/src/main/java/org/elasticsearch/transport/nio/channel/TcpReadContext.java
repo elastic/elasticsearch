@@ -47,7 +47,7 @@ public class TcpReadContext implements ReadContext {
 
     @Override
     public int read() throws IOException {
-        if ((channelBuffer.getCapacity() - channelBuffer.getIndex()) == 0) {
+        if (channelBuffer.getRemaining() == 0) {
             channelBuffer.expandCapacity(channelBuffer.getCapacity() + InboundChannelBuffer.PAGE_SIZE);
         }
 

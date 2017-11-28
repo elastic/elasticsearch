@@ -29,7 +29,6 @@ import java.util.function.Supplier;
 public class InboundChannelBuffer {
 
     public static final int PAGE_SIZE = 1 << 14;
-
     private final int pageMask;
     private final int pageShift;
 
@@ -66,7 +65,7 @@ public class InboundChannelBuffer {
 
     public void releasePagesFromHead(int bytesToRelease) {
         if (bytesToRelease > capacity) {
-            throw new IllegalArgumentException("Releasing more bytes than allocated.");
+            throw new IllegalArgumentException("Releasing more bytes [" + bytesToRelease + "] than buffer capacity [" + capacity + "].");
         }
 
         int pagesToRelease = pageIndex(offset + bytesToRelease);
@@ -127,7 +126,12 @@ public class InboundChannelBuffer {
     }
 
     public void incrementIndex(int delta) {
-        internalIndex += delta;
+        int newIndex = delta + internalIndex;
+        if (newIndex > capacity) {
+            throw new IllegalArgumentException("Cannot increment an index [" + internalIndex + "] with a delta [" + delta +
+                "] that will result in a new index [" + newIndex + "] that is greater than the capacity [" + capacity + "].");
+        }
+        internalIndex = newIndex;
     }
 
     public int getIndex() {
@@ -136,6 +140,10 @@ public class InboundChannelBuffer {
 
     public int getCapacity() {
         return capacity;
+    }
+
+    public int getRemaining() {
+        return capacity - internalIndex;
     }
 
     private int numPages(int capacity) {

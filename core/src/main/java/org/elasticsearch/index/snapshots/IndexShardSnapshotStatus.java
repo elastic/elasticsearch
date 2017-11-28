@@ -75,7 +75,7 @@ public class IndexShardSnapshotStatus {
      *
      * @return current snapshot stage
      */
-    public Stage stage() {
+    public synchronized Stage stage() {
         return this.stage;
     }
 
@@ -103,7 +103,7 @@ public class IndexShardSnapshotStatus {
     /**
      * Returns the reason for the failure if the snapshot is in the {@link IndexShardSnapshotStatus.Stage#FAILURE} state
      */
-    public String failure() {
+    public synchronized String failure() {
         return failure;
     }
 

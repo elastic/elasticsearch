@@ -73,7 +73,8 @@ public final class IngestDocument {
         this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }
 
-    public IngestDocument(String index, String type, String id, String routing, String parent, Long version, VersionType versionType, Map<String, Object> source) {
+    public IngestDocument(String index, String type, String id, String routing,String parent,
+                          Long version, VersionType versionType,Map<String, Object> source) {
         this(index, type, id, routing, parent, source);
         if (version != null) {
             sourceAndMetadata.put(MetaData.VERSION.getFieldName(), version);
@@ -578,7 +579,8 @@ public final class IngestDocument {
             if (metaData == MetaData.VERSION) {
                 metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), Long.class));
             } else if (metaData == MetaData.VERSION_TYPE) {
-                metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), VersionType.class));
+                metadataMap.put(metaData,
+                    cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), VersionType.class));
             } else {
                 metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), String.class));
             }

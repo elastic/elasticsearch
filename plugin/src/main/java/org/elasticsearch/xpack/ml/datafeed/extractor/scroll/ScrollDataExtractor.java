@@ -214,7 +214,9 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private void resetScroll() {
-        clearScroll(scrollId);
+        if (scrollId != null) {
+            clearScroll(scrollId);
+        }
         scrollId = null;
     }
 

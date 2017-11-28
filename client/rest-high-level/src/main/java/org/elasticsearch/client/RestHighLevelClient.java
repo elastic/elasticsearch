@@ -26,6 +26,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -357,6 +359,28 @@ public class RestHighLevelClient implements Closeable {
     public final void deleteAsync(DeleteRequest deleteRequest, ActionListener<DeleteResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, listener,
             Collections.singleton(404), headers);
+    }
+
+    /**
+     * Opens an index using the Open Index API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
+     * Open Index API on elastic.co</a>
+     */
+    public final OpenIndexResponse openIndex(OpenIndexRequest openIndexRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent,
+                Collections.singleton(404), headers);
+    }
+
+    /**
+     * Asynchronously opens an index using the Open Index API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
+     * Open Index API on elastic.co</a>
+     */
+    public final void openIndexAsync(OpenIndexRequest openIndexRequest, ActionListener<OpenIndexResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent, listener,
+                Collections.singleton(404), headers);
     }
 
     /**

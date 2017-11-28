@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -54,15 +56,34 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testOpenExistingIndex() throws IOException {
+        String indexName = "test_index";
+        createIndex(indexName);
+
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(indexName);
+        OpenIndexResponse openIndexResponse = execute(openIndexRequest, highLevelClient().indices()::openIndex,
+                highLevelClient().indices()::openIndexAsync);
+        assertTrue(openIndexResponse.isAcknowledged());
+    }
+
+    public void testOpenNonExistentIndex() throws IOException {
+        String nonExistentIndex = "non_existent_index";
+        assertFalse(indexExists(nonExistentIndex));
+
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(nonExistentIndex);
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(openIndexRequest, highLevelClient().indices()::openIndex, highLevelClient().indices()::openIndexAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
     private static void createIndex(String index) throws IOException {
         Response response = client().performRequest("PUT", index);
-
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private static boolean indexExists(String index) throws IOException {
         Response response = client().performRequest("HEAD", index);
-
         return response.getStatusLine().getStatusCode() == 200;
     }
 }

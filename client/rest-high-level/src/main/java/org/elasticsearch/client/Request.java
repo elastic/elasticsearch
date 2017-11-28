@@ -30,6 +30,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -133,6 +134,19 @@ public final class Request {
         parameters.withIndicesOptions(deleteIndexRequest.indicesOptions());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request openIndex(OpenIndexRequest openIndexRequest) {
+        String endpoint = endpoint(openIndexRequest.indices(), Strings.EMPTY_ARRAY, "_open");
+
+        Params parameters = Params.builder();
+
+        parameters.withTimeout(openIndexRequest.timeout());
+        parameters.withMasterTimeout(openIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(openIndexRequest.waitForActiveShards());
+        parameters.withIndicesOptions(openIndexRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
     static Request info() {

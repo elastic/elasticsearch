@@ -26,6 +26,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -83,6 +84,8 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Request.enforceSameContentType;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RequestTests extends ESTestCase {
 
@@ -267,6 +270,28 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertEquals("DELETE", request.getMethod());
         assertNull(request.getEntity());
+    }
+
+    public void testOpenIndex() throws IOException {
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest();
+        int numIndices = randomIntBetween(1, 5);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        openIndexRequest.indices(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(openIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(openIndexRequest, expectedParams);
+        setRandomIndicesOptions(openIndexRequest::indicesOptions, openIndexRequest::indicesOptions, expectedParams);
+
+        Request request = Request.openIndex(openIndexRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_open");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(request.getMethod(), equalTo("POST"));
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testIndex() throws IOException {

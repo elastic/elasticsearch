@@ -1,8 +1,10 @@
 ---
 "Parent/child inner hits":
     - skip:
-        version: "6.0.0 - "
-        reason:  multiple types are not supported from 6.0 and beyond
+        version: "all"
+        reason:  "AwaitsFix'ing, see elasticsearch #27570"
+#        version: "6.0.0 - "
+#        reason:  multiple types are not supported from 6.0 and beyond
 
     - do:
         indices.create:

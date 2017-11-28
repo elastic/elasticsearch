@@ -63,6 +63,11 @@ public final class TermsSliceQuery extends SliceQuery {
                 final DocIdSetIterator leafIt = disi.iterator();
                 return new ConstantScoreScorer(this, score(), leafIt);
             }
+
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                return true;
+            }
         };
     }
 

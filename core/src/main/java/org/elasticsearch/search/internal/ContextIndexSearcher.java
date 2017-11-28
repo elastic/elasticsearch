@@ -171,6 +171,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
 
                 @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
                 public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                     BulkScorer in = weight.bulkScorer(context);
                     if (in != null) {

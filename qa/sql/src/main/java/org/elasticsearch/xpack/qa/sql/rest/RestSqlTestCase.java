@@ -4,6 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 package org.elasticsearch.xpack.qa.sql.rest;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.qa.sql.ErrorsTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -25,6 +27,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -36,7 +39,7 @@ import static org.hamcrest.Matchers.containsString;
  * Integration test for the rest sql action. The one that speaks json directly to a
  * user rather than to the JDBC driver or CLI.
  */
-public abstract class RestSqlTestCase extends ESRestTestCase {
+public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTestCase {
     /**
      * Builds that map that is returned in the header for each column.
      */
@@ -124,11 +127,18 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
                 new StringEntity("{\"query\":\"SELECT DAY_OF_YEAR(test), COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
     }
 
-    public void missingIndex() throws IOException {
-        expectBadRequest(() -> runSql("SELECT foo FROM missing"), containsString("1:17: index [missing] does not exist"));
+    @Override
+    public void testSelectInvalidSql() throws Exception {
+        expectBadRequest(() -> runSql("SELECT * FRO"), containsString("1:8: Cannot determine columns for *"));
     }
 
-    public void testMissingField() throws IOException {
+    @Override
+    public void testSelectFromMissingIndex() throws IOException {
+        expectBadRequest(() -> runSql("SELECT * FROM missing"), containsString("1:15: Unknown index [missing]"));
+    }
+
+    @Override
+    public void testSelectMissingField() throws IOException {
         StringBuilder bulk = new StringBuilder();
         bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
         bulk.append("{\"test\":\"test\"}\n");
@@ -136,6 +146,17 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
         expectBadRequest(() -> runSql("SELECT foo FROM test"), containsString("1:8: Unknown column [foo]"));
+    }
+
+    @Override
+    public void testSelectMissingFunction() throws Exception {
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
+        bulk.append("{\"foo\":1}\n");
+        client().performRequest("POST", "/test/test/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        expectBadRequest(() -> runSql("SELECT missing(foo) FROM test"), containsString("1:8: Unknown function [missing]"));
     }
 
     private void expectBadRequest(ThrowingRunnable code, Matcher<String> errorMessageMatcher) {
@@ -157,9 +178,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase {
     }
 
     private Map<String, Object> runSql(String suffix, HttpEntity sql) throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("error_trace", "true");
-        params.put("format", "json");
+        Map<String, String> params = new TreeMap<>();
+        params.put("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
+        params.put("pretty", "true");        // Improves error reporting readability
+        params.put("format", "json");        // JSON is easier to parse then a table
         Response response = client().performRequest("POST", "/_sql" + suffix, params, sql);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);

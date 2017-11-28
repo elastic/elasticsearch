@@ -179,7 +179,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ShardFieldData shardFieldData;
     private final ShardBitsetFilterCache shardBitsetFilterCache;
     private final Object mutex = new Object();
-    private final Object breakerMutex = new Object();
     private final String checkIndexOnStartup;
     private final CodecService codecService;
     private final Engine.Warmer warmer;
@@ -189,7 +188,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final QueryCachingPolicy cachingPolicy;
     private final Supplier<Sort> indexSortSupplier;
     private final CircuitBreakerService circuitBreakerService;
-    private final AtomicLong memoryAccountingBytes = new AtomicLong(0L);
 
     private final SearchOperationListener searchOperationListener;
 

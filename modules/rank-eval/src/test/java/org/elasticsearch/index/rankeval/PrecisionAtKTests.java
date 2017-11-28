@@ -77,7 +77,7 @@ public class PrecisionAtKTests extends ESTestCase {
         rated.add(createRatedDoc("test", "2", 2));
         rated.add(createRatedDoc("test", "3", 3));
         rated.add(createRatedDoc("test", "4", 4));
-        PrecisionAtK precisionAtN = new PrecisionAtK(2, false);
+        PrecisionAtK precisionAtN = new PrecisionAtK(2, false, 5);
         EvalQueryQuality evaluated = precisionAtN.evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals((double) 3 / 5, evaluated.getQualityLevel(), 0.00001);
         assertEquals(3, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -113,7 +113,7 @@ public class PrecisionAtKTests extends ESTestCase {
         assertEquals(3, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
 
         // also try with setting `ignore_unlabeled`
-        PrecisionAtK prec = new PrecisionAtK(1, true);
+        PrecisionAtK prec = new PrecisionAtK(1, true, 10);
         evaluated = prec.evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 2, evaluated.getQualityLevel(), 0.00001);
         assertEquals(2, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -132,7 +132,7 @@ public class PrecisionAtKTests extends ESTestCase {
         assertEquals(5, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
 
         // also try with setting `ignore_unlabeled`
-        PrecisionAtK prec = new PrecisionAtK(1, true);
+        PrecisionAtK prec = new PrecisionAtK(1, true, 10);
         evaluated = prec.evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
         assertEquals(0, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -157,12 +157,15 @@ public class PrecisionAtKTests extends ESTestCase {
     }
 
     public void testInvalidRelevantThreshold() {
-        PrecisionAtK prez = new PrecisionAtK();
-        expectThrows(IllegalArgumentException.class, () -> new PrecisionAtK(-1, false));
+        expectThrows(IllegalArgumentException.class, () -> new PrecisionAtK(-1, false, 10));
+    }
+
+    public void testInvalidK() {
+        expectThrows(IllegalArgumentException.class, () -> new PrecisionAtK(1, false, -10));
     }
 
     public static PrecisionAtK createTestItem() {
-        return new PrecisionAtK(randomIntBetween(0, 10), randomBoolean());
+        return new PrecisionAtK(randomIntBetween(0, 10), randomBoolean(), randomIntBetween(1, 50));
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -193,16 +196,28 @@ public class PrecisionAtKTests extends ESTestCase {
     }
 
     private static PrecisionAtK copy(PrecisionAtK original) {
-        return new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled());
+        return new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled(), original.forcedSearchSize().get());
     }
 
     private static PrecisionAtK mutate(PrecisionAtK original) {
-        if (randomBoolean()) {
-            return new PrecisionAtK(original.getRelevantRatingThreshold(), !original.getIgnoreUnlabeled());
-        } else {
-            return new PrecisionAtK(randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
-                    original.getIgnoreUnlabeled());
+        PrecisionAtK pAtK;
+        switch (randomIntBetween(0, 2)) {
+        case 0:
+            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(), !original.getIgnoreUnlabeled(),
+                    original.forcedSearchSize().get());
+            break;
+        case 1:
+            pAtK = new PrecisionAtK(randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
+                    original.getIgnoreUnlabeled(), original.forcedSearchSize().get());
+            break;
+        case 2:
+            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(),
+                    original.getIgnoreUnlabeled(), original.forcedSearchSize().get() + 1);
+            break;
+        default:
+            throw new IllegalStateException("The test should only allow three parameters mutated");
         }
+        return pAtK;
     }
 
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {

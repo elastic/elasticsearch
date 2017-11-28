@@ -85,6 +85,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec evaluationSpecification = request.getRankEvalSpec();
         List<String> indices = evaluationSpecification.getIndices();
+        EvaluationMetric metric = evaluationSpecification.getMetric();
 
         List<RatedRequest> ratedRequests = evaluationSpecification.getRatedRequests();
         Map<String, Exception> errors = new ConcurrentHashMap<>(ratedRequests.size());
@@ -113,6 +114,10 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 }
             }
 
+            if (metric.forcedSearchSize().isPresent()) {
+                ratedSearchSource.size(metric.forcedSearchSize().get());
+            }
+
             ratedRequestsInSearch.add(ratedRequest);
             List<String> summaryFields = ratedRequest.getSummaryFields();
             if (summaryFields.isEmpty()) {
@@ -123,7 +128,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             msearchRequest.add(new SearchRequest(indices.toArray(new String[indices.size()]), ratedSearchSource));
         }
         assert ratedRequestsInSearch.size() == msearchRequest.requests().size();
-        client.multiSearch(msearchRequest, new RankEvalActionListener(listener, evaluationSpecification.getMetric(),
+        client.multiSearch(msearchRequest, new RankEvalActionListener(listener, metric,
                 ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]), errors));
     }
 

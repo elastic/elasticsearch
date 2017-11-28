@@ -376,14 +376,14 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.value(index);
         }
         builder.endArray();
+        if (includeGlobalState != null) {
+            builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
+        }
         if (verbose || state != null) {
             builder.field(STATE, state);
         }
         if (reason != null) {
             builder.field(REASON, reason);
-        }
-        if (includeGlobalState != null) {
-            builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
         }
         if (verbose || startTime != 0) {
             builder.field(START_TIME, DATE_TIME_FORMATTER.printer().print(startTime));

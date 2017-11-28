@@ -63,7 +63,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
     private Boolean includeGlobalState;
 
     SnapshotStatus(final Snapshot snapshot, final State state, final List<SnapshotIndexShardStatus> shards,
-                   Boolean includeGlobalState) {
+                   final Boolean includeGlobalState) {
         this.snapshot = Objects.requireNonNull(snapshot);
         this.state = Objects.requireNonNull(state);
         this.shards = Objects.requireNonNull(shards);
@@ -90,7 +90,8 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
     }
 
     /**
-     * Returns whether include cluster state
+     * Returns true if global state is included in the snapshot, false otherwise.
+     * Can be null if this information is unknown.
      */
     public Boolean includeGlobalState() {
         return includeGlobalState;

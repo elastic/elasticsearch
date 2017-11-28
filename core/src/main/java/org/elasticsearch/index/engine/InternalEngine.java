@@ -31,7 +31,6 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -51,7 +50,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -79,12 +77,10 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +95,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 public class InternalEngine extends Engine {
 
@@ -145,7 +140,6 @@ public class InternalEngine extends Engine {
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
-    private final CircuitBreakerService breakerService;
     /**
      * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
      * across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
@@ -241,7 +235,6 @@ public class InternalEngine extends Engine {
             for (ReferenceManager.RefreshListener listener: engineConfig.getRefreshListeners()) {
                 this.externalSearcherManager.addListener(listener);
             }
-            this.breakerService = engineConfig.getCircuitBreakerService();
             success = true;
         } finally {
             if (success == false) {
@@ -538,32 +531,7 @@ public class InternalEngine extends Engine {
         try {
             try {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                internalSearcherManager = new SearcherManager(directoryReader, new SearcherFactory() {
-                    @Override
-                    public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
-                        if (breakerService != null) {
-                            final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-
-                            // get all new segment readers and account for their ram usage
-                            Set<SegmentReader> readers = reader.leaves().stream()
-                                    .map(c -> Lucene.segmentReader(c.reader())).collect(Collectors.toSet());
-                            Set<SegmentReader> prevReaders =
-                                    previousReader == null ? Collections.emptySet() : previousReader.leaves().stream()
-                                    .map(c -> Lucene.segmentReader(c.reader()))
-                                    .collect(Collectors.toSet());
-                            readers.removeAll(prevReaders);
-                            long totalNewRamBytesUsed = 0;
-                            for (SegmentReader r : readers) {
-                                final long ramBytesUsed = r.ramBytesUsed();
-                                totalNewRamBytesUsed += ramBytesUsed;
-                                // we release the ram usage once the reader is closed
-                                r.getCoreCacheHelper().addClosedListener(k -> breaker.addWithoutBreaking(-ramBytesUsed));
-                            }
-                            breaker.addWithoutBreaking(totalNewRamBytesUsed);
-                        }
-                        return super.newSearcher(reader, previousReader);
-                    }
-                });
+                internalSearcherManager = new SearcherManager(directoryReader, new RamAccountingSearcherFactory(engineConfig));
                 lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
                     externalSearcherFactory);

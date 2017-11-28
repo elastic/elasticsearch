@@ -58,6 +58,9 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         public static final ParseField DURATION = new ParseField("duration");
         public static final ParseField EXPIRES_IN = new ParseField("expires_in");
 
+        // Max allowed duration: 8 weeks
+        private static final TimeValue MAX_DURATION = TimeValue.parseTimeValue("56d", "");
+
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
@@ -94,6 +97,14 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
 
         public void setDuration(TimeValue duration) {
             this.duration = duration;
+            if (this.duration.compareTo(TimeValue.ZERO) <= 0) {
+                throw new IllegalArgumentException("[" + DURATION.getPreferredName() + "] must be positive: ["
+                        + duration.getStringRep() + "]");
+            }
+            if (this.duration.compareTo(MAX_DURATION) > 0) {
+                throw new IllegalArgumentException("[" + DURATION.getPreferredName() + "] must be " + MAX_DURATION.getStringRep()
+                        + " or less: [" + duration.getStringRep() + "]");
+            }
         }
 
         public TimeValue getExpiresIn() {
@@ -106,6 +117,10 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
 
         public void setExpiresIn(TimeValue expiresIn) {
             this.expiresIn = expiresIn;
+            if (this.expiresIn.compareTo(TimeValue.ZERO) < 0) {
+                throw new IllegalArgumentException("[" + EXPIRES_IN.getPreferredName() + "] must be non-negative: ["
+                        + expiresIn.getStringRep() + "]");
+            }
         }
 
         @Override

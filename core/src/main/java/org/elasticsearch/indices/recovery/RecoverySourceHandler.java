@@ -543,7 +543,8 @@ public class RecoverySourceHandler {
              * any ops before the starting sequence number.
              */
             final long seqNo = operation.seqNo();
-            if (startingSeqNo >= 0 && (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
+            assert seqNo >= 0 : "translog operations must have a sequence number. got: " + operation;
+            if (seqNo < startingSeqNo) {
                 skippedOps++;
                 continue;
             }

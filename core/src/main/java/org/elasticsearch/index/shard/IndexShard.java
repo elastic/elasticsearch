@@ -492,10 +492,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * generation in a new primary as it takes the last known sequence number as a starting point), but it
                                  * simplifies reasoning about the relationship between primary terms and translog generations.
                                  */
-                                getEngine().rollTranslogGeneration();
-                                getEngine().restoreLocalCheckpointFromTranslog();
-                                getEngine().fillSeqNoGaps(newPrimaryTerm);
-                                getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
+                                final Engine engine = getEngine();
+                                if (indexSettings.getIndexVersionCreated().onOrBefore(Version.V_6_0_0_alpha1) &&
+                                    engine.getTranslog().uncommittedOperations() > 0) {
+                                    // an index that was created before sequence numbers were introduce may contain operations in its
+                                    // translog that do not have a sequence numbers. We want to make sure those operations will never
+                                    // be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq# (due
+                                    // to active indexing) and operations without a seq# coming from the translog. We therefore flush
+                                    // to create a lucene commit point to an empty translog file.
+                                    engine.flush(false, true);
+                                } else {
+                                    engine.rollTranslogGeneration();
+                                }
+                                engine.restoreLocalCheckpointFromTranslog();
+                                engine.fillSeqNoGaps(newPrimaryTerm);
+                                engine.seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
                                     getEngine().seqNoService().getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override

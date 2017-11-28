@@ -142,6 +142,9 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
 integTestCluster {
     plugin ':x-pack-elasticsearch:plugin'
     setting 'xpack.security.authc.token.enabled', 'true'
+    // Disable monitoring exporters for the docs tests
+    setting 'xpack.monitoring.exporters._local.type', 'local'
+    setting 'xpack.monitoring.exporters._local.enabled', 'false'
     setupCommand 'setupTestAdmin',
             'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
     waitCondition = waitWithAuth

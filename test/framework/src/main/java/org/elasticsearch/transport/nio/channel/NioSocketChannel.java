@@ -21,7 +21,6 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.nio.InboundChannelBuffer;
-import org.elasticsearch.transport.nio.OutboundChannelBytes;
 import org.elasticsearch.transport.nio.SocketSelector;
 
 import java.io.IOException;
@@ -66,22 +65,12 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return socketSelector;
     }
 
-    public int write(OutboundChannelBytes channelBytes) throws IOException {
-        ByteBuffer[] writeBuffers = channelBytes.getPostIndexBuffers();
-        int written;
-        if (writeBuffers.length == 1) {
-            written = socketChannel.write(writeBuffers[0]);
+    public int write(ByteBuffer[] buffers) throws IOException {
+        if (buffers.length == 1) {
+            return socketChannel.write(buffers[0]);
         } else {
-            written = (int) socketChannel.write(writeBuffers);
+            return (int) socketChannel.write(buffers);
         }
-
-        if (written <= 0) {
-            return written;
-        }
-
-        channelBytes.incrementIndex(written);
-
-        return written;
     }
 
     public int read(InboundChannelBuffer buffer) throws IOException {

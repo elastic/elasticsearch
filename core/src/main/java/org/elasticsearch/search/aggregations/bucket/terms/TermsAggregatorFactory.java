@@ -49,6 +49,8 @@ import java.util.Map;
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, TermsAggregatorFactory> {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TermsAggregatorFactory.class));
 
+    static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
+
     private final BucketOrder order;
     private final IncludeExclude includeExclude;
     private final String executionHint;
@@ -257,11 +259,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
                 final long maxOrd = getMaxOrd(valuesSource, context.searcher());
                 assert maxOrd != -1;
-                final double ratio = maxOrd / ((double) context.searcher().getIndexReader().numDocs());
+                final double ratio = maxOrd / ((double) context.searcher().getIndexReader().numDocs()); 
+                
                 if (factories == AggregatorFactories.EMPTY &&
                         includeExclude == null &&
                         Aggregator.descendsFromBucketAggregator(parent) == false &&
-                        ratio <= 0.5 && maxOrd <= 2048) {
+                        // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
+                        (COLLECT_SEGMENT_ORDS!= null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
                     /**
                      * We can use the low cardinality execution mode iff this aggregator:
                      *  - has no sub-aggregator AND
@@ -276,18 +280,24 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
                 }
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
-                boolean remapGlobalOrds = true;
-                if (includeExclude == null &&
-                        Aggregator.descendsFromBucketAggregator(parent) == false &&
-                        (factories == AggregatorFactories.EMPTY ||
-                            (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
-                    /**
-                     * We don't need to remap global ords iff this aggregator:
-                     *    - has no include/exclude rules AND
-                     *    - is not a child of a bucket aggregator AND
-                     *    - has no sub-aggregator or only sub-aggregator that can be deferred ({@link SubAggCollectionMode#BREADTH_FIRST}).
-                     **/
-                     remapGlobalOrds = false;
+                boolean remapGlobalOrds;
+                if (REMAP_GLOBAL_ORDS != null) {
+                    // We use REMAP_GLOBAL_ORDS to allow tests to force specific optimizations
+                    remapGlobalOrds = REMAP_GLOBAL_ORDS.booleanValue();
+                } else {
+                    remapGlobalOrds = true;
+                    if (includeExclude == null &&
+                            Aggregator.descendsFromBucketAggregator(parent) == false &&
+                            (factories == AggregatorFactories.EMPTY ||
+                                (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
+                        /**
+                         * We don't need to remap global ords iff this aggregator:
+                         *    - has no include/exclude rules AND
+                         *    - is not a child of a bucket aggregator AND
+                         *    - has no sub-aggregator or only sub-aggregator that can be deferred ({@link SubAggCollectionMode#BREADTH_FIRST}).
+                         **/
+                         remapGlobalOrds = false;
+                    }
                 }
                 return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, order,
                         format, bucketCountThresholds, filter, context, parent, remapGlobalOrds, subAggCollectMode, showTermDocCountError,

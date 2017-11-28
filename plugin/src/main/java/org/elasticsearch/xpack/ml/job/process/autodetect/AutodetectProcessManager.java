@@ -88,7 +88,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     // TODO: Remove the deprecated setting in 7.0 and move the default value to the replacement setting
     @Deprecated
     public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
-            Setting.intSetting("max_running_jobs", 10, 1, 512, Property.NodeScope, Property.Deprecated);
+            Setting.intSetting("max_running_jobs", 20, 1, 512, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting("xpack.ml.max_open_jobs", MAX_RUNNING_JOBS_PER_NODE, 1, Property.NodeScope);
 

@@ -216,7 +216,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10"));
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
             JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
             assertNotNull(jobTaskStatus);
             assertEquals(JobState.OPENED, jobTaskStatus.getState());
@@ -402,7 +402,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertFalse(task.needsReassignment(clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10"));
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
 
             JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
             assertNotNull(jobTaskStatus);

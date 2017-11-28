@@ -57,7 +57,7 @@ For floating-point types, it is often more efficient to store floating-point
 data into an integer using a scaling factor, which is what the `scaled_float`
 type does under the hood. For instance, a `price` field could be stored in a
 `scaled_float` with a `scaling_factor` of +100+. All APIs would work as if
-the field was stored as a double, but under the hood elasticsearch would be
+the field was stored as a double, but under the hood Elasticsearch would be
 working with the number of cents, +price*100+, which is an integer. This is
 mostly helpful to save disk space since integers are way easier to compress
 than floating points. `scaled_float` is also fine to use in order to trade

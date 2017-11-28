@@ -19,9 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import java.util.Collections;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -29,6 +27,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -74,6 +73,10 @@ final class PSubDefCall extends AExpression {
                 char ch = (char) (argument + totalCaptures);
                 recipe.append(ch);
                 totalCaptures += lambda.getCaptureCount();
+            }
+
+            if (expression.actual.clazz == void.class) {
+                throw createError(new IllegalArgumentException("Argument(s) cannot be of [void] type when calling method [" + name + "]."));
             }
 
             expression.expected = expression.actual;

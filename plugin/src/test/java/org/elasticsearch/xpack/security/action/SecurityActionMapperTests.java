@@ -10,37 +10,40 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.KnownActionsTests;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SecurityActionMapperTests extends ESTestCase {
 
     public void testThatAllOrdinaryActionsRemainTheSame() {
-        List<String> actions = new ArrayList<>();
-        actions.addAll(KnownActionsTests.loadKnownActions());
-        actions.addAll(KnownActionsTests.loadKnownHandlers());
-
         SecurityActionMapper securityActionMapper = new SecurityActionMapper();
-        int iterations = randomIntBetween(10, 100);
-        for (int i = 0; i < iterations; i++) {
-            String randomAction;
-            do {
-                if (randomBoolean()) {
-                    randomAction = randomFrom(actions);
-                } else {
-                    randomAction = randomAlphaOfLength(randomIntBetween(1, 30));
-                }
-            } while (randomAction.equals(ClearScrollAction.NAME) ||
+        StringBuilder actionNameBuilder = new StringBuilder();
+        if (randomBoolean()) {
+            actionNameBuilder.append("indices:");
+            if (randomBoolean()) {
+                actionNameBuilder.append("data/");
+                actionNameBuilder.append(randomBoolean() ? "read" : "write");
+                actionNameBuilder.append("/");
+                actionNameBuilder.append(randomAlphaOfLengthBetween(2, 12));
+            } else {
+                actionNameBuilder.append(randomBoolean() ? "admin" : "monitor");
+                actionNameBuilder.append("/");
+                actionNameBuilder.append(randomAlphaOfLengthBetween(2, 12));
+            }
+        } else {
+            actionNameBuilder.append("cluster:");
+            actionNameBuilder.append(randomBoolean() ? "admin" : "monitor");
+            actionNameBuilder.append("/");
+            actionNameBuilder.append(randomAlphaOfLengthBetween(2, 12));
+        }
+        String randomAction = actionNameBuilder.toString();
+        assumeFalse("Random action is one of the known mapped values: " + randomAction, randomAction.equals(ClearScrollAction.NAME) ||
                     randomAction.equals(AnalyzeAction.NAME) ||
                     randomAction.equals(AnalyzeAction.NAME + "[s]"));
 
-            assertThat(securityActionMapper.action(randomAction, null), equalTo(randomAction));
-        }
+        assertThat(securityActionMapper.action(randomAction, null), equalTo(randomAction));
     }
 
     public void testClearScroll() {

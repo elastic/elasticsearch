@@ -1030,7 +1030,7 @@ PUT metricbeat-2016.05.31/beat/1?refresh
 ----------------------------------------------------------------
 // CONSOLE
 
-The new template for the `metricbeat-*` indices is already loaded into elasticsearch
+The new template for the `metricbeat-*` indices is already loaded into Elasticsearch
 but it applies only to the newly created indices. Painless can be used to reindex
 the existing documents and apply the new template.
 

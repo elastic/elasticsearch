@@ -133,7 +133,7 @@ version number is equal to zero.
 A nice side effect is that there is no need to maintain strict ordering
 of async indexing operations executed as a result of changes to a source
 database, as long as version numbers from the source database are used.
-Even the simple case of updating the elasticsearch index using data from
+Even the simple case of updating the Elasticsearch index using data from
 a database is simplified if external versioning is used, as only the
 latest version will be used if the index operations are out of order for
 whatever reason.
@@ -355,7 +355,7 @@ and isn't able to compare it against the new source.
 There isn't a hard and fast rule about when noop updates aren't acceptable.
 It's a combination of lots of factors like how frequently your data source
 sends updates that are actually noops and how many queries per second
-elasticsearch runs on the shard with receiving the updates.
+Elasticsearch runs on the shard with receiving the updates.
 
 [float]
 [[timeout]]

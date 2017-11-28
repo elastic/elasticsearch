@@ -596,8 +596,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     SnapshotShardFailure shardFailure = findShardFailure(snapshotInfo.shardFailures(), shardId);
                     if (shardFailure != null) {
                         IndexShardSnapshotStatus shardSnapshotStatus = new IndexShardSnapshotStatus();
-                        shardSnapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
-                        shardSnapshotStatus.failure(shardFailure.reason());
+                        shardSnapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE, shardFailure.reason());
                         shardStatus.put(shardId, shardSnapshotStatus);
                     } else {
                         final IndexShardSnapshotStatus shardSnapshotStatus;
@@ -610,8 +609,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             // a status for the shard to indicate that the shard snapshot
                             // could not be taken due to partial being set to false.
                             shardSnapshotStatus = new IndexShardSnapshotStatus();
-                            shardSnapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
-                            shardSnapshotStatus.failure("skipped");
+                            shardSnapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE, "skipped");
                         } else {
                             shardSnapshotStatus = repository.getShardSnapshotStatus(
                                 snapshotInfo.snapshotId(),

@@ -50,7 +50,7 @@ public class IndexShardSnapshotStatus {
         FAILURE
     }
 
-    private Stage stage = Stage.INIT;
+    private volatile Stage stage = Stage.INIT;
 
     private long startTime;
 
@@ -68,7 +68,7 @@ public class IndexShardSnapshotStatus {
 
     private volatile boolean aborted;
 
-    private String failure;
+    private volatile String failure;
 
     /**
      * Returns current snapshot stage
@@ -84,8 +84,27 @@ public class IndexShardSnapshotStatus {
      *
      * @param stage new snapshot stage
      */
-    public void updateStage(Stage stage) {
+    public void updateStage(final Stage stage) {
+        updateStage(stage, null);
+    }
+
+    /**
+     * Sets new snapshot stage and the reason for the failure if the snapshot
+     * is in the {@link IndexShardSnapshotStatus.Stage#FAILURE} state
+     *
+     * @param stage   new snapshot stage
+     * @param failure the reason for the failure
+     */
+    public synchronized void updateStage(final Stage stage, final String failure) {
         this.stage = stage;
+        this.failure = failure;
+    }
+
+    /**
+     * Returns the reason for the failure if the snapshot is in the {@link IndexShardSnapshotStatus.Stage#FAILURE} state
+     */
+    public String failure() {
+        return failure;
     }
 
     /**
@@ -223,19 +242,5 @@ public class IndexShardSnapshotStatus {
      */
     public long indexVersion() {
         return indexVersion;
-    }
-
-    /**
-     * Sets the reason for the failure if the snapshot is in the {@link IndexShardSnapshotStatus.Stage#FAILURE} state
-     */
-    public void failure(String failure) {
-        this.failure = failure;
-    }
-
-    /**
-     * Returns the reason for the failure if the snapshot is in the {@link IndexShardSnapshotStatus.Stage#FAILURE} state
-     */
-    public String failure() {
-        return failure;
     }
 }

@@ -21,10 +21,6 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 import static org.hamcrest.Matchers.is;
 
 public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestCase {
-    @Override
-    protected boolean timeWarped() {
-        return true; // to have control over the execution
-    }
 
     /**
      * This test makes sure that when an action encounters an error it should

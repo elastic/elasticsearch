@@ -12,13 +12,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.notification.slack.SentMessages;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackAccount;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.elasticsearch.xpack.watcher.notification.slack.message.Attachment;
 import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessage;
-import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
@@ -42,15 +42,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 @Network
 public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
-    @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return false;
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

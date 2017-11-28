@@ -168,7 +168,6 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         tmpBuilder.startObject();
         emailAttachments.toXContent(tmpBuilder, ToXContent.EMPTY_PARAMS);
         tmpBuilder.endObject();
-        logger.info("TMP BUILDER {}", tmpBuilder.string());
 
         EmailTemplate.Builder emailBuilder = EmailTemplate.builder().from("_from").to("_to").subject("Subject");
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
@@ -177,7 +176,6 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 .condition(AlwaysCondition.INSTANCE)
                 .addAction("_email", emailAction(emailBuilder).setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())
                 .setAttachments(emailAttachments));
-        logger.info("TMP WATCHSOURCE {}", watchSourceBuilder.build().getBytes().utf8ToString());
 
         watcherClient.preparePutWatch("_test_id")
                 .setSource(watchSourceBuilder)

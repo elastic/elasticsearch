@@ -47,11 +47,6 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
-    @Override
-    protected boolean enableSecurity() {
-        return false;
-    }
-
     // FIXME not to be sleep based
     public void testDeactivateAndActivate() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()

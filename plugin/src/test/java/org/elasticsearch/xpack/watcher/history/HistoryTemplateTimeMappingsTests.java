@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
@@ -31,15 +30,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the different time fields in the watch_record are mapped as date types
  */
 public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegrationTestCase {
-    @Override
-    protected boolean timeWarped() {
-        return true; // just to have better control over the triggers
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return false; // remove security noise from this test
-    }
 
     public void testTimeFields() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()

@@ -24,11 +24,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
-    @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
     public void testThatStatusGetsUpdated() throws Exception {
         WatcherClient watcherClient = watcherClient();
         watcherClient.preparePutWatch("_name")

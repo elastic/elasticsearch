@@ -12,13 +12,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
@@ -55,11 +53,6 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
     }
 
     @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(Netty4Plugin.class); // for http
@@ -77,9 +70,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                                 .path("/index/_search")
                                 .body(jsonBuilder().startObject().field("size", 1).endObject().string())
-                                .putHeader("Content-Type", new TextTemplate("application/json"))
-                                .auth(securityEnabled() ? new BasicAuth("test", SecuritySettingsSource.TEST_PASSWORD.toCharArray())
-                                        : null)))
+                                .putHeader("Content-Type", new TextTemplate("application/json"))))
                         .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
                         .addAction("_id", loggingAction("anything")))
                 .get();
@@ -94,10 +85,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
-                        .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
-                                .path("/_cluster/stats")
-                                .auth(securityEnabled() ? new BasicAuth("test", SecuritySettingsSource.TEST_PASSWORD.toCharArray())
-                                        : null)))
+                        .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort()).path("/_cluster/stats")))
                         .condition(new CompareCondition("ctx.payload.nodes.count.total", CompareCondition.Op.GTE, 1L))
                         .addAction("_id", loggingAction("anything")))
                 .get();
@@ -122,9 +110,6 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                 .path(new TextTemplate("/idx/_search"))
                 .body(body.string());
-        if (securityEnabled()) {
-            requestBuilder.auth(new BasicAuth("test", SecuritySettingsSource.TEST_PASSWORD.toCharArray()));
-        }
 
         watcherClient.preparePutWatch("_name1")
                 .setSource(watchBuilder()

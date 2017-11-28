@@ -40,9 +40,6 @@ public class RestForecastJobAction extends BaseRestHandler {
             request = ForecastJobAction.Request.parseRequest(jobId, parser);
         } else {
             request = new ForecastJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
-            if (restRequest.hasParam(ForecastJobAction.Request.END_TIME.getPreferredName())) {
-                request.setEndTime(restRequest.param(ForecastJobAction.Request.END_TIME.getPreferredName()));
-            }
             if (restRequest.hasParam(ForecastJobAction.Request.DURATION.getPreferredName())) {
                 request.setDuration(restRequest.param(ForecastJobAction.Request.DURATION.getPreferredName()));
             }

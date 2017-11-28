@@ -72,8 +72,9 @@ public class SequenceNumbers {
     /**
      * Compute the minimum of the given current minimum sequence number and the specified sequence number, accounting for the fact that the
      * current minimum sequence number could be {@link SequenceNumbers#NO_OPS_PERFORMED} or
-     * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}. The method guarantees that once we see an operation we make sure all future operations
-     * either have an assigned sequence number (if the first operation had one) or do not (if the first operation didn't).
+     * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}. When the current minimum sequence number is not
+     * {@link SequenceNumbers#NO_OPS_PERFORMED} nor {@link SequenceNumbers#UNASSIGNED_SEQ_NO}, the specified sequence number
+     * must not be {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
      *
      * @param minSeqNo the current minimum sequence number
      * @param seqNo the specified sequence number
@@ -83,10 +84,7 @@ public class SequenceNumbers {
         if (minSeqNo == NO_OPS_PERFORMED) {
             return seqNo;
         } else if (minSeqNo == UNASSIGNED_SEQ_NO) {
-            if (seqNo != UNASSIGNED_SEQ_NO) {
-                throw new IllegalArgumentException("sequence number may not be assigned. got " + seqNo);
-            }
-            return UNASSIGNED_SEQ_NO;
+            return seqNo;
         } else {
             if (seqNo == UNASSIGNED_SEQ_NO) {
                 throw new IllegalArgumentException("sequence number must be assigned");
@@ -98,8 +96,9 @@ public class SequenceNumbers {
     /**
      * Compute the maximum of the given current maximum sequence number and the specified sequence number, accounting for the fact that the
      * current maximum sequence number could be {@link SequenceNumbers#NO_OPS_PERFORMED} or
-     * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}. The method guarantees that once we see an operation we make sure all future operations
-     * either have an assigned sequence number (if the first operation had one) or do not (if the first operation didn't).
+     * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}. When the current maximum sequence number is not
+     * {@link SequenceNumbers#NO_OPS_PERFORMED} nor {@link SequenceNumbers#UNASSIGNED_SEQ_NO}, the specified sequence number
+     * must not be {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
      *
      * @param maxSeqNo the current maximum sequence number
      * @param seqNo the specified sequence number
@@ -109,10 +108,7 @@ public class SequenceNumbers {
         if (maxSeqNo == NO_OPS_PERFORMED) {
             return seqNo;
         } else if (maxSeqNo == UNASSIGNED_SEQ_NO) {
-            if (seqNo != UNASSIGNED_SEQ_NO) {
-                throw new IllegalArgumentException("sequence number may not be assigned. got " + seqNo);
-            }
-            return UNASSIGNED_SEQ_NO;
+            return seqNo;
         } else {
             if (seqNo == UNASSIGNED_SEQ_NO) {
                 throw new IllegalArgumentException("sequence number must be assigned");

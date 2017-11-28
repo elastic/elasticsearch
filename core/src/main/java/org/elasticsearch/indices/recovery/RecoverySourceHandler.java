@@ -161,9 +161,9 @@ public class RecoverySourceHandler {
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
                 }
-                // we set this to unassigned to create a translog roughly according to the retention policy
-                // on the target
-                startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                // we set this to 0 to create a translog roughly according to the retention policy
+                // on the target. Note that it will still filter out legacy operations with no sequence numbers
+                startingSeqNo = 0;
 
                 try {
                     phase1(phase1Snapshot.getIndexCommit(), translog::totalOperations);
@@ -543,7 +543,6 @@ public class RecoverySourceHandler {
              * any ops before the starting sequence number.
              */
             final long seqNo = operation.seqNo();
-            assert seqNo >= 0 : "translog operations must have a sequence number. got: " + operation;
             if (seqNo < startingSeqNo) {
                 skippedOps++;
                 continue;

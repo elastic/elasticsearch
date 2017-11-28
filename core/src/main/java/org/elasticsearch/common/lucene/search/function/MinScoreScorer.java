@@ -60,11 +60,6 @@ final class MinScoreScorer extends Scorer {
     }
 
     @Override
-    public int freq() throws IOException {
-        return in.freq();
-    }
-
-    @Override
     public DocIdSetIterator iterator() {
         return TwoPhaseIterator.asDocIdSetIterator(twoPhaseIterator());
     }

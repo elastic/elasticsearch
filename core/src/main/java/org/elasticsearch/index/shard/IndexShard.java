@@ -493,6 +493,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * simplifies reasoning about the relationship between primary terms and translog generations.
                                  */
                                 final Engine engine = getEngine();
+                                engine.restoreLocalCheckpointFromTranslog();
                                 if (indexSettings.getIndexVersionCreated().onOrBefore(Version.V_6_0_0_alpha1) &&
                                     engine.getTranslog().uncommittedOperations() > 0) {
                                     // an index that was created before sequence numbers were introduce may contain operations in its
@@ -504,7 +505,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 } else {
                                     engine.rollTranslogGeneration();
                                 }
-                                engine.restoreLocalCheckpointFromTranslog();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
                                 engine.seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
                                     getEngine().seqNoService().getLocalCheckpoint());

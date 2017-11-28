@@ -182,7 +182,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
         operations.add(null);
         final long startingSeqNo = randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomIntBetween(0, 16);
-        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, new Translog.Snapshot() {
+        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, new Translog.Snapshot() {
             @Override
             public void close() {
 
@@ -383,7 +383,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            long phase2(long startingSeqNo, Translog.Snapshot snapshot) throws IOException {
+            long phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot) throws IOException {
                 phase2Called.set(true);
                 return SequenceNumbers.UNASSIGNED_SEQ_NO;
             }

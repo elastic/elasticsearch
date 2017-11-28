@@ -20,27 +20,13 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.script.TemplateScript;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Date;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -71,6 +57,16 @@ public final class IngestDocument {
 
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
+    }
+
+    public IngestDocument(String index, String type, String id, String routing, String parent, Long version, VersionType versionType, Map<String, Object> source) {
+        this(index, type, id, routing, parent, source);
+        if (version != null) {
+            sourceAndMetadata.put(MetaData.VERSION.getFieldName(), version);
+        }
+        if (versionType != null) {
+            sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), versionType);
+        }
     }
 
     /**
@@ -457,6 +453,9 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
+        if (leafKey == MetaData.VERSION_TYPE.getFieldName()) {
+            value = VersionType.fromString(value.toString());
+        }
         if (context == null) {
             throw new IllegalArgumentException("cannot set [" + leafKey + "] with null parent as part of path [" + path + "]");
         }
@@ -559,10 +558,16 @@ public final class IngestDocument {
      * one time operation that extracts the metadata fields from the ingest document and returns them.
      * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
      */
-    public Map<MetaData, String> extractMetadata() {
-        Map<MetaData, String> metadataMap = new EnumMap<>(MetaData.class);
+    public Map<MetaData, Object> extractMetadata() {
+        Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
         for (MetaData metaData : MetaData.values()) {
-            metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), String.class));
+            if (metaData == MetaData.VERSION) {
+                metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), Long.class));
+            } else if (metaData == MetaData.VERSION_TYPE) {
+                metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), VersionType.class));
+            } else {
+                metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), String.class));
+            }
         }
         return metadataMap;
     }
@@ -651,7 +656,9 @@ public final class IngestDocument {
         TYPE(TypeFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
-        PARENT(ParentFieldMapper.NAME);
+        PARENT(ParentFieldMapper.NAME),
+        VERSION(VersionFieldMapper.NAME),
+        VERSION_TYPE(VersionFieldMapper.VersionFieldType.NAME);
 
         private final String fieldName;
 

@@ -29,6 +29,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.CustomTypeSafeMatcher;
@@ -44,21 +45,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class PipelineExecutionServiceTests extends ESTestCase {
 
@@ -157,10 +150,18 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     public void testExecutePropagateAllMetaDataUpdates() throws Exception {
         CompoundProcessor processor = mock(CompoundProcessor.class);
         when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
+        long newVersion = randomLong();
+        String versionType = randomFrom("internal", "external", "external_gt", "external_gte");
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
             for (IngestDocument.MetaData metaData : IngestDocument.MetaData.values()) {
-                ingestDocument.setFieldValue(metaData.getFieldName(), "update" + metaData.getFieldName());
+                if (metaData == IngestDocument.MetaData.VERSION) {
+                    ingestDocument.setFieldValue(metaData.getFieldName(), newVersion);
+                } else if (metaData == IngestDocument.MetaData.VERSION_TYPE) {
+                    ingestDocument.setFieldValue(metaData.getFieldName(), versionType);
+                } else {
+                    ingestDocument.setFieldValue(metaData.getFieldName(), "update" + metaData.getFieldName());
+                }
             }
             return null;
         }).when(processor).execute(any());
@@ -175,12 +176,13 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         verify(processor).execute(any());
         verify(failureHandler, never()).accept(any());
         verify(completionHandler, times(1)).accept(true);
-
         assertThat(indexRequest.index(), equalTo("update_index"));
         assertThat(indexRequest.type(), equalTo("update_type"));
         assertThat(indexRequest.id(), equalTo("update_id"));
         assertThat(indexRequest.routing(), equalTo("update_routing"));
         assertThat(indexRequest.parent(), equalTo("update_parent"));
+        assertThat(indexRequest.version(), equalTo(newVersion));
+        assertThat(indexRequest.versionType(), equalTo(VersionType.fromString(versionType)));
     }
 
     public void testExecuteFailure() throws Exception {
@@ -188,13 +190,13 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, processor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-        verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        verify(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
     }
@@ -225,14 +227,14 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                 Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, compoundProcessor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-        verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        verify(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
     }
@@ -246,15 +248,15 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                     Collections.singletonList(onFailureOnFailureProcessor))));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, compoundProcessor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        doThrow(new RuntimeException()).when(onFailureOnFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(onFailureOnFailureProcessor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         Consumer<Exception> failureHandler = mock(Consumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-        verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        verify(processor).execute(eqID("_index", "_type", "_id", indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(any(RuntimeException.class));
         verify(completionHandler, never()).accept(anyBoolean());
     }
@@ -380,12 +382,20 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         return argThat(new IngestDocumentMatcher(index, type, id, source));
     }
 
+    private IngestDocument eqID(String index, String type, String id, Long version, VersionType versionType, Map<String, Object> source) {
+        return argThat(new IngestDocumentMatcher(index, type, id, version, versionType, source));
+    }
+
     private class IngestDocumentMatcher extends ArgumentMatcher<IngestDocument> {
 
         private final IngestDocument ingestDocument;
 
         IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
             this.ingestDocument = new IngestDocument(index, type, id, null, null, source);
+        }
+
+        IngestDocumentMatcher(String index, String type, String id, Long version, VersionType versionType, Map<String, Object> source) {
+            this.ingestDocument = new IngestDocument(index, type, id, null, null, version, versionType, source);
         }
 
         @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -101,10 +102,27 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetMetadata() throws Exception {
         IngestDocument.MetaData randomMetaData = randomFrom(IngestDocument.MetaData.values());
-        Processor processor = createSetProcessor(randomMetaData.getFieldName(), "_value", true);
+        Processor processor;
+        long version = 0L;
+        String versionType = new String();
+        if (randomMetaData == IngestDocument.MetaData.VERSION) {
+            version = randomLong();
+            processor = createSetProcessor(randomMetaData.getFieldName(), version, true);
+        } else if (randomMetaData == IngestDocument.MetaData.VERSION_TYPE) {
+            versionType = randomFrom("internal", "external", "external_gt", "external_gte");
+            processor = createSetProcessor(randomMetaData.getFieldName(), versionType, true);
+        } else {
+            processor = createSetProcessor(randomMetaData.getFieldName(), "_value", true);
+        }
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class), Matchers.equalTo("_value"));
+        if (randomMetaData == IngestDocument.MetaData.VERSION) {
+            assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), Long.class), Matchers.equalTo(version));
+        } else if (randomMetaData == IngestDocument.MetaData.VERSION_TYPE) {
+            assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), VersionType.class), Matchers.equalTo(VersionType.fromString(versionType)));
+        } else {
+            assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class), Matchers.equalTo("_value"));
+        }
     }
 
     private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled) {

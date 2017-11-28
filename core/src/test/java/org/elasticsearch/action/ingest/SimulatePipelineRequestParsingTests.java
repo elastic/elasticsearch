@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
@@ -39,11 +40,7 @@ import org.junit.Before;
 
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.Fields;
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.SIMULATED_PIPELINE_ID;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.PARENT;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.ROUTING;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -98,7 +95,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
         for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
+            Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
             assertThat(metadataMap.get(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
             assertThat(metadataMap.get(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
             assertThat(metadataMap.get(ID), equalTo(expectedDocument.get(ID.getFieldName())));
@@ -120,17 +117,26 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             Map<String, Object> expectedDoc = new HashMap<>();
-            List<IngestDocument.MetaData> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, PARENT);
+            List<IngestDocument.MetaData> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, PARENT, VERSION, VERSION_TYPE);
             for(IngestDocument.MetaData field : fields) {
-                if(randomBoolean()) {
-                    String value = randomAlphaOfLengthBetween(1, 10);
+                if (field == IngestDocument.MetaData.VERSION) {
+                    Long value = randomLong();
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);
-                }
-                else {
-                    Integer value = randomIntBetween(1, 1000000);
+                } else if (field == IngestDocument.MetaData.VERSION_TYPE) {
+                    VersionType value = randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE);
                     doc.put(field.getFieldName(), value);
-                    expectedDoc.put(field.getFieldName(), String.valueOf(value));
+                    expectedDoc.put(field.getFieldName(), value);
+                } else {
+                    if (randomBoolean()) {
+                        String value = randomAlphaOfLengthBetween(1, 10);
+                        doc.put(field.getFieldName(), value);
+                        expectedDoc.put(field.getFieldName(), value);
+                    } else {
+                        Integer value = randomIntBetween(1, 1000000);
+                        doc.put(field.getFieldName(), value);
+                        expectedDoc.put(field.getFieldName(), String.valueOf(value));
+                    }
                 }
             }
             String fieldName = randomAlphaOfLengthBetween(1, 10);
@@ -175,12 +181,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
         for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
+            Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
             assertThat(metadataMap.get(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
             assertThat(metadataMap.get(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
             assertThat(metadataMap.get(ID), equalTo(expectedDocument.get(ID.getFieldName())));
             assertThat(metadataMap.get(ROUTING), equalTo(expectedDocument.get(ROUTING.getFieldName())));
             assertThat(metadataMap.get(PARENT), equalTo(expectedDocument.get(PARENT.getFieldName())));
+            assertThat(metadataMap.get(VERSION), equalTo(expectedDocument.get(VERSION.getFieldName())));
+            assertThat(metadataMap.get(VERSION_TYPE), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
             assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
 

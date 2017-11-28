@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -123,21 +124,38 @@ public class AppendProcessorTests extends ESTestCase {
     }
 
     public void testAppendMetadata() throws Exception {
-        //here any metadata field value becomes a list, which won't make sense in most of the cases,
+        // here any metadata field value becomes a list, which won't make sense in most of the cases,
         // but support for append is streamlined like for set so we test it
         IngestDocument.MetaData randomMetaData = randomFrom(IngestDocument.MetaData.values());
-        List<String> values = new ArrayList<>();
+        List<Object> values = new ArrayList<>();
         Processor appendProcessor;
-        if (randomBoolean()) {
-            String value = randomAlphaOfLengthBetween(1, 10);
-            values.add(value);
-            appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), value);
-        } else {
-            int valuesSize = randomIntBetween(0, 10);
-            for (int i = 0; i < valuesSize; i++) {
-                values.add(randomAlphaOfLengthBetween(1, 10));
+        int valuesSize = randomIntBetween(0, 10);
+        if (randomMetaData == IngestDocument.MetaData.VERSION) {
+            if (randomBoolean()) {
+                Long version = randomLong();
+                values.add(version);
+                appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), version);
+            } else {
+                for (int i = 0; i < valuesSize; i++) {
+                    values.add(randomLong());
+                }
+                appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), values);
             }
-            appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), values);
+        } else if (randomMetaData == IngestDocument.MetaData.VERSION_TYPE) {
+            String versionType = randomFrom("internal", "external", "external_gt", "external_gte");
+            values.add(VersionType.fromString(versionType));
+            appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), versionType);
+        } else {
+            if (randomBoolean()) {
+                String value = randomAlphaOfLengthBetween(1, 10);
+                values.add(value);
+                appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), value);
+            } else {
+                for (int i = 0; i < valuesSize; i++) {
+                    values.add(randomAlphaOfLengthBetween(1, 10));
+                }
+                appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), values);
+            }
         }
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());

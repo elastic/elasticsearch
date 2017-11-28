@@ -74,7 +74,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/get-datafeed-stats.asciidoc',
         'en/rest-api/ml/get-job-stats.asciidoc',
         'en/rest-api/ml/get-record.asciidoc',
-        'en/rest-api/ml/open-job.asciidoc',
         'en/rest-api/ml/preview-datafeed.asciidoc',
         'en/rest-api/ml/update-datafeed.asciidoc',
         'en/rest-api/ml/update-job.asciidoc',

@@ -49,9 +49,9 @@ bound is `+0.0` then `-0.0` will not match.
 
 As far as integer types (`byte`, `short`, `integer` and `long`) are concerned,
 you should pick the smallest type which is enough for your use-case. This will
-help indexing and searching be more efficient. Note however that given that
-storage is optimized based on the actual values that are stored, picking one
-type over another one will have no impact on storage requirements.
+help indexing and searching be more efficient. Note however that storage is
+optimized based on the actual values that are stored, so picking one type over
+another one will have no impact on storage requirements.
 
 For floating-point types, it is often more efficient to store floating-point
 data into an integer using a scaling factor, which is what the `scaled_float`

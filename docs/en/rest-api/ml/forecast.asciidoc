@@ -38,7 +38,7 @@ forecast. For more information about this property, see <<ml-job-resource>>.
   (string) Identifier for the job.
 
 
-==== Query Parameters
+==== Request Parameters
 
 `duration`::
   (time units) A period of time that indicates how far into the future to
@@ -51,8 +51,6 @@ forecast. For more information about this property, see <<ml-job-resource>>.
   After a forecast expires, the results are deleted. The default value is 14 days.
   If set to a value of `0`, the forecast is never automatically deleted.
   For more information about time units, see <<time-units>>.
-
-////
 
 ==== Authorization
 

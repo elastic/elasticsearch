@@ -60,12 +60,8 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -79,7 +75,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class TruncateTranslogIT extends ESIntegTestCase {
@@ -273,7 +268,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
 
         // Corrupt the translog file(s)
         logger.info("--> corrupting translog");
-        corruptTranslogFiles(translogDirs);
+        TestTranslog.corruptTranslogFiles(logger, random(), translogDirs);
 
         // Restart the single node
         logger.info("--> starting node");
@@ -354,52 +349,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
 
     private void corruptRandomTranslogFiles(String indexName) throws IOException {
         Set<Path> translogDirs = getTranslogDirs(indexName);
-        corruptTranslogFiles(translogDirs);
-    }
-
-    private void corruptTranslogFiles(Set<Path> translogDirs) throws IOException {
-        Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
-        for (Path translogDir : translogDirs) {
-            if (Files.isDirectory(translogDir)) {
-                logger.info("--> path: {}", translogDir);
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir)) {
-                    for (Path item : stream) {
-                        logger.info("--> File: {}", item);
-                        if (Files.isRegularFile(item) && item.getFileName().toString().startsWith("translog-")) {
-                            files.add(item);
-                        }
-                    }
-                }
-            }
-        }
-        Path fileToCorrupt = null;
-        if (!files.isEmpty()) {
-            int corruptions = randomIntBetween(5, 20);
-            for (int i = 0; i < corruptions; i++) {
-                fileToCorrupt = RandomPicks.randomFrom(random(), files);
-                try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
-                    // read
-                    raf.position(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));
-                    long filePointer = raf.position();
-                    ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
-                    raf.read(bb);
-                    bb.flip();
-
-                    // corrupt
-                    byte oldValue = bb.get(0);
-                    byte newValue = (byte) (oldValue + 1);
-                    bb.put(0, newValue);
-
-                    // rewrite
-                    raf.position(filePointer);
-                    raf.write(bb);
-                    logger.info("--> corrupting file {} --  flipping at position {} from {} to {} file: {}",
-                            fileToCorrupt, filePointer, Integer.toHexString(oldValue),
-                            Integer.toHexString(newValue), fileToCorrupt);
-                }
-            }
-        }
-        assertThat("no file corrupted", fileToCorrupt, notNullValue());
+        TestTranslog.corruptTranslogFiles(logger, random(), translogDirs);
     }
 
     /** Disables translog flushing for the specified index */

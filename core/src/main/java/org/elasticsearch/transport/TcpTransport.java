@@ -49,7 +49,6 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -73,8 +72,10 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.StreamCorruptedException;
+import java.io.UncheckedIOException;
 import java.net.BindException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -1704,29 +1705,36 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final class SendListener extends SendMetricListener {
         private final TcpChannel channel;
-        private final Releasable optionalReleasable;
+        private final Closeable optionalCloseable;
         private final Runnable transportAdaptorCallback;
 
-        private SendListener(TcpChannel channel, Releasable optionalReleasable, Runnable transportAdaptorCallback, long messageLength) {
+        private SendListener(TcpChannel channel, Closeable optionalCloseable, Runnable transportAdaptorCallback, long messageLength) {
             super(messageLength);
             this.channel = channel;
-            this.optionalReleasable = optionalReleasable;
+            this.optionalCloseable = optionalCloseable;
             this.transportAdaptorCallback = transportAdaptorCallback;
         }
 
         @Override
         protected void innerInnerOnResponse(Void v) {
-            release();
+            closeAndCallback(null);
         }
 
         @Override
         protected void innerOnFailure(Exception e) {
             logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
-            release();
+            closeAndCallback(e);
         }
 
-        private void release() {
-            Releasables.close(optionalReleasable, transportAdaptorCallback::run);
+        private void closeAndCallback(final Exception e) {
+            try {
+                IOUtils.close(optionalCloseable, transportAdaptorCallback::run);
+            } catch (final IOException inner) {
+                if (e != null) {
+                    inner.addSuppressed(e);
+                }
+                throw new UncheckedIOException(inner);
+            }
         }
     }
 

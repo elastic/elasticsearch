@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.LongUnaryOperator;
 
 public class MissingValuesTests extends ESTestCase {
 
@@ -111,7 +112,7 @@ public class MissingValuesTests extends ESTestCase {
                 ords[i][j] = TestUtil.nextInt(random(), ords[i][j], maxOrd - 1);
             }
         }
-        SortedSetDocValues asRandomAccessOrds = new AbstractSortedSetDocValues() {
+        SortedSetDocValues asSortedSet = new AbstractSortedSetDocValues() {
 
             int doc = -1;
             int i;
@@ -147,7 +148,7 @@ public class MissingValuesTests extends ESTestCase {
         final BytesRef missingMissing = new BytesRef(RandomStrings.randomAsciiOfLength(random(), 5));
 
         for (BytesRef missing : Arrays.asList(existingMissing, missingMissing)) {
-            SortedSetDocValues withMissingReplaced = MissingValues.replaceMissing(asRandomAccessOrds, missing);
+            SortedSetDocValues withMissingReplaced = MissingValues.replaceMissing(asSortedSet, missing);
             if (valueSet.contains(missing)) {
                 assertEquals(values.length, withMissingReplaced.getValueCount());
             } else {
@@ -167,6 +168,84 @@ public class MissingValuesTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testGlobalMapping() throws IOException {
+        final int numOrds = TestUtil.nextInt(random(), 1, 10);
+        final int numGlobalOrds = TestUtil.nextInt(random(), numOrds, numOrds + 3);
+
+        final Set<BytesRef> valueSet = new HashSet<>();
+        while (valueSet.size() < numOrds) {
+            valueSet.add(new BytesRef(RandomStrings.randomAsciiLettersOfLength(random(), 5)));
+        }
+        final BytesRef[] values = valueSet.toArray(new BytesRef[0]);
+        Arrays.sort(values);
+
+        final Set<BytesRef> globalValueSet = new HashSet<>(valueSet);
+        while (globalValueSet.size() < numGlobalOrds) {
+            globalValueSet.add(new BytesRef(RandomStrings.randomAsciiLettersOfLength(random(), 5)));
+        }
+        final BytesRef[] globalValues = globalValueSet.toArray(new BytesRef[0]);
+        Arrays.sort(globalValues);
+
+        // exists in the current segment
+        BytesRef missing = RandomPicks.randomFrom(random(), values);
+        doTestGlobalMapping(values, globalValues, missing);
+
+        // missing in all segments
+        do {
+            missing = new BytesRef(RandomStrings.randomAsciiLettersOfLength(random(), 5));
+        } while (globalValueSet.contains(missing));
+        doTestGlobalMapping(values, globalValues, missing);
+
+        if (globalValueSet.size() > valueSet.size()) {
+            // exists in other segments only
+            Set<BytesRef> other = new HashSet<>(globalValueSet);
+            other.removeAll(valueSet);
+            missing = RandomPicks.randomFrom(random(), other.toArray(new BytesRef[0]));
+            doTestGlobalMapping(values, globalValues, missing);
+        }
+    }
+
+    private void doTestGlobalMapping(BytesRef[] values, BytesRef[] globalValues, BytesRef missing) throws IOException {
+        LongUnaryOperator segmentToGlobalOrd = segmentOrd -> Arrays.binarySearch(globalValues, values[Math.toIntExact(segmentOrd)]);
+        SortedSetDocValues sortedValues = asOrds(values);
+        SortedSetDocValues sortedGlobalValues = asOrds(globalValues);
+
+        LongUnaryOperator withMissingSegmentToGlobalOrd = MissingValues.getGlobalMapping(
+                sortedValues, sortedGlobalValues, segmentToGlobalOrd, missing);
+        SortedSetDocValues withMissingValues = MissingValues.replaceMissing(sortedValues, missing);
+        SortedSetDocValues withMissingGlobalValues = MissingValues.replaceMissing(sortedGlobalValues, missing);
+
+        for (long segmentOrd = 0; segmentOrd < withMissingValues.getValueCount(); ++segmentOrd) {
+            long expectedGlobalOrd = withMissingSegmentToGlobalOrd.applyAsLong(segmentOrd);
+            assertEquals(withMissingValues.lookupOrd(segmentOrd), withMissingGlobalValues.lookupOrd(expectedGlobalOrd));
+        }
+    }
+
+    private static SortedSetDocValues asOrds(BytesRef[] values) {
+        return new AbstractSortedSetDocValues() {
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long nextOrd() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BytesRef lookupOrd(long ord) throws IOException {
+                return values[Math.toIntExact(ord)];
+            }
+
+            @Override
+            public long getValueCount() {
+                return values.length;
+            }
+        };
     }
 
     public void testMissingLongs() throws IOException {

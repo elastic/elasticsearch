@@ -79,7 +79,7 @@ class TimedRunnable extends AbstractRunnable {
             // There must have been an exception thrown, the total time is unknown (-1)
             return -1;
         }
-        return finishTimeNanos - creationTimeNanos;
+        return Math.max(finishTimeNanos - creationTimeNanos, 1);
     }
 
     /**
@@ -91,7 +91,7 @@ class TimedRunnable extends AbstractRunnable {
             // There must have been an exception thrown, the total time is unknown (-1)
             return -1;
         }
-        return finishTimeNanos - startTimeNanos;
+        return Math.max(finishTimeNanos - startTimeNanos, 1);
     }
 
 }

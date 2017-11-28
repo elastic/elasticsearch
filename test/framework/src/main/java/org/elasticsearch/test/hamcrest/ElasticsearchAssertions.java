@@ -347,15 +347,15 @@ public class ElasticsearchAssertions {
 
     public static void assertAllSuccessful(BroadcastResponse response) {
         assertNoFailures(response);
-        assertThat("Expected all shards successful but got successful [" + response.getSuccessfulShards() + "] total [" + response.getTotalShards() + "]",
-                response.getTotalShards(), equalTo(response.getSuccessfulShards()));
+        assertThat("Expected all shards successful",
+                response.getSuccessfulShards(), equalTo(response.getTotalShards()));
         assertVersionSerializable(response);
     }
 
     public static void assertAllSuccessful(SearchResponse response) {
         assertNoFailures(response);
-        assertThat("Expected all shards successful but got successful [" + response.getSuccessfulShards() + "] total [" + response.getTotalShards() + "]",
-                response.getTotalShards(), equalTo(response.getSuccessfulShards()));
+        assertThat("Expected all shards successful",
+                response.getSuccessfulShards(), equalTo(response.getTotalShards()));
         assertVersionSerializable(response);
     }
 

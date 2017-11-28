@@ -17,6 +17,9 @@ Integrations are not plugins, but are external tools or modules that make it eas
 * https://drupal.org/project/elasticsearch_connector[Drupal]:
   Drupal Elasticsearch integration.
 
+* https://wordpress.org/plugins/wpsolr-search-engine/[WPSOLR]:
+  Elasticsearch (and Apache Solr) WordPress Plugin
+ 
 * http://searchbox-io.github.com/wp-elasticsearch/[Wp-Elasticsearch]:
   Elasticsearch WordPress Plugin
 

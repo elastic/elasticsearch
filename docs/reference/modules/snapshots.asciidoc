@@ -282,7 +282,7 @@ PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
 // TEST[continued]
 
 The list of indices that should be included into the snapshot can be specified using the `indices` parameter that
-supports <<search-multi-index-type,multi index syntax>>. The snapshot request also supports the
+supports <<multi-index,multi index syntax>>. The snapshot request also supports the
 `ignore_unavailable` option. Setting it to `true` will cause indices that do not exist to be ignored during snapshot
 creation. By default, when `ignore_unavailable` option is not set and an index is missing the snapshot request will fail.
 By setting `include_global_state` to false it's possible to prevent the cluster global state to be stored as part of
@@ -429,7 +429,7 @@ By default, all indices in the snapshot are restored, and the cluster state is
 *not* restored. It's possible to select indices that should be restored as well
 as to allow the global cluster state from being restored by using `indices` and
 `include_global_state` options in the restore request body. The list of indices
-supports <<search-multi-index-type,multi index syntax>>. The `rename_pattern`
+supports <<multi-index,multi index syntax>>. The `rename_pattern`
 and `rename_replacement` options can be also used to rename indices on restore
 using regular expression that supports referencing the original text as
 explained

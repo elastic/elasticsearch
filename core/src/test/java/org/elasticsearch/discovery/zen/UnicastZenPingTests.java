@@ -258,6 +258,16 @@ public class UnicastZenPingTests extends ESTestCase {
         assertPingCount(handleD, handleA, 0);
         assertPingCount(handleD, handleB, 0);
         assertPingCount(handleD, handleC, 3);
+
+        zenPingC.close();
+        handleD.counters.clear();
+        logger.info("ping from UZP_D after closing UZP_C");
+        pingResponses = zenPingD.pingAndWait().toList();
+        // check that node does not respond to pings anymore after the ping service has been closed
+        assertThat(pingResponses.size(), equalTo(0));
+        assertPingCount(handleD, handleA, 0);
+        assertPingCount(handleD, handleB, 0);
+        assertPingCount(handleD, handleC, 3);
     }
 
     public void testUnknownHostNotCached() throws ExecutionException, InterruptedException {

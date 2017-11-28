@@ -38,3 +38,5 @@ used if the position increment is greater than one when a `stop` filter is used
 together with the `shingle` filter. Defaults to `"_"`
 |=======================================================================
 
+The index level setting `index.max_shingle_diff` controls the maximum allowed
+difference between `max_shingle_size` and `min_shingle_size`.

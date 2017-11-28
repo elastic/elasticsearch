@@ -238,7 +238,7 @@ public class Node implements Closeable {
      * @param preparedSettings Base settings to configure the node with
      */
     public Node(Settings preparedSettings) {
-        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null));
+        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings));
     }
 
     public Node(Environment environment) {

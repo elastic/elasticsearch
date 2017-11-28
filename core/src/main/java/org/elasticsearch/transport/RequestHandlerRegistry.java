@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 public class RequestHandlerRegistry<Request extends TransportRequest> {
 
@@ -64,7 +63,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         } else {
             boolean success = false;
             try {
-                handler.messageReceived(request, new TransportChannelWrapper(taskManager, task, channel), task);
+                handler.messageReceived(request, new TaskTransportChannel(taskManager, task, channel), task);
                 success = true;
             } finally {
                 if (success == false) {
@@ -91,38 +90,4 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         return handler.toString();
     }
 
-    private static class TransportChannelWrapper extends DelegatingTransportChannel {
-
-        private final Task task;
-
-        private final TaskManager taskManager;
-
-        TransportChannelWrapper(TaskManager taskManager, Task task, TransportChannel channel) {
-            super(channel);
-            this.task = task;
-            this.taskManager = taskManager;
-        }
-
-        @Override
-        public void sendResponse(TransportResponse response) throws IOException {
-            endTask();
-            super.sendResponse(response);
-        }
-
-        @Override
-        public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
-            endTask();
-            super.sendResponse(response, options);
-        }
-
-        @Override
-        public void sendResponse(Exception exception) throws IOException {
-            endTask();
-            super.sendResponse(exception);
-        }
-
-        private void endTask() {
-            taskManager.unregister(task);
-        }
-    }
 }

@@ -51,7 +51,7 @@ public enum SortOrder implements Writeable {
         }
     };
 
-    static SortOrder readFromStream(StreamInput in) throws IOException {
+    public static SortOrder readFromStream(StreamInput in) throws IOException {
         return in.readEnum(SortOrder.class);
     }
 

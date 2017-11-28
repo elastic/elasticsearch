@@ -44,6 +44,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.test.VersionUtils;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -58,14 +59,16 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermsQueryWhenTypesAreDisabled() throws Exception {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        Version indexVersionCreated = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
         IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
         IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
+        Mockito.when(context.indexVersionCreated()).thenReturn(indexVersionCreated);
 
         MapperService mapperService = Mockito.mock(MapperService.class);
         Set<String> types = Collections.emptySet();
@@ -84,7 +87,7 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
 
         Mockito.when(mapperService.hasNested()).thenReturn(true);
         query = ft.termQuery("my_type", context);
-        assertEquals(Queries.newNonNestedFilter(), query);
+        assertEquals(Queries.newNonNestedFilter(context.indexVersionCreated()), query);
 
         types = Collections.singleton("other_type");
         Mockito.when(mapperService.types()).thenReturn(types);

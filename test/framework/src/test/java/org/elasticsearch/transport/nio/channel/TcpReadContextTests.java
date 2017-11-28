@@ -39,10 +39,9 @@ import static org.mockito.Mockito.when;
 
 public class TcpReadContextTests extends ESTestCase {
 
-    private static String PROFILE = "profile";
     private TcpReadHandler handler;
     private int messageLength;
-    private NioSocketChannel channel;
+    private TcpNioSocketChannel channel;
     private TcpReadContext readContext;
 
     @Before
@@ -50,10 +49,8 @@ public class TcpReadContextTests extends ESTestCase {
         handler = mock(TcpReadHandler.class);
 
         messageLength = randomInt(96) + 4;
-        channel = mock(NioSocketChannel.class);
+        channel = mock(TcpNioSocketChannel.class);
         readContext = new TcpReadContext(channel, handler);
-
-        when(channel.getProfile()).thenReturn(PROFILE);
     }
 
     public void testSuccessfulRead() throws IOException {
@@ -72,7 +69,7 @@ public class TcpReadContextTests extends ESTestCase {
 
         readContext.read();
 
-        verify(handler).handleMessage(new BytesArray(bytes), channel, PROFILE, messageLength);
+        verify(handler).handleMessage(new BytesArray(bytes), channel, messageLength);
         assertEquals(1024 * 16, bufferCapacity.get());
 
         BytesArray bytesArray = new BytesArray(new byte[10]);
@@ -110,7 +107,7 @@ public class TcpReadContextTests extends ESTestCase {
         assertEquals(1024 * 16 - fullPart1.length, bufferCapacity.get());
 
         CompositeBytesReference reference = new CompositeBytesReference(new BytesArray(part1), new BytesArray(part2));
-        verify(handler).handleMessage(reference, channel, PROFILE, messageLength + messageLength);
+        verify(handler).handleMessage(reference, channel, messageLength + messageLength);
     }
 
     public void testReadThrowsIOException() throws IOException {
@@ -146,5 +143,4 @@ public class TcpReadContextTests extends ESTestCase {
         }
         return bytes;
     }
-
 }

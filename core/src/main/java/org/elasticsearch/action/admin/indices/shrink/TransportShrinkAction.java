@@ -19,143 +19,28 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.apache.lucene.index.IndexWriter;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Set;
-import java.util.function.IntFunction;
-
 /**
- * Main class to initiate shrinking an index into a new index with a single shard
+ * Main class to initiate shrinking an index into a new index
+ * This class is only here for backwards compatibility. It will be replaced by
+ * TransportResizeAction in 7.x once this is backported
  */
-public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkRequest, ShrinkResponse> {
-
-    private final MetaDataCreateIndexService createIndexService;
-    private final Client client;
+public class TransportShrinkAction extends TransportResizeAction {
 
     @Inject
     public TransportShrinkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                  ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
-        super(settings, ShrinkAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            ShrinkRequest::new);
-        this.createIndexService = createIndexService;
-        this.client = client;
+        super(settings, ShrinkAction.NAME, transportService, clusterService, threadPool, createIndexService, actionFilters,
+            indexNameExpressionResolver, client);
     }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ShrinkResponse newResponse() {
-        return new ShrinkResponse();
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(ShrinkRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getShrinkIndexRequest().index());
-    }
-
-    @Override
-    protected void masterOperation(final ShrinkRequest shrinkRequest, final ClusterState state,
-                                   final ActionListener<ShrinkResponse> listener) {
-        final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(shrinkRequest.getSourceIndex());
-        client.admin().indices().prepareStats(sourceIndex).clear().setDocs(true).execute(new ActionListener<IndicesStatsResponse>() {
-            @Override
-            public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(shrinkRequest, state,
-                    (i) -> {
-                        IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
-                        return shard == null ? null : shard.getPrimary().getDocs();
-                    }, indexNameExpressionResolver);
-                createIndexService.createIndex(
-                    updateRequest,
-                    ActionListener.wrap(response ->
-                        listener.onResponse(new ShrinkResponse(response.isAcknowledged(), response.isShardsAcked(), updateRequest.index())),
-                        listener::onFailure
-                    )
-                );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
-
-    }
-
-    // static for unittesting this method
-    static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final ShrinkRequest shrinkRequest, final ClusterState state
-        , final IntFunction<DocsStats> perShardDocStats, IndexNameExpressionResolver indexNameExpressionResolver) {
-        final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(shrinkRequest.getSourceIndex());
-        final CreateIndexRequest targetIndex = shrinkRequest.getShrinkIndexRequest();
-        final String targetIndexName = indexNameExpressionResolver.resolveDateMathExpression(targetIndex.index());
-        final IndexMetaData metaData = state.metaData().index(sourceIndex);
-        final Settings targetIndexSettings = Settings.builder().put(targetIndex.settings())
-            .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
-        int numShards = 1;
-        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
-            numShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
-        }
-        for (int i = 0; i < numShards; i++) {
-            Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(i, metaData, numShards);
-            long count = 0;
-            for (ShardId id : shardIds) {
-                DocsStats docsStats = perShardDocStats.apply(id.id());
-                if (docsStats != null) {
-                    count += docsStats.getCount();
-                }
-                if (count > IndexWriter.MAX_DOCS) {
-                    throw new IllegalStateException("Can't merge index with more than [" + IndexWriter.MAX_DOCS
-                        + "] docs - too many documents in shards " + shardIds);
-                }
-            }
-
-        }
-        if (IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
-            throw new IllegalArgumentException("cannot provide a routing partition size value when shrinking an index");
-        }
-        targetIndex.cause("shrink_index");
-        Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);
-        settingsBuilder.put("index.number_of_shards", numShards);
-        targetIndex.settings(settingsBuilder);
-
-        return new CreateIndexClusterStateUpdateRequest(targetIndex,
-            "shrink_index", targetIndex.index(), targetIndexName, true)
-            // mappings are updated on the node when merging in the shards, this prevents race-conditions since all mapping must be
-            // applied once we took the snapshot and if somebody fucks things up and switches the index read/write and adds docs we miss
-            // the mappings for everything is corrupted and hard to debug
-            .ackTimeout(targetIndex.timeout())
-            .masterNodeTimeout(targetIndex.masterNodeTimeout())
-            .settings(targetIndex.settings())
-            .aliases(targetIndex.aliases())
-            .customs(targetIndex.customs())
-            .waitForActiveShards(targetIndex.waitForActiveShards())
-            .shrinkFrom(metaData.getIndex());
-    }
-
 }

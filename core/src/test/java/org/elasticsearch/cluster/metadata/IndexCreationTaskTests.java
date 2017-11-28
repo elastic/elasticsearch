@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -258,8 +259,8 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testShrinkIndexIgnoresTemplates() throws Exception {
         final Index source = new Index("source_idx", "aaa111bbb222");
 
-        when(request.shrinkFrom()).thenReturn(source);
-
+        when(request.recoverFrom()).thenReturn(source);
+        when(request.resizeType()).thenReturn(ResizeType.SHRINK);
         currentStateMetaDataBuilder.put(createIndexMetaDataBuilder("source_idx", "aaa111bbb222", 2, 2));
 
         routingTableBuilder.add(createIndexRoutingTableWithStartedShards(source));

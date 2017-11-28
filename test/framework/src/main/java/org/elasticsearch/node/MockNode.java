@@ -66,7 +66,7 @@ public class MockNode extends Node {
     }
 
     public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
-        this(InternalSettingsPreparer.prepareEnvironment(settings, null, Collections.emptyMap(), configPath), classpathPlugins);
+        this(InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath), classpathPlugins);
     }
 
     public MockNode(Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {

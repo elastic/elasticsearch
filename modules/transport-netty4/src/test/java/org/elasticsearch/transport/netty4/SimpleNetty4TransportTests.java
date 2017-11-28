@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.netty4;
 
-import io.netty.channel.Channel;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -58,7 +58,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
-            protected Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException,
+            protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
                 InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, channel, timeout);
@@ -89,8 +89,9 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     @Override
     protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
         final Netty4Transport t = (Netty4Transport) transport;
-        @SuppressWarnings("unchecked") final TcpTransport<Channel>.NodeChannels channels = (TcpTransport<Channel>.NodeChannels) connection;
-        t.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true, false);
+        @SuppressWarnings("unchecked")
+        final TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
+        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {
@@ -99,7 +100,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                     emptyMap(), emptySet(),Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
-            assertThat(e.getMessage(), containsString("connect_timeout"));
+            assertThat(e.getMessage(), containsString("connect_exception"));
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
         }
     }

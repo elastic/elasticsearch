@@ -39,7 +39,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new AddStringKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
+            protected Environment createEnv(Map<String, String> settings) throws UserException {
                 return env;
             }
             @Override

@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 
@@ -163,7 +164,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         Settings.Builder settingsForOpenIndices = Settings.builder();
         final Set<String> skippedSettings = new HashSet<>();
 
-        indexScopedSettings.validate(normalizedSettings);
+        indexScopedSettings.validate(normalizedSettings, false); // don't validate dependencies here we check it below
         // never allow to change the number of shards
         for (String key : normalizedSettings.keySet()) {
             Setting setting = indexScopedSettings.get(key);
@@ -240,7 +241,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             if (preserveExisting) {
                                 indexSettings.put(indexMetaData.getSettings());
                             }
-                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
+                            Settings finalSettings = indexSettings.build();
+                            indexScopedSettings.validate(finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
+                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
                         }
                     }
                 }
@@ -254,7 +257,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             if (preserveExisting) {
                                 indexSettings.put(indexMetaData.getSettings());
                             }
-                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
+                            Settings finalSettings = indexSettings.build();
+                            indexScopedSettings.validate(finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
+                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
                         }
                     }
                 }

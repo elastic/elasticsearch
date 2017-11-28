@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.action.resync;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -158,6 +160,15 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
                 @Override
                 public void handleResponse(ResyncReplicationResponse response) {
+                    final ReplicationResponse.ShardInfo.Failure[] failures = response.getShardInfo().getFailures();
+                    // noinspection ForLoopReplaceableByForEach
+                    for (int i = 0; i < failures.length; i++) {
+                        final ReplicationResponse.ShardInfo.Failure f = failures[i];
+                        logger.info(
+                                new ParameterizedMessage(
+                                        "{} primary-replica resync to replica on node [{}] failed", f.fullShardId(), f.nodeId()),
+                                f.getCause());
+                    }
                     listener.onResponse(response);
                 }
 

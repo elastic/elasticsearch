@@ -110,4 +110,8 @@ public class ProfilingAggregator extends Aggregator {
         delegate.postCollection();
     }
 
+    @Override
+    public String toString() {
+        return delegate.toString();
+    }
 }

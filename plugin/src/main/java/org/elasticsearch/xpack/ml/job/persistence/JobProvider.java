@@ -95,6 +95,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
 
@@ -515,7 +516,7 @@ public class JobProvider {
      * @return a bucket {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<Bucket> newBatchedBucketsIterator(String jobId) {
-        return new BatchedBucketsIterator(client, jobId);
+        return new BatchedBucketsIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -527,7 +528,7 @@ public class JobProvider {
      * @return a record {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<AnomalyRecord> newBatchedRecordsIterator(String jobId) {
-        return new BatchedRecordsIterator(client, jobId);
+        return new BatchedRecordsIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
     }
 
     /**
@@ -702,7 +703,7 @@ public class JobProvider {
      * @return an influencer {@link BatchedResultsIterator}
      */
     public BatchedResultsIterator<Influencer> newBatchedInfluencersIterator(String jobId) {
-        return new BatchedInfluencersIterator(client, jobId);
+        return new BatchedInfluencersIterator(clientWithOrigin(client, ML_ORIGIN), jobId);
     }
 
     /**

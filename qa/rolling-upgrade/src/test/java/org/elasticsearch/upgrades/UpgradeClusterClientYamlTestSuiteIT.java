@@ -7,15 +7,18 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
 import org.elasticsearch.xpack.test.rest.XPackRestTestCase;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
@@ -65,6 +68,19 @@ public class UpgradeClusterClientYamlTestSuiteIT extends SecurityClusterClientYa
 
             assertThat(response.evaluate("acknowledged"), is(true));
         });
+    }
+
+    @AfterClass
+    public static void upgradeSecurityIfNecessary() throws Exception {
+        if (System.getProperty("tests.rest.suite").equals("old_cluster")) {
+            Response response = client().performRequest("GET", "_nodes");
+            ObjectPath objectPath = ObjectPath.createFromResponse(response);
+            Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+            Version oldVersion = Version.fromString(objectPath.evaluate("nodes." + nodesAsMap.keySet().iterator().next() + ".version"));
+            if (oldVersion.major < Version.CURRENT.major) {
+                client().performRequest("POST", "/_xpack/migration/upgrade/.security");
+            }
+        }
     }
 
     @Override

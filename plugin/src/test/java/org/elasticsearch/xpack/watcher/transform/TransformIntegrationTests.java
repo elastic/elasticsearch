@@ -55,16 +55,6 @@ import static org.hamcrest.Matchers.is;
 public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> types = super.pluginTypes();
         types.add(CustomScriptPlugin.class);
@@ -146,11 +136,9 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        if (timeWarped()) {
-            timeWarp().trigger("_id1");
-            timeWarp().trigger("_id2");
-            refresh();
-        }
+        timeWarp().trigger("_id1");
+        timeWarp().trigger("_id2");
+        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
         assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
@@ -195,11 +183,9 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 ).get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        if (timeWarped()) {
-            timeWarp().trigger("_id1");
-            timeWarp().trigger("_id2");
-            refresh();
-        }
+        timeWarp().trigger("_id1");
+        timeWarp().trigger("_id2");
+        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
         assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
@@ -241,11 +227,9 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        if (timeWarped()) {
-            timeWarp().trigger("_id1");
-            timeWarp().trigger("_id2");
-            refresh();
-        }
+        timeWarp().trigger("_id1");
+        timeWarp().trigger("_id2");
+        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
         assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);

@@ -11,13 +11,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.ssl.TestsSSLService;
+import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.ssl.TestsSSLService;
-import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
@@ -81,10 +81,8 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
                         .addAction("_id", ActionBuilders.webhookAction(builder)))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().trigger("_id");
-            refresh();
-        }
+        timeWarp().trigger("_id");
+        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         assertThat(webServer.requests(), hasSize(1));
@@ -122,10 +120,8 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
                         .addAction("_id", ActionBuilders.webhookAction(builder)))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().trigger("_id");
-            refresh();
-        }
+        timeWarp().trigger("_id");
+        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         assertThat(webServer.requests(), hasSize(1));

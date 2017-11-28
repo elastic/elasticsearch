@@ -37,11 +37,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
-    @Override
     protected List<Class<? extends Plugin>> pluginTypes() {
         List<Class<? extends Plugin>> types = super.pluginTypes();
         types.add(CustomScriptPlugin.class);

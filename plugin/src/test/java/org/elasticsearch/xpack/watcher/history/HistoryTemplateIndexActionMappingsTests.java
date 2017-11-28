@@ -26,15 +26,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * not analyzed so they can be used in aggregations
  */
 public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherIntegrationTestCase {
-    @Override
-    protected boolean timeWarped() {
-        return true; // just to have better control over the triggers
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return false; // remove security noise from this test
-    }
 
     public void testIndexActionFields() throws Exception {
         String index = "the-index";

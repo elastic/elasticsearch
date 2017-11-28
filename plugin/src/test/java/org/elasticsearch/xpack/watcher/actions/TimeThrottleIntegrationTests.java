@@ -35,16 +35,6 @@ import static org.hamcrest.Matchers.is;
         "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
-    @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return true;
-    }
-
     public void testTimeThrottle() throws Exception {
         String id = randomAlphaOfLength(20);
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
@@ -73,7 +63,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
 
     public void testTimeThrottleDefaults() throws Exception {
         String id = randomAlphaOfLength(30);
-        PutWatchResponse putWatchResponse = watcherClientWithWatcherUser().preparePutWatch()
+        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
                 .setId(id)
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))

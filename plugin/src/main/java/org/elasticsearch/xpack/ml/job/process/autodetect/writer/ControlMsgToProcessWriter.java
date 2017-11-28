@@ -155,9 +155,6 @@ public class ControlMsgToProcessWriter {
         builder.field("forecast_id", params.getForecastId());
         builder.field("create_time", params.getCreateTime());
 
-        if (params.getEndTime() != 0) {
-            builder.field("end_time", params.getEndTime());
-        }
         if (params.getDuration() != 0) {
             builder.field("duration", params.getDuration());
         }

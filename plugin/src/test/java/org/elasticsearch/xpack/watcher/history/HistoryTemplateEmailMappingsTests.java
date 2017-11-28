@@ -10,10 +10,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
-import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
+import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.After;
@@ -47,11 +47,6 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
     @After
     public void cleanup() throws Exception {
         server.stop();
-    }
-
-    @Override
-    protected boolean timeWarped() {
-        return true;
     }
 
     @Override

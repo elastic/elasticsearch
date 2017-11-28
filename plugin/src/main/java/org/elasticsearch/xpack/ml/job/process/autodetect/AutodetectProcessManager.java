@@ -383,7 +383,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                 client, jobId, renormalizer, jobResultsPersister, jobProvider, autodetectParams.modelSizeStats(),
                 autodetectParams.modelSnapshot() != null);
         ExecutorService autodetectWorkerExecutor;
-        try {
+        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
             autoDetectExecutorService.submit(() -> processor.process(process));
         } catch (EsRejectedExecutionException e) {

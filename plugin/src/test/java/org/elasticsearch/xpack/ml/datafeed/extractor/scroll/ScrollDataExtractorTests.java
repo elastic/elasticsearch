@@ -384,6 +384,17 @@ public class ScrollDataExtractorTests extends ESTestCase {
         expectThrows(SearchPhaseExecutionException.class, () -> extractor.next());
     }
 
+    public void testSearchPhaseExecutionExceptionOnInitScroll() throws IOException {
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+
+        extractor.setNextResponse(createResponseWithShardFailures());
+        extractor.setNextResponse(createResponseWithShardFailures());
+
+        expectThrows(IOException.class, () -> extractor.next());
+
+        assertThat(capturedClearScrollIds.isEmpty(), is(true));
+    }
+
     public void testDomainSplitScriptField() throws IOException {
 
         SearchSourceBuilder.ScriptField withoutSplit = new SearchSourceBuilder.ScriptField(

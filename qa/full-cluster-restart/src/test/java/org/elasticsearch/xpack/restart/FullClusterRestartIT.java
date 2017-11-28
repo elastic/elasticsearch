@@ -177,6 +177,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3068")
     public void testMonitoring() throws Exception {
         waitForYellow(".monitoring-es-*");
 

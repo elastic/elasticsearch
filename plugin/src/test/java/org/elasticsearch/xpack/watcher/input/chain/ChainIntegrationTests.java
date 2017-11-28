@@ -11,17 +11,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -60,9 +57,8 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
-                .path("/" + index  + "/_search")
-                .body(jsonBuilder().startObject().field("size", 1).endObject().string())
-                .auth(securityEnabled() ? new BasicAuth("test", SecuritySettingsSource.TEST_PASSWORD.toCharArray()) : null));
+                .path("/" + index + "/_search")
+                .body(jsonBuilder().startObject().field("size", 1).endObject().string()));
 
         ChainInput.Builder chainedInputBuilder = chainInput()
                 .add("first", simpleInput("url", "/" + index  + "/_search"))
@@ -75,12 +71,8 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
                         .addAction("indexAction", indexAction("my-index", "my-type")))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().trigger("_name");
-            refresh();
-        } else {
-            assertBusy(() -> assertWatchExecuted(), 9, TimeUnit.SECONDS);
-        }
+        timeWarp().trigger("_name");
+        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
     }

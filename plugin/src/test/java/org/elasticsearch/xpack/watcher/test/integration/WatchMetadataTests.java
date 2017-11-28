@@ -56,12 +56,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                         .metadata(metadata))
                         .get();
 
-        if (timeWarped()) {
-            timeWarp().trigger("_name");
-        } else {
-            // Wait for a no action entry to be added. (the condition search request will not match, because there are no docs in my-index)
-            assertWatchWithNoActionNeeded("_name", 1);
-        }
+        timeWarp().trigger("_name");
 
         refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*")

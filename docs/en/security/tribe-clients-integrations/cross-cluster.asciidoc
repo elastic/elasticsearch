@@ -17,9 +17,8 @@ is allowed to access.
 
 
 [WARNING]
-This feature was added as Beta in Elasticsearch `v5.3` with further
-improvements made in 5.4 and 5.5. It requires gateway eligible nodes to be on
-`v5.5` onwards.
+This feature was added as Beta in {es} `v5.3` with further improvements made in
+5.4 and 5.5. It requires gateway eligible nodes to be on `v5.5` onwards.
 
 To use cross cluster search with secured clusters:
 
@@ -42,6 +41,7 @@ To use cross cluster search with secured clusters:
   For example, the following configuration adds two remote clusters
   to the local cluster:
 +
+--
 [source,js]
 -----------------------------------------------------------
 PUT _cluster/settings
@@ -60,6 +60,8 @@ PUT _cluster/settings
   }
 }
 -----------------------------------------------------------
+// CONSOLE
+--
 
 * On the local cluster, ensure that users are assigned to (at least) one role
   that exists on the remote clusters.  On the remote clusters, use that role
@@ -75,13 +77,14 @@ First, enable cluster `one` to perform cross cluster search on remote cluster
 
 [source,js]
 -----------------------------------------------------------
-PUT _cluster_settings
+PUT _cluster/settings
 {
   "persistent": {
-    "search.remote.two.seeds": [ "10.0.2.1:9300" ]
+    "search.remote.cluster_two.seeds": [ "10.0.2.1:9300" ]
   }
 }
 -----------------------------------------------------------
+// CONSOLE
 
 Next, set up a role called `cluster_two_logs` on both cluster `one` and
 cluster `two`.
@@ -94,6 +97,7 @@ POST /_xpack/security/role/cluster_two_logs
 {
 }
 -----------------------------------------------------------
+// CONSOLE
 
 On cluster `two`, this role allows the user to query local indices called
 `logs-` from a remote cluster:
@@ -118,6 +122,7 @@ POST /_xpack/security/role/cluster_two_logs
   ]
 }
 -----------------------------------------------------------
+// CONSOLE
 
 Finally, create a user on cluster `one` and apply the `cluster_two_logs` role:
 
@@ -132,6 +137,7 @@ POST /_xpack/security/user/alice
   "enabled": true
 }
 -----------------------------------------------------------
+// CONSOLE
 
 With all of the above setup, the user `alice` is able to search indices in
 cluster `two` as follows:
@@ -145,6 +151,8 @@ GET two:logs-2017.04/_search <1>
   }
 }
 -----------------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
 //TBD: Is there a missing description of the <1> callout above?
 
 include::{xkb-repo-dir}/security/cross-cluster-kibana.asciidoc[]

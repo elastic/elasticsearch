@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
-import io.netty.util.internal.SystemPropertyUtil;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -13,18 +12,14 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -41,8 +36,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -52,8 +45,6 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
@@ -74,16 +65,8 @@ import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -96,14 +79,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME;
@@ -120,66 +101,33 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     public static final String WATCHER_LANG = Script.DEFAULT_SCRIPT_LANG;
 
-    private static final boolean timeWarpEnabled = SystemPropertyUtil.getBoolean("tests.timewarp", true);
-
     private TimeWarp timeWarp;
-
-    private static Boolean securityEnabled;
-
-    @Override
-    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        if (securityEnabled == null) {
-            securityEnabled = enableSecurity();
-        }
-        return super.buildTestCluster(scope, seed);
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                //TODO: for now lets isolate watcher tests from monitoring (randomize this later)
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
+                // watcher settings that should work despite randomization
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
-                .put(SecuritySettings.settings(securityEnabled))
                 // Disable native ML autodetect_process as the c++ controller won't be available
                 .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
+                //.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
+                //.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
                 .build();
     }
 
     @Override
-    protected Path nodeConfigPath(final int nodeOrdinal) {
-        if (!securityEnabled) {
-            return null;
-        }
-        final Path conf = createTempDir().resolve("watcher_security");
-        final Path xpackConf = conf.resolve(XPackPlugin.NAME);
-        try {
-            Files.createDirectories(xpackConf);
-            writeFile(xpackConf, "users", SecuritySettings.USERS);
-            writeFile(xpackConf, "users_roles", SecuritySettings.USER_ROLES);
-            writeFile(xpackConf, "roles.yml", SecuritySettings.ROLES);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return conf;
-    }
-
-    private static void writeFile(final Path folder, final String name, final String content) throws IOException {
-        final Path file = folder.resolve(name);
-        try (BufferedWriter stream = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-            Streams.copy(content, stream);
-        }
-    }
-
-    public static void writeFile(final Path folder, final String name, final byte[] content) throws IOException {
-        final Path file = folder.resolve(name);
-        try (OutputStream stream = Files.newOutputStream(file)) {
-            Streams.copy(content, stream);
-        }
+    protected Settings transportClientSettings() {
+        return Settings.builder()
+                .put("client.transport.sniff", false)
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
+                .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
+                .build();
     }
 
     @Override
@@ -211,23 +159,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return nodePlugins();
     }
 
-    @Override
-    protected Function<Client,Client> getClientWrapper() {
-        if (securityEnabled == false) {
-            return Function.identity();
-        }
-        Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue(SecuritySettings.TEST_USERNAME, new SecureString(SecuritySettings.TEST_PASSWORD.toCharArray())));
-        // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
-        // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
-        // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
-        // are randomized to return both node clients and transport clients
-        // transport clients do not need to be wrapped since we specify the xpack.security.user setting that sets the default user to be
-        // used for the transport client. If we did not set a default user then the transport client would not even be allowed
-        // to connect
-        return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
-    }
-
     protected List<Class<? extends Plugin>> pluginTypes() {
         List<Class<? extends Plugin>> types = new ArrayList<>();
         if (timeWarped()) {
@@ -246,26 +177,15 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
      *          this method can be overridden.
      */
     protected boolean timeWarped() {
-        return timeWarpEnabled;
-    }
-
-    /**
-     * @return whether security has been enabled
-     */
-    protected final boolean securityEnabled() {
-        return securityEnabled;
-    }
-
-    /**
-     * Override and returns {@code false} to force running without security
-     */
-    protected boolean enableSecurity() {
-        return randomBoolean();
+        return true;
     }
 
     @Before
     public void _setup() throws Exception {
-        setupTimeWarp();
+        if (timeWarped()) {
+            timeWarp = new TimeWarp(internalCluster().getInstances(ScheduleTriggerEngineMock.class),
+                    (ClockMock)getInstanceFromMaster(Clock.class));
+        }
         startWatcherIfNodesExist();
         createWatcherIndicesOrAliases();
     }
@@ -275,32 +195,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         // Clear all internal watcher state for the next test method:
         logger.info("[#{}]: clearing watcher state", getTestName());
         stopWatcher();
-    }
-
-    @AfterClass
-    public static void _cleanupClass() {
-        securityEnabled = null;
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        if (securityEnabled == false) {
-            return super.transportClientSettings();
-        }
-
-        return Settings.builder()
-                .put("client.transport.sniff", false)
-                .put(Security.USER_SETTING.getKey(), "admin:" + SecuritySettingsSource.TEST_PASSWORD)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
-                .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
-                .build();
-    }
-
-    private void setupTimeWarp() throws Exception {
-        if (timeWarped()) {
-            timeWarp = new TimeWarp(internalCluster().getInstances(ScheduleTriggerEngineMock.class),
-                    (ClockMock)getInstanceFromMaster(Clock.class));
-        }
     }
 
     private void startWatcherIfNodesExist() throws Exception {
@@ -435,27 +329,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected WatcherClient watcherClient() {
-        Client client = securityEnabled ? internalCluster().transportClient() : client();
-        return randomBoolean() ? new XPackClient(client).watcher() : new WatcherClient(client);
+        return randomBoolean() ? new XPackClient(client()).watcher() : new WatcherClient(client());
     }
 
-    /**
-     * This watcher client needs to be used whenenver an index action is about to be called in a watch
-     * as otherwise there is no permission to index data with the default transport client user called admin
-     * This is important if the watch is executed, as the watch is run as the user who stored the watch
-     * when security is enabled
-     */
-    protected WatcherClient watcherClientWithWatcherUser() {
-        if (securityEnabled) {
-            return watcherClient()
-                    .filterWithHeader(Collections.singletonMap("Authorization",
-                            basicAuthHeaderValue("watcher_test", new SecureString(SecuritySettings.TEST_PASSWORD.toCharArray()))));
-        } else {
-            return watcherClient();
-        }
-    }
-
-    protected IndexNameExpressionResolver indexNameExpressionResolver() {
+    private IndexNameExpressionResolver indexNameExpressionResolver() {
         return internalCluster().getInstance(IndexNameExpressionResolver.class);
     }
 
@@ -678,74 +555,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         public void trigger(String id, int times, TimeValue timeValue) {
             schedulers.forEach(scheduler -> scheduler.trigger(id, times, timeValue));
-        }
-    }
-
-
-    /** Security related settings */
-
-    public static class SecuritySettings {
-
-        public static final String TEST_USERNAME = "test";
-        public static final String TEST_PASSWORD = SecuritySettingsSource.TEST_PASSWORD;
-        private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
-
-        static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
-
-        public static final String USERS =
-                "transport_client:" + TEST_PASSWORD_HASHED + "\n" +
-                TEST_USERNAME + ":" + TEST_PASSWORD_HASHED + "\n" +
-                "admin:" + TEST_PASSWORD_HASHED + "\n" +
-                "watcher_test:" + TEST_PASSWORD_HASHED + "\n" +
-                "monitor:" + TEST_PASSWORD_HASHED;
-
-        public static final String USER_ROLES =
-                "transport_client:transport_client\n" +
-                "test:test\n" +
-                "admin:admin\n" +
-                "monitor:monitor\n" +
-                "watcher_test:watcher_test,watcher_admin,watcher_user\n";
-
-        public static final String ROLES =
-                "test:\n" + // a user for the test infra.
-                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
-                        " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
-                        " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
-                        " 'cluster:admin/script/put', 'cluster:monitor/task' ]\n" +
-                "  indices:\n" +
-                "    - names: '*'\n" +
-                "      privileges: [ all ]\n" +
-                "\n" +
-                "admin:\n" +
-                "  cluster: [ 'manage' ]\n" +
-                "\n" +
-                "monitor:\n" +
-                "  cluster: [ 'monitor' ]\n" +
-                "\n" +
-                "watcher_test:\n" +
-                "  cluster: [ 'manage_watcher', 'cluster:admin/xpack/watcher/watch/put' ]\n" +
-                "  indices:\n" +
-                "    - names: 'my_watcher_index'\n" +
-                "      privileges: [ all ]\n"
-                ;
-
-
-        public static Settings settings(boolean enabled)  {
-            Settings.Builder builder = Settings.builder();
-            if (!enabled) {
-                return builder.put("xpack.security.enabled", false).build();
-            }
-            builder.put("xpack.security.enabled", true)
-                    .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
-                    .put("xpack.security.authc.realms.esusers.order", 0)
-                    .put("xpack.security.audit.enabled", auditLogsEnabled);
-            /*
-             * Security should always use one of its transports so if it is enabled explicitly declare one otherwise a local transport could
-             * be used.
-             */
-            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
-            builder.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
-            return builder.build();
         }
     }
 

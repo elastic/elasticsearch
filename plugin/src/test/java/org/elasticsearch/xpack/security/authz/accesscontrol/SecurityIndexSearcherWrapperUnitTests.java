@@ -522,6 +522,11 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
             assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
             return weight.bulkScorer(context);
         }
+
+        @Override
+        public boolean isCacheable(LeafReaderContext ctx) {
+            return true;
+        }
     }
 
     static class CreateScorerOnceQuery extends Query {

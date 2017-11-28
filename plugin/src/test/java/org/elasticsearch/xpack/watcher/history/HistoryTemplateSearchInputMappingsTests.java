@@ -32,16 +32,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherIntegrationTestCase {
     
-    @Override
-    protected boolean timeWarped() {
-        return true; // just to have better control over the triggers
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return false; // remove security noise from this test
-    }
-
     public void testHttpFields() throws Exception {
         String index = "the-index";
         String type = "the-type";

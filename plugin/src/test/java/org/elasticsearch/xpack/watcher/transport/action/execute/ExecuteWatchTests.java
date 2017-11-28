@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
-import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 
@@ -26,7 +25,6 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -111,15 +109,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
             // but forcing will ignore the throttling
 
             // lets wait for the watch to be ackable
-            if (timeWarped()) {
-                timeWarp().trigger("_id");
-            } else {
-                assertBusy(() -> {
-                    GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch("_id").get();
-                    assertThat(getWatchResponse.getStatus().actionStatus("log").ackStatus().state(),
-                            equalTo(ActionStatus.AckStatus.State.ACKABLE));
-                });
-            }
+            timeWarp().trigger("_id");
 
             String[] actionIds = randomFrom(
                     new String[] { "_all" },

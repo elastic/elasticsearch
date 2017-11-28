@@ -104,6 +104,6 @@ final class CompressibleBytesOutputStream extends StreamOutput {
 
     @Override
     public void reset() throws IOException {
-        stream.reset();
+        throw new UnsupportedOperationException();
     }
 }

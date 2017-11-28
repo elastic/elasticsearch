@@ -33,7 +33,6 @@ dependencyLicenses {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
   ignoreSha 'elasticsearch-rest-client'
-  ignoreSha 'x-pack-client-api-objects'
   ignoreSha 'transport-netty4'
   ignoreSha 'elasticsearch-rest-client-sniffer'
 }
@@ -58,9 +57,6 @@ configurations {
 dependencies {
   // CLI deps
   compile project(path: ':core:cli', configuration: 'runtime')
-
-  // Request and Response objects
-  compile "org.elasticsearch:x-pack-client-api-objects:${version}"
 
   // security deps
   compile project(path: ':modules:transport-netty4', configuration: 'runtime')

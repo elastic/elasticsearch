@@ -516,7 +516,7 @@ public class MachineLearning implements ActionPlugin {
         // 4 threads per job: for cpp logging, result processing, state processing and
         // AutodetectProcessManager worker thread:
         FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_THREAD_POOL_NAME,
-                maxNumberOfJobs * 4, 4, "xpack.ml.autodetect_thread_pool");
+                maxNumberOfJobs * 4, maxNumberOfJobs * 4, "xpack.ml.autodetect_thread_pool");
 
         // 4 threads per job: processing logging, result and state of the renormalization process.
         // Renormalization does't run for the entire lifetime of a job, so additionally autodetect process

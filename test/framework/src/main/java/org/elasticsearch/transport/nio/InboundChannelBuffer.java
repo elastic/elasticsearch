@@ -106,10 +106,11 @@ public class InboundChannelBuffer {
     }
 
     public ByteBuffer[] getPostIndexBuffers() {
-        if (internalIndex + offset == capacity) {
+        if (internalIndex == capacity) {
             return new ByteBuffer[0];
         }
         int indexWithOffset = offset + internalIndex;
+
         int pageIndex = pageIndex(indexWithOffset);
         int indexInPage = indexInPage(indexWithOffset);
 

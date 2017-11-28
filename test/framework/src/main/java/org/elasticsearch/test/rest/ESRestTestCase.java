@@ -411,4 +411,12 @@ public abstract class ESRestTestCase extends ESTestCase {
                 + ", \"mappings\" : {" + mapping + "} }", ContentType.APPLICATION_JSON)));
     }
 
+    protected void updateIndexSetting(String index, Settings.Builder settings) throws IOException {
+        updateIndexSetting(index, settings.build());
+    }
+
+    private void updateIndexSetting(String index, Settings settings) throws IOException {
+        assertOK(client().performRequest("PUT", index + "/_settings", Collections.emptyMap(),
+            new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
+    }
 }

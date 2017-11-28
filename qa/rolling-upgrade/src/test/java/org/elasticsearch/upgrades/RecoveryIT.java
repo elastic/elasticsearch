@@ -18,16 +18,26 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Future;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -106,6 +116,69 @@ public class RecoveryIT extends ESRestTestCase {
                     assertThat("different history uuid found for shard on " + nodeID, historyUUID, equalTo(expectHistoryUUID));
                 }
             }
+        }
+    }
+
+    private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
+        for (int i = 0; i < numDocs; i++) {
+            final int id = idStart + i;
+            assertOK(client().performRequest("PUT", index + "/test/" + id, emptyMap(),
+                new StringEntity("{\"test\": \"test_" + randomAsciiOfLength(2) + "\"}", ContentType.APPLICATION_JSON)));
+        }
+        return numDocs;
+    }
+
+    private Future<Void> asyncIndexDocs(String index, final int idStart, final int numDocs) throws IOException {
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        Thread background = new Thread(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                future.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                indexDocs(index, idStart, numDocs);
+                future.onResponse(null);
+            }
+        });
+        background.start();
+        return future;
+    }
+
+    public void testRecoveryWithConcurrentIndexing() throws Exception {
+        final String index = "recovery_with_concurrent_indexing";
+        switch (clusterType) {
+            case OLD:
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    // if the node with the replica is the first to be restarted, while a replica is still recovering
+                    // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                    // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                    // before timing out
+                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+                createIndex(index, settings.build());
+                indexDocs(index, 0, 10);
+                ensureGreen();
+                // make sure that we can index while the replicas are recovering
+                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
+                break;
+            case MIXED:
+                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
+                asyncIndexDocs(index, 10, 50).get();
+                ensureGreen();
+                // make sure that we can index while the replicas are recovering
+                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
+                break;
+            case UPGRADED:
+                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
+                asyncIndexDocs(index, 10, 50).get();
+                ensureGreen();
+                break;
+            default:
+                throw new IllegalStateException("unknown type " + clusterType);
         }
     }
 

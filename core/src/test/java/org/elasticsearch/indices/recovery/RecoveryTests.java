@@ -113,27 +113,10 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             orgReplica.applyIndexOperationOnReplica(3, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 SourceToParse.source(orgReplica.shardId().getIndexName(), "type", "id2", new BytesArray("{}"), XContentType.JSON), u -> {});
 
-            final int translogOps;
+            final int translogOps = 4; // 3 ops + seqno gaps
             if (randomBoolean()) {
-                if (randomBoolean()) {
-                    logger.info("--> flushing shard (translog will be trimmed)");
-                    IndexMetaData.Builder builder = IndexMetaData.builder(orgReplica.indexSettings().getIndexMetaData());
-                    builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
-                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
-                    );
-                    orgReplica.indexSettings().updateIndexMetaData(builder.build());
-                    orgReplica.onSettingsChanged();
-                    translogOps = 3; // 2 ops + seqno gaps
-                } else {
-                    logger.info("--> flushing shard (translog will be retained)");
-                    translogOps = 4; // 3 ops + seqno gaps
-                }
                 flushShard(orgReplica);
-            } else {
-                translogOps = 4; // 3 ops + seqno gaps
             }
-
             final IndexShard orgPrimary = shards.getPrimary();
             shards.promoteReplicaToPrimary(orgReplica).get(); // wait for primary/replica sync to make sure seq# gap is closed.
 

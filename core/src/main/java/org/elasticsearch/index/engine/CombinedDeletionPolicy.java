@@ -21,7 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.elasticsearch.common.lucene.index.ESIndexDeletionPolicy;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
@@ -33,13 +33,11 @@ import java.util.List;
  * making sure that all translog files that are needed to recover from the Lucene commit are not deleted.
  */
 class CombinedDeletionPolicy extends IndexDeletionPolicy {
-
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final EngineConfig.OpenMode openMode;
+    private final ESIndexDeletionPolicy indexDeletionPolicy;
 
-    private final SnapshotDeletionPolicy indexDeletionPolicy;
-
-    CombinedDeletionPolicy(SnapshotDeletionPolicy indexDeletionPolicy, TranslogDeletionPolicy translogDeletionPolicy,
+    CombinedDeletionPolicy(ESIndexDeletionPolicy indexDeletionPolicy, TranslogDeletionPolicy translogDeletionPolicy,
                            EngineConfig.OpenMode openMode) {
         this.indexDeletionPolicy = indexDeletionPolicy;
         this.translogDeletionPolicy = translogDeletionPolicy;
@@ -48,7 +46,7 @@ class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        indexDeletionPolicy.onInit(commits);
+        final List<IndexCommit> keptCommits = indexDeletionPolicy.onInit(commits);
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
                 break;
@@ -57,7 +55,7 @@ class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                setLastCommittedTranslogGeneration(commits);
+                setLastCommittedTranslogGeneration(keptCommits);
                 break;
             default:
                 throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
@@ -66,24 +64,24 @@ class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        indexDeletionPolicy.onCommit(commits);
-        setLastCommittedTranslogGeneration(commits);
+        assert commits.isEmpty() == false;
+        final List<IndexCommit> keptCommits = indexDeletionPolicy.onCommit(commits);
+        setLastCommittedTranslogGeneration(keptCommits);
     }
 
-    private void setLastCommittedTranslogGeneration(List<? extends IndexCommit> commits) throws IOException {
-        // when opening an existing lucene index, we currently always open the last commit.
-        // we therefore use the translog gen as the one that will be required for recovery
-        final IndexCommit indexCommit = commits.get(commits.size() - 1);
-        assert indexCommit.isDeleted() == false : "last commit is deleted";
-        long minGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minGen);
-    }
+    private void setLastCommittedTranslogGeneration(List<IndexCommit> keptCommits) throws IOException {
+        assert keptCommits.isEmpty() == false : "All index commits were deleted";
+        assert keptCommits.stream().allMatch(commit -> commit.isDeleted() == false) : "Kept commits must not be deleted";
 
-    public SnapshotDeletionPolicy getIndexDeletionPolicy() {
-        return indexDeletionPolicy;
-    }
-
-    public TranslogDeletionPolicy getTranslogDeletionPolicy() {
-        return translogDeletionPolicy;
+        final IndexCommit lastCommit = keptCommits.get(keptCommits.size() - 1);
+        final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        long minRequiredGen = lastGen;
+        for (IndexCommit indexCommit : keptCommits) {
+            long translogGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+            minRequiredGen = Math.min(minRequiredGen, translogGen);
+        }
+        assert minRequiredGen <= lastGen;
+        translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
+        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
     }
 }

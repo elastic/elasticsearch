@@ -105,7 +105,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -165,6 +164,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -945,17 +945,41 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testCommitAdvancesMinTranslogForRecovery() throws IOException {
+        IOUtils.close(engine, store);
+        final Path translogPath = createTempDir();
+        store = createStore();
+        final AtomicBoolean inSync = new AtomicBoolean(randomBoolean());
+        final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> seqNoServiceSupplier = (config, seqNoStats) ->
+            new SequenceNumbersService(
+                config.getShardId(),
+                config.getAllocationId(),
+                config.getIndexSettings(),
+                seqNoStats.getMaxSeqNo(),
+                seqNoStats.getLocalCheckpoint(),
+                seqNoStats.getGlobalCheckpoint()) {
+                @Override
+                public long getGlobalCheckpoint() {
+                    return inSync.get() ? getLocalCheckpoint() : SequenceNumbers.UNASSIGNED_SEQ_NO;
+                }
+            };
+        engine = new InternalEngine(config(defaultSettings, store, translogPath, newMergePolicy(), null, null), seqNoServiceSupplier);
         ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
         engine.index(indexForDoc(doc));
+
         engine.flush();
         assertThat(engine.getTranslog().currentFileGeneration(), equalTo(2L));
-        assertThat(engine.getTranslog().getDeletionPolicy().getMinTranslogGenerationForRecovery(), equalTo(2L));
+        assertThat(engine.getTranslog().getDeletionPolicy().getMinTranslogGenerationForRecovery(), equalTo(inSync.get() ? 2L : 1L));
+        assertThat(engine.getTranslog().getDeletionPolicy().getTranslogGenerationOfLastCommit(), equalTo(2L));
+
         engine.flush();
         assertThat(engine.getTranslog().currentFileGeneration(), equalTo(2L));
-        assertThat(engine.getTranslog().getDeletionPolicy().getMinTranslogGenerationForRecovery(), equalTo(2L));
+        assertThat(engine.getTranslog().getDeletionPolicy().getMinTranslogGenerationForRecovery(), equalTo(inSync.get() ? 2L : 1L));
+        assertThat(engine.getTranslog().getDeletionPolicy().getTranslogGenerationOfLastCommit(), equalTo(2L));
+
         engine.flush(true, true);
         assertThat(engine.getTranslog().currentFileGeneration(), equalTo(3L));
-        assertThat(engine.getTranslog().getDeletionPolicy().getMinTranslogGenerationForRecovery(), equalTo(3L));
+        assertThat(engine.getTranslog().getDeletionPolicy().getMinTranslogGenerationForRecovery(), equalTo(inSync.get() ? 3L : 1L));
+        assertThat(engine.getTranslog().getDeletionPolicy().getTranslogGenerationOfLastCommit(), equalTo(3L));
     }
 
     public void testSyncedFlush() throws IOException {
@@ -2377,10 +2401,26 @@ public class InternalEngineTests extends EngineTestCase {
         );
         indexSettings.updateIndexMetaData(builder.build());
 
+        final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> seqNoServiceSupplier = (config, seqNoStats) ->
+            new SequenceNumbersService(
+                config.getShardId(),
+                config.getAllocationId(),
+                config.getIndexSettings(),
+                seqNoStats.getMaxSeqNo(),
+                seqNoStats.getLocalCheckpoint(),
+                seqNoStats.getGlobalCheckpoint()) {
+                @Override
+                public long getGlobalCheckpoint() {
+                    return getLocalCheckpoint();
+                }
+            };
+
         try (Store store = createStore()) {
             AtomicBoolean throwErrorOnCommit = new AtomicBoolean();
             final Path translogPath = createTempDir();
-            try (InternalEngine engine = new InternalEngine(config(indexSettings, store, translogPath, newMergePolicy(), null, null)) {
+            try (InternalEngine engine =
+                     new InternalEngine(config(indexSettings, store, translogPath, newMergePolicy(), null, null), seqNoServiceSupplier) {
+
                 @Override
                 protected void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
                     super.commitIndexWriter(writer, translog, syncId);
@@ -2395,7 +2435,8 @@ public class InternalEngineTests extends EngineTestCase {
                 FlushFailedEngineException e = expectThrows(FlushFailedEngineException.class, engine::flush);
                 assertThat(e.getCause().getMessage(), equalTo("power's out"));
             }
-            try (InternalEngine engine = new InternalEngine(config(indexSettings, store, translogPath, newMergePolicy(), null, null))) {
+            try (InternalEngine engine =
+                     new InternalEngine(config(indexSettings, store, translogPath, newMergePolicy(), null, null), seqNoServiceSupplier)) {
                 engine.recoverFromTranslog();
                 assertVisibleCount(engine, 1);
                 final long committedGen = Long.valueOf(
@@ -4088,4 +4129,63 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testKeepTranslogUpToGlobalCheckpoint() throws Exception {
+        IOUtils.close(engine, store);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final BiFunction<EngineConfig, SeqNoStats, SequenceNumbersService> seqNoServiceSupplier = (config, seqNoStats) ->
+            new SequenceNumbersService(
+                config.getShardId(),
+                config.getAllocationId(),
+                config.getIndexSettings(),
+                seqNoStats.getMaxSeqNo(),
+                seqNoStats.getLocalCheckpoint(),
+                seqNoStats.getGlobalCheckpoint()) {
+                @Override
+                public long getGlobalCheckpoint() {
+                    return globalCheckpoint.get();
+                }
+            };
+
+        final Path translogPath = createTempDir();
+        store = createStore();
+        try (InternalEngine engine
+                 = new InternalEngine(config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier)) {
+            int numDocs = scaledRandomIntBetween(10, 100);
+            int uncommittedOps = 0;
+            for (int i = 0; i < numDocs; i++) {
+                ParseContext.Document document = testDocumentWithTextField();
+                document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
+                engine.index(indexForDoc(testParsedDocument(Integer.toString(i), null, document, B_1, null)));
+                uncommittedOps++;
+                if (frequently()) {
+                    globalCheckpoint.set(randomIntBetween(
+                        Math.toIntExact(engine.seqNoService().getGlobalCheckpoint()),
+                        Math.toIntExact(engine.seqNoService().getLocalCheckpoint())));
+                }
+                if (frequently()) {
+                    engine.flush(randomBoolean(), true);
+                    uncommittedOps = 0;
+                }
+                if (rarely()) {
+                    engine.rollTranslogGeneration();
+                }
+                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+                    long requiredOps = engine.seqNoService().getMaxSeqNo() - Math.max(0, engine.seqNoService().getGlobalCheckpoint());
+                    assertThat("Should keep translog operations up to the global checkpoint",
+                        (long) snapshot.totalOperations(), greaterThanOrEqualTo(requiredOps));
+                }
+                assertThat(engine.getTranslog().uncommittedOperations(), equalTo(uncommittedOps));
+            }
+            engine.flush(randomBoolean(), true);
+        }
+        // Reopen engine to test onInit with existing index commits.
+        try (InternalEngine engine
+                 = new InternalEngine(config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null), seqNoServiceSupplier)) {
+            try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+                long requiredOps = engine.seqNoService().getLocalCheckpoint() - Math.max(0, globalCheckpoint.get());
+                assertThat("Should keep translog operations up to the global checkpoint",
+                    (long) snapshot.totalOperations(), greaterThanOrEqualTo(requiredOps));
+            }
+        }
+    }
 }

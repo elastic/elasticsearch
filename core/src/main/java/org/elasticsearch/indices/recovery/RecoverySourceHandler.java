@@ -450,7 +450,8 @@ public class RecoverySourceHandler {
      * @param snapshot      a snapshot of the translog
      * @return the local checkpoint on the target
      */
-    long phase2(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, final Translog.Snapshot snapshot) throws IOException {
+    long phase2(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, final Translog.Snapshot snapshot)
+        throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -530,7 +531,8 @@ public class RecoverySourceHandler {
      *                      number of operations sent
      * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
-    protected SendSnapshotResult sendSnapshot(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, final Translog.Snapshot snapshot) throws IOException {
+    protected SendSnapshotResult sendSnapshot(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo,
+                                              final Translog.Snapshot snapshot) throws IOException {
         assert requiredSeqNoRangeStart <= endingSeqNo :
             "requiredSeqNoRangeStart " + requiredSeqNoRangeStart + " is larger than endingSeqNo " + endingSeqNo;
         assert startingSeqNo <= endingSeqNo :

@@ -38,6 +38,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AllPermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -210,6 +211,7 @@ final class BootstrapChecks {
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
         checks.add(new G1GCCheck());
+        checks.add(new AllPermissionCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -688,6 +690,29 @@ final class BootstrapChecks {
         boolean isJava8() {
             assert "Oracle Corporation".equals(jvmVendor());
             return JavaVersion.current().equals(JavaVersion.parse("1.8"));
+        }
+
+    }
+
+    static class AllPermissionCheck implements BootstrapCheck {
+
+        @Override
+        public final BootstrapCheckResult check(BootstrapContext context) {
+            if (isAllPermissionGranted()) {
+                return BootstrapCheck.BootstrapCheckResult.failure("granting the all permission effectively disables security");
+            }
+            return BootstrapCheckResult.success();
+        }
+
+        boolean isAllPermissionGranted() {
+            final SecurityManager sm = System.getSecurityManager();
+            assert sm != null;
+            try {
+                sm.checkPermission(new AllPermission());
+            } catch (final SecurityException e) {
+                return false;
+            }
+            return true;
         }
 
     }

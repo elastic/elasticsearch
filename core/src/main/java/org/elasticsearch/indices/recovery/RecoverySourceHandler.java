@@ -562,7 +562,7 @@ public class RecoverySourceHandler {
             cancellableThreads.checkForCancel();
 
             final long seqNo = operation.seqNo();
-            if (seqNo < startingSeqNo && seqNo > endingSeqNo) {
+            if (seqNo < startingSeqNo || seqNo > endingSeqNo) {
                 skippedOps++;
                 continue;
             }

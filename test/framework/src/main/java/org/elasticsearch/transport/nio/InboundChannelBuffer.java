@@ -80,6 +80,9 @@ public class InboundChannelBuffer {
     }
 
     public ByteBuffer[] getPreIndexBuffers() {
+        if (internalIndex == 0) {
+            return new ByteBuffer[0];
+        }
         int indexWithOffset = internalIndex + offset;
         int pageCount = pageIndex(indexWithOffset);
         int finalLimit = indexInPage(indexWithOffset);
@@ -103,6 +106,9 @@ public class InboundChannelBuffer {
     }
 
     public ByteBuffer[] getPostIndexBuffers() {
+        if (internalIndex + offset == capacity) {
+            return new ByteBuffer[0];
+        }
         int indexWithOffset = offset + internalIndex;
         int pageIndex = pageIndex(indexWithOffset);
         int indexInPage = indexInPage(indexWithOffset);

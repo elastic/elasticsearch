@@ -316,15 +316,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
         }
-        SortedSetDocValues segmentOrds, globalOrds;
+
         @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
                                                     final LeafBucketCollector sub) throws IOException {
             if (mapping != null) {
                 mapSegmentCountsToGlobalCounts(mapping);
             }
-            /*final SortedSetDocValues*/ segmentOrds = valuesSource.ordinalsValues(ctx);
-            globalOrds = valuesSource.globalOrdinalsValues(ctx);
+            final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
@@ -378,9 +377,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
                 final long ord = i - 1; // remember we do +1 when counting
                 final long globalOrd = mapping.applyAsLong(ord);
-                BytesRef a = segmentOrds.lookupOrd(ord);
-                BytesRef b = globalOrds.lookupOrd(globalOrd);
-                //assert a.equals(b);
                 long bucketOrd = getBucketOrd(globalOrd);
                 incrementBucketDocCount(bucketOrd, inc);
             }

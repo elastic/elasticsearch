@@ -537,6 +537,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     public void testCreate_notEnoughThreads() throws IOException {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ExecutorService executorService = mock(ExecutorService.class);
         doThrow(new EsRejectedExecutionException("")).when(executorService).submit(any(Runnable.class));
         when(threadPool.executor(anyString())).thenReturn(executorService);
@@ -610,6 +611,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private AutodetectProcessManager createNonSpyManager(String jobId) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ExecutorService executorService = mock(ExecutorService.class);
         when(threadPool.executor(anyString())).thenReturn(executorService);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(mock(ThreadPool.Cancellable.class));
@@ -639,6 +641,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     private AutodetectProcessManager createManager(AutodetectCommunicator communicator, Client client) {
         ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
         AutodetectProcessFactory autodetectProcessFactory = mock(AutodetectProcessFactory.class);
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client,

@@ -69,11 +69,6 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
         return true; // just to have better control over the triggers
     }
 
-    @Override
-    protected boolean enableSecurity() {
-        return false; // remove security noise from this test
-    }
-
     @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1517")
     public void testTransformFields() throws Exception {
         String index = "the-index";

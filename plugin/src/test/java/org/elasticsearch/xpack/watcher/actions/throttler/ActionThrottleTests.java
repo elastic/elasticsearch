@@ -9,18 +9,18 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
+import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
+import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -50,11 +50,6 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 import static org.hamcrest.Matchers.equalTo;
 
 public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
-
-    @Override
-    protected boolean timeWarped() {
-        return true;
-    }
 
     public void testSingleActionAckThrottle() throws Exception {
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
@@ -185,9 +180,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
         refresh(Watch.INDEX);
 
-        if (timeWarped()) {
-            timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));
-        }
+        timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));
 
         ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
                 .setTriggerEvent(new ManualTriggerEvent("execute_id",
@@ -199,9 +192,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         String status = ObjectPath.eval("result.actions.0.status", executeWatchResponse.getRecordSource().getAsMap());
         assertThat(status, equalTo("simulated"));
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(1);
-        }
+        timeWarp().clock().fastForwardSeconds(1);
 
         executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
                 .setTriggerEvent(new ManualTriggerEvent("execute_id",
@@ -212,9 +203,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         status = ObjectPath.eval("result.actions.0.status", executeWatchResponse.getRecordSource().getAsMap());
         assertThat(status, equalTo("throttled"));
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(5);
-        }
+        timeWarp().clock().fastForwardSeconds(5);
 
         assertBusy(() -> {
             try {
@@ -243,9 +232,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
         refresh(Watch.INDEX);
 
-        if (timeWarped()) {
-            timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));
-        }
+        timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));
 
         ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
                 .setTriggerEvent(new ManualTriggerEvent("execute_id",
@@ -256,9 +243,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         String status = ObjectPath.eval("result.actions.0.status", executeWatchResponse.getRecordSource().getAsMap());
         assertThat(status, equalTo("simulated"));
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(1);
-        }
+        timeWarp().clock().fastForwardSeconds(1);
 
         executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
                 .setTriggerEvent(new ManualTriggerEvent("execute_id",
@@ -269,9 +254,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         status = ObjectPath.eval("result.actions.0.status", executeWatchResponse.getRecordSource().getAsMap());
         assertThat(status, equalTo("throttled"));
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(20);
-        }
+        timeWarp().clock().fastForwardSeconds(20);
+
         assertBusy(() -> {
             try {
                 //Since the default throttle period is 5 seconds but we have overridden the period in the watch this should trigger

@@ -9,12 +9,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEvent;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEventContext;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.SentEvent;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -34,16 +34,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @Network
 public class PagerDutyServiceTests extends AbstractWatcherIntegrationTestCase {
-
-    @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return false;
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

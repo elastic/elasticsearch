@@ -56,11 +56,6 @@ import static org.hamcrest.Matchers.startsWith;
 public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
-    protected boolean enableSecurity() {
-        return false;
-    }
-
-    @Override
     protected List<Class<? extends Plugin>> pluginTypes() {
         List<Class<? extends Plugin>> types = super.pluginTypes();
         types.add(CustomScriptPlugin.class);

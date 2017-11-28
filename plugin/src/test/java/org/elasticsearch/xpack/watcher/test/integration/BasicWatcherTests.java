@@ -63,16 +63,6 @@ import static org.hamcrest.Matchers.notNullValue;
              "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
-    @Override
-    protected boolean enableSecurity() {
-        return false;
-    }
-
-    @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
     public void testIndexWatch() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");
@@ -114,11 +104,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         client().prepareIndex("idx", "type").setSource("field", "value").get();
         refresh();
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(5);
-            timeWarp().trigger("_name");
-            refresh();
-        }
+        timeWarp().clock().fastForwardSeconds(5);
+        timeWarp().trigger("_name");
+        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_name", 1);
     }

@@ -11,20 +11,24 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
 import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
@@ -50,8 +54,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
     }
 
     @Override
-    protected boolean enableSecurity() {
-        return true;
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(Netty4Plugin.class); // for http
+        return plugins;
     }
 
     @Before
@@ -71,6 +77,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .putParam("param1", new TextTemplate("value1"))
                 .putParam("watch_id", new TextTemplate("_id"))
                 .body(new TextTemplate("_body"))
+                .auth(new BasicAuth("user", "pass".toCharArray()))
                 .method(HttpMethod.POST);
 
         watcherClient().preparePutWatch("_id")
@@ -81,10 +88,8 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                         .addAction("_id", ActionBuilders.webhookAction(builder)))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().trigger("_id");
-            refresh();
-        }
+        timeWarp().trigger("_id");
+        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         assertThat(webServer.requests(), hasSize(1));
@@ -123,10 +128,8 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                         .addAction("_id", ActionBuilders.webhookAction(builder)))
                 .get();
 
-        if (timeWarped()) {
-            timeWarp().trigger("_id");
-            refresh();
-        }
+        timeWarp().trigger("_id");
+        refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
 
@@ -147,7 +150,6 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, publishAddress.getPort())
                 .path(new TextTemplate("/%3Clogstash-%7Bnow%2Fd%7D%3E/log/1"))
                 .body(new TextTemplate("{\"foo\":\"bar\"}"))
-                .auth(new BasicAuth("test", SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
                 .putHeader("Content-Type", new TextTemplate("application/json"))
                 .method(HttpMethod.PUT);
 

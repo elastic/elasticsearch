@@ -52,16 +52,6 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
     private String id = randomAlphaOfLength(10);
 
-    @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return false;
-    }
-
     @Before
     public void indexTestDocument() {
         IndexResponse eventIndexResponse = client().prepareIndex("events", "event", id)

@@ -81,16 +81,6 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
     }
 
-    @Override
-    protected boolean timeWarped() {
-        return true; // just to have better control over the triggers
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return false; // remove security noise from this test
-    }
-
     /**
      * A hard failure is where an exception is thrown by the script condition.
      */

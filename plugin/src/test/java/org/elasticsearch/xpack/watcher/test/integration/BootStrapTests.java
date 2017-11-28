@@ -63,11 +63,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
-    @Override
-    protected boolean enableSecurity() {
-        return false;
-    }
-
     @Before
     public void deleteAllWatchHistoryIndices() {
         assertAcked(client().admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*"));

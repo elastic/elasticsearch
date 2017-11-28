@@ -42,12 +42,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
-    // FOR TESTING
-    @Override
-    protected boolean enableSecurity() {
-        return false;
-    }
-
     // issue: https://github.com/elastic/x-plugins/issues/2338
     public void testThatHistoryIsWrittenWithChainedInput() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("inner").field("date", "2015-06-06").endObject()

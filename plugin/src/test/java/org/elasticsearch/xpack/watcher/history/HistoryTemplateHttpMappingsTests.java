@@ -64,16 +64,6 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         webServer.close();
     }
 
-    @Override
-    protected boolean timeWarped() {
-        return true; // just to have better control over the triggers
-    }
-
-    @Override
-    protected boolean enableSecurity() {
-        return false; // remove security noise from this test
-    }
-
     public void testHttpFields() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
@@ -84,7 +74,6 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                         .method(HttpMethod.POST)
                         .body("_body"))))
                 .get();
-
 
         // one for the input, one for the webhook
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));

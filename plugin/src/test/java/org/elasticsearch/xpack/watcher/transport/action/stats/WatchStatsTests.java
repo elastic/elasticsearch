@@ -95,11 +95,6 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
     }
 
     @Override
-    protected boolean enableSecurity() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(LatchScriptPlugin.class);

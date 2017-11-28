@@ -31,11 +31,6 @@ import static org.mockito.Mockito.when;
 
 public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestCase {
 
-    @Override
-    protected boolean enableSecurity() {
-        return true;
-    }
-
     public void testExecuteWithAggs() throws Exception {
         client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:00").get();
         client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:10").get();

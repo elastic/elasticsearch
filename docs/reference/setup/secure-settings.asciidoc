@@ -12,7 +12,7 @@ NOTE: Only some settings are designed to be read from the keystore. See
 documentation for each setting to see if it is supported as part of the keystore.
 
 NOTE: All the modifications to the keystore take affect only after restarting
-ElasticSearch.
+Elasticsearch.
 
 [float]
 [[creating-keystore]]

@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
@@ -65,6 +64,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiPredicate;
 
 /**
  * Configures classes and services that are shared by indices on each node.
@@ -154,22 +154,22 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(metadataMappers);
     }
 
-    private static FieldFilter getFieldFilter(List<MapperPlugin> mapperPlugins) {
-        FieldFilter fieldFilter = FieldFilter.NOOP;
+    private static BiPredicate<String, String> getFieldFilter(List<MapperPlugin> mapperPlugins) {
+        BiPredicate<String, String> fieldFilter = MapperPlugin.NOOP_FIELD_FILTER;
         for (MapperPlugin mapperPlugin : mapperPlugins) {
-            fieldFilter = or(fieldFilter, mapperPlugin.getFieldFilter());
+            fieldFilter = and(fieldFilter, mapperPlugin.getFieldFilter());
         }
         return fieldFilter;
     }
 
-    private static FieldFilter or(FieldFilter first, FieldFilter second) {
-        if (first.isNoOp()) {
+    private static BiPredicate<String, String> and(BiPredicate<String, String> first, BiPredicate<String, String> second) {
+        if (first == MapperPlugin.NOOP_FIELD_FILTER) {
             return second;
         }
-        if (second.isNoOp()) {
+        if (second == MapperPlugin.NOOP_FIELD_FILTER) {
             return first;
         }
-        return (index, field) -> first.excludeField(index, field) || second.excludeField(index, field);
+        return (index, field) -> first.test(index, field) && second.test(index, field);
     }
 
     @Override

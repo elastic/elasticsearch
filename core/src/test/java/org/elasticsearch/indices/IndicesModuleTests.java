@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -37,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiPredicate;
 
 public class IndicesModuleTests extends ESTestCase {
 
@@ -162,37 +162,37 @@ public class IndicesModuleTests extends ESTestCase {
         List<MapperPlugin> mapperPlugins = Arrays.asList(
             new MapperPlugin() {
                 @Override
-                public FieldFilter getFieldFilter() {
-                    return (index, field) -> index.equals("hidden_index");
+                public BiPredicate<String, String> getFieldFilter() {
+                    return (index, field) -> index.equals("hidden_index") == false;
                 }
             },
             new MapperPlugin() {
                 @Override
-                public FieldFilter getFieldFilter() {
-                    return (index, field) -> field.equals("hidden_field");
+                public BiPredicate<String, String> getFieldFilter() {
+                    return (index, field) -> field.equals("hidden_field") == false;
                 }
             },
             new MapperPlugin() {
                 @Override
-                public FieldFilter getFieldFilter() {
-                    return (index, field) -> index.equals("filtered") && field.equals("visible") == false;
+                public BiPredicate<String, String> getFieldFilter() {
+                    return (index, field) -> index.equals("filtered") && field.equals("visible");
                 }
             });
 
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        FieldFilter fieldFilter = mapperRegistry.getFieldFilter();
-        assertFalse(fieldFilter.isNoOp());
+        BiPredicate<String, String> fieldFilter = mapperRegistry.getFieldFilter();
+        assertFalse(fieldFilter == MapperPlugin.NOOP_FIELD_FILTER);
 
-        assertTrue(fieldFilter.excludeField("hidden_index", randomAlphaOfLengthBetween(3, 5)));
-        assertFalse(fieldFilter.excludeField(randomAlphaOfLengthBetween(3, 5), randomAlphaOfLengthBetween(3, 5)));
-        assertTrue(fieldFilter.excludeField(randomAlphaOfLengthBetween(3, 5), "hidden_field"));
-        assertFalse(fieldFilter.excludeField("filtered", "visible"));
-        assertTrue(fieldFilter.excludeField("filtered", randomAlphaOfLengthBetween(3, 5)));
-        assertTrue(fieldFilter.excludeField("filtered", "hidden_field"));
-        assertFalse(fieldFilter.excludeField(randomAlphaOfLengthBetween(3, 5), "visible"));
-        assertTrue(fieldFilter.excludeField("hidden_index", "visible"));
-        assertTrue(fieldFilter.excludeField("hidden_index", "hidden_field"));
+        assertFalse(fieldFilter.test("hidden_index", randomAlphaOfLengthBetween(3, 5)));
+        assertFalse(fieldFilter.test(randomAlphaOfLengthBetween(3, 5), randomAlphaOfLengthBetween(3, 5)));
+        assertFalse(fieldFilter.test(randomAlphaOfLengthBetween(3, 5), "hidden_field"));
+        assertFalse(fieldFilter.test("filtered", randomAlphaOfLengthBetween(3, 5)));
+        assertFalse(fieldFilter.test("filtered", "hidden_field"));
+        assertFalse(fieldFilter.test(randomAlphaOfLengthBetween(3, 5), "visible"));
+        assertFalse(fieldFilter.test("hidden_index", "visible"));
+        assertFalse(fieldFilter.test("hidden_index", "hidden_field"));
+        assertTrue(fieldFilter.test("filtered", "visible"));
     }
 
     public void testGetFieldFilterIsNoOp() {
@@ -202,6 +202,6 @@ public class IndicesModuleTests extends ESTestCase {
             mapperPlugins.add(new MapperPlugin() {});
         }
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
-        assertTrue(indicesModule.getMapperRegistry().getFieldFilter().isNoOp());
+        assertTrue(indicesModule.getMapperRegistry().getFieldFilter() == MapperPlugin.NOOP_FIELD_FILTER);
     }
 }

@@ -53,7 +53,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.FieldFilter;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -70,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.BiPredicate;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -333,7 +334,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      */
     public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices,
                                                                                             final String[] types,
-                                                                                            FieldFilter fieldFilter) throws IOException {
+                                                                                            BiPredicate<String, String> fieldFilter)
+            throws IOException {
         assert types != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
@@ -364,8 +366,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     private static ImmutableOpenMap<String, MappingMetaData> filterFields(String index,
                                                                           ImmutableOpenMap<String, MappingMetaData> mappings,
-                                                                          FieldFilter fieldFilter) throws IOException {
-        if (fieldFilter.isNoOp()) {
+                                                                          BiPredicate<String, String> fieldFilter) throws IOException {
+        if (fieldFilter == MapperPlugin.NOOP_FIELD_FILTER) {
             return mappings;
         }
         ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(mappings.size());
@@ -376,8 +378,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     @SuppressWarnings("unchecked")
-    private static MappingMetaData filterFields(String index, MappingMetaData mappingMetaData, FieldFilter fieldFilter) throws IOException {
-        if (fieldFilter.isNoOp()) {
+    private static MappingMetaData filterFields(String index, MappingMetaData mappingMetaData, BiPredicate<String, String> fieldFilter)
+            throws IOException {
+        if (fieldFilter == MapperPlugin.NOOP_FIELD_FILTER) {
             return mappingMetaData;
         }
         Map<String, Object> sourceAsMap = mappingMetaData.getSourceAsMap();
@@ -392,7 +395,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean filterFields(String index, String currentPath, Map<String, Object> fields, FieldFilter fieldFilter) {
+    private static boolean filterFields(String index, String currentPath, Map<String, Object> fields,
+                                        BiPredicate<String, String> fieldFilter) {
         Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
         while (entryIterator.hasNext()) {
             Map.Entry<String, Object> entry = entryIterator.next();
@@ -419,7 +423,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
 
             //only remove a field if it has no sub-fields left and it has to be excluded
-            if (fieldFilter.excludeField(index, newPath)) {
+            if (fieldFilter.test(index, newPath) == false) {
                 if (mayRemove) {
                     entryIterator.remove();
                 } else if (isMultiField) {

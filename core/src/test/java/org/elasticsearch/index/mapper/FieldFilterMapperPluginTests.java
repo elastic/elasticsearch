@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.BiPredicate;
 
 import static org.elasticsearch.cluster.metadata.MetaDataTests.assertLeafs;
 import static org.elasticsearch.cluster.metadata.MetaDataTests.assertMultiField;
@@ -69,10 +70,12 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertNotFiltered(mappings.get("index1"));
         ImmutableOpenMap<String, MappingMetaData> filtered = mappings.get("filtered");
         assertFiltered(filtered);
+
         //try and see if the returned filtered mappings are still valid mappings by submitting them and retrieving them back
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", filtered.get("doc").getSourceAsMap()));
         GetMappingsResponse testMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         assertEquals(1, testMappingsResponse.getMappings().size());
+        //the mappings are returned unfiltered for this index, yet they are the same as the previous ones that were returned filtered
         assertFiltered(testMappingsResponse.getMappings().get("test"));
     }
 
@@ -159,8 +162,8 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
         @Override
-        public FieldFilter getFieldFilter() {
-            return (index, field) -> index.equals("filtered") && field.endsWith("visible") == false;
+        public BiPredicate<String, String> getFieldFilter() {
+            return (index, field) -> index.equals("filtered") == false || field.endsWith("visible");
         }
     }
 

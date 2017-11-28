@@ -19,12 +19,12 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.BiPredicate;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom mappers
@@ -54,7 +54,9 @@ public interface MapperPlugin {
         return Collections.emptyMap();
     }
 
-    default FieldFilter getFieldFilter() {
-        return FieldFilter.NOOP;
+    default BiPredicate<String, String> getFieldFilter() {
+        return NOOP_FIELD_FILTER;
     }
+
+    BiPredicate<String, String> NOOP_FIELD_FILTER = (index, field) -> true;
 }

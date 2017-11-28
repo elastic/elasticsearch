@@ -19,13 +19,13 @@
 
 package org.elasticsearch.indices.mapper;
 
-import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.BiPredicate;
 
 /**
  * A registry for all field mappers.
@@ -34,11 +34,11 @@ public final class MapperRegistry {
 
     private final Map<String, Mapper.TypeParser> mapperParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
-    private final FieldFilter fieldFilter;
+    private final BiPredicate<String, String> fieldFilter;
 
 
     public MapperRegistry(Map<String, Mapper.TypeParser> mapperParsers,
-            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers, FieldFilter fieldFilter) {
+            Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers, BiPredicate<String, String> fieldFilter) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));
         this.fieldFilter = fieldFilter;
@@ -60,7 +60,7 @@ public final class MapperRegistry {
         return metadataMapperParsers;
     }
 
-    public FieldFilter getFieldFilter() {
+    public BiPredicate<String, String> getFieldFilter() {
         return fieldFilter;
     }
 }

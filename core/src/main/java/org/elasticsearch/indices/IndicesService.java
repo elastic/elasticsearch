@@ -81,7 +81,6 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.mapper.FieldFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -127,6 +126,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -1264,7 +1264,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
-    public FieldFilter getFieldFilter() {
+    public BiPredicate<String, String> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
     }
 }

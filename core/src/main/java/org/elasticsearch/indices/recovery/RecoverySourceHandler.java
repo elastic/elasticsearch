@@ -458,7 +458,8 @@ public class RecoverySourceHandler {
 
         final StopWatch stopWatch = new StopWatch().start();
 
-        logger.trace("recovery [phase2]: sending transaction log operations");
+        logger.trace("recovery [phase2]: sending transaction log operations (seq# from [" +  startingSeqNo  + "], " +
+            "required [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "]");
 
         // send all the snapshot's translog operations to the target
         final SendSnapshotResult result = sendSnapshot(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot);

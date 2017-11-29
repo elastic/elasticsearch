@@ -51,6 +51,8 @@ GET _search
     as the query clause for `normal`.
 <2> The `normal` clause has the default neutral boost of `1.0`.
 
+A `term` query can also match against <<range, range data types>>.
+
 .Why doesn't the `term` query match my document?
 **************************************************
 

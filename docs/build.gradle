@@ -9,7 +9,7 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'en/ml/getting-started.asciidoc',
+        'en/ml/getting-started-data.asciidoc',
         'en/ml/functions/count.asciidoc',
         'en/ml/functions/geo.asciidoc',
         'en/ml/functions/info.asciidoc',

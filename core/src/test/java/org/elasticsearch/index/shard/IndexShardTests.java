@@ -111,7 +111,6 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -2727,7 +2726,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
-    @TestLogging("org.elasticsearch.common.breaker:TRACE,org.elasticsearch.indices.breaker:TRACE")
     public void testSegmentMemoryTrackedInBreaker() throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)

@@ -42,8 +42,8 @@ final class RamAccountingSearcherFactory extends SearcherFactory {
 
     private final CircuitBreakerService breakerService;
 
-    public RamAccountingSearcherFactory(EngineConfig engineConfig) {
-        this.breakerService = engineConfig.getCircuitBreakerService();
+    public RamAccountingSearcherFactory(CircuitBreakerService breakerService) {
+        this.breakerService = breakerService;
     }
 
     @Override

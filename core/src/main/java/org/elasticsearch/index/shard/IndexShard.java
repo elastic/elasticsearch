@@ -422,7 +422,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final DiscoveryNode recoverySourceNode = recoveryState.getSourceNode();
                     if (currentRouting.isRelocationTarget() == false || recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
                         // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
-                        getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
+                        final Engine engine = getEngine();
+                        engine.seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
+                        // Flush the translog as it may contain operations with no sequence numbers. We want to make sure those
+                        // operations will never be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq#
+                        // (due to active indexing) and operations without a seq# coming from the translog. We therefore flush
+                        // to create a lucene commit point to an empty translog file.
+                        engine.flush(false, true);
                     }
                 }
 

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -214,13 +215,15 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private void resetScroll() {
-        if (scrollId != null) {
-            clearScroll(scrollId);
-        }
+        clearScroll(scrollId);
         scrollId = null;
     }
 
-    void clearScroll(String scrollId) {
-        ClearScrollAction.INSTANCE.newRequestBuilder(client).addScrollId(scrollId).get();
+    private void clearScroll(String scrollId) {
+        if (scrollId != null) {
+            ClearScrollRequest request = new ClearScrollRequest();
+            request.addScrollId(scrollId);
+            client.execute(ClearScrollAction.INSTANCE, request).actionGet();
+        }
     }
 }

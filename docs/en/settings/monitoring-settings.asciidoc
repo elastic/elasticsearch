@@ -72,14 +72,21 @@ Settings API.
 
 `xpack.monitoring.history.duration`::
 
-Sets the retention duration beyond which the indices created by a Monitoring exporter will
-be automatically deleted. Defaults to `7d` (7 days).
+Sets the retention duration beyond which the indices created by a Monitoring
+exporter are automatically deleted. Defaults to `7d` (7 days).
 +
-This setting has a minimum value of `1d` (1 day) to ensure that something is being monitored,
-and it cannot be disabled.
-+
+--
+This setting has a minimum value of `1d` (1 day) to ensure that something is
+being monitored, and it cannot be disabled.
+
 IMPORTANT: This setting currently only impacts `local`-type exporters. Indices created using
 the `http` exporter will not be deleted automatically.
+
+If both {monitoring} and {watcher} are enabled, you can use this setting to
+affect the {watcher} cleaner service too. For more information, see the
+`xpack.watcher.history.cleaner_service.enabled` setting in the 
+<<notification-settings>>.
+--
 
 `xpack.monitoring.exporters`::
 

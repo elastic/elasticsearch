@@ -38,7 +38,7 @@ import java.util.Set;
  * Searcher factory extending {@link EngineSearcherFactory} that tracks the
  * amount of memory used by segments in the accounting circuit breaker.
  */
-public class RamAccountingSearcherFactory extends SearcherFactory {
+final class RamAccountingSearcherFactory extends SearcherFactory {
 
     private final CircuitBreakerService breakerService;
 

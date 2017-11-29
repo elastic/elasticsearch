@@ -319,7 +319,7 @@ GET /_snapshot/my_backup/snapshot_1
 // TEST[continued]
 
 This command returns basic information about the snapshot including start and end time, version of
-elasticsearch that created the snapshot, the list of included indices, the current state of the
+Elasticsearch that created the snapshot, the list of included indices, the current state of the
 snapshot and the list of failures that occurred during the snapshot. The snapshot `state` can be
 
 [horizontal]
@@ -343,7 +343,7 @@ snapshot and the list of failures that occurred during the snapshot. The snapsho
 
 `INCOMPATIBLE`::
 
-  The snapshot was created with an old version of elasticsearch and therefore is incompatible with
+  The snapshot was created with an old version of Elasticsearch and therefore is incompatible with
   the current version of the cluster.
 
 

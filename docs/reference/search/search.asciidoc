@@ -60,8 +60,8 @@ GET /_search?q=tag:wow
 // CONSOLE
 // TEST[setup:twitter]
 
-By default elasticsearch doesn't reject any search requests based on the number
-of shards the request hits. While elasticsearch will optimize the search execution
+By default Elasticsearch doesn't reject any search requests based on the number
+of shards the request hits. While Elasticsearch will optimize the search execution
 on the coordinating node a large number of shards can have a significant impact
 CPU and memory wise. It is usually a better idea to organize data in such a way
 that there are fewer larger shards. In case you would like to configure a soft

@@ -2,7 +2,7 @@
 == Indexed Scripts API
 
 The indexed script API allows one to interact with scripts and templates
-stored in an elasticsearch index. It can be used to create, update, get, 
+stored in an Elasticsearch index. It can be used to create, update, get, 
 and delete indexed scripts and templates.
 
 [source,java]

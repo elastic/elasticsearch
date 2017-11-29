@@ -181,10 +181,10 @@ to use include the `discovery.ec2.tag.` prefix. For example, setting `discovery.
 filter instances with a tag key set to `stage`, and a value of `dev`. Several tags set will require all of those tags
 to be set for the instance to be included.
 
-One practical use for tag filtering is when an ec2 cluster contains many nodes that are not running elasticsearch. In
+One practical use for tag filtering is when an ec2 cluster contains many nodes that are not running Elasticsearch. In
 this case (particularly with high `discovery.zen.ping_timeout` values) there is a risk that a new node's discovery phase
 will end before it has found the cluster (which will result in it declaring itself master of a new cluster with the same
-name - highly undesirable). Tagging elasticsearch ec2 nodes and then filtering by that tag will resolve this issue.
+name - highly undesirable). Tagging Elasticsearch ec2 nodes and then filtering by that tag will resolve this issue.
 
 [[discovery-ec2-attributes]]
 ===== Automatic Node Attributes

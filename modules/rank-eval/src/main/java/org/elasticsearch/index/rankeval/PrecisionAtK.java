@@ -96,7 +96,7 @@ public class PrecisionAtK implements EvaluationMetric {
                 Integer k = (Integer) args[2];
                 return new PrecisionAtK(threshHold == null ? 1 : threshHold,
                         ignoreUnlabeled == null ? false : ignoreUnlabeled,
-                                k == null ? 10 : k);
+                                k == null ? DEFAULT_K : k);
             });
 
     static {

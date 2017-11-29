@@ -83,7 +83,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          *
          * idcg = 14.595390756454922 (sum of last column)
          */
-        dcg = new DiscountedCumulativeGain(true, null);
+        dcg = new DiscountedCumulativeGain(true, null, 10);
         assertEquals(13.84826362927298 / 14.595390756454922, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
     }
 
@@ -135,7 +135,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          *
          * idcg = 13.347184833073591 (sum of last column)
          */
-        dcg = new DiscountedCumulativeGain(true, null);
+        dcg = new DiscountedCumulativeGain(true, null, 10);
         assertEquals(12.779642067948913 / 13.347184833073591, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
     }
 
@@ -193,16 +193,27 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          *
          * idcg = 13.347184833073591 (sum of last column)
          */
-        dcg = new DiscountedCumulativeGain(true, null);
+        dcg = new DiscountedCumulativeGain(true, null, 10);
         assertEquals(12.392789260714371 / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).getQualityLevel(), 0.00001);
     }
 
     public void testParseFromXContent() throws IOException {
-        String xContent = " { \"unknown_doc_rating\": 2, \"normalize\": true }";
+        assertParsedCorrect("{ \"unknown_doc_rating\": 2, \"normalize\": true, \"k\" : 15 }", 2, true, 15);
+        assertParsedCorrect("{ \"normalize\": false, \"k\" : 15 }", null, false, 15);
+        assertParsedCorrect("{ \"unknown_doc_rating\": 2, \"k\" : 15 }", 2, false, 15);
+        assertParsedCorrect("{ \"unknown_doc_rating\": 2, \"normalize\": true }", 2, true, 10);
+        assertParsedCorrect("{ \"normalize\": true }", null, true, 10);
+        assertParsedCorrect("{ \"k\": 23 }", null, false, 23);
+        assertParsedCorrect("{ \"unknown_doc_rating\": 2 }", 2, false, 10);
+    }
+
+    private void assertParsedCorrect(String xContent, Integer expectedUnknownDocRating, boolean expectedNormalize, int expectedK)
+            throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             DiscountedCumulativeGain dcgAt = DiscountedCumulativeGain.fromXContent(parser);
-            assertEquals(2, dcgAt.getUnknownDocRating().intValue());
-            assertEquals(true, dcgAt.getNormalize());
+            assertEquals(expectedUnknownDocRating, dcgAt.getUnknownDocRating());
+            assertEquals(expectedNormalize, dcgAt.getNormalize());
+            assertEquals(expectedK, dcgAt.getK());
         }
     }
 
@@ -210,7 +221,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         boolean normalize = randomBoolean();
         Integer unknownDocRating = new Integer(randomIntBetween(0, 1000));
 
-        return new DiscountedCumulativeGain(normalize, unknownDocRating);
+        return new DiscountedCumulativeGain(normalize, unknownDocRating, 10);
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -238,16 +249,22 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
 
     public void testEqualsAndHash() throws IOException {
         checkEqualsAndHashCode(createTestItem(), original -> {
-            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating());
+            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(), original.getK());
         }, DiscountedCumulativeGainTests::mutateTestItem);
     }
 
     private static DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain original) {
-        if (randomBoolean()) {
-            return new DiscountedCumulativeGain(!original.getNormalize(), original.getUnknownDocRating());
-        } else {
+        switch (randomIntBetween(0, 2)) {
+        case 0:
+            return new DiscountedCumulativeGain(!original.getNormalize(), original.getUnknownDocRating(), original.getK());
+        case 1:
             return new DiscountedCumulativeGain(original.getNormalize(),
-                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)));
+                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)), original.getK());
+        case 2:
+            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(),
+                    randomValueOtherThan(original.getK(), () -> randomIntBetween(1, 10)));
+        default:
+            throw new IllegalArgumentException("mutation variant not allowed");
         }
     }
 }

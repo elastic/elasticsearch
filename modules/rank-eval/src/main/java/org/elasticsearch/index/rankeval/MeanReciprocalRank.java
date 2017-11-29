@@ -47,11 +47,10 @@ public class MeanReciprocalRank implements EvaluationMetric {
     private static final int DEFAULT_RATING_THRESHOLD = 1;
     private static final int DEFAULT_K = 10;
 
+    /** the search window size */
     private final int k;
 
-
-
-    /** ratings equal or above this value will be considered relevant. */
+    /** ratings equal or above this value will be considered relevant */
     private final int relevantRatingThreshhold;
 
     public MeanReciprocalRank() {
@@ -72,7 +71,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
     /**
      * Metric implementing Mean Reciprocal Rank (https://en.wikipedia.org/wiki/Mean_reciprocal_rank).<br>
      * @param relevantRatingThreshold the rating value that a document needs to be regarded as "relevant". Defaults to 1.
-     * @param k the search window size all request should use.
+     * @param k the search window size all request use.
      */
     public MeanReciprocalRank(int relevantRatingThreshold, int k) {
         if (relevantRatingThreshold < 0) {

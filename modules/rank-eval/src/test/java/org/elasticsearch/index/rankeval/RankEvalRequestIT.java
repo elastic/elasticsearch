@@ -24,13 +24,13 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -63,57 +63,11 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         refresh();
     }
 
-    public void testMRRRequest() {
-        List<String> indices = Arrays.asList(new String[] { "test" });
-
+    public void testPrecisionAtRequest() {
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
         testQuery.sort("_id");
-        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
-                createRelevant("5"), testQuery);
-        amsterdamRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
-
-        specifications.add(amsterdamRequest);
-        RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("1"),
-                testQuery);
-        berlinRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
-
-        specifications.add(berlinRequest);
-
-        MeanReciprocalRank metric = new MeanReciprocalRank(1, 10);
-        RankEvalSpec task = new RankEvalSpec(specifications, metric);
-        task.addIndices(indices);
-
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
-                RankEvalAction.INSTANCE, new RankEvalRequest());
-        builder.setRankEvalSpec(task);
-
-        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request())
-                .actionGet();
-        double expectedMRR = (1.0 / 1.0 + 1.0 / 5.0) / 2.0;
-        assertEquals(expectedMRR, response.getEvaluationResult(), 0.0);
-
-        // test that a different window size k affects the result
-        metric = new MeanReciprocalRank(1, 3);
-        task = new RankEvalSpec(specifications, metric);
-        task.addIndices(indices);
-
-        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
-        builder.setRankEvalSpec(task);
-
-        response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-        expectedMRR = (1.0 / 1.0) / 2.0;
-        assertEquals(expectedMRR, response.getEvaluationResult(), 0.0);
-    }
-
-    public void testPrecisionAtRequest() {
-        List<String> indices = Arrays.asList(new String[] { "test" });
-
-        List<RatedRequest> specifications = new ArrayList<>();
-        SearchSourceBuilder testQuery = new SearchSourceBuilder();
-        testQuery.query(new MatchAllQueryBuilder());
-        testQuery.sort(FieldSortBuilder.DOC_FIELD_NAME);
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
                 createRelevant("2", "3", "4", "5"), testQuery);
         amsterdamRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
@@ -122,12 +76,11 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("1"),
                 testQuery);
         berlinRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
-
         specifications.add(berlinRequest);
 
         PrecisionAtK metric = new PrecisionAtK(1, false, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
-        task.addIndices(indices);
+        task.addIndices(Collections.singletonList("test"));
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
                 RankEvalAction.INSTANCE, new RankEvalRequest());
@@ -172,7 +125,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // test that a different window size k affects the result
         metric = new PrecisionAtK(1, false, 3);
         task = new RankEvalSpec(specifications, metric);
-        task.addIndices(indices);
+        task.addIndices(Collections.singletonList("test"));
 
         builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
@@ -180,6 +133,70 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         expectedPrecision = (1.0 / 3.0 + 2.0 / 3.0) / 2.0;
         assertEquals(expectedPrecision, response.getEvaluationResult(), Double.MIN_VALUE);
+    }
+
+    public void testNDCGRequest() {
+        SearchSourceBuilder testQuery = new SearchSourceBuilder();
+        testQuery.query(new MatchAllQueryBuilder());
+        testQuery.sort("_id");
+
+        List<RatedRequest> specifications = new ArrayList<>();
+        specifications.add(new RatedRequest("amsterdam_query", createRelevant("5"), testQuery));
+        specifications.add(new RatedRequest("berlin_query", createRelevant("1"), testQuery));
+
+        DiscountedCumulativeGain metric = new DiscountedCumulativeGain(true, null, 10);
+        RankEvalSpec task = new RankEvalSpec(specifications, metric);
+        task.addIndices(Collections.singletonList("test"));
+
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
+
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        assertEquals(0.6934264036172708, response.getEvaluationResult(), Double.MIN_VALUE);
+
+        // test that a different window size k affects the result
+        metric = new DiscountedCumulativeGain(true, null, 3);
+        task = new RankEvalSpec(specifications, metric);
+        task.addIndices(Collections.singletonList("test"));
+
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
+
+        response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        assertEquals(0.5, response.getEvaluationResult(), Double.MIN_VALUE);
+    }
+
+    public void testMRRRequest() {
+        SearchSourceBuilder testQuery = new SearchSourceBuilder();
+        testQuery.query(new MatchAllQueryBuilder());
+        testQuery.sort("_id");
+
+        List<RatedRequest> specifications = new ArrayList<>();
+        specifications.add(new RatedRequest("amsterdam_query", createRelevant("5"), testQuery));
+        specifications.add(new RatedRequest("berlin_query", createRelevant("1"), testQuery));
+
+        MeanReciprocalRank metric = new MeanReciprocalRank(1, 10);
+        RankEvalSpec task = new RankEvalSpec(specifications, metric);
+        task.addIndices(Collections.singletonList("test"));
+
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
+
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        double expectedMRR = (1.0 / 1.0 + 1.0 / 5.0) / 2.0;
+        assertEquals(expectedMRR, response.getEvaluationResult(), 0.0);
+
+        // test that a different window size k affects the result
+        metric = new MeanReciprocalRank(1, 3);
+        task = new RankEvalSpec(specifications, metric);
+        task.addIndices(Collections.singletonList("test"));
+
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
+
+        response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        expectedMRR = (1.0 / 1.0) / 2.0;
+        assertEquals(expectedMRR, response.getEvaluationResult(), 0.0);
     }
 
     /**

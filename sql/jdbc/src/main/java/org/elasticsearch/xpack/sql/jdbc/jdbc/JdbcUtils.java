@@ -198,4 +198,22 @@ public abstract class JdbcUtils {
     static JDBCType type(int jdbcType) {
         return JDBCType.valueOf(jdbcType);
     }
+
+    static Integer numericPrecisionRadix(int type) {
+        switch (type) {
+            case TINYINT:
+            case SMALLINT:
+            case INTEGER:
+            case BIGINT:
+                return 10;
+            case REAL:
+            case DOUBLE:
+            case FLOAT:
+            case DECIMAL:
+            case NUMERIC:
+                return 2;
+            default:
+                return null;
+        }
+    }
 }

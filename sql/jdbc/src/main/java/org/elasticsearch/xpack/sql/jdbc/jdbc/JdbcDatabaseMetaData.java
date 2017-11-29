@@ -22,6 +22,8 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils.numericPrecisionRadix;
+
 /**
  * Implementation of {@link DatabaseMetaData} for Elasticsearch. Draws inspiration
  * from <a href="https://www.postgresql.org/docs/9.0/static/information-schema.html">
@@ -822,7 +824,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             row[ 6] = col.size;
             row[ 7] = null;
             row[ 8] = null;
-            row[ 9] = 10;
+            row[ 9] = numericPrecisionRadix(col.type.getVendorTypeNumber());
             row[10] = columnNullable;
             row[11] = null;
             row[12] = null;

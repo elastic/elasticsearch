@@ -23,21 +23,23 @@ CREATE TABLE mock (
   IS_AUTOINCREMENT VARCHAR,
   IS_GENERATEDCOLUMN VARCHAR
 ) AS
-SELECT '', 'test1', 'name', 12, 'VARCHAR', 2147483647, null, null,
-  10, -- TODO 10 seem wrong to hard code for non-numbers see https://github.com/elastic/x-pack-elasticsearch/issues/3085
+SELECT '', 'test1', 'name', 12, 'VARCHAR', 2147483647, null, null, null,
   1, -- columnNullable
   null, null, null, null, null, 1, 'YES', null, null, null, null, '', ''
 FROM DUAL
 UNION ALL
-SELECT '', 'test2', 'date', 93, 'TIMESTAMP', 19, null, null,
-  10,
+SELECT '', 'test2', 'date', 93, 'TIMESTAMP', 19, null, null, null,
   1, -- columnNullable
   null, null, null, null, null, 1, 'YES', null, null, null, null, '', ''
 FROM DUAL
 UNION ALL
-SELECT '', 'test2', 'number', -5, 'BIGINT', 19, null, null,
-  10,
+SELECT '', 'test2', 'float', 7, 'REAL', 7, null, null, 2,
   1, -- columnNullable
   null, null, null, null, null, 2, 'YES', null, null, null, null, '', ''
+FROM DUAL
+UNION ALL
+SELECT '', 'test2', 'number', -5, 'BIGINT', 19, null, null, 10,
+  1, -- columnNullable
+  null, null, null, null, null, 3, 'YES', null, null, null, null, '', ''
 FROM DUAL
 ;

@@ -76,6 +76,7 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
         index("test2", body -> {
             body.field("number", 7);
             body.field("date", "2017-01-01T01:01:01Z");
+            body.field("float", 42.0);
         });
 
         try (Connection h2 = LocalH2.anonymousDb();

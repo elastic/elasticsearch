@@ -45,6 +45,15 @@ setup:
         index: [test]
 
 ---
+ teardown:
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.max_buckets: null
+
+---
 "Max bucket":
   - skip:
       version: " - 6.99.99"

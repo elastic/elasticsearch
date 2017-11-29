@@ -284,7 +284,7 @@ You may further restrict the permissions by specifying a prefix within the bucke
 // NOTCONSOLE
 
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
-registration will fail. If you want elasticsearch to create the bucket instead, you can add the permission to create a
+registration will fail. If you want Elasticsearch to create the bucket instead, you can add the permission to create a
 specific bucket like this:
 
 [source,js]
@@ -305,6 +305,6 @@ specific bucket like this:
 [float]
 ==== AWS VPC Bandwidth Settings
 
-AWS instances resolve S3 endpoints to a public IP. If the elasticsearch instances reside in a private subnet in an AWS VPC then all traffic to S3 will go through that VPC's NAT instance. If your VPC's NAT instance is a smaller instance size (e.g. a t1.micro) or is handling a high volume of network traffic your bandwidth to S3 may be limited by that NAT instance's networking bandwidth limitations.
+AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch instances reside in a private subnet in an AWS VPC then all traffic to S3 will go through that VPC's NAT instance. If your VPC's NAT instance is a smaller instance size (e.g. a t1.micro) or is handling a high volume of network traffic your bandwidth to S3 may be limited by that NAT instance's networking bandwidth limitations.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.

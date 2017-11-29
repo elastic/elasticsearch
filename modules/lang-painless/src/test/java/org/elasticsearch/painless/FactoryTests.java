@@ -191,4 +191,13 @@ public class FactoryTests extends ScriptTestCase {
         assertEquals("def", script.execute());
         assertEquals("def", script.execute());
     }
+
+    public void testGetterInLambda() {
+        FactoryTestScript.Factory factory =
+            scriptEngine.compile("template_test",
+                "IntSupplier createLambda(IntSupplier s) { return s; } createLambda(() -> params['x'] + test).getAsInt()",
+                FactoryTestScript.CONTEXT, Collections.emptyMap());
+        FactoryTestScript script = factory.newInstance(Collections.singletonMap("x", 1));
+        assertEquals(2, script.execute(1));
+    }
 }

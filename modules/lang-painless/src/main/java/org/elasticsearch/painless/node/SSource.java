@@ -32,6 +32,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
@@ -89,6 +90,8 @@ public final class SSource extends AStatement {
      */
     public interface Reserved {
         void markUsedVariable(String name);
+        Set<String> getUsedVariables();
+        void addUsedVariables(FunctionReserved reserved);
 
         void setMaxLoopCounter(int max);
         int getMaxLoopCounter();
@@ -104,6 +107,16 @@ public final class SSource extends AStatement {
         }
 
         @Override
+        public Set<String> getUsedVariables() {
+            return unmodifiableSet(usedVariables);
+        }
+
+        @Override
+        public void addUsedVariables(FunctionReserved reserved) {
+            usedVariables.addAll(reserved.getUsedVariables());
+        }
+
+        @Override
         public void setMaxLoopCounter(int max) {
             maxLoopCounter = max;
         }
@@ -111,10 +124,6 @@ public final class SSource extends AStatement {
         @Override
         public int getMaxLoopCounter() {
             return maxLoopCounter;
-        }
-
-        public Set<String> getUsedVariables() {
-            return unmodifiableSet(usedVariables);
         }
     }
 

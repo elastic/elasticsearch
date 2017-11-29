@@ -2,7 +2,7 @@
 == Thrift
 
 The https://thrift.apache.org/[thrift] transport module allows to expose the REST interface of
-elasticsearch using thrift. Thrift should provide better performance
+Elasticsearch using thrift. Thrift should provide better performance
 over http. Since thrift provides both the wire protocol and the
 transport, it should make using Elasticsearch more efficient (though it has limited
 documentation).

@@ -1,7 +1,7 @@
 [[modules-discovery-zen]]
 === Zen Discovery
 
-The zen discovery is the built in discovery module for elasticsearch and
+The zen discovery is the built in discovery module for Elasticsearch and
 the default. It provides unicast discovery, but can be extended to
 support cloud environments and other forms of discovery.
 

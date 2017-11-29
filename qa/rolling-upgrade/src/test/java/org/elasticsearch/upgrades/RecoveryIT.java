@@ -179,7 +179,7 @@ public class RecoveryIT extends ESRestTestCase {
                 break;
             case UPGRADED:
                 updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
-                asyncIndexDocs(index, 10, 50).get();
+                asyncIndexDocs(index, 60, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
                 assertCount(index, "_primary", 110);
@@ -246,7 +246,7 @@ public class RecoveryIT extends ESRestTestCase {
                 break;
             case UPGRADED:
                 updateIndexSetting(index, Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
-                asyncIndexDocs(index, 10, 50).get();
+                asyncIndexDocs(index, 60, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
                 assertCount(index, "_primary", 110);

@@ -259,6 +259,9 @@ class ClusterFormationTasks {
                         project.zipTree(configuration.singleFile)
                     }
                     into node.baseDir
+                    doFirst {
+                        node.homeDir.deleteDir()
+                    }
                 }
                 break;
             case 'tar':
@@ -267,6 +270,9 @@ class ClusterFormationTasks {
                         project.tarTree(project.resources.gzip(configuration.singleFile))
                     }
                     into node.baseDir
+                    doFirst {
+                        node.homeDir.deleteDir()
+                    }
                 }
                 break;
             case 'rpm':

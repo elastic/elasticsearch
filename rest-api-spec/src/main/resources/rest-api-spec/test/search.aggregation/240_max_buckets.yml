@@ -1,0 +1,86 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test
+          body:
+              mappings:
+                doc:
+                  properties:
+                    keyword:
+                      type: keyword
+                    date:
+                      type: date
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    1
+        body:  { "date": "2014-03-03T00:00:00" }
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    2
+        body:  { "date": "2015-03-03T00:00:00" }
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    3
+        body:  { "date": "2016-03-03T00:00:00" }
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    4
+        body:  { "date": "2017-03-03T00:00:00" }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"Max bucket":
+  - skip:
+      version: " - 6.99.99"
+      reason:  this uses a new API that has been added in 7.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.max_buckets: 3
+
+  - do:
+      catch: /.*Trying to create too many buckets.*/
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              date_histogram:
+                field: date
+                interval: 1d
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.max_buckets: 100
+
+  - do:
+      catch: /.*Trying to create too many buckets.*/
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              date_histogram:
+                field: date
+                interval: 1d
+                min_doc_count: 0

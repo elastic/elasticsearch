@@ -188,7 +188,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         operations.add(null);
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
         final long requiredStartingSeqNo = randomIntBetween((int) startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
-        final long endingSeqNo = randomIntBetween((int) requiredStartingSeqNo, numberOfDocsWithValidSequenceNumbers);
+        final long endingSeqNo = randomIntBetween((int) requiredStartingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
         // todo add proper tests
         RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, requiredStartingSeqNo,
             endingSeqNo, new Translog.Snapshot() {
@@ -209,7 +209,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     return operations.get(counter++);
                 }
             });
-        final int expectedOps = (int) (endingSeqNo - startingSeqNo);
+        final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         assertThat(result.totalOperations, equalTo(expectedOps));
         final ArgumentCaptor<List> shippedOpsCaptor = ArgumentCaptor.forClass(List.class);
         if (expectedOps > 0) {
@@ -227,7 +227,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         if (endingSeqNo >= requiredStartingSeqNo + 1) {
             // check that missing ops blows up
             List<Translog.Operation> requiredOps = operations.subList(0, operations.size() - 1).stream() // remove last null marker
-                .filter(o -> o.seqNo() >= requiredStartingSeqNo && o.seqNo() < endingSeqNo).collect(Collectors.toList());
+                .filter(o -> o.seqNo() >= requiredStartingSeqNo && o.seqNo() <= endingSeqNo).collect(Collectors.toList());
             List<Translog.Operation> opsToSkip = randomSubsetOf(randomIntBetween(1, requiredOps.size()), requiredOps);
             expectThrows(IllegalStateException.class, () ->
                 handler.sendSnapshot(startingSeqNo, requiredStartingSeqNo,

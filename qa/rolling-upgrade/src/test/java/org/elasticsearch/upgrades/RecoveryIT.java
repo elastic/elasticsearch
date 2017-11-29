@@ -171,6 +171,9 @@ public class RecoveryIT extends ESRestTestCase {
                 updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen();
+                assertOK(client().performRequest("POST", index + "/_refresh"));
+                assertCount(index, "_primary", 60);
+                assertCount(index, "_replica", 60);
                 // make sure that we can index while the replicas are recovering
                 updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
                 break;
@@ -178,19 +181,30 @@ public class RecoveryIT extends ESRestTestCase {
                 updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen();
+                assertOK(client().performRequest("POST", index + "/_refresh"));
+                assertCount(index, "_primary", 110);
+                assertCount(index, "_replica", 110);
                 break;
             default:
                 throw new IllegalStateException("unknown type " + clusterType);
         }
     }
 
-    private String getOldNodeName() throws IOException {
+    private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
+        final Response response = client().performRequest("GET", index + "/_count", Collections.singletonMap("preference", preference));
+        assertOK(response);
+        final int actualCount = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("count").toString());
+        assertThat(actualCount, equalTo(expectedCount));
+    }
+
+
+    private String getNewNodeName() throws IOException {
         Response response = client().performRequest("GET", "_nodes");
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         for (String id : nodesAsMap.keySet()) {
             Version version = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
-            if (version.before(Version.CURRENT)) {
+            if (version.equals(Version.CURRENT)) {
                 return objectPath.evaluate("nodes." + id + ".name");
             }
         }
@@ -214,19 +228,29 @@ public class RecoveryIT extends ESRestTestCase {
                 createIndex(index, settings.build());
                 indexDocs(index, 0, 10);
                 ensureGreen();
-                // make sure that the replicas are not started
+                // make sure that the replicas are not started (so we have the primary on an old node)
                 updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
                 break;
             case MIXED:
+                final String newNodeName = getNewNodeName();
+                // remove the replica now that we know that the primary is an old node
+                updateIndexSetting(index, Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null)
+                );
+                updateIndexSetting(index, Settings.builder().put("index.routing.allocation.include._name", newNodeName));
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen();
-                // make sure that we can index while the replicas are recovering
-                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
+                assertOK(client().performRequest("POST", index + "/_refresh"));
+                assertCount(index, "_primary", 60);
                 break;
             case UPGRADED:
-                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
+                updateIndexSetting(index, Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen();
+                assertOK(client().performRequest("POST", index + "/_refresh"));
+                assertCount(index, "_primary", 110);
+                assertCount(index, "_replica", 110);
                 break;
             default:
                 throw new IllegalStateException("unknown type " + clusterType);

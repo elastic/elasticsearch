@@ -156,8 +156,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                     return SimilarityService.BUILT_IN.get(SimilarityService.DEFAULT_SIMILARITY);
                 }
 
-	            // this entrySet impl isn't fully correct but necessary as SimilarityService will iterate
-	            // over all similarities
+                // this entrySet impl isn't fully correct but necessary as SimilarityService will iterate
+                // over all similarities
                 @Override
                 public Set<Entry<String, SimilarityProvider.Factory>> entrySet() {
                     return Collections.emptySet();
@@ -178,8 +178,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                     return new NamedAnalyzer((String)key, AnalyzerScope.INDEX, fakeDefault.analyzer());
                 }
 
-	            // this entrySet impl isn't fully correct but necessary as IndexAnalyzers will iterate
-	            // over all analyzers to close them
+                // this entrySet impl isn't fully correct but necessary as IndexAnalyzers will iterate
+                // over all analyzers to close them
                 @Override
                 public Set<Entry<String, NamedAnalyzer>> entrySet() {
                     return Collections.emptySet();

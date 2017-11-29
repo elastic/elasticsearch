@@ -70,15 +70,18 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -88,6 +91,8 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RecoverySourceHandlerTests extends ESTestCase {
@@ -181,28 +186,75 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             operations.add(new Translog.Index(index, new Engine.IndexResult(1, i - initialNumberOfDocs, true)));
         }
         operations.add(null);
-        final long startingSeqNo = randomIntBetween(0, 16);
+        final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
+        final long requiredStartingSeqNo = randomIntBetween((int) startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
+        final long endingSeqNo = randomIntBetween((int) requiredStartingSeqNo, numberOfDocsWithValidSequenceNumbers);
         // todo add proper tests
-        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, startingSeqNo,
-            numberOfDocsWithValidSequenceNumbers, new Translog.Snapshot() {
-            @Override
-            public void close() {
+        RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, requiredStartingSeqNo,
+            endingSeqNo, new Translog.Snapshot() {
+                @Override
+                public void close() {
 
+                }
+
+                private int counter = 0;
+
+                @Override
+                public int totalOperations() {
+                    return operations.size() - 1;
+                }
+
+                @Override
+                public Translog.Operation next() throws IOException {
+                    return operations.get(counter++);
+                }
+            });
+        final int expectedOps = (int) (endingSeqNo - startingSeqNo);
+        assertThat(result.totalOperations, equalTo(expectedOps));
+        final ArgumentCaptor<List> shippedOpsCaptor = ArgumentCaptor.forClass(List.class);
+        if (expectedOps > 0) {
+            verify(recoveryTarget).indexTranslogOperations(shippedOpsCaptor.capture(), ArgumentCaptor.forClass(Integer.class).capture());
+            List<Translog.Operation> shippedOps = shippedOpsCaptor.getAllValues().stream()
+                .flatMap(List::stream).map(o -> (Translog.Operation) o).collect(Collectors.toList());
+            shippedOps.sort(Comparator.comparing(Translog.Operation::seqNo));
+            assertThat(shippedOps.size(), equalTo(expectedOps));
+            for (int i = 0; i < shippedOps.size(); i++) {
+                assertThat(shippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
             }
+        } else {
+            verify(recoveryTarget, never()).indexTranslogOperations(null, 0);
+        }
+        if (endingSeqNo >= requiredStartingSeqNo + 1) {
+            // check that missing ops blows up
+            List<Translog.Operation> requiredOps = operations.subList(0, operations.size() - 1).stream() // remove last null marker
+                .filter(o -> o.seqNo() >= requiredStartingSeqNo && o.seqNo() < endingSeqNo).collect(Collectors.toList());
+            List<Translog.Operation> opsToSkip = randomSubsetOf(randomIntBetween(1, requiredOps.size()), requiredOps);
+            expectThrows(IllegalStateException.class, () ->
+                handler.sendSnapshot(startingSeqNo, requiredStartingSeqNo,
+                    endingSeqNo, new Translog.Snapshot() {
+                        @Override
+                        public void close() {
 
-            private int counter = 0;
+                        }
 
-            @Override
-            public int totalOperations() {
-                return operations.size() - 1;
-            }
+                        private int counter = 0;
 
-            @Override
-            public Translog.Operation next() throws IOException {
-                return operations.get(counter++);
-            }
-        });
-        assertThat(result.totalOperations, equalTo(Math.toIntExact(numberOfDocsWithValidSequenceNumbers - startingSeqNo)));
+                        @Override
+                        public int totalOperations() {
+                            return operations.size() - 1 - opsToSkip.size();
+                        }
+
+                        @Override
+                        public Translog.Operation next() throws IOException {
+                            Translog.Operation op;
+                            do {
+                                op = operations.get(counter++);
+                            }
+                            while (op != null && opsToSkip.contains(op));
+                            return op;
+                        }
+                    }));
+        }
     }
 
     private Engine.Index getIndex(final String id) {

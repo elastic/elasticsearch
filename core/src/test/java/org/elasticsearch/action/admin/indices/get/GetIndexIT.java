@@ -127,7 +127,7 @@ public class GetIndexIT extends ESIntegTestCase {
 
     public void testSimpleMixedFeatures() {
         int numFeatures = randomIntBetween(1, Feature.values().length);
-        List<Feature> features = new ArrayList<Feature>(numFeatures);
+        List<Feature> features = new ArrayList<>(numFeatures);
         for (int i = 0; i < numFeatures; i++) {
             features.add(randomFrom(Feature.values()));
         }
@@ -156,7 +156,7 @@ public class GetIndexIT extends ESIntegTestCase {
 
     public void testEmptyMixedFeatures() {
         int numFeatures = randomIntBetween(1, Feature.values().length);
-        List<Feature> features = new ArrayList<Feature>(numFeatures);
+        List<Feature> features = new ArrayList<>(numFeatures);
         for (int i = 0; i < numFeatures; i++) {
             features.add(randomFrom(Feature.values()));
         }

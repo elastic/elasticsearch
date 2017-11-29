@@ -51,6 +51,17 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
         this.repositories = repositories;
     }
 
+    public GetRepositoriesRequest(StreamInput in) throws IOException {
+        super(in);
+        repositories = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(repositories);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -85,13 +96,6 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        repositories = in.readStringArray();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(repositories);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

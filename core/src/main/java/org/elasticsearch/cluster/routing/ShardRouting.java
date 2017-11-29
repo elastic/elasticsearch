@@ -26,7 +26,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,7 +40,7 @@ import java.util.List;
  * {@link ShardRouting} immutably encapsulates information about shard
  * routings like id, state, version, etc.
  */
-public final class ShardRouting implements Writeable, ToXContent {
+public final class ShardRouting implements Writeable, ToXContentObject {
 
     /**
      * Used if shard size is not available
@@ -381,17 +382,6 @@ public final class ShardRouting implements Writeable, ToXContent {
         assert relocatingNodeId != null : this;
         return new ShardRouting(shardId, currentNodeId, null, primary, state, recoverySource, unassignedInfo,
             AllocationId.finishRelocation(allocationId), expectedShardSize);
-    }
-
-    /**
-     * Moves the primary shard from started to initializing
-     */
-    public ShardRouting reinitializePrimaryShard() {
-        assert state == ShardRoutingState.STARTED : this;
-        assert primary : this;
-        return new ShardRouting(shardId, currentNodeId, null, primary, ShardRoutingState.INITIALIZING,
-            StoreRecoverySource.EXISTING_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
-            allocationId, UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
     /**

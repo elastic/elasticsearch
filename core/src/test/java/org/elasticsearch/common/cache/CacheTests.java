@@ -319,6 +319,29 @@ public class CacheTests extends ESTestCase {
         }
     }
 
+    public void testComputeIfAbsentAfterExpiration() throws ExecutionException {
+        AtomicLong now = new AtomicLong();
+        Cache<Integer, String> cache = new Cache<Integer, String>() {
+            @Override
+            protected long now() {
+                return now.get();
+            }
+        };
+        cache.setExpireAfterAccessNanos(1);
+        now.set(0);
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i) + "-first");
+        }
+        now.set(2);
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.computeIfAbsent(i, k -> Integer.toString(k) + "-second");
+        }
+        for (int i = 0; i < numberOfEntries; i++) {
+            assertEquals(i + "-second", cache.get(i));
+        }
+        assertEquals(numberOfEntries, cache.stats().getEvictions());
+    }
+
     // randomly promote some entries, step the clock forward, then check that the promoted entries remain and the
     // non-promoted entries were removed
     public void testPromotion() {

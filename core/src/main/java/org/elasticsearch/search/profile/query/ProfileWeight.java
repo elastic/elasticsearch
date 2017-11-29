@@ -54,7 +54,7 @@ public final class ProfileWeight extends Weight {
         if (supplier == null) {
             return null;
         }
-        return supplier.get(false);
+        return supplier.get(Long.MAX_VALUE);
     }
 
     @Override
@@ -75,10 +75,10 @@ public final class ProfileWeight extends Weight {
         return new ScorerSupplier() {
 
             @Override
-            public Scorer get(boolean randomAccess) throws IOException {
+            public Scorer get(long loadCost) throws IOException {
                 timer.start();
                 try {
-                    return new ProfileScorer(weight, subQueryScorerSupplier.get(randomAccess), profile);
+                    return new ProfileScorer(weight, subQueryScorerSupplier.get(loadCost), profile);
                 } finally {
                     timer.stop();
                 }
@@ -116,6 +116,11 @@ public final class ProfileWeight extends Weight {
     @Override
     public void extractTerms(Set<Term> set) {
         subQueryWeight.extractTerms(set);
+    }
+
+    @Override
+    public boolean isCacheable(LeafReaderContext ctx) {
+        return subQueryWeight.isCacheable(ctx);
     }
 
 }

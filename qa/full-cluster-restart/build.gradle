@@ -17,8 +17,9 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
+
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'
 
@@ -29,7 +30,7 @@ task bwcTest {
   group = 'verification'
 }
 
-for (Version version : indexCompatVersions) {
+for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -48,6 +49,13 @@ for (Version version : indexCompatVersions) {
     numBwcNodes = 2
     numNodes = 2
     clusterName = 'full-cluster-restart'
+
+    // some tests rely on the translog not being flushed
+    setting 'indices.memory.shard_inactive_time', '20m'
+
+    // debug logging for testRecovery
+    setting 'logger.level', 'DEBUG'
+
     if (version.onOrAfter('5.3.0')) {
       setting 'http.content_type.required', 'true'
     }
@@ -64,6 +72,13 @@ for (Version version : indexCompatVersions) {
         "${baseName}#oldClusterTestCluster#node1.stop"
     distribution = 'zip'
     clusterName = 'full-cluster-restart'
+
+    // some tests rely on the translog not being flushed
+    setting 'indices.memory.shard_inactive_time', '20m'
+
+    // debug logging for testRecovery
+    setting 'logger.level', 'DEBUG'
+
     numNodes = 2
     dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
     cleanShared = false // We want to keep snapshots made by the old cluster!
@@ -73,6 +88,7 @@ for (Version version : indexCompatVersions) {
     systemProperty 'tests.is_old_cluster', 'false'
     systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
     systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+
   }
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
@@ -89,7 +105,9 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    dependsOn = ["v${indexCompatVersions[-1]}#bwcTest"]
+    for (final def version : versionCollection.basicIntegrationTestVersions) {
+      dependsOn "v${version}#bwcTest"
+    }
   }
 }
 

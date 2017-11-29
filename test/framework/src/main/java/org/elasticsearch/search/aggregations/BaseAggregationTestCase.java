@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -118,6 +119,20 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
         XContentParser parser = createParser(shuffled);
+        AggregationBuilder newAgg = parse(parser);
+        assertNotSame(newAgg, testAgg);
+        assertEquals(testAgg, newAgg);
+        assertEquals(testAgg.hashCode(), newAgg.hashCode());
+    }
+
+    /**
+     * Generic test that checks that the toString method renders the XContent
+     * correctly.
+     */
+    public void testToString() throws IOException {
+        AB testAgg = createTestAggregatorBuilder();
+        String toString = randomBoolean() ? Strings.toString(testAgg) : testAgg.toString();
+        XContentParser parser = createParser(XContentType.JSON.xContent(), toString);
         AggregationBuilder newAgg = parse(parser);
         assertNotSame(newAgg, testAgg);
         assertEquals(testAgg, newAgg);

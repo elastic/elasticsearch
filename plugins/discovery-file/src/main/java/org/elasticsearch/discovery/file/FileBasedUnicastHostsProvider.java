@@ -71,11 +71,11 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
 
     private final TimeValue resolveTimeout;
 
-    FileBasedUnicastHostsProvider(Settings settings, TransportService transportService, ExecutorService executorService) {
-        super(settings);
+    FileBasedUnicastHostsProvider(Environment environment, TransportService transportService, ExecutorService executorService) {
+        super(environment.settings());
         this.transportService = transportService;
         this.executorService = executorService;
-        this.unicastHostsFilePath = new Environment(settings).configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
+        this.unicastHostsFilePath = environment.configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
         this.resolveTimeout = DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
     }
 

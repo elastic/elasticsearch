@@ -291,3 +291,42 @@ setup:
   - match:  { suggest.result.0.options.1._type: "test" }
   - match:  { suggest.result.0.options.1._source.title: "title_bar" }
   - match:  { suggest.result.0.options.1._source.count: 4 }
+
+---
+"Skip duplicates should work":
+  - skip:
+      version: " - 6.0.99"
+      reason: skip_duplicates was added in 6.1
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    1
+        body:
+          suggest_1: "bar"
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    2
+        body:
+          suggest_1: "bar"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body:
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: suggest_1
+                skip_duplicates: true
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "bar" }

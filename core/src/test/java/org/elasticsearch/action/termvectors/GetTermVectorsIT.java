@@ -189,7 +189,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.tv_test.filter", "lowercase")));
+                        .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
@@ -261,7 +261,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(Settings.builder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.tv_test.filter", "lowercase")));
+                        .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
@@ -395,7 +395,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                        .putArray("index.analysis.analyzer.tv_test.filter", "lowercase")));
+                        .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
 
         ensureGreen();
 

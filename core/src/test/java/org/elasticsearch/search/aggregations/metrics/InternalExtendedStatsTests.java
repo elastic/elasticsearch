@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ParsedExtend
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -81,7 +82,7 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         assertEquals(expectedCount, reduced.getCount());
         // The order in which you add double values in java can give different results. The difference can
         // be larger for large sum values, so we make the delta in the assertion depend on the values magnitude
-        assertEquals(expectedSum, reduced.getSum(), Math.abs(expectedSum) * 1e-12);
+        assertEquals(expectedSum, reduced.getSum(), Math.abs(expectedSum) * 1e-11);
         assertEquals(expectedMin, reduced.getMin(), 0d);
         assertEquals(expectedMax, reduced.getMax(), 0d);
         // summing squared values, see reason for delta above
@@ -114,5 +115,77 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
     @Override
     protected Writeable.Reader<InternalExtendedStats> instanceReader() {
         return InternalExtendedStats::new;
+    }
+
+    @Override
+    protected InternalExtendedStats mutateInstance(InternalExtendedStats instance) {
+        String name = instance.getName();
+        long count = instance.getCount();
+        double sum = instance.getSum();
+        double min = instance.getMin();
+        double max = instance.getMax();
+        double sumOfSqrs = instance.getSumOfSquares();
+        double sigma = instance.getSigma();
+        DocValueFormat formatter = instance.format;
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 7)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            if (Double.isFinite(count)) {
+                count += between(1, 100);
+            } else {
+                count = between(1, 100);
+            }
+            break;
+        case 2:
+            if (Double.isFinite(sum)) {
+                sum += between(1, 100);
+            } else {
+                sum = between(1, 100);
+            }
+            break;
+        case 3:
+            if (Double.isFinite(min)) {
+                min += between(1, 100);
+            } else {
+                min = between(1, 100);
+            }
+            break;
+        case 4:
+            if (Double.isFinite(max)) {
+                max += between(1, 100);
+            } else {
+                max = between(1, 100);
+            }
+            break;
+        case 5:
+            if (Double.isFinite(sumOfSqrs)) {
+                sumOfSqrs += between(1, 100);
+            } else {
+                sumOfSqrs = between(1, 100);
+            }
+            break;
+        case 6:
+            if (Double.isFinite(sigma)) {
+                sigma += between(1, 10);
+            } else {
+                sigma = between(1, 10);
+            }
+            break;
+        case 7:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metaData);
     }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -42,11 +41,13 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
@@ -54,11 +55,22 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
  */
 public final class SFunction extends AStatement {
     public static final class FunctionReserved implements Reserved {
+        private final Set<String> usedVariables = new HashSet<>();
         private int maxLoopCounter = 0;
 
         @Override
         public void markUsedVariable(String name) {
-            // Do nothing.
+            usedVariables.add(name);
+        }
+
+        @Override
+        public Set<String> getUsedVariables() {
+            return unmodifiableSet(usedVariables);
+        }
+
+        @Override
+        public void addUsedVariables(FunctionReserved reserved) {
+            usedVariables.addAll(reserved.getUsedVariables());
         }
 
         @Override
@@ -163,7 +175,7 @@ public final class SFunction extends AStatement {
             allEscape = statement.allEscape;
         }
 
-        if (!methodEscape && rtnType.sort != Sort.VOID) {
+        if (!methodEscape && rtnType.clazz != void.class) {
             throw createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
         }
 
@@ -198,7 +210,7 @@ public final class SFunction extends AStatement {
         }
 
         if (!methodEscape) {
-            if (rtnType.sort == Sort.VOID) {
+            if (rtnType.clazz == void.class) {
                 function.returnValue();
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));

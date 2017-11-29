@@ -40,7 +40,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     protected final double[] keys;
     protected final DoubleHistogram state;
-    private final boolean keyed;
+    protected final boolean keyed;
 
     AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
             List<PipelineAggregator> pipelineAggregators,
@@ -87,6 +87,10 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     @Override
     public double value(String name) {
         return value(Double.parseDouble(name));
+    }
+
+    DocValueFormat formatter() {
+        return format;
     }
 
     public abstract double value(double key);

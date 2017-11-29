@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.reindex.remote;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.ContentType;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;

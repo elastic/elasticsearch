@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -34,9 +35,9 @@ public class TransportSearchIT extends ESIntegTestCase {
             final int numPrimaries1 = randomIntBetween(2, 10);
             final int numPrimaries2 = randomIntBetween(1, 10);
             assertAcked(prepareCreate("test1")
-                    .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numPrimaries1));
+                    .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numPrimaries1)));
             assertAcked(prepareCreate("test2")
-                    .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numPrimaries2));
+                    .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numPrimaries2)));
 
             // no exception
             client().prepareSearch("test1").get();

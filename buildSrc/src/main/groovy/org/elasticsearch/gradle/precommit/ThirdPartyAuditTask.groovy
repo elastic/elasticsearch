@@ -26,7 +26,6 @@ import org.apache.tools.ant.DefaultLogger;
 import org.apache.tools.ant.Project;
 import org.elasticsearch.gradle.AntTask;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.FileCollectionDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
@@ -86,11 +85,7 @@ public class ThirdPartyAuditTask extends AntTask {
 
             // we only want third party dependencies.
             jars = configuration.fileCollection({ dependency ->
-                // include SelfResolvingDependency with files in the validation
-                if (dependency instanceof FileCollectionDependency) {
-                    return true
-                }
-                return dependency.group && dependency.group.startsWith("org.elasticsearch") == false
+                dependency.group.startsWith("org.elasticsearch") == false
             });
 
             // we don't want provided dependencies, which we have already scanned. e.g. don't

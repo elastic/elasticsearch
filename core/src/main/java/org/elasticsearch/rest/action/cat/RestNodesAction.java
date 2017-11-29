@@ -205,6 +205,8 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("script.compilations", "alias:scrcc,scriptCompilations;default:false;text-align:right;desc:script compilations");
         table.addCell("script.cache_evictions",
             "alias:scrce,scriptCacheEvictions;default:false;text-align:right;desc:script cache evictions");
+        table.addCell("script.compilation_limit_triggered", "alias:scrclt,scriptCacheCompilationLimitTriggered;default:false;" +
+                "text-align:right;desc:script cache compilation limit triggered");
 
         table.addCell("search.fetch_current", "alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
         table.addCell("search.fetch_time", "alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
@@ -367,6 +369,7 @@ public class RestNodesAction extends AbstractCatAction {
             ScriptStats scriptStats = stats == null ? null : stats.getScriptStats();
             table.addCell(scriptStats == null ? null : scriptStats.getCompilations());
             table.addCell(scriptStats == null ? null : scriptStats.getCacheEvictions());
+            table.addCell(scriptStats == null ? null : scriptStats.getCompilationLimitTriggered());
 
             SearchStats searchStats = indicesStats == null ? null : indicesStats.getSearch();
             table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchCurrent());

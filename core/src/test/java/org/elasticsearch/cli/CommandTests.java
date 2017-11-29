@@ -28,7 +28,7 @@ public class CommandTests extends ESTestCase {
     static class UserErrorCommand extends Command {
 
         UserErrorCommand() {
-            super("Throws a user error");
+            super("Throws a user error", () -> {});
         }
 
         @Override
@@ -46,7 +46,7 @@ public class CommandTests extends ESTestCase {
     static class UsageErrorCommand extends Command {
 
         UsageErrorCommand() {
-            super("Throws a usage error");
+            super("Throws a usage error", () -> {});
         }
 
         @Override
@@ -66,7 +66,7 @@ public class CommandTests extends ESTestCase {
         boolean executed = false;
 
         NoopCommand() {
-            super("Does nothing");
+            super("Does nothing", () -> {});
         }
 
         @Override

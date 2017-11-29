@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
@@ -150,9 +151,9 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 true,
                 output -> {},
                 (foreground, pidFile, quiet, env) -> {
-                    Map<String, String> settings = env.settings().getAsMap();
-                    assertThat(settings, hasEntry("foo", "bar"));
-                    assertThat(settings, hasEntry("baz", "qux"));
+                    Settings settings = env.settings();
+                    assertEquals("bar", settings.get("foo"));
+                    assertEquals("qux", settings.get("baz"));
                 },
                 "-Efoo=bar", "-E", "baz=qux");
     }

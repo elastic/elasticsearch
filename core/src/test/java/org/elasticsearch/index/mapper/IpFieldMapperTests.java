@@ -262,7 +262,6 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
         // a whole lot of bogus settings right now it picks up from calling super.doXContentBody...
         assertTrue(got, got.contains("\"null_value\":null"));
         assertTrue(got, got.contains("\"ignore_malformed\":false"));
-        assertTrue(got, got.contains("\"include_in_all\":false"));
     }
 
     public void testEmptyName() throws IOException {

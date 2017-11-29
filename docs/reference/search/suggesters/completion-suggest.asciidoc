@@ -156,9 +156,9 @@ POST music/_search?pretty
 {
     "suggest": {
         "song-suggest" : {
-            "prefix" : "nir",
-            "completion" : {
-                "field" : "suggest"
+            "prefix" : "nir", <1>
+            "completion" : { <2>
+                "field" : "suggest" <3>
             }
         }
     }
@@ -166,6 +166,10 @@ POST music/_search?pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+<1> Prefix used to search for suggestions
+<2> Type of suggestions
+<3> Name of the field to search for suggestions in
 
 returns this response:
 
@@ -218,14 +222,15 @@ filtering but using suggest on the `_search` endpoint does:
 
 [source,js]
 --------------------------------------------------
-POST music/_search?size=0
+POST music/_search
 {
-    "_source": "suggest",
+    "_source": "suggest", <1>
     "suggest": {
         "song-suggest" : {
             "prefix" : "nir",
             "completion" : {
-                "field" : "suggest"
+                "field" : "suggest", <2>
+                "size" : 5 <3>
             }
         }
     }
@@ -233,6 +238,10 @@ POST music/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+<1> Filter the source to return only the `suggest` field
+<2> Name of the field to search for suggestions in
+<3> Number of suggestions to return
 
 Which should look like:
 
@@ -277,6 +286,7 @@ The basic completion suggester query supports the following parameters:
 
 `field`:: The name of the field on which to run the query (required).
 `size`::  The number of suggestions to return (defaults to `5`).
+`skip_duplicates`:: Whether duplicate suggestions should be filtered out (defaults to `false`).
 
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
@@ -290,6 +300,33 @@ multiple shards. To get best performance for completions, it is recommended to
 index completions into a single shard index. In case of high heap usage due to
 shard size, it is still recommended to break index into multiple shards instead
 of optimizing for completion performance.
+
+[[skip_duplicates]]
+==== Skip duplicate suggestions
+
+Queries can return duplicate suggestions coming from different documents.
+It is possible to modify this behavior by setting `skip_duplicates` to true.
+When set, this option filters out documents with duplicate suggestions from the result.
+
+[source,js]
+--------------------------------------------------
+POST music/_search?pretty
+{
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nor",
+            "completion" : {
+                "field" : "suggest",
+                "skip_duplicates": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+WARNING: when set to true this option can slow down search because more suggestions
+need to be visited to find the top N.
 
 [[fuzzy]]
 ==== Fuzzy queries

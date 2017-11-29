@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -55,12 +54,12 @@ final class PSubShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
+        if (getter != null && (getter.rtn.clazz == void.class || !getter.arguments.isEmpty())) {
             throw createError(new IllegalArgumentException(
                 "Illegal get shortcut on field [" + value + "] for type [" + type + "]."));
         }
 
-        if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 1)) {
+        if (setter != null && (setter.rtn.clazz != void.class || setter.arguments.size() != 1)) {
             throw createError(new IllegalArgumentException(
                 "Illegal set shortcut on field [" + value + "] for type [" + type + "]."));
         }
@@ -124,7 +123,7 @@ final class PSubShortcut extends AStoreable {
 
         setter.write(writer);
 
-        writer.writePop(setter.rtn.sort.size);
+        writer.writePop(setter.rtn.type.getSize());
     }
 
     @Override

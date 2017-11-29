@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -34,6 +33,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 
@@ -74,7 +74,7 @@ final class SSubEachIterable extends AStatement {
         iterator = locals.addVariable(location, locals.getDefinition().getType("Iterator"),
                 "#itr" + location.getOffset(), true);
 
-        if (expression.actual.sort == Sort.DEF) {
+        if (expression.actual.dynamic) {
             method = null;
         } else {
             method = expression.actual.struct.methods.get(new MethodKey("iterator", 0));
@@ -85,7 +85,7 @@ final class SSubEachIterable extends AStatement {
             }
         }
 
-        cast = AnalyzerCaster.getLegalCast(location, Definition.DEF_TYPE, variable.type, true, true);
+        cast = locals.getDefinition().caster.getLegalCast(location, locals.getDefinition().DefType, variable.type, true, true);
     }
 
     @Override
@@ -96,7 +96,7 @@ final class SSubEachIterable extends AStatement {
 
         if (method == null) {
             org.objectweb.asm.Type methodType = org.objectweb.asm.Type
-                    .getMethodType(Definition.ITERATOR_TYPE.type, Definition.DEF_TYPE.type);
+                    .getMethodType(org.objectweb.asm.Type.getType(Iterator.class), org.objectweb.asm.Type.getType(Object.class));
             writer.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
             method.write(writer);

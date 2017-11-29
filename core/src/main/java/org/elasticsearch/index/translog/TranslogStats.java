@@ -19,15 +19,16 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class TranslogStats extends ToXContentToBytes implements Streamable {
+public class TranslogStats implements Streamable, ToXContentFragment {
 
     private long translogSizeInBytes;
     private int numberOfOperations;
@@ -94,6 +95,11 @@ public class TranslogStats extends ToXContentToBytes implements Streamable {
         builder.byteSizeField("uncommitted_size_in_bytes", "uncommitted_size", uncommittedSizeInBytes);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 
     @Override

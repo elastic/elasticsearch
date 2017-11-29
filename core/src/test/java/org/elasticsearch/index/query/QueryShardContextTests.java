@@ -20,7 +20,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -64,8 +62,8 @@ public class QueryShardContextTests extends ESTestCase {
         final long nowInMillis = randomNonNegativeLong();
 
         QueryShardContext context = new QueryShardContext(
-            0, indexSettings, null, mappedFieldType ->
-                mappedFieldType.fielddataBuilder().build(indexSettings, mappedFieldType, null, null, null)
+            0, indexSettings, null, (mappedFieldType, idxName) ->
+                mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null)
                 , mapperService, null, null, xContentRegistry(), writableRegistry(), null, null,
             () -> nowInMillis, null);
 
@@ -109,8 +107,8 @@ public class QueryShardContextTests extends ESTestCase {
         IndexFieldMapper mapper = new IndexFieldMapper.Builder(null).build(ctx);
         final String clusterAlias = randomBoolean() ? null : "remote_cluster";
         QueryShardContext context = new QueryShardContext(
-            0, indexSettings, null, mappedFieldType ->
-            mappedFieldType.fielddataBuilder().build(indexSettings, mappedFieldType, null, null, mapperService)
+            0, indexSettings, null, (mappedFieldType, indexname) ->
+            mappedFieldType.fielddataBuilder(indexname).build(indexSettings, mappedFieldType, null, null, mapperService)
             , mapperService, null, null, xContentRegistry(), writableRegistry(), null, null,
             () -> nowInMillis, clusterAlias);
 

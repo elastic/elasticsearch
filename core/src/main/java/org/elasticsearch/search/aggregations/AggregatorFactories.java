@@ -18,17 +18,16 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -239,16 +238,7 @@ public class AggregatorFactories {
         return pipelineAggregatorFactories.size();
     }
 
-    public void validate() {
-        for (AggregatorFactory<?> factory : factories) {
-            factory.validate();
-        }
-        for (PipelineAggregationBuilder factory : pipelineAggregatorFactories) {
-            factory.validate(parent, factories, pipelineAggregatorFactories);
-        }
-    }
-
-    public static class Builder extends ToXContentToBytes implements Writeable {
+    public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
         private final List<AggregationBuilder> aggregationBuilders = new ArrayList<>();
         private final List<PipelineAggregationBuilder> pipelineAggregatorBuilders = new ArrayList<>();
@@ -331,7 +321,8 @@ public class AggregatorFactories {
             if (skipResolveOrder) {
                 orderedpipelineAggregators = new ArrayList<>(pipelineAggregatorBuilders);
             } else {
-                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders);
+                orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders,
+                        parent);
             }
             AggregatorFactory<?>[] aggFactories = new AggregatorFactory<?>[aggregationBuilders.size()];
             for (int i = 0; i < aggregationBuilders.size(); i++) {
@@ -341,7 +332,8 @@ public class AggregatorFactories {
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
-                List<PipelineAggregationBuilder> pipelineAggregatorBuilders, List<AggregationBuilder> aggBuilders) {
+                List<PipelineAggregationBuilder> pipelineAggregatorBuilders, List<AggregationBuilder> aggBuilders,
+                AggregatorFactory<?> parent) {
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap = new HashMap<>();
             for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
                 pipelineAggregatorBuildersMap.put(builder.getName(), builder);
@@ -355,6 +347,7 @@ public class AggregatorFactories {
             Set<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
             while (!unmarkedBuilders.isEmpty()) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
+                builder.validate(parent, aggBuilders, pipelineAggregatorBuilders);
                 resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,
                         temporarilyMarked, builder);
             }
@@ -454,6 +447,11 @@ public class AggregatorFactories {
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
         }
 
         @Override

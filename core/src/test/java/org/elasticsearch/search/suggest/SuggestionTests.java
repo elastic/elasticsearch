@@ -79,7 +79,7 @@ public class SuggestionTests extends ESTestCase {
             suggestion = new PhraseSuggestion(name, size);
             entrySupplier = () -> SuggestionEntryTests.createTestItem(PhraseSuggestion.Entry.class);
         } else if (type == CompletionSuggestion.class) {
-            suggestion = new CompletionSuggestion(name, size);
+            suggestion = new CompletionSuggestion(name, size, randomBoolean());
             entrySupplier = () -> SuggestionEntryTests.createTestItem(CompletionSuggestion.Entry.class);
         } else {
             throw new UnsupportedOperationException("type not supported [" + type + "]");
@@ -249,7 +249,7 @@ public class SuggestionTests extends ESTestCase {
             CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(1, new Text("someText"), 1.3f, contexts);
             CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text("entryText"), 42, 313);
             entry.addOption(option);
-            CompletionSuggestion suggestion = new CompletionSuggestion("suggestionName", 5);
+            CompletionSuggestion suggestion = new CompletionSuggestion("suggestionName", 5, randomBoolean());
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
             assertEquals(

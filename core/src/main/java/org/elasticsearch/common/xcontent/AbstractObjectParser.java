@@ -49,7 +49,7 @@ public abstract class AbstractObjectParser<Value, Context>
     /**
      * Declares named objects in the style of aggregations. These are named
      * inside and object like this:
-     * 
+     *
      * <pre>
      * <code>
      * {
@@ -62,7 +62,7 @@ public abstract class AbstractObjectParser<Value, Context>
      * }
      * </code>
      * </pre>
-     * 
+     *
      * Unlike the other version of this method, "ordered" mode (arrays of
      * objects) is not supported.
      *
@@ -82,7 +82,7 @@ public abstract class AbstractObjectParser<Value, Context>
     /**
      * Declares named objects in the style of highlighting's field element.
      * These are usually named inside and object like this:
-     * 
+     *
      * <pre>
      * <code>
      * {
@@ -96,9 +96,9 @@ public abstract class AbstractObjectParser<Value, Context>
      * }
      * </code>
      * </pre>
-     * 
+     *
      * but, when order is important, some may be written this way:
-     * 
+     *
      * <pre>
      * <code>
      * {
@@ -112,7 +112,7 @@ public abstract class AbstractObjectParser<Value, Context>
      * }
      * </code>
      * </pre>
-     * 
+     *
      * This is because json doesn't enforce ordering. Elasticsearch reads it in
      * the order sent but tools that generate json are free to put object
      * members in an unordered Map, jumbling them. Thus, if you care about order
@@ -133,6 +133,8 @@ public abstract class AbstractObjectParser<Value, Context>
      */
     public abstract <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             Consumer<Value> orderedModeCallback, ParseField parseField);
+
+    public abstract String getName();
 
     public <T> void declareField(BiConsumer<Value, T> consumer, CheckedFunction<XContentParser, T, IOException> parser,
             ParseField parseField, ValueType type) {

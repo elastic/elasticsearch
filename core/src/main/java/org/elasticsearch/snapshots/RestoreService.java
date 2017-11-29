@@ -76,12 +76,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
@@ -188,7 +188,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
             final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
             final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
-            MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
+            final MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
 
             // Make sure that we can restore from this snapshot
             validateSnapshotRestorable(request.repositoryName, snapshotInfo);
@@ -386,40 +386,45 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                     }
                     Settings normalizedChangeSettings = Settings.builder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
                     IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
-                    Map<String, String> settingsMap = new HashMap<>(indexMetaData.getSettings().getAsMap());
+                    Settings settings = indexMetaData.getSettings();
+                    Set<String> keyFilters = new HashSet<>();
                     List<String> simpleMatchPatterns = new ArrayList<>();
                     for (String ignoredSetting : ignoreSettings) {
                         if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
                             if (UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
                                 throw new SnapshotRestoreException(snapshot, "cannot remove setting [" + ignoredSetting + "] on restore");
                             } else {
-                                settingsMap.remove(ignoredSetting);
+                                keyFilters.add(ignoredSetting);
                             }
                         } else {
                             simpleMatchPatterns.add(ignoredSetting);
                         }
                     }
-                    if (!simpleMatchPatterns.isEmpty()) {
-                        String[] removePatterns = simpleMatchPatterns.toArray(new String[simpleMatchPatterns.size()]);
-                        Iterator<Map.Entry<String, String>> iterator = settingsMap.entrySet().iterator();
-                        while (iterator.hasNext()) {
-                            Map.Entry<String, String> entry = iterator.next();
-                            if (UNREMOVABLE_SETTINGS.contains(entry.getKey()) == false) {
-                                if (Regex.simpleMatch(removePatterns, entry.getKey())) {
-                                    iterator.remove();
+                    Predicate<String> settingsFilter = k -> {
+                        if (UNREMOVABLE_SETTINGS.contains(k) == false) {
+                            for (String filterKey : keyFilters) {
+                                if (k.equals(filterKey)) {
+                                    return false;
+                                }
+                            }
+                            for (String pattern : simpleMatchPatterns) {
+                                if (Regex.simpleMatch(pattern, k)) {
+                                    return false;
                                 }
                             }
                         }
-                    }
-                    for(Map.Entry<String, String> entry : normalizedChangeSettings.getAsMap().entrySet()) {
-                        if (UNMODIFIABLE_SETTINGS.contains(entry.getKey())) {
-                            throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + entry.getKey() + "] on restore");
-                        } else {
-                            settingsMap.put(entry.getKey(), entry.getValue());
-                        }
-                    }
-
-                    return builder.settings(Settings.builder().put(settingsMap)).build();
+                        return true;
+                    };
+                    Settings.Builder settingsBuilder = Settings.builder()
+                        .put(settings.filter(settingsFilter))
+                        .put(normalizedChangeSettings.filter(k -> {
+                            if (UNMODIFIABLE_SETTINGS.contains(k)) {
+                                throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
+                            } else {
+                                return true;
+                            }
+                        }));
+                    return builder.settings(settingsBuilder).build();
                 }
 
                 private void restoreGlobalStateIfRequested(MetaData.Builder mdBuilder) {

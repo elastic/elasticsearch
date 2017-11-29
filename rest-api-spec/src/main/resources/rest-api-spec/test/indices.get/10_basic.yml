@@ -160,3 +160,14 @@ setup:
   - is_true: test_index_2.settings
   - is_true: test_index_3.settings
 
+---
+"Should return an exception when querying invalid indices":
+ - skip:
+     version: " - 5.99.99"
+     reason: "bad request logic added in 6.0.0"
+
+ - do:
+     catch: bad_request
+     indices.get:
+       index: _foo
+

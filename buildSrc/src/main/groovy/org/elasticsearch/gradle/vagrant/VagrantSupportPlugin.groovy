@@ -45,7 +45,7 @@ class VagrantSupportPlugin implements Plugin<Project> {
             }
             String version = pipe.toString().trim()
             if (runResult.exitValue == 0) {
-                if (version ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/) {
+                if (version ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/ || version ==~ /Vagrant 2\.[0-9]+\.[0-9]+/) {
                     return [ 'supported' : true ]
                 } else {
                     return [ 'supported' : false,

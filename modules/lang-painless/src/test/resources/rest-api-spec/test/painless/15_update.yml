@@ -124,7 +124,7 @@
               count:  1
 
   - do:
-      catch: request
+      catch: bad_request
       update:
           index:  test_1
           type:   test

@@ -27,6 +27,3 @@ dependencies {
   compile "com.github.spullara.mustache.java:compiler:0.9.3"
 }
 
-integTestCluster {
-  setting 'script.max_compilations_per_minute', '1000'
-}

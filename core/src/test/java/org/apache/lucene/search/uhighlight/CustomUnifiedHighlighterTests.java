@@ -43,7 +43,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.test.ESTestCase;
 
@@ -144,18 +143,6 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         query.add(new Term("text", "quick"));
         query.add(new Term("text", "brown"));
         query.add(new Term("text", "fo"));
-        assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
-            BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
-    }
-
-    public void testAllTermQuery() throws Exception {
-        final String[] inputs = {
-            "The quick brown fox."
-        };
-        final String[] outputs = {
-            "The quick brown <b>fox</b>."
-        };
-        AllTermQuery query = new AllTermQuery(new Term("text", "fox"));
         assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
             BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }

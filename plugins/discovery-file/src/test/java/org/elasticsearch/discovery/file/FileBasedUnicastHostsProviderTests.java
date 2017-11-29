@@ -27,6 +27,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -126,7 +127,8 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         final Settings settings = Settings.builder()
                                       .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                                       .build();
-        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(settings, transportService, executorService);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(environment, transportService, executorService);
         final List<DiscoveryNode> nodes = provider.buildDynamicNodes();
         assertEquals(0, nodes.size());
     }
@@ -152,13 +154,20 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         final Settings settings = Settings.builder()
                                       .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                                       .build();
-        final Path configDir = homeDir.resolve("config").resolve("discovery-file");
-        Files.createDirectories(configDir);
-        final Path unicastHostsPath = configDir.resolve(UNICAST_HOSTS_FILE);
+        final Path configPath;
+        if (randomBoolean()) {
+            configPath = homeDir.resolve("config");
+        } else {
+            configPath = createTempDir();
+        }
+        final Path discoveryFilePath = configPath.resolve("discovery-file");
+        Files.createDirectories(discoveryFilePath);
+        final Path unicastHostsPath = discoveryFilePath.resolve(UNICAST_HOSTS_FILE);
         try (BufferedWriter writer = Files.newBufferedWriter(unicastHostsPath)) {
             writer.write(String.join("\n", hostEntries));
         }
 
-        return new FileBasedUnicastHostsProvider(settings, transportService, executorService).buildDynamicNodes();
+        return new FileBasedUnicastHostsProvider(
+                new Environment(settings, configPath), transportService, executorService).buildDynamicNodes();
     }
 }

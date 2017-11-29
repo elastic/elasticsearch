@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -63,5 +64,45 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         if (avg.getCount() != 0) {
             assertEquals(avg.getValueAsString(), parsed.getValueAsString());
         }
+    }
+
+    @Override
+    protected InternalAvg mutateInstance(InternalAvg instance) {
+        String name = instance.getName();
+        double sum = instance.getSum();
+        long count = instance.getCount();
+        DocValueFormat formatter = instance.getFormatter();
+        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 2)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            if (Double.isFinite(sum)) {
+                sum += between(1, 100);
+            } else {
+                sum = between(1, 100);
+            }
+            break;
+        case 2:
+            if (Double.isFinite(count)) {
+                count += between(1, 100);
+            } else {
+                count = between(1, 100);
+            }
+            break;
+        case 3:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalAvg(name, sum, count, formatter, pipelineAggregators, metaData);
     }
 }

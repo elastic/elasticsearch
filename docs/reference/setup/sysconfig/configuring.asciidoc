@@ -92,14 +92,23 @@ specified via systemd.
 The systemd service file (`/usr/lib/systemd/system/elasticsearch.service`)
 contains the limits that are applied by default.
 
-To override these, add a file called
-`/etc/systemd/system/elasticsearch.service.d/elasticsearch.conf` and specify
-any changes in that file, such as:
+To override them, add a file called
+`/etc/systemd/system/elasticsearch.service.d/override.conf` (alternatively,
+you may run `sudo systemctl edit elasticsearch` which opens the file 
+automatically inside your default editor). Set any changes in this file,
+such as:
 
 [source,sh]
 ---------------------------------
 [Service]
 LimitMEMLOCK=infinity
+---------------------------------
+
+Once finished, run the following command to reload units:
+
+[source,sh]
+---------------------------------
+sudo systemctl daemon-reload
 ---------------------------------
 
 [[jvm-options]]

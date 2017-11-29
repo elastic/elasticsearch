@@ -29,6 +29,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -52,12 +53,11 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
 
     CJKBigramFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        outputUnigrams = settings.getAsBooleanLenientForPreEs6Indices(
-            indexSettings.getIndexVersionCreated(), "output_unigrams", false, deprecationLogger);
-        final String[] asArray = settings.getAsArray("ignored_scripts");
+        outputUnigrams = settings.getAsBoolean("output_unigrams", false);
+        final List<String> asArray = settings.getAsList("ignored_scripts");
         Set<String> scripts = new HashSet<>(Arrays.asList("han", "hiragana", "katakana", "hangul"));
         if (asArray != null) {
-            scripts.removeAll(Arrays.asList(asArray));
+            scripts.removeAll(asArray);
         }
         int flags = 0;
         for (String script : scripts) {

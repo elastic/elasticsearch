@@ -76,7 +76,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         w.close();
 
         MappedFieldType ft = mapperService.fullName(TypeFieldMapper.NAME);
-        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder().build(mapperService.getIndexSettings(),
+        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
                 ft, new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         AtomicOrdinalsFieldData afd = fd.load(r.leaves().get(0));
         SortedSetDocValues values = afd.getOrdinalsValues();

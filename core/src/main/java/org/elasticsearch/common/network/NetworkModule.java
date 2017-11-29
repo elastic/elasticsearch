@@ -63,7 +63,6 @@ public final class NetworkModule {
 
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
     public static final String HTTP_TYPE_KEY = "http.type";
-    public static final String LOCAL_TRANSPORT = "local";
     public static final String HTTP_TYPE_DEFAULT_KEY = "http.type.default";
     public static final String TRANSPORT_TYPE_DEFAULT_KEY = "transport.type.default";
 

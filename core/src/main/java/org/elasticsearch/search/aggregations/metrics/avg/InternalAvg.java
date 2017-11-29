@@ -78,6 +78,10 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         return count;
     }
 
+    DocValueFormat getFormatter() {
+        return format;
+    }
+
     @Override
     public String getWriteableName() {
         return AvgAggregationBuilder.NAME;

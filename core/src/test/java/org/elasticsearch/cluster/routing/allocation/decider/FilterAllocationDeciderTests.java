@@ -73,7 +73,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
         // after failing the shard we are unassigned since the node is blacklisted and we can't initialize on the other node
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0, false);
+            null, 0);
         allocation.debugDecision(true);
         Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).primaryShard(),
@@ -124,7 +124,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node1");
 
         allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0, false);
+            null, 0);
         allocation.debugDecision(true);
         decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).shards().get(0),
@@ -183,13 +183,24 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testInvalidIPFilter() {
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
-        Setting<Settings> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+        Setting<String> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
             IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
+        String invalidIP = randomFrom("192..168.1.1", "192.300.1.1");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             IndexScopedSettings indexScopedSettings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-            indexScopedSettings.updateDynamicSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192..168.1.1").build(),
+            indexScopedSettings.updateDynamicSettings(Settings.builder().put(filterSetting.getKey() + ipKey, invalidIP).build(),
                 Settings.builder().put(Settings.EMPTY), Settings.builder(), "test ip validation");
         });
-        assertEquals("invalid IP address [192..168.1.1] for [" + ipKey + "]", e.getMessage());
+        assertEquals("invalid IP address [" + invalidIP + "] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
+    }
+
+    public void testWildcardIPFilter() {
+        String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
+        Setting<String> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
+        String wildcardIP = randomFrom("192.168.*", "192.*.1.1");
+        IndexScopedSettings indexScopedSettings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        indexScopedSettings.updateDynamicSettings(Settings.builder().put(filterSetting.getKey() + ipKey, wildcardIP).build(),
+            Settings.builder().put(Settings.EMPTY), Settings.builder(), "test ip validation");
     }
 }

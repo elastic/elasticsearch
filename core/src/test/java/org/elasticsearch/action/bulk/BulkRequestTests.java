@@ -292,7 +292,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.field("_index", "index");
                 builder.field("_type", "type");
                 builder.field("_id", "id");
-                builder.field("_version", 1L);
+                builder.field("version", 1L);
                 builder.endObject();
                 builder.endObject();
             }
@@ -301,7 +301,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.startObject();
                 builder.field("doc", "{}");
                 Map<String,Object> values = new HashMap<>();
-                values.put("_version", 2L);
+                values.put("version", 2L);
                 values.put("_index", "index");
                 values.put("_type", "type");
                 builder.field("upsert", values);
@@ -316,4 +316,16 @@ public class BulkRequestTests extends ESTestCase {
             "can't provide version in upsert request"));
     }
 
+    public void testBulkTerminatedByNewline() throws Exception {
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk11.json");
+        IllegalArgumentException expectThrows = expectThrows(IllegalArgumentException.class, () -> new BulkRequest()
+                .add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
+        assertEquals("The bulk request must be terminated by a newline [\n]", expectThrows.getMessage());
+
+        String bulkActionWithNewLine = bulkAction + "\n";
+        BulkRequest bulkRequestWithNewLine = new BulkRequest();
+        bulkRequestWithNewLine.add(bulkActionWithNewLine.getBytes(StandardCharsets.UTF_8), 0, bulkActionWithNewLine.length(), null, null,
+                XContentType.JSON);
+        assertEquals(3, bulkRequestWithNewLine.numberOfActions());
+    }
 }

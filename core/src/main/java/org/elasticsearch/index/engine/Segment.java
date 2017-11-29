@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class Segment implements Streamable {
 
@@ -55,6 +56,7 @@ public class Segment implements Streamable {
     public long memoryInBytes;
     public Sort segmentSort;
     public Accountable ramTree = null;
+    public Map<String, String> attributes;
 
     Segment() {
     }
@@ -128,6 +130,14 @@ public class Segment implements Streamable {
         return segmentSort;
     }
 
+    /**
+     * Return segment attributes.
+     * @see org.apache.lucene.index.SegmentInfo#getAttributes()
+     */
+    public Map<String, String> getAttributes() {
+        return attributes;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -173,6 +183,11 @@ public class Segment implements Streamable {
         } else {
             segmentSort = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.readBoolean()) {
+            attributes = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            attributes = null;
+        }
     }
 
     @Override
@@ -195,6 +210,13 @@ public class Segment implements Streamable {
         }
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             writeSegmentSort(out, segmentSort);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            boolean hasAttributes = attributes != null;
+            out.writeBoolean(hasAttributes);
+            if (hasAttributes) {
+                out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+            }
         }
     }
 
@@ -329,6 +351,7 @@ public class Segment implements Streamable {
                 ", mergeId='" + mergeId + '\'' +
                 ", memoryInBytes=" + memoryInBytes +
                 (segmentSort != null ? ", sort=" + segmentSort : "") +
+                ", attributes=" + attributes +
                 '}';
     }
 }

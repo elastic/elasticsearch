@@ -30,12 +30,10 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -213,14 +211,14 @@ final class Bootstrap {
         node = new Node(environment) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
-                final Settings settings,
+                final BootstrapContext context,
                 final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
-                BootstrapChecks.check(settings, boundTransportAddress, checks);
+                BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
     }
 
-    private static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
@@ -233,6 +231,7 @@ final class Bootstrap {
 
         try {
             keystore.decrypt(new char[0] /* TODO: read password from stdin */);
+            KeyStoreWrapper.upgrade(keystore, initialEnv.configFile());
         } catch (Exception e) {
             throw new BootstrapException(e);
         }
@@ -245,7 +244,6 @@ final class Bootstrap {
             final SecureSettings secureSettings,
             final Settings initialSettings,
             final Path configPath) {
-        Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
@@ -254,7 +252,7 @@ final class Bootstrap {
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap(), configPath);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath);
     }
 
     private void start() throws NodeValidationException {

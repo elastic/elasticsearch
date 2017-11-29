@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.Header;
+import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -27,6 +27,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
@@ -36,12 +37,13 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     public void initHighLevelClient() throws IOException {
         super.initClient();
         if (restHighLevelClient == null) {
-            restHighLevelClient = new RestHighLevelClient(client());
+            restHighLevelClient = new HighLevelClient(client());
         }
     }
 
     @AfterClass
-    public static void cleanupClient() {
+    public static void cleanupClient() throws IOException {
+        restHighLevelClient.close();
         restHighLevelClient = null;
     }
 
@@ -71,5 +73,11 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     @FunctionalInterface
     protected interface AsyncMethod<Request, Response> {
         void execute(Request request, ActionListener<Response> listener, Header... headers);
+    }
+
+    private static class HighLevelClient extends RestHighLevelClient {
+        private HighLevelClient(RestClient restClient) {
+            super(restClient, (client) -> {}, Collections.emptyList());
+        }
     }
 }

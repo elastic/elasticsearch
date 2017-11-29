@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.support.ActionFilter;
@@ -35,7 +34,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -48,9 +46,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -80,16 +75,22 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     public static class TestPlugin extends Plugin implements ActionPlugin {
+
+        private final BlockingActionFilter blockingActionFilter;
+
+        public TestPlugin(Settings settings) {
+            blockingActionFilter = new BlockingActionFilter(settings);
+        }
+
         @Override
-        public List<Class<? extends ActionFilter>> getActionFilters() {
-            return singletonList(BlockingActionFilter.class);
+        public List<ActionFilter> getActionFilters() {
+            return singletonList(blockingActionFilter);
         }
     }
 
     public static class BlockingActionFilter extends org.elasticsearch.action.support.ActionFilter.Simple {
         private Set<String> blockedActions = emptySet();
 
-        @Inject
         public BlockingActionFilter(Settings settings) {
             super(settings);
         }
@@ -178,7 +179,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         internalCluster().startNodes(2,
                 // manually control publishing
                 Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build());
-        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
         InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());

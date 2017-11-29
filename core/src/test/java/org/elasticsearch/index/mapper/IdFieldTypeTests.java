@@ -42,7 +42,7 @@ public class IdFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("_id");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null));
+                () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null));
         assertEquals("Field [_id] of type [_id] does not support range queries", e.getMessage());
     }
 

@@ -42,6 +42,7 @@ import org.joda.time.format.StrictISODateTimeFormat;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.math.BigDecimal;
 import java.util.Locale;
 
 public class Joda {
@@ -78,7 +79,7 @@ public class Joda {
             formatter = ISODateTimeFormat.basicTime();
         } else if ("basicTimeNoMillis".equals(input) || "basic_time_no_millis".equals(input)) {
             formatter = ISODateTimeFormat.basicTimeNoMillis();
-        } else if ("basicTTime".equals(input) || "basic_t_Time".equals(input)) {
+        } else if ("basicTTime".equals(input) || "basic_t_time".equals(input)) {
             formatter = ISODateTimeFormat.basicTTime();
         } else if ("basicTTimeNoMillis".equals(input) || "basic_t_time_no_millis".equals(input)) {
             formatter = ISODateTimeFormat.basicTTimeNoMillis();
@@ -331,7 +332,8 @@ public class Joda {
         @Override
         public int parseInto(DateTimeParserBucket bucket, String text, int position) {
             boolean isPositive = text.startsWith("-") == false;
-            boolean isTooLong = text.length() > estimateParsedLength();
+            int firstDotIndex = text.indexOf('.');
+            boolean isTooLong = (firstDotIndex == -1 ? text.length() : firstDotIndex) > estimateParsedLength();
 
             if (bucket.getZone() != DateTimeZone.UTC) {
                 String format = hasMilliSecondPrecision ? "epoch_millis" : "epoch_second";
@@ -342,7 +344,7 @@ public class Joda {
 
             int factor = hasMilliSecondPrecision ? 1 : 1000;
             try {
-                long millis = Long.valueOf(text) * factor;
+                long millis = new BigDecimal(text).longValue() * factor;
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);
                 bucket.saveField(DateTimeFieldType.year(), dt.getYear());
                 bucket.saveField(DateTimeFieldType.monthOfYear(), dt.getMonthOfYear());

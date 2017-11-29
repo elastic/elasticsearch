@@ -93,7 +93,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          *
          * `sh` snippets that contain `curl` almost always should be marked
          * with `// CONSOLE`. In the exceptionally rare cases where they are
-         * not communicating with Elasticsearch, like the xamples in the ec2
+         * not communicating with Elasticsearch, like the examples in the ec2
          * and gce discovery plugins, the snippets should be marked
          * `// NOTCONSOLE`. */
         return snippet.language == 'js' || snippet.curl

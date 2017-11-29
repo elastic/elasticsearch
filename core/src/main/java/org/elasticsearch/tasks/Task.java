@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
@@ -146,7 +147,7 @@ public class Task {
         return null;
     }
 
-    public interface Status extends ToXContent, NamedWriteable {}
+    public interface Status extends ToXContentObject, NamedWriteable {}
 
     public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
         return new TaskResult(taskInfo(node.getId(), true), error);

@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -41,11 +41,11 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -56,11 +56,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.flush.FlushStats;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -82,8 +77,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
@@ -97,6 +94,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
@@ -104,21 +102,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
-    }
-
-    private ParsedDocument testParsedDocument(String id, String type, String routing, long seqNo,
-                                              ParseContext.Document document, BytesReference source, XContentType xContentType,
-                                              Mapping mappingUpdate) {
-        Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
-        Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(uidField);
-        document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
-        return new ParsedDocument(versionField, seqID, id, type, routing,
-                Collections.singletonList(document), source, xContentType, mappingUpdate);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -151,7 +134,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -220,7 +203,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testUpdatePriority() {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(IndexMetaData.SETTING_PRIORITY, 200));
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 200)));
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         assertEquals(200, indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_PRIORITY, 0).intValue());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_PRIORITY, 400)
@@ -247,7 +230,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testExpectedShardSizeIsPresent() throws InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         for (int i = 0; i < 50; i++) {
             client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
         }
@@ -382,7 +365,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                         .builder()
                         .put("index.number_of_shards", 1)
                         .put("index.translog.generation_threshold_size", generationThreshold + "b")
-                        .put()
                         .build();
         createIndex("test", settings);
         ensureGreen("test");
@@ -539,7 +521,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
             shard.store(), indexService.getIndexSortSupplier(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),
             shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners));
+            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners), () -> {});
         return newShard;
     }
 
@@ -550,5 +532,97 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         shardRouting = shardRouting.updateUnassigned(new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"),
             RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE);
         return shardRouting;
+    }
+
+    public void testAutomaticRefresh() throws InterruptedException {
+        TimeValue randomTimeValue = randomFrom(random(), null, TimeValue.ZERO, TimeValue.timeValueMillis(randomIntBetween(0, 1000)));
+        Settings.Builder builder = Settings.builder();
+        if (randomTimeValue != null) {
+            builder.put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), randomTimeValue);
+        }
+        IndexService indexService = createIndex("test", builder.build());
+        assertFalse(indexService.getIndexSettings().isExplicitRefresh());
+        ensureGreen();
+        AtomicInteger totalNumDocs = new AtomicInteger(Integer.MAX_VALUE);
+        CountDownLatch started = new CountDownLatch(1);
+        Thread t = new Thread(() -> {
+            SearchResponse searchResponse;
+            started.countDown();
+            do {
+               searchResponse = client().prepareSearch().get();
+           } while (searchResponse.getHits().totalHits != totalNumDocs.get());
+        });
+        t.start();
+        started.await();
+        assertNoSearchHits(client().prepareSearch().get());
+        int numDocs = scaledRandomIntBetween(25, 100);
+        totalNumDocs.set(numDocs);
+        CountDownLatch indexingDone = new CountDownLatch(numDocs);
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        indexingDone.countDown(); // one doc is indexed above blocking
+        IndexShard shard = indexService.getShard(0);
+        boolean hasRefreshed = shard.scheduledRefresh();
+        if (randomTimeValue == TimeValue.ZERO) {
+            // with ZERO we are guaranteed to see the doc since we will wait for a refresh in the background
+            assertFalse(hasRefreshed);
+            assertTrue(shard.isSearchIdle());
+        } else if (randomTimeValue == null){
+            // with null we are guaranteed to see the doc since do execute the refresh.
+            // we can't assert on hasRefreshed since it might have been refreshed in the background on the shard concurrently
+            assertFalse(shard.isSearchIdle());
+        }
+        assertHitCount(client().prepareSearch().get(), 1);
+        for (int i = 1; i < numDocs; i++) {
+            client().prepareIndex("test", "test", "" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
+                .execute(new ActionListener<IndexResponse>() {
+                             @Override
+                             public void onResponse(IndexResponse indexResponse) {
+                                 indexingDone.countDown();
+                             }
+
+                             @Override
+                             public void onFailure(Exception e) {
+                                 indexingDone.countDown();
+                                 throw new AssertionError(e);
+                             }
+                         });
+        }
+        indexingDone.await();
+        t.join();
+    }
+
+    public void testPendingRefreshWithIntervalChange() throws InterruptedException {
+        Settings.Builder builder = Settings.builder();
+        builder.put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO);
+        IndexService indexService = createIndex("test", builder.build());
+        assertFalse(indexService.getIndexSettings().isExplicitRefresh());
+        ensureGreen();
+        assertNoSearchHits(client().prepareSearch().get());
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        IndexShard shard = indexService.getShard(0);
+        assertFalse(shard.scheduledRefresh());
+        assertTrue(shard.isSearchIdle());
+        CountDownLatch refreshLatch = new CountDownLatch(1);
+        client().admin().indices().prepareRefresh()
+            .execute(ActionListener.wrap(refreshLatch::countDown));// async on purpose to make sure it happens concurrently
+        assertHitCount(client().prepareSearch().get(), 1);
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        assertFalse(shard.scheduledRefresh());
+
+        // now disable background refresh and make sure the refresh happens
+        CountDownLatch updateSettingsLatch = new CountDownLatch(1);
+        client().admin().indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build())
+            .execute(ActionListener.wrap(updateSettingsLatch::countDown));
+        assertHitCount(client().prepareSearch().get(), 2);
+        // wait for both to ensure we don't have in-flight operations
+        updateSettingsLatch.await();
+        refreshLatch.await();
+
+        client().prepareIndex("test", "test", "2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        assertTrue(shard.scheduledRefresh());
+        assertTrue(shard.isSearchIdle());
+        assertHitCount(client().prepareSearch().get(), 3);
     }
 }

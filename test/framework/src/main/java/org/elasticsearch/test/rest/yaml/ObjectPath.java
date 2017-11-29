@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;

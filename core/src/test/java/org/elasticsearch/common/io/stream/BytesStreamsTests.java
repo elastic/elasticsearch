@@ -562,28 +562,6 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    // we ignore this test for now since all existing callers of BytesStreamOutput happily
-    // call bytes() after close().
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12620")
-    public void testAccessAfterClose() throws Exception {
-        BytesStreamOutput out = new BytesStreamOutput();
-
-        // immediately close
-        out.close();
-
-        assertEquals(-1, out.size());
-        assertEquals(-1, out.position());
-
-        // writing a single byte must fail
-        expectThrows(IllegalArgumentException.class, () -> out.writeByte((byte)0));
-
-        // writing in bulk must fail
-        expectThrows(IllegalArgumentException.class, () -> out.writeBytes(new byte[0], 0, 0));
-
-        // toByteArray() must fail
-        expectThrows(IllegalArgumentException.class, () -> BytesReference.toBytes(out.bytes()));
-    }
-
     // create & fill byte[] with randomized data
     protected byte[] randomizedByteArrayWithSize(int size) {
         byte[] data = new byte[size];

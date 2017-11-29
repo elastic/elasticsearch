@@ -26,7 +26,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,9 +36,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
+public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragment {
 
-    public static class Path implements Writeable, ToXContent {
+    public static class Path implements Writeable, ToXContentObject {
 
         String path;
         @Nullable
@@ -178,7 +179,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         }
     }
 
-    public static class DeviceStats implements Writeable, ToXContent {
+    public static class DeviceStats implements Writeable, ToXContentFragment {
 
         final int majorDeviceNumber;
         final int minorDeviceNumber;
@@ -313,7 +314,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
 
     }
 
-    public static class IoStats implements Writeable, ToXContent {
+    public static class IoStats implements Writeable, ToXContentFragment {
 
         private static final String OPERATIONS = "operations";
         private static final String READ_OPERATIONS = "read_operations";

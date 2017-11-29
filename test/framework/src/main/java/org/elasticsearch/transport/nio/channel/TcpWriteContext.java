@@ -38,7 +38,7 @@ public class TcpWriteContext implements WriteContext {
     }
 
     @Override
-    public void sendMessage(BytesReference reference, ActionListener<NioChannel> listener) {
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
         if (channel.isWritable() == false) {
             listener.onFailure(new ClosedChannelException());
             return;
@@ -96,7 +96,7 @@ public class TcpWriteContext implements WriteContext {
         }
 
         if (headOp.isFullyFlushed()) {
-            headOp.getListener().onResponse(channel);
+            headOp.getListener().onResponse(null);
         } else {
             queued.push(headOp);
         }

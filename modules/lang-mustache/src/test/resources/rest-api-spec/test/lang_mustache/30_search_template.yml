@@ -113,7 +113,7 @@
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0._explanation.description: "weight(otherField:foo in 0) [PerFieldSimilarity], result of:" }
+  - match: { hits.hits.0._explanation.description: "weight(otherField:foo in 1) [PerFieldSimilarity], result of:" }
 
   - do:
       search_template:
@@ -122,16 +122,3 @@
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
   - length: { profile: 1 }
-
----
-"missing body":
-
-  - skip:
-      version: " - 5.99.99"
-      reason: NPE caused by missing body fixed in 6.0.0
-      
-  - do:
-      catch: /request body or source parameter is required/
-      raw:
-        method: POST
-        path: _search/template

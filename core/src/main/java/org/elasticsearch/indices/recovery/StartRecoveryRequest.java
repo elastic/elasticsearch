@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.transport.TransportRequest;
@@ -75,6 +75,8 @@ public class StartRecoveryRequest extends TransportRequest {
         this.metadataSnapshot = metadataSnapshot;
         this.primaryRelocation = primaryRelocation;
         this.startingSeqNo = startingSeqNo;
+        assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null :
+                        "starting seq no is set but not history uuid";
     }
 
     public long recoveryId() {
@@ -122,7 +124,7 @@ public class StartRecoveryRequest extends TransportRequest {
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             startingSeqNo = in.readLong();
         } else {
-            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }
 

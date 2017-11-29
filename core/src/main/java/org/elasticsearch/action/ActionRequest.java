@@ -34,6 +34,10 @@ public abstract class ActionRequest extends TransportRequest {
         // this.listenerThreaded = request.listenerThreaded();
     }
 
+    public ActionRequest(StreamInput in) throws IOException {
+        super(in);
+    }
+
     public abstract ActionRequestValidationException validate();
 
     /**

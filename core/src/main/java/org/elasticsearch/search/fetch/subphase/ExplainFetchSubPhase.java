@@ -22,7 +22,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.io.IOException;
 
@@ -40,8 +40,8 @@ public final class ExplainFetchSubPhase implements FetchSubPhase {
             final int topLevelDocId = hitContext.hit().docId();
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
 
-            for (RescoreSearchContext rescore : context.rescore()) {
-                explanation = rescore.rescorer().explain(topLevelDocId, context, rescore, explanation);
+            for (RescoreContext rescore : context.rescore()) {
+                explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);
             }
             // we use the top level doc id, since we work with the top level searcher
             hitContext.hit().explanation(explanation);

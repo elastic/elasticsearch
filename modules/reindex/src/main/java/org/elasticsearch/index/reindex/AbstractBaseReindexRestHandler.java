@@ -29,6 +29,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
@@ -90,7 +91,11 @@ public abstract class AbstractBaseReindexRestHandler<
 
         request.setRefresh(restRequest.paramAsBoolean("refresh", request.isRefresh()));
         request.setTimeout(restRequest.paramAsTime("timeout", request.getTimeout()));
-        request.setSlices(restRequest.paramAsInt("slices", request.getSlices()));
+
+        Integer slices = parseSlices(restRequest);
+        if (slices != null) {
+            request.setSlices(slices);
+        }
 
         String waitForActiveShards = restRequest.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -113,6 +118,32 @@ public abstract class AbstractBaseReindexRestHandler<
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
             }
         };
+    }
+
+    private static Integer parseSlices(RestRequest request) {
+        String slicesString = request.param("slices");
+        if (slicesString == null) {
+            return null;
+        }
+
+        if (slicesString.equals(AbstractBulkByScrollRequest.AUTO_SLICES_VALUE)) {
+            return AbstractBulkByScrollRequest.AUTO_SLICES;
+        }
+
+        int slices;
+        try {
+            slices = Integer.parseInt(slicesString);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "[slices] must be a positive integer or the string \"auto\", but was [" + slicesString + "]", e);
+        }
+
+        if (slices < 1) {
+            throw new IllegalArgumentException(
+                "[slices] must be a positive integer or the string \"auto\", but was [" + slicesString + "]");
+        }
+
+        return slices;
     }
 
     /**

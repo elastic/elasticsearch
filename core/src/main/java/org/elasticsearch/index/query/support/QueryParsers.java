@@ -25,7 +25,7 @@ import org.elasticsearch.common.ParseField;
 
 public final class QueryParsers {
 
-    public static final ParseField CONSTANT_SCORE = new ParseField("constant_score", "constant_score_auto", "constant_score_filter");
+    public static final ParseField CONSTANT_SCORE = new ParseField("constant_score");
     public static final ParseField SCORING_BOOLEAN = new ParseField("scoring_boolean");
     public static final ParseField CONSTANT_SCORE_BOOLEAN = new ParseField("constant_score_boolean");
     public static final ParseField TOP_TERMS = new ParseField("top_terms_");

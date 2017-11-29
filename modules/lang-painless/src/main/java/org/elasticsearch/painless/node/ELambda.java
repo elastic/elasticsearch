@@ -39,10 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.painless.Definition.VOID_TYPE;
-import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
-import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
 
 /**
  * Lambda expression node.
@@ -111,7 +108,7 @@ public final class ELambda extends AExpression implements ILambda {
         if (expected == null) {
             interfaceMethod = null;
             // we don't know anything: treat as def
-            returnType = Definition.DEF_TYPE;
+            returnType = locals.getDefinition().DefType;
             // don't infer any types, replace any null types with def
             actualParamTypeStrs = new ArrayList<>(paramTypeStrs.size());
             for (String type : paramTypeStrs) {
@@ -133,8 +130,8 @@ public final class ELambda extends AExpression implements ILambda {
                 throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
                                                    "] in [" + expected.clazz + "]");
             // for method invocation, its allowed to ignore the return value
-            if (interfaceMethod.rtn == Definition.VOID_TYPE) {
-                returnType = Definition.DEF_TYPE;
+            if (interfaceMethod.rtn.equals(locals.getDefinition().voidType)) {
+                returnType = locals.getDefinition().DefType;
             } else {
                 returnType = interfaceMethod.rtn;
             }
@@ -195,11 +192,11 @@ public final class ELambda extends AExpression implements ILambda {
             for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
                 Type from = interfaceMethod.arguments.get(i);
                 Type to = desugared.parameters.get(i + captures.size()).type;
-                AnalyzerCaster.getLegalCast(location, from, to, false, true);
+                locals.getDefinition().caster.getLegalCast(location, from, to, false, true);
             }
 
-            if (interfaceMethod.rtn != VOID_TYPE) {
-                AnalyzerCaster.getLegalCast(location, desugared.rtnType, interfaceMethod.rtn, false, true);
+            if (interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
+                locals.getDefinition().caster.getLegalCast(location, desugared.rtnType, interfaceMethod.rtn, false, true);
             }
 
             actual = expected;

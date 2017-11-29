@@ -38,8 +38,8 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
     public TransportRemoteInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                      SearchTransportService searchTransportService) {
-        super(settings, RemoteInfoAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-            RemoteInfoRequest::new);
+        super(settings, RemoteInfoAction.NAME, threadPool, transportService, actionFilters, RemoteInfoRequest::new,
+            indexNameExpressionResolver);
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
     }
 

@@ -25,7 +25,16 @@ esplugin {
 
 dependencies {
     // for testing hasChild and hasParent rejections
+    compile project(path: ':modules:mapper-extras', configuration: 'runtime')
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')
 }
+
+dependencyLicenses {
+  // Don't check the client's license. We know it.
+  dependencies = project.configurations.runtime.fileCollection {
+    it.group.startsWith('org.elasticsearch') == false
+  } - project.configurations.provided
+}
+
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes"
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes"

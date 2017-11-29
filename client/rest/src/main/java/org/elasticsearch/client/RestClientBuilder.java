@@ -19,14 +19,14 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.client.config.RequestConfig;
-import org.elasticsearch.client.http.impl.client.CloseableHttpClient;
-import org.elasticsearch.client.http.impl.client.HttpClientBuilder;
-import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.elasticsearch.client.http.nio.conn.SchemeIOSessionStrategy;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -34,8 +34,8 @@ import java.util.Objects;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
- * creating the underlying {@link org.elasticsearch.client.http.nio.client.HttpAsyncClient}. Also allows to provide an externally created
- * {@link org.elasticsearch.client.http.nio.client.HttpAsyncClient} in case additional customization is needed.
+ * creating the underlying {@link org.apache.http.nio.client.HttpAsyncClient}. Also allows to provide an externally created
+ * {@link org.apache.http.nio.client.HttpAsyncClient} in case additional customization is needed.
  */
 public final class RestClientBuilder {
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
@@ -237,7 +237,7 @@ public final class RestClientBuilder {
     public interface HttpClientConfigCallback {
         /**
          * Allows to customize the {@link CloseableHttpAsyncClient} being created and used by the {@link RestClient}.
-         * Commonly used to customize the default {@link org.elasticsearch.client.http.client.CredentialsProvider} for authentication
+         * Commonly used to customize the default {@link org.apache.http.client.CredentialsProvider} for authentication
          * or the {@link SchemeIOSessionStrategy} for communication through ssl without losing any other useful default
          * value that the {@link RestClientBuilder} internally sets, like connection pooling.
          */

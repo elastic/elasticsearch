@@ -51,7 +51,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     public static final String NAME = "ids";
 
-    private static final ParseField TYPE_FIELD = new ParseField("type", "types", "_type");
+    private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALUES_FIELD = new ParseField("values");
 
     private final Set<String> ids = new HashSet<>();

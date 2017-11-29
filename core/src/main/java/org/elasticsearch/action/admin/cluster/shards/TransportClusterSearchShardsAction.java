@@ -54,7 +54,7 @@ public class TransportClusterSearchShardsAction extends
                                               IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, ClusterSearchShardsRequest::new);
+            ClusterSearchShardsRequest::new, indexNameExpressionResolver);
         this.indicesService = indicesService;
     }
 

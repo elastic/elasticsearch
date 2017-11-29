@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
@@ -38,7 +39,7 @@ import static java.util.Collections.unmodifiableMap;
  * Wrapper around everything that defines a mapping, without references to
  * utility classes like MapperService, ...
  */
-public final class Mapping implements ToXContent {
+public final class Mapping implements ToXContentFragment {
 
     final Version indexCreated;
     final RootObjectMapper root;
@@ -97,7 +98,8 @@ public final class Mapping implements ToXContent {
             }
             mergedMetaDataMappers.put(merged.getClass(), merged);
         }
-        return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]), mergeWith.meta);
+        Map<String, Object> mergedMeta = mergeWith.meta == null ? meta : mergeWith.meta;
+        return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
     /**
@@ -127,7 +129,7 @@ public final class Mapping implements ToXContent {
         root.toXContent(builder, params, new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (meta != null && !meta.isEmpty()) {
+                if (meta != null) {
                     builder.field("_meta", meta);
                 }
                 for (Mapper mapper : metadataMappers) {

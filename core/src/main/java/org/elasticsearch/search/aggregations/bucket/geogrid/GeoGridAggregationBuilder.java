@@ -24,11 +24,13 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -48,7 +51,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder> {
+public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder>
+        implements MultiBucketAggregationBuilder {
     public static final String NAME = "geohash_grid";
     public static final int DEFAULT_PRECISION = 5;
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;
@@ -57,7 +61,29 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     static {
         PARSER = new ObjectParser<>(GeoGridAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareGeoFields(PARSER, false, false);
-        PARSER.declareInt(GeoGridAggregationBuilder::precision, GeoHashGridParams.FIELD_PRECISION);
+        PARSER.declareField((parser, builder, context) -> {
+            XContentParser.Token token = parser.currentToken();
+            if (token.equals(XContentParser.Token.VALUE_NUMBER)) {
+                builder.precision(XContentMapValues.nodeIntegerValue(parser.intValue()));
+            } else {
+                String precision = parser.text();
+                try {
+                    // we want to treat simple integer strings as precision levels, not distances
+                    builder.precision(XContentMapValues.nodeIntegerValue(Integer.parseInt(precision)));
+                } catch (NumberFormatException e) {
+                    // try to parse as a distance value
+                    try {
+                        builder.precision(GeoUtils.geoHashLevelsForPrecision(precision));
+                    } catch (NumberFormatException e2) {
+                        // can happen when distance unit is unknown, in this case we simply want to know the reason
+                        throw e2;
+                    } catch (IllegalArgumentException e3) {
+                        // this happens when distance too small, so precision > 12. We'd like to see the original string
+                        throw new IllegalArgumentException("precision too high [" + precision + "]", e3);
+                    }
+                }
+            }
+        }, GeoHashGridParams.FIELD_PRECISION, org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);
         PARSER.declareInt(GeoGridAggregationBuilder::size, GeoHashGridParams.FIELD_SIZE);
         PARSER.declareInt(GeoGridAggregationBuilder::shardSize, GeoHashGridParams.FIELD_SHARD_SIZE);
     }

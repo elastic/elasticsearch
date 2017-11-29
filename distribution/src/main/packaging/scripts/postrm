@@ -50,7 +50,7 @@ LOG_DIR="/var/log/elasticsearch"
 PLUGINS_DIR="/usr/share/elasticsearch/plugins"
 PID_DIR="/var/run/elasticsearch"
 DATA_DIR="/var/lib/elasticsearch"
-CONF_DIR="/etc/elasticsearch"
+ES_PATH_CONF="/etc/elasticsearch"
 
 # Source the default env file
 if [ "$SOURCE_ENV_FILE" = "true" ]; then
@@ -86,8 +86,8 @@ if [ "$REMOVE_DIRS" = "true" ]; then
     fi
 
     # delete the conf directory if and only if empty
-    if [ -d "$CONF_DIR" ]; then
-        rmdir --ignore-fail-on-non-empty "$CONF_DIR"
+    if [ -d "$ES_PATH_CONF" ]; then
+        rmdir --ignore-fail-on-non-empty "$ES_PATH_CONF"
     fi
 
 fi

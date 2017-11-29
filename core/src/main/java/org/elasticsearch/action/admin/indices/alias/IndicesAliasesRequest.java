@@ -176,7 +176,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                             if (action == null) {
                                 action = (AliasActions) o;
                             } else {
-                                throw new IllegalArgumentException("Too many operations declared in on opeation entry");
+                                throw new IllegalArgumentException("Too many operations declared on operation entry");
                             }
                         }
                     }
@@ -467,14 +467,12 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         allAliasActions = in.readList(AliasActions::new);
-        readTimeout(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeList(allAliasActions);
-        writeTimeout(out);
     }
 
     public IndicesOptions indicesOptions() {

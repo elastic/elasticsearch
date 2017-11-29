@@ -166,7 +166,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         settings = readSettingsFromStream(in);
-        readTimeout(in);
         preserveExisting = in.readBoolean();
     }
 
@@ -176,7 +175,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
         writeSettingsToStream(settings, out);
-        writeTimeout(out);
         out.writeBoolean(preserveExisting);
     }
 }

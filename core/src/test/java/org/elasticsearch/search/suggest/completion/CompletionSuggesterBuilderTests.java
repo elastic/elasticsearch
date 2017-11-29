@@ -114,6 +114,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
             contextMap.put(geoQueryContextName, contexts);
         }
         testBuilder.contexts(contextMap);
+        testBuilder.skipDuplicates(randomBoolean());
         return testBuilder;
     }
 
@@ -128,7 +129,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
 
     @Override
     protected void mutateSpecificParameters(CompletionSuggestionBuilder builder) throws IOException {
-        switch (randomIntBetween(0, 4)) {
+        switch (randomIntBetween(0, 5)) {
             case 0:
                 int nCatContext = randomIntBetween(1, 5);
                 List<CategoryQueryContext> contexts = new ArrayList<>(nCatContext);
@@ -153,6 +154,9 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
                 break;
             case 4:
                 builder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
+                break;
+            case 5:
+                builder.skipDuplicates(!builder.skipDuplicates);
                 break;
             default:
                 throw new IllegalStateException("should not through");
@@ -182,5 +186,6 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
             assertEquals(parsedContextBytes.get(contextName), queryContexts.get(contextName));
         }
         assertEquals(builder.regexOptions, completionSuggestionCtx.getRegexOptions());
+        assertEquals(builder.skipDuplicates, completionSuggestionCtx.isSkipDuplicates());
     }
 }

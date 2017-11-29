@@ -70,6 +70,27 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         this.repository = repository;
     }
 
+    public GetSnapshotsRequest(StreamInput in) throws IOException {
+        super(in);
+        repository = in.readString();
+        snapshots = in.readStringArray();
+        ignoreUnavailable = in.readBoolean();
+        if (in.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
+            verbose = in.readBoolean();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(repository);
+        out.writeStringArray(snapshots);
+        out.writeBoolean(ignoreUnavailable);
+        if (out.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
+            out.writeBoolean(verbose);
+        }
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -158,23 +179,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        repository = in.readString();
-        snapshots = in.readStringArray();
-        ignoreUnavailable = in.readBoolean();
-        if (in.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
-            verbose = in.readBoolean();
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(repository);
-        out.writeStringArray(snapshots);
-        out.writeBoolean(ignoreUnavailable);
-        if (out.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
-            out.writeBoolean(verbose);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

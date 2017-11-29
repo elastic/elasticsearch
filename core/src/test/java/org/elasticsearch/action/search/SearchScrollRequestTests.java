@@ -46,8 +46,7 @@ public class SearchScrollRequestTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             searchScrollRequest.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                SearchScrollRequest deserializedRequest = new SearchScrollRequest();
-                deserializedRequest.readFrom(in);
+                SearchScrollRequest deserializedRequest = new SearchScrollRequest(in);
                 assertEquals(deserializedRequest, searchScrollRequest);
                 assertEquals(deserializedRequest.hashCode(), searchScrollRequest.hashCode());
                 assertNotSame(deserializedRequest, searchScrollRequest);
@@ -61,8 +60,7 @@ public class SearchScrollRequestTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             internalScrollSearchRequest.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                InternalScrollSearchRequest deserializedRequest = new InternalScrollSearchRequest();
-                deserializedRequest.readFrom(in);
+                InternalScrollSearchRequest deserializedRequest = new InternalScrollSearchRequest(in);
                 assertEquals(deserializedRequest.id(), internalScrollSearchRequest.id());
                 assertEquals(deserializedRequest.scroll(), internalScrollSearchRequest.scroll());
                 assertNotSame(deserializedRequest, internalScrollSearchRequest);

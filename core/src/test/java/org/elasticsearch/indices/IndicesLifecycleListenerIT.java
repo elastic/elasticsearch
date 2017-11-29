@@ -101,13 +101,15 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node3).setNewDelegate(listener);
 
         client().admin().indices().prepareCreate("test")
-                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
         assertThat("beforeIndexAddedToCluster called only once", beforeAddedCount.get(), equalTo(1));
         assertThat("beforeIndexCreated called on each data node", allCreatedCount.get(), greaterThanOrEqualTo(3));
 
         try {
-            client().admin().indices().prepareCreate("failed").setSettings("index.fail", true).get();
+            client().admin().indices().prepareCreate("failed")
+                .setSettings(Settings.builder().put("index.fail", true)).get();
             fail("should have thrown an exception during creation");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
@@ -122,7 +124,8 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
      */
     public void testIndexShardFailedOnRelocation() throws Throwable {
         String node1 = internalCluster().startNode();
-        client().admin().indices().prepareCreate("index1").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).get();
+        client().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen("index1");
         String node2 = internalCluster().startNode();
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2).setNewDelegate(new IndexShardStateChangeListener() {
@@ -148,7 +151,8 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         //create an index that should fail
         try {
-            client().admin().indices().prepareCreate("failed").setSettings(SETTING_NUMBER_OF_SHARDS, 1, "index.fail", true).get();
+            client().admin().indices().prepareCreate("failed")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put("index.fail", true)).get();
             fail("should have thrown an exception");
         } catch (ElasticsearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
@@ -159,7 +163,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         //create an index
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 6, SETTING_NUMBER_OF_REPLICAS, 0));
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 6).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         ensureGreen();
         assertThat(stateChangeListenerNode1.creationSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
         assertThat(stateChangeListenerNode1.creationSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(0));

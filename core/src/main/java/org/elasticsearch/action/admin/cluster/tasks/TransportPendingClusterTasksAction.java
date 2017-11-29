@@ -42,7 +42,7 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadA
     @Inject
     public TransportPendingClusterTasksAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                               ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PendingClusterTasksAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PendingClusterTasksRequest::new);
+        super(settings, PendingClusterTasksAction.NAME, transportService, clusterService, threadPool, actionFilters, PendingClusterTasksRequest::new, indexNameExpressionResolver);
         this.clusterService = clusterService;
     }
 

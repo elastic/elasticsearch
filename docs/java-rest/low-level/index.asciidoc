@@ -6,6 +6,8 @@
 
 The low-level client's features include:
 
+* minimal dependencies
+
 * load balancing across all available nodes
 
 * failover in case of node failures and upon specific response codes
@@ -19,8 +21,6 @@ The low-level client's features include:
 * trace logging of requests and responses
 
 * optional automatic <<sniffer,discovery of cluster nodes>>
-
-* packaged as a single JAR file that shades all dependencies
 
 --
 

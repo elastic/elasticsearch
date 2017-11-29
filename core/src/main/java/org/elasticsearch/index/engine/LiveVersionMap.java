@@ -59,8 +59,6 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     private volatile Maps maps = new Maps();
 
-    private ReferenceManager<?> mgr;
-
     /** Bytes consumed for each BytesRef UID:
      * In this base value, we account for the {@link BytesRef} object itself as
      * well as the header of the byte[] array it holds, and some lost bytes due
@@ -98,28 +96,13 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
     /** Tracks bytes used by tombstones (deletes) */
     final AtomicLong ramBytesUsedTombstones = new AtomicLong();
 
-    /** Sync'd because we replace old mgr. */
-    synchronized void setManager(ReferenceManager<?> newMgr) {
-        if (mgr != null) {
-            mgr.removeListener(this);
-        }
-        mgr = newMgr;
-
-        // In case InternalEngine closes & opens a new IndexWriter/SearcherManager, all deletes are made visible, so we clear old and
-        // current here.  This is safe because caller holds writeLock here (so no concurrent adds/deletes can be happeninge):
-        maps = new Maps();
-
-        // So we are notified when reopen starts and finishes
-        mgr.addListener(this);
-    }
-
     @Override
     public void beforeRefresh() throws IOException {
         // Start sending all updates after this point to the new
         // map.  While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        maps = new Maps(ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency(), maps.current);
+        maps = new Maps(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(maps.current.size()), maps.current);
 
         // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
         // line and this one, but that should be minor, and the error won't accumulate over time:
@@ -134,7 +117,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // case.  This is because we assign new maps (in beforeRefresh) slightly before Lucene actually flushes any segments for the
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact reflected
         // in the previous reader.   We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
-        maps = new Maps(maps.current, ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency());
+        maps = new Maps(maps.current, Collections.emptyMap());
     }
 
     /** Returns the live version (add or delete) for this uid. */
@@ -249,11 +232,6 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // and this will lead to an assert trip.  Presumably it's fine if our ramBytesUsedTombstones is non-zero after clear since the index
         // is being closed:
         //ramBytesUsedTombstones.set(0);
-
-        if (mgr != null) {
-            mgr.removeListener(this);
-            mgr = null;
-        }
     }
 
     @Override

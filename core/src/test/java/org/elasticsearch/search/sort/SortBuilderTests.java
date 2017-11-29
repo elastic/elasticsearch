@@ -34,8 +34,10 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -126,10 +128,11 @@ public class SortBuilderTests extends ESTestCase {
     }
 
     /**
-     * test random syntax variations
+     * test parsing random syntax variations
      */
     public void testRandomSortBuilders() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
+            Set<String >expectedWarningHeaders = new HashSet<>();
             List<SortBuilder<?>> testBuilders = randomSortBuilderList();
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
             xContentBuilder.startObject();
@@ -139,6 +142,16 @@ public class SortBuilderTests extends ESTestCase {
                 xContentBuilder.field("sort");
             }
             for (SortBuilder<?> builder : testBuilders) {
+                if (builder instanceof GeoDistanceSortBuilder) {
+                    GeoDistanceSortBuilder gdsb = (GeoDistanceSortBuilder) builder;
+                    if (gdsb.getNestedFilter() != null) {
+                        expectedWarningHeaders.add("[nested_filter] has been deprecated in favour of the [nested] parameter");
+                    }
+                    if (gdsb.getNestedPath() != null) {
+                        expectedWarningHeaders.add("[nested_path] has been deprecated in favour of the [nested] parameter");
+                    }
+                }
+
                 if (builder instanceof ScoreSortBuilder || builder instanceof FieldSortBuilder) {
                     switch (randomIntBetween(0, 2)) {
                     case 0:
@@ -175,6 +188,9 @@ public class SortBuilderTests extends ESTestCase {
             Iterator<SortBuilder<?>> iterator = testBuilders.iterator();
             for (SortBuilder<?> parsedBuilder : parsedSort) {
                 assertEquals(iterator.next(), parsedBuilder);
+            }
+            if (expectedWarningHeaders.size() > 0) {
+                assertWarnings(expectedWarningHeaders.toArray(new String[expectedWarningHeaders.size()]));
             }
         }
     }

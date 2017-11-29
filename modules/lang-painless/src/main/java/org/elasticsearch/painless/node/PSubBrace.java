@@ -51,7 +51,7 @@ final class PSubBrace extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        index.expected = Definition.INT_TYPE;
+        index.expected = locals.getDefinition().intType;
         index.analyze(locals);
         index = index.cast(locals);
 

@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.single;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
+import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -94,7 +94,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
 
     @Override
     public DiscoveryStats stats() {
-        return new DiscoveryStats((PendingClusterStateStats) null);
+        return new DiscoveryStats(null, null);
     }
 
     @Override
@@ -117,8 +117,8 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     protected ClusterState createInitialState(DiscoveryNode localNode) {
-        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-            .nodes(DiscoveryNodes.builder().add(localNode)
+        ClusterState.Builder builder = clusterApplier.newClusterStateBuilder();
+        return builder.nodes(DiscoveryNodes.builder().add(localNode)
                 .localNodeId(localNode.getId())
                 .masterNodeId(localNode.getId())
                 .build())

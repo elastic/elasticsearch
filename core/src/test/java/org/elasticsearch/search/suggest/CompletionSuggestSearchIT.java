@@ -528,9 +528,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("analysis.analyzer.suggest_analyzer_synonyms.type", "custom")
                 .put("analysis.analyzer.suggest_analyzer_synonyms.tokenizer", "standard")
-                .putArray("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
+                .putList("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
                 .put("analysis.filter.my_synonyms.type", "synonym")
-                .putArray("analysis.filter.my_synonyms.synonyms", "foo,renamed");
+                .putList("analysis.filter.my_synonyms.synonyms", "foo,renamed");
         completionMappingBuilder.searchAnalyzer("suggest_analyzer_synonyms").indexAnalyzer("suggest_analyzer_synonyms");
         createIndexAndMappingAndSettings(settingsBuilder.build(), completionMappingBuilder);
 
@@ -806,7 +806,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatSuggestStopFilterWorks() throws Exception {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
+                .putList("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
                 .put("index.analysis.filter.suggest_stop_filter.type", "stop")
                 .put("index.analysis.filter.suggest_stop_filter.remove_trailing", false);
 
@@ -856,6 +856,38 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), containsString("failed to parse"));
         }
+    }
+
+    public void testSkipDuplicates() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        int numDocs = randomIntBetween(10, 100);
+        int numUnique = randomIntBetween(1, numDocs);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 1; i <= numDocs; i++) {
+            int id = i % numUnique;
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(jsonBuilder()
+                    .startObject()
+                        .startObject(FIELD)
+                            .field("input", "suggestion" + id)
+                            .field("weight", id)
+                        .endObject()
+                    .endObject()
+                ));
+        }
+        String[] expected = new String[numUnique];
+        int sugg = numUnique - 1;
+        for (int i = 0; i < numUnique; i++) {
+            expected[i] = "suggestion" + sugg--;
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder completionSuggestionBuilder =
+            SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").skipDuplicates(true).size(numUnique);
+
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+            .suggest(new SuggestBuilder().addSuggestion("suggestions", completionSuggestionBuilder)).execute().actionGet();
+        assertSuggestions(searchResponse, true, "suggestions", expected);
     }
 
     public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
@@ -1107,6 +1139,28 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertTrue(e.getDetailedMessage().contains(FIELD));
         }
     }
+
+    public void testMultiDocSuggestions() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        int numDocs = 10;
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 1; i <= numDocs; i++) {
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .array("input", "suggestion" + i, "suggestions" + i, "suggester" + i)
+                    .field("weight", i)
+                    .endObject()
+                    .endObject()
+                ));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").shardSize(15);
+        assertSuggestions("foo", prefix, "suggester10", "suggester9", "suggester8", "suggester7", "suggester6");
+    }
+
 
     public static boolean isReservedChar(char c) {
         switch (c) {

@@ -79,6 +79,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -730,7 +731,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * Represents a snapshot of the current directory build from the latest Lucene commit.
-     * Only files that are part of the last commit are considered in this datastrucutre.
+     * Only files that are part of the last commit are considered in this datastructure.
      * For backwards compatibility the snapshot might include legacy checksums that
      * are derived from a dedicated checksum file written by older elasticsearch version pre 1.3
      * <p>
@@ -1025,6 +1026,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public Map<String, String> getCommitUserData() {
             return commitUserData;
+        }
+
+        /**
+         * returns the history uuid the store points at, or null if not existant.
+         */
+        public String getHistoryUUID() {
+            return commitUserData.get(Engine.HISTORY_UUID_KEY);
+        }
+
+        /**
+         * returns the translog uuid the store points at
+         */
+        public String getTranslogUUID() {
+            return commitUserData.get(Translog.TRANSLOG_UUID_KEY);
         }
 
         /**

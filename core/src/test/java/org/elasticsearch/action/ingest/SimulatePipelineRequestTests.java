@@ -49,8 +49,7 @@ public class SimulatePipelineRequestTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        SimulatePipelineRequest otherRequest = new SimulatePipelineRequest();
-        otherRequest.readFrom(streamInput);
+        SimulatePipelineRequest otherRequest = new SimulatePipelineRequest(streamInput);
 
         assertThat(otherRequest.getId(), equalTo(request.getId()));
         assertThat(otherRequest.isVerbose(), equalTo(request.isVerbose()));
@@ -65,8 +64,7 @@ public class SimulatePipelineRequestTests extends ESTestCase {
         request.writeTo(output);
         StreamInput in = StreamInput.wrap(output.bytes().toBytesRef().bytes);
 
-        SimulatePipelineRequest serialized = new SimulatePipelineRequest();
-        serialized.readFrom(in);
+        SimulatePipelineRequest serialized = new SimulatePipelineRequest(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getSource().utf8ToString());
     }
@@ -77,8 +75,7 @@ public class SimulatePipelineRequestTests extends ESTestCase {
             Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
-            SimulatePipelineRequest request = new SimulatePipelineRequest();
-            request.readFrom(in);
+            SimulatePipelineRequest request = new SimulatePipelineRequest(in);
             assertEquals(XContentType.JSON, request.getXContentType());
             assertEquals("{}", request.getSource().utf8ToString());
 

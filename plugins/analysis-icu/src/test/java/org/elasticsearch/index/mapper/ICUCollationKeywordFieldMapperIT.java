@@ -35,6 +35,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -89,6 +91,64 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             );
 
         SearchResponse response = client().search(request).actionGet();
+        assertNoFailures(response);
+        assertHitCount(response, 2L);
+        assertOrderedSearchHits(response, "2", "1");
+    }
+
+    public void testMultipleValues() throws Exception {
+        String index = "foo";
+        String type = "mytype";
+
+        String[] equilavent = {"a", "C", "a", "B"};
+
+        XContentBuilder builder = jsonBuilder()
+            .startObject().startObject("properties")
+            .startObject("collate")
+            .field("type", "icu_collation_keyword")
+            .field("language", "en")
+            .endObject()
+            .endObject().endObject();
+
+        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+
+        // everything should be indexed fine, no exceptions
+        indexRandom(true,
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":[\"" + equilavent[0] + "\", \""
+                + equilavent[1] + "\"]}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[2] + "\"}", XContentType.JSON)
+        );
+
+        // using sort mode = max, values B and C will be used for the sort
+        SearchRequest request = new SearchRequest()
+            .indices(index)
+            .types(type)
+            .source(new SearchSourceBuilder()
+                .fetchSource(false)
+                .query(QueryBuilders.termQuery("collate", "a"))
+                // if mode max we use c and b as sort values, if max we use "a" for both
+                .sort(SortBuilders.fieldSort("collate").sortMode(SortMode.MAX).order(SortOrder.DESC))
+                .sort("_uid", SortOrder.DESC) // will be ignored
+            );
+
+        SearchResponse response = client().search(request).actionGet();
+        assertNoFailures(response);
+        assertHitCount(response, 2L);
+        assertOrderedSearchHits(response, "1", "2");
+
+        // same thing, using different sort mode that will use a for both docs
+        request = new SearchRequest()
+            .indices(index)
+            .types(type)
+            .source(new SearchSourceBuilder()
+                .fetchSource(false)
+                .query(QueryBuilders.termQuery("collate", "a"))
+                // if mode max we use c and b as sort values, if max we use "a" for both
+                .sort(SortBuilders.fieldSort("collate").sortMode(SortMode.MIN).order(SortOrder.DESC))
+                .sort("_uid", SortOrder.DESC) // will NOT be ignored and will determine order
+            );
+
+        response = client().search(request).actionGet();
         assertNoFailures(response);
         assertHitCount(response, 2L);
         assertOrderedSearchHits(response, "2", "1");

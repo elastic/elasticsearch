@@ -90,7 +90,7 @@ public class FlushIT extends ESIntegTestCase {
 
     public void testSyncedFlush() throws ExecutionException, InterruptedException, IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)).get();
         ensureGreen();
 
         final Index index = client().admin().cluster().prepareState().get().getState().metaData().index("test").getIndex();

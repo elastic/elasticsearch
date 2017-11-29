@@ -28,12 +28,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -55,7 +57,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.After;
 import org.junit.Before;
@@ -66,6 +68,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -86,18 +89,19 @@ public class RefreshListenersTests extends ESTestCase {
     public void setupListeners() throws Exception {
         // Setup dependencies of the listeners
         maxListeners = randomIntBetween(1, 1000);
+        // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
+        threadPool = new TestThreadPool(getTestName());
         listeners = new RefreshListeners(
                 () -> maxListeners,
                 () -> engine.refresh("too-many-listeners"),
                 // Immediately run listeners rather than adding them to the listener thread pool like IndexShard does to simplify the test.
                 Runnable::run,
-                logger
-                );
+                logger,
+                threadPool.getThreadContext());
 
-        // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
-        threadPool = new TestThreadPool(getTestName());
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
+        String allocationId = UUIDs.randomBase64UUID(random());
         Directory directory = newDirectory();
         DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
             @Override
@@ -115,10 +119,9 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, threadPool, indexSettings, null,
-                store, newMergePolicy(), iwc.getAnalyzer(),
-                iwc.getSimilarity(), new CodecService(null, logger), eventListener,
-                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
+        EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, allocationId, threadPool,
+                indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
+                eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
                 TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), null, null);
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
@@ -158,6 +161,23 @@ public class RefreshListenersTests extends ESTestCase {
         assertFalse(listener.forcedRefresh.get());
         listener.assertNoError();
         assertEquals(0, listeners.pendingCount());
+    }
+
+    public void testContextIsPreserved() throws IOException, InterruptedException {
+        assertEquals(0, listeners.pendingCount());
+        Engine.IndexResult index = index("1");
+        CountDownLatch latch = new CountDownLatch(1);
+        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader("test", "foobar");
+            assertFalse(listeners.addOrNotify(index.getTranslogLocation(), forced -> {
+                assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
+                latch.countDown();
+            }));
+        }
+        assertNull(threadPool.getThreadContext().getHeader("test"));
+        assertEquals(1, latch.getCount());
+        engine.refresh("I said so");
+        latch.await();
     }
 
     public void testTooMany() throws Exception {
@@ -269,7 +289,6 @@ public class RefreshListenersTests extends ESTestCase {
      * Uses a bunch of threads to index, wait for refresh, and non-realtime get documents to validate that they are visible after waiting
      * regardless of what crazy sequence of events causes the refresh listener to fire.
      */
-    @TestLogging("_root:debug,org.elasticsearch.index.engine.Engine.DW:trace")
     public void testLotsOfThreads() throws Exception {
         int threadCount = between(3, 10);
         maxListeners = between(1, threadCount * 2);

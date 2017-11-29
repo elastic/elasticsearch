@@ -22,7 +22,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -56,7 +56,7 @@ public class RecoveryTranslogOperationsResponse extends TransportResponse {
             localCheckpoint = in.readZLong();
         }
         else {
-            localCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }
 

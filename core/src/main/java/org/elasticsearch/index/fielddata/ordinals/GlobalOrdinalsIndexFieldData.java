@@ -20,7 +20,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiDocValues;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
@@ -47,13 +47,13 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
     private final String fieldName;
     private final long memorySizeInBytes;
 
-    private final MultiDocValues.OrdinalMap ordinalMap;
+    private final OrdinalMap ordinalMap;
     private final Atomic[] atomicReaders;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
 
     protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings, String fieldName, AtomicOrdinalsFieldData[] segmentAfd,
-                                           MultiDocValues.OrdinalMap ordinalMap, long memorySizeInBytes, Function<SortedSetDocValues,
+                                           OrdinalMap ordinalMap, long memorySizeInBytes, Function<SortedSetDocValues,
                                            ScriptDocValues<?>> scriptFunction) {
         super(indexSettings);
         this.fieldName = fieldName;
@@ -113,17 +113,17 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
     }
 
     @Override
-    public MultiDocValues.OrdinalMap getOrdinalMap() {
+    public OrdinalMap getOrdinalMap() {
         return ordinalMap;
     }
 
     private final class Atomic extends AbstractAtomicOrdinalsFieldData {
 
         private final AtomicOrdinalsFieldData afd;
-        private final MultiDocValues.OrdinalMap ordinalMap;
+        private final OrdinalMap ordinalMap;
         private final int segmentIndex;
 
-        private Atomic(AtomicOrdinalsFieldData afd, MultiDocValues.OrdinalMap ordinalMap, int segmentIndex) {
+        private Atomic(AtomicOrdinalsFieldData afd, OrdinalMap ordinalMap, int segmentIndex) {
             super(scriptFunction);
             this.afd = afd;
             this.ordinalMap = ordinalMap;

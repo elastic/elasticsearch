@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -641,7 +642,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         // when ignoreAliases option is set, concreteIndexNames resolves the provided expressions
         // only against the defined indices
         IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
-        
+
         String[] indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "foo*");
 
         assertEquals(1, indexNamesIndexWildcard.length);
@@ -1125,5 +1126,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             assertEquals(1, indices.length);
             assertEquals("test-index", indices[0]);
         }
+    }
+
+    public void testInvalidIndex() {
+        MetaData.Builder mdBuilder = MetaData.builder().put(indexBuilder("test"));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
+
+        InvalidIndexNameException iine = expectThrows(InvalidIndexNameException.class,
+            () -> indexNameExpressionResolver.concreteIndexNames(context, "_foo"));
+        assertEquals("Invalid index name [_foo], must not start with '_'.", iine.getMessage());
     }
 }

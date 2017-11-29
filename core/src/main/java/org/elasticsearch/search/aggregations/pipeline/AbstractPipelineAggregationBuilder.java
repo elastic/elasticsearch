@@ -22,6 +22,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
@@ -80,7 +81,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      * configured)
      */
     @Override
-    public final void validate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
+    public final void validate(AggregatorFactory<?> parent, List<AggregationBuilder> factories,
             List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         doValidate(parent, factories, pipelineAggregatorFactories);
     }
@@ -98,7 +99,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         return aggregator;
     }
 
-    public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
+    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> factories,
             List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
     }
 

@@ -42,7 +42,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
 
     public void testBasics() throws IOException {
         Settings settings = Settings.builder()
-                .putArray("index.analysis.normalizer.my_normalizer.filter", "lowercase")
+                .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN);
@@ -57,7 +57,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
     public void testUnknownType() {
         Settings settings = Settings.builder()
                 .put("index.analysis.normalizer.my_normalizer.type", "foobar")
-                .putArray("index.analysis.normalizer.my_normalizer.filter", "lowercase", "asciifolding")
+                .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase", "asciifolding")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -78,7 +78,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
     public void testCharFilters() throws IOException {
         Settings settings = Settings.builder()
                 .put("index.analysis.char_filter.my_mapping.type", "mock_char_filter")
-                .putArray("index.analysis.normalizer.my_normalizer.char_filter", "my_mapping")
+                .putList("index.analysis.normalizer.my_normalizer.char_filter", "my_mapping")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN);
@@ -92,7 +92,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
 
     public void testIllegalFilters() throws IOException {
         Settings settings = Settings.builder()
-                .putArray("index.analysis.normalizer.my_normalizer.filter", "mock_forbidden")
+                .putList("index.analysis.normalizer.my_normalizer.filter", "mock_forbidden")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -102,7 +102,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
 
     public void testIllegalCharFilters() throws IOException {
         Settings settings = Settings.builder()
-                .putArray("index.analysis.normalizer.my_normalizer.char_filter", "mock_forbidden")
+                .putList("index.analysis.normalizer.my_normalizer.char_filter", "mock_forbidden")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

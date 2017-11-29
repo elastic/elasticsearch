@@ -56,25 +56,8 @@ public class ShardFetchRequest extends TransportRequest {
         this.lastEmittedDoc = lastEmittedDoc;
     }
 
-    public long id() {
-        return id;
-    }
-
-    public int[] docIds() {
-        return docIds;
-    }
-
-    public int docIdsSize() {
-        return size;
-    }
-
-    public ScoreDoc lastEmittedDoc() {
-        return lastEmittedDoc;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public ShardFetchRequest(StreamInput in) throws IOException {
+        super(in);
         id = in.readLong();
         size = in.readVInt();
         docIds = new int[size];
@@ -108,6 +91,27 @@ public class ShardFetchRequest extends TransportRequest {
             out.writeByte((byte) 2);
             Lucene.writeScoreDoc(out, lastEmittedDoc);
         }
+    }
+
+    public long id() {
+        return id;
+    }
+
+    public int[] docIds() {
+        return docIds;
+    }
+
+    public int docIdsSize() {
+        return size;
+    }
+
+    public ScoreDoc lastEmittedDoc() {
+        return lastEmittedDoc;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

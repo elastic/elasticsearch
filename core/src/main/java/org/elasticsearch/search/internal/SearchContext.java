@@ -58,7 +58,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
@@ -175,9 +175,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     /**
      * @return list of all rescore contexts.  empty if there aren't any.
      */
-    public abstract List<RescoreSearchContext> rescore();
+    public abstract List<RescoreContext> rescore();
 
-    public abstract void addRescore(RescoreSearchContext rescore);
+    public abstract void addRescore(RescoreContext rescore);
 
     public abstract boolean hasScriptFields();
 

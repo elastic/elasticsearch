@@ -66,8 +66,6 @@ public class RoutingAllocation {
 
     private boolean ignoreDisable = false;
 
-    private final boolean retryFailed;
-
     private DebugMode debugDecision = DebugMode.OFF;
 
     private boolean hasPendingAsyncFetch = false;
@@ -90,7 +88,7 @@ public class RoutingAllocation {
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
     public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo,
-                             long currentNanoTime, boolean retryFailed) {
+                             long currentNanoTime) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.metaData = clusterState.metaData();
@@ -99,7 +97,6 @@ public class RoutingAllocation {
         this.customs = clusterState.customs();
         this.clusterInfo = clusterInfo;
         this.currentNanoTime = currentNanoTime;
-        this.retryFailed = retryFailed;
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -283,10 +280,6 @@ public class RoutingAllocation {
      */
     public void setHasPendingAsyncFetch() {
         this.hasPendingAsyncFetch = true;
-    }
-
-    public boolean isRetryFailed() {
-        return retryFailed;
     }
 
     public enum DebugMode {

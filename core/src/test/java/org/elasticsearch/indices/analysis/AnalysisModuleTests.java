@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -91,7 +92,7 @@ public class AnalysisModuleTests extends ESTestCase {
 
     public AnalysisRegistry getNewRegistry(Settings settings) {
         try {
-            return new AnalysisModule(new Environment(settings), singletonList(new AnalysisPlugin() {
+            return new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(new AnalysisPlugin() {
                 @Override
                 public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                     return singletonMap("myfilter", MyFilterTokenFilterFactory::new);
@@ -108,7 +109,7 @@ public class AnalysisModuleTests extends ESTestCase {
     }
 
     private Settings loadFromClasspath(String path) throws IOException {
-        return Settings.builder().loadFromStream(path, getClass().getResourceAsStream(path))
+        return Settings.builder().loadFromStream(path, getClass().getResourceAsStream(path), false)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
@@ -141,7 +142,7 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testVersionedAnalyzers() throws Exception {
         String yaml = "/org/elasticsearch/index/analysis/test1.yml";
         Settings settings2 = Settings.builder()
-                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
                 .build();
@@ -162,7 +163,8 @@ public class AnalysisModuleTests extends ESTestCase {
                 indexAnalyzers.get("thai").analyzer().getVersion());
 
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0), indexAnalyzers.get("custom7").analyzer().getVersion());
+        assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0),
+                indexAnalyzers.get("custom7").analyzer().getVersion());
     }
 
     private void testSimpleConfiguration(Settings settings) throws IOException {
@@ -188,28 +190,20 @@ public class AnalysisModuleTests extends ESTestCase {
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom4 = (CustomAnalyzer) analyzer;
         assertThat(custom4.tokenFilters()[0], instanceOf(MyFilterTokenFilterFactory.class));
-
-//        // verify Czech stemmer
-//        analyzer = analysisService.analyzer("czechAnalyzerWithStemmer").analyzer();
-//        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
-//        CustomAnalyzer czechstemmeranalyzer = (CustomAnalyzer) analyzer;
-//        assertThat(czechstemmeranalyzer.tokenizerFactory(), instanceOf(StandardTokenizerFactory.class));
-//        assertThat(czechstemmeranalyzer.tokenFilters().length, equalTo(4));
-//        assertThat(czechstemmeranalyzer.tokenFilters()[3], instanceOf(CzechStemTokenFilterFactory.class));
     }
 
     public void testWordListPath() throws Exception {
         Settings settings = Settings.builder()
                                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                                .build();
-        Environment env = new Environment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         String[] words = new String[]{"donau", "dampf", "schiff", "spargel", "creme", "suppe"};
 
         Path wordListFile = generateWordList(words);
         settings = Settings.builder().loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath(), XContentType.YAML)
             .build();
 
-        Set<?> wordList = Analysis.getWordSet(env, Version.CURRENT, settings, "index.word_list");
+        Set<?> wordList = Analysis.getWordSet(env, settings, "index.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
 //        MatcherAssert.assertThat(wordList, hasItems(words));
         Files.delete(wordListFile);
@@ -249,7 +243,8 @@ public class AnalysisModuleTests extends ESTestCase {
         boolean noVersionSupportsMultiTerm = randomBoolean();
         boolean luceneVersionSupportsMultiTerm = randomBoolean();
         boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
-        AnalysisRegistry registry = new AnalysisModule(new Environment(emptyNodeSettings), singletonList(new AnalysisPlugin() {
+        AnalysisRegistry registry = new AnalysisModule(TestEnvironment.newEnvironment(emptyNodeSettings),
+                singletonList(new AnalysisPlugin() {
             @Override
             public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
                 return Arrays.asList(
@@ -293,7 +288,8 @@ public class AnalysisModuleTests extends ESTestCase {
         boolean noVersionSupportsMultiTerm = randomBoolean();
         boolean luceneVersionSupportsMultiTerm = randomBoolean();
         boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
-        AnalysisRegistry registry = new AnalysisModule(new Environment(emptyNodeSettings), singletonList(new AnalysisPlugin() {
+        AnalysisRegistry registry = new AnalysisModule(TestEnvironment.newEnvironment(emptyNodeSettings),
+                singletonList(new AnalysisPlugin() {
             @Override
             public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
                 return Arrays.asList(
@@ -367,7 +363,8 @@ public class AnalysisModuleTests extends ESTestCase {
                 read = false;
             }
         }
-        AnalysisRegistry registry = new AnalysisModule(new Environment(emptyNodeSettings), singletonList(new AnalysisPlugin() {
+        AnalysisRegistry registry = new AnalysisModule(TestEnvironment.newEnvironment(emptyNodeSettings),
+                singletonList(new AnalysisPlugin() {
             @Override
             public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
                 return Arrays.asList(
@@ -410,7 +407,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        Environment environment = new Environment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
         InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
         Dictionary dictionary;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregationBuilder;
 
@@ -27,16 +26,16 @@ public class PercentileRanksTests extends BaseAggregationTestCase<PercentileRank
 
     @Override
     protected PercentileRanksAggregationBuilder createTestAggregatorBuilder() {
-        PercentileRanksAggregationBuilder factory = new PercentileRanksAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
-        if (randomBoolean()) {
-            factory.keyed(randomBoolean());
-        }
         int valuesSize = randomIntBetween(1, 20);
         double[] values = new double[valuesSize];
         for (int i = 0; i < valuesSize; i++) {
             values[i] = randomDouble() * 100;
         }
-        factory.values(values);
+        PercentileRanksAggregationBuilder factory = new PercentileRanksAggregationBuilder(randomAlphaOfLengthBetween(1, 20), values);
+        if (randomBoolean()) {
+            factory.keyed(randomBoolean());
+        }
+
         if (randomBoolean()) {
             factory.numberOfSignificantValueDigits(randomIntBetween(0, 5));
         }

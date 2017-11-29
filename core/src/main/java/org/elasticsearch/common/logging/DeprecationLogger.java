@@ -26,11 +26,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
+import java.io.CharArrayWriter;
+import java.nio.charset.Charset;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.SignStyle;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -228,7 +231,7 @@ public class DeprecationLogger {
     public static Pattern WARNING_HEADER_PATTERN = Pattern.compile(
             "299 " + // warn code
                     "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
-                    "\"((?:\t| |!|[\\x23-\\x5b]|[\\x5d-\\x7e]|[\\x80-\\xff]|\\\\|\\\\\")*)\" " + // quoted warning value, captured
+                    "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\" " + // quoted warning value, captured
                     // quoted RFC 1123 date format
                     "\"" + // opening quote
                     "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
@@ -304,7 +307,7 @@ public class DeprecationLogger {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
             assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escape(formattedMessage));
+            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();
@@ -328,7 +331,17 @@ public class DeprecationLogger {
      * @return a warning value formatted according to RFC 7234
      */
     public static String formatWarning(final String s) {
-        return String.format(Locale.ROOT, WARNING_FORMAT, escape(s), RFC_7231_DATE_TIME.format(ZonedDateTime.now(GMT)));
+        return String.format(Locale.ROOT, WARNING_FORMAT, escapeAndEncode(s), RFC_7231_DATE_TIME.format(ZonedDateTime.now(GMT)));
+    }
+
+    /**
+     * Escape and encode a string as a valid RFC 7230 quoted-string.
+     *
+     * @param s the string to escape and encode
+     * @return the escaped and encoded string
+     */
+    public static String escapeAndEncode(final String s) {
+        return encode(escapeBackslashesAndQuotes(s));
     }
 
     /**
@@ -337,8 +350,81 @@ public class DeprecationLogger {
      * @param s the string to escape
      * @return the escaped string
      */
-    public static String escape(String s) {
+    static String escapeBackslashesAndQuotes(final String s) {
         return s.replaceAll("([\"\\\\])", "\\\\$1");
+    }
+
+    private static BitSet doesNotNeedEncoding;
+
+    static {
+        doesNotNeedEncoding = new BitSet(1 + 0xFF);
+        doesNotNeedEncoding.set('\t');
+        doesNotNeedEncoding.set(' ');
+        doesNotNeedEncoding.set('!');
+        doesNotNeedEncoding.set('\\');
+        doesNotNeedEncoding.set('"');
+        // we have to skip '%' which is 0x25 so that it is percent-encoded too
+        for (int i = 0x23; i <= 0x24; i++) {
+            doesNotNeedEncoding.set(i);
+        }
+        for (int i = 0x26; i <= 0x5B; i++) {
+            doesNotNeedEncoding.set(i);
+        }
+        for (int i = 0x5D; i <= 0x7E; i++) {
+            doesNotNeedEncoding.set(i);
+        }
+        for (int i = 0x80; i <= 0xFF; i++) {
+            doesNotNeedEncoding.set(i);
+        }
+        assert !doesNotNeedEncoding.get('%');
+    }
+
+    private static final Charset UTF_8 = Charset.forName("UTF-8");
+
+    /**
+     * Encode a string containing characters outside of the legal characters for an RFC 7230 quoted-string.
+     *
+     * @param s the string to encode
+     * @return the encoded string
+     */
+    static String encode(final String s) {
+        final StringBuilder sb = new StringBuilder(s.length());
+        boolean encodingNeeded = false;
+        for (int i = 0; i < s.length();) {
+            int current = (int) s.charAt(i);
+            /*
+             * Either the character does not need encoding or it does; when the character does not need encoding we append the character to
+             * a buffer and move to the next character and when the character does need encoding, we peel off as many characters as possible
+             * which we encode using UTF-8 until we encounter another character that does not need encoding.
+             */
+            if (doesNotNeedEncoding.get(current)) {
+                // append directly and move to the next character
+                sb.append((char) current);
+                i++;
+            } else {
+                int startIndex = i;
+                do {
+                    i++;
+                } while (i < s.length() && !doesNotNeedEncoding.get(s.charAt(i)));
+
+                final byte[] bytes = s.substring(startIndex, i).getBytes(UTF_8);
+                // noinspection ForLoopReplaceableByForEach
+                for (int j = 0; j < bytes.length; j++) {
+                    sb.append('%').append(hex(bytes[j] >> 4)).append(hex(bytes[j]));
+                }
+                encodingNeeded = true;
+            }
+        }
+        return encodingNeeded ? sb.toString() : s;
+    }
+
+    private static char hex(int b) {
+        final char ch = Character.forDigit(b & 0xF, 16);
+        if (Character.isLetter(ch)) {
+            return Character.toUpperCase(ch);
+        } else {
+            return ch;
+        }
     }
 
 }

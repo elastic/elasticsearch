@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
@@ -27,20 +29,18 @@ import com.vividsolutions.jts.geom.LineString;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class MultiLineStringBuilder extends ShapeBuilder {
+public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineStringBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;
 
     private final ArrayList<LineStringBuilder> lines = new ArrayList<>();
-
-    public MultiLineStringBuilder() {
-    }
 
     /**
      * Read from a stream.
@@ -50,6 +50,10 @@ public class MultiLineStringBuilder extends ShapeBuilder {
         for (int i = 0; i < size; i++) {
             linestring(new LineStringBuilder(in));
         }
+    }
+
+    public MultiLineStringBuilder() {
+        super();
     }
 
     @Override
@@ -81,8 +85,8 @@ public class MultiLineStringBuilder extends ShapeBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapeName());
-        builder.field(FIELD_COORDINATES);
+        builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
+        builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
         builder.startArray();
         for(LineStringBuilder line : lines) {
             line.coordinatesToXcontent(builder, false);
@@ -93,7 +97,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
     }
 
     @Override
-    public Shape build() {
+    public JtsGeometry build() {
         final Geometry geometry;
         if(wrapdateline) {
             ArrayList<LineString> parts = new ArrayList<>();

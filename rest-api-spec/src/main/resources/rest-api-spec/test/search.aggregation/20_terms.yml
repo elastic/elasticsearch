@@ -20,9 +20,6 @@ setup:
                     type: double
                   number:
                     type: long
-                  scaled_float:
-                    type: scaled_float
-                    scaling_factor: 100
                   date:
                     type: date
 
@@ -299,56 +296,6 @@ setup:
   - is_false: aggregations.double_terms.buckets.1.key_as_string
 
   - match: { aggregations.double_terms.buckets.1.doc_count: 1 }
-
----
-"Scaled float test":
-  - skip:
-      version: " - 5.2.0"
-      reason:  scaled_float were considered as longs in aggregations, this was fixed in 5.2.0
-
-  - do:
-      index:
-        index: test_1
-        type: test
-        id: 1
-        body: { "scaled_float": 9.99 }
-
-  - do:
-      index:
-        index: test_1
-        type: test
-        id: 2
-        body: { "scaled_float": 9.994 }
-
-  - do:
-      index:
-        index: test_1
-        type: test
-        id: 3
-        body: { "scaled_float": 8.99 }
-
-  - do:
-      indices.refresh: {}
-
-  - do:
-      search:
-        body: { "size" : 0, "aggs" : { "scaled_float_terms" : { "terms" : { "field" : "scaled_float" } } } }
-
-  - match: { hits.total: 3 }
-
-  - length: { aggregations.scaled_float_terms.buckets: 2 }
-
-  - match: { aggregations.scaled_float_terms.buckets.0.key: 9.99 }
-
-  - is_false: aggregations.scaled_float_terms.buckets.0.key_as_string
-
-  - match: { aggregations.scaled_float_terms.buckets.0.doc_count: 2 }
-
-  - match: { aggregations.scaled_float_terms.buckets.1.key: 8.99 }
-
-  - is_false: aggregations.scaled_float_terms.buckets.1.key_as_string
-
-  - match: { aggregations.scaled_float_terms.buckets.1.doc_count: 1 }
 
 ---
 "Date test":

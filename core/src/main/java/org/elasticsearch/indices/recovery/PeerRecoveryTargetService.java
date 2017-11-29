@@ -42,7 +42,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -319,10 +319,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         if (metadataSnapshot.size() > 0) {
             startingSeqNo = getStartingSeqNo(recoveryTarget);
         } else {
-            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
 
-        if (startingSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+        if (startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
         } else {
             logger.trace(
@@ -348,7 +348,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * Get the starting sequence number for a sequence-number-based request.
      *
      * @param recoveryTarget the target of the recovery
-     * @return the starting sequence number or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
+     * @return the starting sequence number or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
      * failed
      */
     public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
@@ -364,7 +364,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                  */
                 return seqNoStats.getLocalCheckpoint() + 1;
             } else {
-                return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                return SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
         } catch (final IOException e) {
             /*
@@ -372,7 +372,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
              * translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and
              * proceeds to attempt a sequence-number-based recovery.
              */
-            return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            return SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -42,7 +42,7 @@ import static java.util.Collections.unmodifiableMap;
  * This class is used to find files that were already snapshotted and clear out files that no longer referenced by any
  * snapshots
  */
-public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContent {
+public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContentFragment {
 
     private final List<SnapshotFiles> shardSnapshots;
     private final Map<String, FileInfo> files;

@@ -210,6 +210,10 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 public Query termQuery(Object value, QueryShardContext context) {
                     return null;
                 }
+
+                public Query existsQuery(QueryShardContext context) {
+                    return null;
+                }
             };
             fieldType.setName("field");
             fieldType.setHasDocValues(true);

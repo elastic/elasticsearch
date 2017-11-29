@@ -22,20 +22,20 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Arrays;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * Describes the capabilities of a field optionally merged across multiple indices.
  */
-public class FieldCapabilities implements Writeable, ToXContent {
+public class FieldCapabilities implements Writeable, ToXContentObject {
     private final String name;
     private final String type;
     private final boolean isSearchable;

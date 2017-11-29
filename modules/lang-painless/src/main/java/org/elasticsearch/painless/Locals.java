@@ -72,7 +72,7 @@ public final class Locals {
         }
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
-            locals.defineVariable(null, Definition.INT_TYPE, LOOP, true);
+            locals.defineVariable(null, locals.getDefinition().intType, LOOP, true);
         }
         return locals;
     }
@@ -85,7 +85,7 @@ public final class Locals {
         }
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
-            locals.defineVariable(null, Definition.INT_TYPE, LOOP, true);
+            locals.defineVariable(null, locals.getDefinition().intType, LOOP, true);
         }
         return locals;
     }
@@ -104,7 +104,7 @@ public final class Locals {
 
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
-            locals.defineVariable(null, Definition.INT_TYPE, LOOP, true);
+            locals.defineVariable(null, locals.getDefinition().intType, LOOP, true);
         }
         return locals;
     }

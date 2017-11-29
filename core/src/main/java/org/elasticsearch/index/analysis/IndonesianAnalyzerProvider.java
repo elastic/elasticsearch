@@ -32,7 +32,7 @@ public class IndonesianAnalyzerProvider extends AbstractIndexAnalyzerProvider<In
     public IndonesianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new IndonesianAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, IndonesianAnalyzer.getDefaultStopSet()),
+            Analysis.parseStopWords(env, settings, IndonesianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);

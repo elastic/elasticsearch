@@ -1,7 +1,7 @@
 [[mapping-type-field]]
 === `_type` field
 
-deprecated::[6.0.0,See <<removal-of-types>>]
+deprecated[6.0.0,See <<removal-of-types>>]
 
 Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
 <<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_type` field is

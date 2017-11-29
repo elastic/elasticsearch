@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -56,7 +57,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         } else {
             textMappings = "type=text,fielddata=true";
         }
-        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
+        assertAcked(prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping(type, "text", textMappings));
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
@@ -116,7 +117,8 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         if (termtype.equals("text")) {
             termMappings += ",fielddata=true";
         }
-        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "text", termMappings));
+        assertAcked(prepareCreate(index).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+            .addMapping(type, "text", termMappings));
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         addTermsDocs("1", 1, indexBuilders);//low doc freq but high score

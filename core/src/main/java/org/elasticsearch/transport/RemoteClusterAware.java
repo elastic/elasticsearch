@@ -53,6 +53,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
             Setting.Property.NodeScope, Setting.Property.Dynamic));
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
+
     protected final ClusterNameExpressionResolver clusterNameResolver;
 
     /**
@@ -160,7 +161,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
         }
     }
 
-    public static final String buildRemoteIndexName(String clusterAlias, String indexName) {
+    public static String buildRemoteIndexName(String clusterAlias, String indexName) {
         return clusterAlias != null ? clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName : indexName;
     }
 }

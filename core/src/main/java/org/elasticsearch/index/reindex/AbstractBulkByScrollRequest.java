@@ -43,7 +43,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
-    private static final int DEFAULT_SCROLL_SIZE = 1000;
+    static final int DEFAULT_SCROLL_SIZE = 1000;
+
+    public static final int AUTO_SLICES = 0;
+    public static final String AUTO_SLICES_VALUE = "auto";
+    private static final int DEFAULT_SLICES = 1;
 
     /**
      * The search to be executed.
@@ -102,7 +106,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
-    private int slices = 1;
+    private int slices = DEFAULT_SLICES;
 
     /**
      * Constructor for deserialization.
@@ -152,8 +156,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
                             + size + "]",
                     e);
         }
-        if (searchRequest.source().slice() != null && slices != 1) {
-            e = addValidationError("can't specify both slice and workers", e);
+        if (searchRequest.source().slice() != null && slices != DEFAULT_SLICES) {
+            e = addValidationError("can't specify both manual and automatic slicing at the same time", e);
         }
         return e;
     }
@@ -341,8 +345,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
      */
     public Self setSlices(int slices) {
-        if (slices < 1) {
-            throw new IllegalArgumentException("[slices] must be at least 1");
+        if (slices < 0) {
+            throw new IllegalArgumentException("[slices] must be at least 0 but was [" + slices + "]");
         }
         this.slices = slices;
         return self();
@@ -358,24 +362,28 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Build a new request for a slice of the parent request.
      */
-    public abstract Self forSlice(TaskId slicingTask, SearchRequest slice);
+    public abstract Self forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices);
 
     /**
      * Setup a clone of this request with the information needed to process a slice of it.
      */
-    protected Self doForSlice(Self request, TaskId slicingTask) {
+    protected Self doForSlice(Self request, TaskId slicingTask, int totalSlices) {
+        if (totalSlices < 1) {
+            throw new IllegalArgumentException("Number of total slices must be at least 1 but was [" + totalSlices + "]");
+        }
+
         request.setAbortOnVersionConflict(abortOnVersionConflict).setRefresh(refresh).setTimeout(timeout)
                 .setWaitForActiveShards(activeShardCount).setRetryBackoffInitialTime(retryBackoffInitialTime).setMaxRetries(maxRetries)
                 // Parent task will store result
                 .setShouldStoreResult(false)
                 // Split requests per second between all slices
-                .setRequestsPerSecond(requestsPerSecond / slices)
+                .setRequestsPerSecond(requestsPerSecond / totalSlices)
                 // Sub requests don't have workers
                 .setSlices(1);
         if (size != -1) {
             // Size is split between workers. This means the size might round
             // down!
-            request.setSize(size == SIZE_ALL_MATCHES ? SIZE_ALL_MATCHES : size / slices);
+            request.setSize(size == SIZE_ALL_MATCHES ? SIZE_ALL_MATCHES : size / totalSlices);
         }
         // Set the parent task so this task is cancelled if we cancel the parent
         request.setParentTask(slicingTask);
@@ -385,21 +393,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        if (slices > 1) {
-            return new ParentBulkByScrollTask(id, type, action, getDescription(), parentTaskId, slices);
-        }
-        /* Extract the slice from the search request so it'll be available in the status. This is potentially useful for users that manually
-         * slice their search requests so they can keep track of it and **absolutely** useful for automatically sliced reindex requests so
-         * they can properly track the responses. */
-        Integer sliceId = searchRequest.source().slice() == null ? null : searchRequest.source().slice().getId();
-        return new WorkingBulkByScrollTask(id, type, action, getDescription(), parentTaskId, sliceId, requestsPerSecond);
+        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        searchRequest = new SearchRequest();
-        searchRequest.readFrom(in);
+        searchRequest = new SearchRequest(in);
         abortOnVersionConflict = in.readBoolean();
         size = in.readVInt();
         refresh = in.readBoolean();
@@ -408,11 +408,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime = new TimeValue(in);
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            slices = in.readVInt();
-        } else {
-            slices = 1;
-        }
+        slices = in.readVInt();
     }
 
     @Override
@@ -427,13 +423,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime.writeTo(out);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            out.writeVInt(slices);
+        if (out.getVersion().before(Version.V_6_1_0) && slices == AUTO_SLICES) {
+            throw new IllegalArgumentException("Slices set as \"auto\" are not supported before version [" + Version.V_6_1_0 + "]. " +
+                "Found version [" + out.getVersion() + "]");
         } else {
-            if (slices > 1) {
-                throw new IllegalArgumentException("Attempting to send sliced reindex-style request to a node that doesn't support "
-                        + "it. Version is [" + out.getVersion() + "] but must be [" + Version.V_5_1_1 + "]");
-            }
+            out.writeVInt(slices);
         }
     }
 

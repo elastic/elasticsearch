@@ -161,7 +161,7 @@ counting millions of items.
 On string fields that have a high cardinality, it might be faster to store the
 hash of your field values in your index and then run the cardinality aggregation
 on this field. This can either be done by providing hash values from client-side
-or by letting elasticsearch compute hash values for you by using the
+or by letting Elasticsearch compute hash values for you by using the
 {plugins}/mapper-murmur3.html[`mapper-murmur3`] plugin.
 
 NOTE: Pre-computing hashes is usually only useful on very large and/or

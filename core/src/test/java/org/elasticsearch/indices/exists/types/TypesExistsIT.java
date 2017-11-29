@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -51,7 +52,7 @@ public class TypesExistsIT extends ESIntegTestCase {
     public void testSimple() throws Exception {
         Client client = client();
         CreateIndexResponse response1 = client.admin().indices().prepareCreate("test1")
-                .setSettings("index.version.created", Version.V_5_6_0.id)
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").endObject().endObject())
                 .addMapping("type2", jsonBuilder().startObject().startObject("type2").endObject().endObject())
                 .execute().actionGet();

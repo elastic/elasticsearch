@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import java.util.Collection;
 /**
  * Status of a snapshot shards
  */
-public class SnapshotShardsStats  implements ToXContent {
+public class SnapshotShardsStats implements ToXContentFragment {
 
     private int initializingShards;
     private int startedShards;

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import java.util.Collections;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -29,6 +27,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -76,11 +75,15 @@ final class PSubDefCall extends AExpression {
                 totalCaptures += lambda.getCaptureCount();
             }
 
+            if (expression.actual.clazz == void.class) {
+                throw createError(new IllegalArgumentException("Argument(s) cannot be of [void] type when calling method [" + name + "]."));
+            }
+
             expression.expected = expression.actual;
             arguments.set(argument, expression.cast(locals));
         }
 
-        actual = expected == null || explicit ? Definition.DEF_TYPE : expected;
+        actual = expected == null || explicit ? locals.getDefinition().DefType : expected;
     }
 
     @Override
@@ -90,7 +93,7 @@ final class PSubDefCall extends AExpression {
         List<Type> parameterTypes = new ArrayList<>();
 
         // first parameter is the receiver, we never know its type: always Object
-        parameterTypes.add(Definition.DEF_TYPE.type);
+        parameterTypes.add(org.objectweb.asm.Type.getType(Object.class));
 
         // append each argument
         for (AExpression argument : arguments) {

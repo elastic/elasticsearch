@@ -52,13 +52,13 @@ public final class ENull extends AExpression {
         isNull = true;
 
         if (expected != null) {
-            if (expected.sort.primitive) {
+            if (expected.clazz.isPrimitive()) {
                 throw createError(new IllegalArgumentException("Cannot cast null to a primitive type [" + expected.name + "]."));
             }
 
             actual = expected;
         } else {
-            actual = Definition.OBJECT_TYPE;
+            actual = locals.getDefinition().ObjectType;
         }
     }
 

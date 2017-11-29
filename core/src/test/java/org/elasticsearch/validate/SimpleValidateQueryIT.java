@@ -180,9 +180,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(
                 Settings.builder().put(indexSettings())
                         .put("index.analysis.filter.syns.type", "synonym")
-                        .putArray("index.analysis.filter.syns.synonyms", "one,two")
+                        .putList("index.analysis.filter.syns.synonyms", "one,two")
                         .put("index.analysis.analyzer.syns.tokenizer", "standard")
-                        .putArray("index.analysis.analyzer.syns.filter", "syns")
+                        .putList("index.analysis.analyzer.syns.filter", "syns")
                     ).addMapping("test", "field","type=text,analyzer=syns"));
         ensureGreen();
 
@@ -215,7 +215,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testExplainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field", "type=text,analyzer=whitespace")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)).get();
         client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin").get();
         client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox").get();
         client().prepareIndex("test", "type1", "3").setSource("field", "the quick lazy huge brown fox jumps over the tree").get();
@@ -258,7 +258,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     public void testExplainWithRewriteValidateQueryAllShards() throws Exception {
         client().admin().indices().prepareCreate("test")
             .addMapping("type1", "field", "type=text,analyzer=whitespace")
-            .setSettings(SETTING_NUMBER_OF_SHARDS, 2).get();
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)).get();
         // We are relying on specific routing behaviors for the result to be right, so
         // we cannot randomize the number of shards or change ids here.
         client().prepareIndex("test", "type1", "1")

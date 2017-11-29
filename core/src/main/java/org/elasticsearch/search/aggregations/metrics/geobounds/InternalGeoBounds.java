@@ -254,7 +254,8 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     @Override
     protected boolean doEquals(Object obj) {
         InternalGeoBounds other = (InternalGeoBounds) obj;
-        return bottom == other.bottom &&
+        return top == other.top &&
+            bottom == other.bottom &&
             posLeft == other.posLeft &&
             posRight == other.posRight &&
             negLeft == other.negLeft &&

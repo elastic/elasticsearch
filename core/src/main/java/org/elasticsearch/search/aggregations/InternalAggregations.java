@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 
 import java.io.IOException;
@@ -35,7 +34,7 @@ import static java.util.Collections.emptyMap;
 /**
  * An internal implementation of {@link Aggregations}.
  */
-public final class InternalAggregations extends Aggregations implements ToXContent, Streamable {
+public final class InternalAggregations extends Aggregations implements Streamable {
 
     public static final InternalAggregations EMPTY = new InternalAggregations();
 

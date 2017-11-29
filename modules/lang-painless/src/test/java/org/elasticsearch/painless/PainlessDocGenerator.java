@@ -44,6 +44,7 @@ import java.util.function.Consumer;
 
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.painless.Definition.DEFINITION;
 
 /**
  * Generates an API reference from the method and type whitelists in {@link Definition}.
@@ -67,9 +68,9 @@ public class PainlessDocGenerator {
                 Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
-            List<Type> types = Definition.allSimpleTypes().stream().sorted(comparing(t -> t.name)).collect(toList());
+            List<Type> types = DEFINITION.allSimpleTypes().stream().sorted(comparing(t -> t.name)).collect(toList());
             for (Type type : types) {
-                if (type.sort.primitive) {
+                if (type.clazz.isPrimitive()) {
                     // Primitives don't have methods to reference
                     continue;
                 }
@@ -268,7 +269,7 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print((method.augmentation != null ? method.augmentation : method.owner.clazz).getName().replace('.', '/'));
+        stream.print(classUrlPath(method.augmentation != null ? method.augmentation : method.owner.clazz));
         stream.print(".html#");
         stream.print(methodName(method));
         stream.print("%2D");
@@ -300,7 +301,7 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print(field.owner.clazz.getName().replace('.', '/'));
+        stream.print(classUrlPath(field.owner.clazz));
         stream.print(".html#");
         stream.print(field.javaName);
     }
@@ -351,5 +352,9 @@ public class PainlessDocGenerator {
         stream.println("Rebuild by running `gradle generatePainlessApi`.");
         stream.println("////");
         stream.println();
+    }
+
+    private static String classUrlPath(Class<?> clazz) {
+        return clazz.getName().replace('.', '/').replace('$', '.');
     }
 }

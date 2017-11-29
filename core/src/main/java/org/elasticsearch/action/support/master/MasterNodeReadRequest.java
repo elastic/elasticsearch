@@ -31,6 +31,20 @@ public abstract class MasterNodeReadRequest<Request extends MasterNodeReadReques
 
     protected boolean local = false;
 
+    protected MasterNodeReadRequest() {
+    }
+
+    protected MasterNodeReadRequest(StreamInput in) throws IOException {
+        super(in);
+        local = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(local);
+    }
+
     @SuppressWarnings("unchecked")
     public final Request local(boolean local) {
         this.local = local;
@@ -42,14 +56,7 @@ public abstract class MasterNodeReadRequest<Request extends MasterNodeReadReques
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(local);
-    }
-
-    @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        local = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

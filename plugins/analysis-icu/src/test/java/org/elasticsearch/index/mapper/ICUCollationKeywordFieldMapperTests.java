@@ -28,7 +28,9 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -80,7 +82,51 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
 
-        Collator collator = Collator.getInstance();
+        Collator collator = Collator.getInstance(ULocale.ROOT);
+        RawCollationKey key = collator.getRawCollationKey("1234", null);
+        BytesRef expected = new BytesRef(key.bytes, 0, key.size);
+
+        assertEquals(expected, fields[0].binaryValue());
+        IndexableFieldType fieldType = fields[0].fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(true));
+        assertFalse(fieldType.tokenized());
+        assertFalse(fieldType.stored());
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+
+        assertEquals(expected, fields[1].binaryValue());
+        fieldType = fields[1].fieldType();
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
+        assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+    }
+
+    public void testBackCompat() throws Exception {
+        indexService = createIndex("oldindex", Settings.builder().put("index.version.created", Version.V_5_5_0).build());
+        parser = indexService.mapperService().documentMapperParser();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("oldindex", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "1234")
+                .endObject()
+                .bytes(),
+            XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+
+        Collator collator = Collator.getInstance(ULocale.ROOT);
         RawCollationKey key = collator.getRawCollationKey("1234", null);
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
@@ -143,7 +189,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes(),
             XContentType.JSON));
 
-        Collator collator = Collator.getInstance();
+        Collator collator = Collator.getInstance(ULocale.ROOT);
         RawCollationKey key = collator.getRawCollationKey("1234", null);
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
@@ -194,7 +240,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.NONE, fields[0].fieldType().indexOptions());
-        assertEquals(DocValuesType.SORTED, fields[0].fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_SET, fields[0].fieldType().docValuesType());
     }
 
     public void testDisableDocValues() throws IOException {
@@ -217,6 +263,68 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+    }
+
+    public void testMultipleValues() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", Arrays.asList("1234", "5678"))
+                .endObject()
+                .bytes(),
+            XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(4, fields.length);
+
+        Collator collator = Collator.getInstance(ULocale.ROOT);
+        RawCollationKey key = collator.getRawCollationKey("1234", null);
+        BytesRef expected = new BytesRef(key.bytes, 0, key.size);
+
+        assertEquals(expected, fields[0].binaryValue());
+        IndexableFieldType fieldType = fields[0].fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(true));
+        assertFalse(fieldType.tokenized());
+        assertFalse(fieldType.stored());
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+
+        assertEquals(expected, fields[1].binaryValue());
+        fieldType = fields[1].fieldType();
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
+        assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+
+        collator = Collator.getInstance(ULocale.ROOT);
+        key = collator.getRawCollationKey("5678", null);
+        expected = new BytesRef(key.bytes, 0, key.size);
+
+        assertEquals(expected, fields[2].binaryValue());
+        fieldType = fields[2].fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(true));
+        assertFalse(fieldType.tokenized());
+        assertFalse(fieldType.stored());
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+
+        assertEquals(expected, fields[3].binaryValue());
+        fieldType = fields[3].fieldType();
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
+        assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
 
     public void testIndexOptions() throws IOException {
@@ -316,7 +424,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(expected, fields[1].binaryValue());
         fieldType = fields[1].fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
-        assertEquals(DocValuesType.SORTED, fieldType.docValuesType());
+        assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
 
     public void testUpdateCollator() throws IOException {

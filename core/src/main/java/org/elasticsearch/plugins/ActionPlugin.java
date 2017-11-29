@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
@@ -66,7 +65,7 @@ public interface ActionPlugin {
     /**
      * Action filters added by this plugin.
      */
-    default List<Class<? extends ActionFilter>> getActionFilters() {
+    default List<ActionFilter> getActionFilters() {
         return Collections.emptyList();
     }
     /**

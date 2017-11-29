@@ -23,16 +23,16 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.client.http.Consts;
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.auth.AuthScope;
-import org.elasticsearch.client.http.auth.UsernamePasswordCredentials;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
-import org.elasticsearch.client.http.impl.client.BasicCredentialsProvider;
-import org.elasticsearch.client.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.Consts;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.util.EntityUtils;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
@@ -60,7 +60,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Integration test to check interaction between {@link RestClient} and {@link org.elasticsearch.client.http.client.HttpClient}.
+ * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against a real http server, one single host.
  */
 //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
@@ -164,7 +164,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     /**
      * End to end test for headers. We test it explicitly against a real http client as there are different ways
-     * to set/add headers to the {@link org.elasticsearch.client.http.client.HttpClient}.
+     * to set/add headers to the {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever headers it received.
      */
     public void testHeaders() throws IOException {
@@ -198,7 +198,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     /**
      * End to end test for delete with body. We test it explicitly as it is not supported
-     * out of the box by {@link org.elasticsearch.client.http.client.HttpClient}.
+     * out of the box by {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever body it received.
      */
     public void testDeleteWithBody() throws IOException {
@@ -207,7 +207,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     /**
      * End to end test for get with body. We test it explicitly as it is not supported
-     * out of the box by {@link org.elasticsearch.client.http.client.HttpClient}.
+     * out of the box by {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever body it received.
      */
     public void testGetWithBody() throws IOException {

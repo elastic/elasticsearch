@@ -55,13 +55,11 @@ import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -151,10 +149,12 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
             }
             if (field == null) {
+                /**
+                 * TODO: _all is disabled by default and index.query.default_field can define multiple fields or patterns so we should
+                 * probably makes the field name mandatory in analyze query.
+                 **/
                 if (indexService != null) {
-                    field = indexService.getIndexSettings().getDefaultField();
-                } else {
-                    field = AllFieldMapper.NAME;
+                    field = indexService.getIndexSettings().getDefaultFields().get(0);
                 }
             }
             final AnalysisRegistry analysisRegistry = indicesService.getAnalysis();

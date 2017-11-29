@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SearchScript;
 
@@ -126,25 +127,25 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
-        SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
-        return new ScriptQuery(script, searchScript);
+        FilterScript.Factory factory = context.getScriptService().compile(script, FilterScript.CONTEXT);
+        FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), context.lookup());
+        return new ScriptQuery(script, filterScript);
     }
 
     static class ScriptQuery extends Query {
 
         final Script script;
-        final SearchScript.LeafFactory searchScript;
+        final FilterScript.LeafFactory filterScript;
 
-        ScriptQuery(Script script, SearchScript.LeafFactory searchScript) {
+        ScriptQuery(Script script, FilterScript.LeafFactory filterScript) {
             this.script = script;
-            this.searchScript = searchScript;
+            this.filterScript = filterScript;
         }
 
         @Override
         public String toString(String field) {
             StringBuilder buffer = new StringBuilder();
-            buffer.append("ScriptFilter(");
+            buffer.append("ScriptQuery(");
             buffer.append(script);
             buffer.append(")");
             return buffer.toString();
@@ -152,23 +153,17 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         @Override
         public boolean equals(Object obj) {
-            // TODO: Do this if/when we can assume scripts are pure functions
-            // and they have a reliable equals impl
-            /*if (this == obj)
-                return true;
             if (sameClassAs(obj) == false)
                 return false;
             ScriptQuery other = (ScriptQuery) obj;
-            return Objects.equals(script, other.script);*/
-            return this == obj;
+            return Objects.equals(script, other.script);
         }
 
         @Override
         public int hashCode() {
-            // TODO: Do this if/when we can assume scripts are pure functions
-            // and they have a reliable equals impl
-            // return Objects.hash(classHash(), script);
-            return System.identityHashCode(this);
+            int h = classHash();
+            h = 31 * h + script.hashCode();
+            return h;
         }
 
         @Override
@@ -178,23 +173,13 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
-                    final SearchScript leafScript = searchScript.newInstance(context);
+                    final FilterScript leafScript = filterScript.newInstance(context);
                     TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
                         @Override
                         public boolean matches() throws IOException {
                             leafScript.setDocument(approximation.docID());
-                            Object val = leafScript.run();
-                            if (val == null) {
-                                return false;
-                            }
-                            if (val instanceof Boolean) {
-                                return (Boolean) val;
-                            }
-                            if (val instanceof Number) {
-                                return ((Number) val).longValue() != 0;
-                            }
-                            throw new IllegalArgumentException("Can't handle type [" + val + "] in script filter");
+                            return leafScript.execute();
                         }
 
                         @Override
@@ -204,6 +189,14 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                         }
                     };
                     return new ConstantScoreScorer(this, score(), twoPhase);
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    // TODO: Change this to true when we can assume that scripts are pure functions
+                    // ie. the return value is always the same given the same conditions and may not
+                    // depend on the current timestamp, other documents, etc.
+                    return false;
                 }
             };
         }

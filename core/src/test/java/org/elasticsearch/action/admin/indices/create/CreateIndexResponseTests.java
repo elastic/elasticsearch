@@ -20,11 +20,18 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class CreateIndexResponseTests extends ESTestCase {
 
@@ -61,5 +68,60 @@ public class CreateIndexResponseTests extends ESTestCase {
                 assertNull(serialized.index());
             }
         }
+    }
+
+    public void testToXContent() {
+        CreateIndexResponse response = new CreateIndexResponse(true, false, "index_name");
+        String output = Strings.toString(response);
+        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
+    }
+
+    public void testToAndFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    /**
+     * This test adds random fields and objects to the xContent rendered out to
+     * ensure we can parse it back to be forward compatible with additions to
+     * the xContent
+     */
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
+
+        final CreateIndexResponse createIndexResponse = createTestItem();
+
+        boolean humanReadable = randomBoolean();
+        final XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(createIndexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+
+        BytesReference mutated;
+        if (addRandomFields) {
+            mutated = insertRandomFields(xContentType, originalBytes, null, random());
+        } else {
+            mutated = originalBytes;
+        }
+        CreateIndexResponse parsedCreateIndexResponse;
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
+            parsedCreateIndexResponse = CreateIndexResponse.fromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+
+        assertEquals(createIndexResponse.index(), parsedCreateIndexResponse.index());
+        assertEquals(createIndexResponse.isShardsAcked(), parsedCreateIndexResponse.isShardsAcked());
+        assertEquals(createIndexResponse.isAcknowledged(), parsedCreateIndexResponse.isAcknowledged());
+    }
+
+    /**
+     * Returns a random {@link CreateIndexResponse}.
+     */
+    private static CreateIndexResponse createTestItem() throws IOException {
+        boolean acknowledged = randomBoolean();
+        boolean shardsAcked = acknowledged && randomBoolean();
+        String index = randomAlphaOfLength(5);
+
+        return new CreateIndexResponse(acknowledged, shardsAcked, index);
     }
 }

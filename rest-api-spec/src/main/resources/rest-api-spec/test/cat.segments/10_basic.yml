@@ -103,7 +103,7 @@
         index: index1
 
   - do:
-      catch: request
+      catch: bad_request
       cat.segments:
         index: index1
 

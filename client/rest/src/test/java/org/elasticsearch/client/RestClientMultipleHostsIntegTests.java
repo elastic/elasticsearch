@@ -22,7 +22,7 @@ package org.elasticsearch.client;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.client.http.HttpHost;
+import org.apache.http.HttpHost;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
@@ -45,7 +45,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Integration test to check interaction between {@link RestClient} and {@link org.elasticsearch.client.http.client.HttpClient}.
+ * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against real http servers, multiple hosts. Also tests failover by randomly shutting down hosts.
  */
 //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes

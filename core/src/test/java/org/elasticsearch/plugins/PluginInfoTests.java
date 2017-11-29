@@ -209,11 +209,11 @@ public class PluginInfoTests extends ESTestCase {
 
     public void testPluginListSorted() {
         List<PluginInfo> plugins = new ArrayList<>();
-        plugins.add(new PluginInfo("c", "foo", "dummy", "dummyclass", randomBoolean()));
-        plugins.add(new PluginInfo("b", "foo", "dummy", "dummyclass", randomBoolean()));
-        plugins.add(new PluginInfo("e", "foo", "dummy", "dummyclass", randomBoolean()));
-        plugins.add(new PluginInfo("a", "foo", "dummy", "dummyclass", randomBoolean()));
-        plugins.add(new PluginInfo("d", "foo", "dummy", "dummyclass", randomBoolean()));
+        plugins.add(new PluginInfo("c", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("b", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("e", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("a", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
+        plugins.add(new PluginInfo("d", "foo", "dummy", "dummyclass", randomBoolean(), randomBoolean()));
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
 

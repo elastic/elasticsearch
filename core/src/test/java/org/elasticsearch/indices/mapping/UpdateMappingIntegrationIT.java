@@ -353,7 +353,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingOnAllTypes() throws IOException {
         assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
         assertAcked(prepareCreate("index")
-                .setSettings("index.version.created", Version.V_5_6_0.id)
+                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                 .addMapping("type1", "f", "type=keyword").addMapping("type2", "f", "type=keyword"));
 
         assertAcked(client().admin().indices().preparePutMapping("index")

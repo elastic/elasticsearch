@@ -18,24 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
 /**
  * A bucket aggregator that doesn't create new buckets.
  */
-public abstract class SingleBucketAggregator extends BucketsAggregator {
+public interface SingleBucketAggregator {
 
-    protected SingleBucketAggregator(String name, AggregatorFactories factories,
-            SearchContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
-    }
-
+    int bucketDocCount(long bucketOrd);
 }

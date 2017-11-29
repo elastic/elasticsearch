@@ -21,6 +21,7 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
@@ -99,7 +101,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         );
         client().prepareIndex("test", "employee", "q1").setSource(jsonBuilder().startObject()
             .field("query", QueryBuilders.nestedQuery("employee",
-                QueryBuilders.matchQuery("employee.name", "virginia potts").operator(Operator.AND), ScoreMode.Avg)
+                matchQuery("employee.name", "virginia potts").operator(Operator.AND), ScoreMode.Avg)
             ).endObject())
             .get();
         client().admin().indices().prepareRefresh().get();
@@ -200,6 +202,39 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         long fieldDataSize = client().admin().cluster().prepareClusterStats().get()
             .getIndicesStats().getFieldData().getMemorySizeInBytes();
         assertEquals("The percolator works with in-memory index and therefor shouldn't use field-data cache", 0L, fieldDataSize);
+    }
+
+    public void testMapUnmappedFieldAsText() throws IOException {
+        Settings.Builder settings = Settings.builder()
+            .put("index.percolator.map_unmapped_fields_as_text", true);
+        createIndex("test", settings.build(), "query", "query", "type=percolator");
+        client().prepareIndex("test", "query", "1")
+            .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject()).get();
+        client().admin().indices().prepareRefresh().get();
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(new PercolateQueryBuilder("query", jsonBuilder().startObject().field("field1", "value").endObject().bytes(),
+                    XContentType.JSON))
+            .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
+    }
+
+    public void testMapUnmappedFieldAsString() throws IOException {
+        Settings.Builder settings = Settings.builder()
+            .put("index.percolator.map_unmapped_fields_as_string", true);
+        createIndex("test", settings.build(), "query", "query", "type=percolator");
+        client().prepareIndex("test", "query", "1")
+            .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject()).get();
+        client().admin().indices().prepareRefresh().get();
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(new PercolateQueryBuilder("query", jsonBuilder().startObject().field("field1", "value").endObject().bytes(),
+                XContentType.JSON))
+            .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
+        assertSettingDeprecationsAndWarnings(new Setting[]{PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING});
     }
 
 }

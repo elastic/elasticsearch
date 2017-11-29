@@ -51,7 +51,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final List<ScriptFieldsContext.ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
-    public TopHitsAggregatorFactory(String name, int from, int size, boolean explain, boolean version, boolean trackScores,
+    TopHitsAggregatorFactory(String name, int from, int size, boolean explain, boolean version, boolean trackScores,
             Optional<SortAndFormats> sort, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
             List<String> docValueFields, List<ScriptFieldsContext.ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
             SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories, Map<String, Object> metaData)

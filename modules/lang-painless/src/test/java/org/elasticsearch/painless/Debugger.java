@@ -39,7 +39,7 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, Definition.BUILTINS).compile("<debugging>", source, settings, textifier);
+            new Compiler(iface, Definition.DEFINITION).compile("<debugging>", source, settings, textifier);
         } catch (Exception e) {
             textifier.print(outputWriter);
             e.addSuppressed(new Exception("current bytecode: \n" + output));

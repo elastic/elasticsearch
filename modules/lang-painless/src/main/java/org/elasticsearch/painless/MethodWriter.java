@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
@@ -131,35 +130,39 @@ public final class MethodWriter extends GeneratorAdapter {
 
     public void writeCast(final Cast cast) {
         if (cast != null) {
-            if (cast.from.sort == Sort.CHAR && cast.to.sort == Sort.STRING) {
+            if (cast.from.clazz == char.class && cast.to.clazz == String.class) {
                 invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
-            } else if (cast.from.sort == Sort.STRING && cast.to.sort == Sort.CHAR) {
+            } else if (cast.from.clazz == String.class && cast.to.clazz == char.class) {
                 invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
             } else if (cast.unboxFrom != null) {
                 unbox(cast.unboxFrom.type);
                 writeCast(cast.from, cast.to);
             } else if (cast.unboxTo != null) {
-                if (cast.from.sort == Sort.DEF) {
+                if (cast.from.dynamic) {
                     if (cast.explicit) {
-                        if (cast.to.sort == Sort.BOOL_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.to.sort == Sort.BYTE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
-                        else if (cast.to.sort == Sort.SHORT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
-                        else if (cast.to.sort == Sort.CHAR_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
-                        else if (cast.to.sort == Sort.INT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
-                        else if (cast.to.sort == Sort.LONG_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
-                        else if (cast.to.sort == Sort.FLOAT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
-                        else if (cast.to.sort == Sort.DOUBLE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
-                        else throw new IllegalStateException("Illegal tree structure.");
+                        if      (cast.to.clazz == Boolean.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
+                        else if (cast.to.clazz == Byte.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
+                        else if (cast.to.clazz == Short.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
+                        else if (cast.to.clazz == Character.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
+                        else if (cast.to.clazz == Integer.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
+                        else if (cast.to.clazz == Long.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
+                        else if (cast.to.clazz == Float.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
+                        else if (cast.to.clazz == Double.class)  invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
+                        else {
+                            throw new IllegalStateException("Illegal tree structure.");
+                        }
                     } else {
-                        if (cast.to.sort == Sort.BOOL_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.to.sort == Sort.BYTE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
-                        else if (cast.to.sort == Sort.SHORT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
-                        else if (cast.to.sort == Sort.CHAR_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
-                        else if (cast.to.sort == Sort.INT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
-                        else if (cast.to.sort == Sort.LONG_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
-                        else if (cast.to.sort == Sort.FLOAT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
-                        else if (cast.to.sort == Sort.DOUBLE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
-                        else throw new IllegalStateException("Illegal tree structure.");
+                        if      (cast.to.clazz == Boolean.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
+                        else if (cast.to.clazz == Byte.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
+                        else if (cast.to.clazz == Short.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
+                        else if (cast.to.clazz == Character.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
+                        else if (cast.to.clazz == Integer.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
+                        else if (cast.to.clazz == Long.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
+                        else if (cast.to.clazz == Float.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
+                        else if (cast.to.clazz == Double.class)  invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
+                        else {
+                            throw new IllegalStateException("Illegal tree structure.");
+                        }
                     }
                 } else {
                     writeCast(cast.from, cast.to);
@@ -182,7 +185,7 @@ public final class MethodWriter extends GeneratorAdapter {
             return;
         }
 
-        if (from.sort.numeric && from.sort.primitive && to.sort.numeric && to.sort.primitive) {
+        if (from.clazz != boolean.class && from.clazz.isPrimitive() && to.clazz != boolean.class && to.clazz.isPrimitive()) {
             cast(from.type, to.type);
         } else {
             if (!to.clazz.isAssignableFrom(from.clazz)) {
@@ -238,18 +241,16 @@ public final class MethodWriter extends GeneratorAdapter {
             }
         } else {
             // Java 8: push a StringBuilder append
-            switch (type.sort) {
-                case BOOL:   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN); break;
-                case CHAR:   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);    break;
-                case BYTE:
-                case SHORT:
-                case INT:    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_INT);     break;
-                case LONG:   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);    break;
-                case FLOAT:  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);   break;
-                case DOUBLE: invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);  break;
-                case STRING: invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);  break;
-                default:     invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
-            }
+            if (type.clazz == boolean.class)      invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN);
+            else if (type.clazz == char.class)    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);
+            else if (type.clazz == byte.class  ||
+                     type.clazz == short.class ||
+                     type.clazz == int.class)     invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_INT);
+            else if (type.clazz == long.class)    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);
+            else if (type.clazz == float.class)   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);
+            else if (type.clazz == double.class)  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);
+            else if (type.clazz == String.class)  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);
+            else                                  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
         }
     }
 
@@ -318,9 +319,7 @@ public final class MethodWriter extends GeneratorAdapter {
 
     /** Writes a static binary instruction */
     public void writeBinaryInstruction(Location location, Type type, Operation operation) {
-        final Sort sort = type.sort;
-
-        if ((sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
+        if ((type.clazz == float.class || type.clazz == double.class) &&
                 (operation == Operation.LSH || operation == Operation.USH ||
                 operation == Operation.RSH || operation == Operation.BWAND ||
                 operation == Operation.XOR || operation == Operation.BWOR)) {

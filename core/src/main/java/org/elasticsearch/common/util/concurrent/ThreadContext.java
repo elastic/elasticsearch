@@ -407,11 +407,10 @@ public final class ThreadContext implements Closeable, Writeable {
             if (headers.isEmpty()) {
                 return this;
             } else {
-                final Map<String, String> newHeaders = new HashMap<>();
+                final Map<String, String> newHeaders = new HashMap<>(this.requestHeaders);
                 for (Map.Entry<String, String> entry : headers.entrySet()) {
                     putSingleHeader(entry.getKey(), entry.getValue(), newHeaders);
                 }
-                newHeaders.putAll(this.requestHeaders);
                 return new ThreadContextStruct(newHeaders, responseHeaders, transientHeaders, isSystemContext);
             }
         }

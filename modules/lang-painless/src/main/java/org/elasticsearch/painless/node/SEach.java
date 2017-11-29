@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -79,9 +78,9 @@ public class SEach extends AStatement {
         locals = Locals.newLocalScope(locals);
         Variable variable = locals.addVariable(location, type, name, true);
 
-        if (expression.actual.sort == Sort.ARRAY) {
+        if (expression.actual.dimensions > 0) {
             sub = new SSubEachArray(location, variable, expression, block);
-        } else if (expression.actual.sort == Sort.DEF || Iterable.class.isAssignableFrom(expression.actual.clazz)) {
+        } else if (expression.actual.dynamic || Iterable.class.isAssignableFrom(expression.actual.clazz)) {
             sub = new SSubEachIterable(location, variable, expression, block);
         } else {
             throw createError(new IllegalArgumentException("Illegal for each type [" + expression.actual.name + "]."));

@@ -30,7 +30,6 @@ public class GatewayModule extends AbstractModule {
         bind(DanglingIndicesState.class).asEagerSingleton();
         bind(GatewayService.class).asEagerSingleton();
         bind(TransportNodesListGatewayMetaState.class).asEagerSingleton();
-        bind(GatewayMetaState.class).asEagerSingleton();
         bind(TransportNodesListGatewayStartedShards.class).asEagerSingleton();
         bind(LocalAllocateDangledIndices.class).asEagerSingleton();
     }

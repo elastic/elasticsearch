@@ -89,6 +89,10 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         return topDocs;
     }
 
+    int getFrom() {
+        return from;
+    }
+
     int getSize() {
         return size;
     }

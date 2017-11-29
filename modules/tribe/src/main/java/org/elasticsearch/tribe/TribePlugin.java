@@ -137,7 +137,7 @@ public class TribePlugin extends Plugin implements DiscoveryPlugin, ClusterPlugi
 
             return sb.build();
         } else {
-            for (String s : settings.getAsMap().keySet()) {
+            for (String s : settings.keySet()) {
                 if (s.startsWith("tribe.") && !s.equals(TribeService.TRIBE_NAME_SETTING.getKey())) {
                     throw new IllegalArgumentException("tribe cannot contain inner tribes: " + s);
                 }

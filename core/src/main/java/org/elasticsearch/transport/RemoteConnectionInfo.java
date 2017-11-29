@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,24 +35,26 @@ import java.util.Objects;
  * This class encapsulates all remote cluster information to be rendered on
  * <tt>_remote/info</tt> requests.
  */
-public final class RemoteConnectionInfo implements ToXContent, Writeable {
+public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
     final List<TransportAddress> seedNodes;
     final List<TransportAddress> httpAddresses;
     final int connectionsPerCluster;
     final TimeValue initialConnectionTimeout;
     final int numNodesConnected;
     final String clusterAlias;
+    final boolean skipUnavailable;
 
     RemoteConnectionInfo(String clusterAlias, List<TransportAddress> seedNodes,
                          List<TransportAddress> httpAddresses,
                          int connectionsPerCluster, int numNodesConnected,
-                         TimeValue initialConnectionTimeout) {
+                         TimeValue initialConnectionTimeout, boolean skipUnavailable) {
         this.clusterAlias = clusterAlias;
         this.seedNodes = seedNodes;
         this.httpAddresses = httpAddresses;
         this.connectionsPerCluster = connectionsPerCluster;
         this.numNodesConnected = numNodesConnected;
         this.initialConnectionTimeout = initialConnectionTimeout;
+        this.skipUnavailable = skipUnavailable;
     }
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
@@ -61,6 +64,11 @@ public final class RemoteConnectionInfo implements ToXContent, Writeable {
         initialConnectionTimeout = new TimeValue(input);
         numNodesConnected = input.readVInt();
         clusterAlias = input.readString();
+        if (input.getVersion().onOrAfter(Version.V_6_1_0)) {
+            skipUnavailable = input.readBoolean();
+        } else {
+            skipUnavailable = false;
+        }
     }
 
     @Override
@@ -81,6 +89,7 @@ public final class RemoteConnectionInfo implements ToXContent, Writeable {
             builder.field("num_nodes_connected", numNodesConnected);
             builder.field("max_connections_per_cluster", connectionsPerCluster);
             builder.field("initial_connect_timeout", initialConnectionTimeout);
+            builder.field("skip_unavailable", skipUnavailable);
         }
         builder.endObject();
         return builder;
@@ -94,6 +103,9 @@ public final class RemoteConnectionInfo implements ToXContent, Writeable {
         initialConnectionTimeout.writeTo(out);
         out.writeVInt(numNodesConnected);
         out.writeString(clusterAlias);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeBoolean(skipUnavailable);
+        }
     }
 
     @Override
@@ -106,11 +118,13 @@ public final class RemoteConnectionInfo implements ToXContent, Writeable {
             Objects.equals(seedNodes, that.seedNodes) &&
             Objects.equals(httpAddresses, that.httpAddresses) &&
             Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout) &&
-            Objects.equals(clusterAlias, that.clusterAlias);
+            Objects.equals(clusterAlias, that.clusterAlias) &&
+            skipUnavailable == that.skipUnavailable;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(seedNodes, httpAddresses, connectionsPerCluster, initialConnectionTimeout, numNodesConnected, clusterAlias);
+        return Objects.hash(seedNodes, httpAddresses, connectionsPerCluster, initialConnectionTimeout,
+                numNodesConnected, clusterAlias, skipUnavailable);
     }
 }

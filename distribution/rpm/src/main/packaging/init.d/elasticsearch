@@ -35,7 +35,7 @@ fi
 ES_HOME="/usr/share/elasticsearch"
 MAX_OPEN_FILES=65536
 MAX_MAP_COUNT=262144
-CONF_DIR="${path.conf}"
+ES_PATH_CONF="${path.conf}"
 
 PID_DIR="/var/run/elasticsearch"
 
@@ -57,7 +57,7 @@ pidfile="$PID_DIR/${prog}.pid"
 
 export ES_JAVA_OPTS
 export JAVA_HOME
-export CONF_DIR
+export ES_PATH_CONF
 export ES_STARTUP_SLEEP_TIME
 
 lockfile=/var/lock/subsys/$prog

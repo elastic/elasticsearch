@@ -19,11 +19,12 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.BufferedHttpEntity;
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.BufferedHttpEntity;
+import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Exception thrown when an elasticsearch node responds to a request with a status code that indicates an error.
@@ -39,8 +40,13 @@ public final class ResponseException extends IOException {
     }
 
     private static String buildMessage(Response response) throws IOException {
-        String message = response.getRequestLine().getMethod() + " " + response.getHost() + response.getRequestLine().getUri()
-                + ": " + response.getStatusLine().toString();
+        String message = String.format(Locale.ROOT,
+            "method [%s], host [%s], URI [%s], status line [%s]",
+            response.getRequestLine().getMethod(),
+            response.getHost(),
+            response.getRequestLine().getUri(),
+            response.getStatusLine().toString()
+        );
 
         HttpEntity entity = response.getEntity();
         if (entity != null) {

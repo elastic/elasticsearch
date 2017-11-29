@@ -19,16 +19,31 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Abstract class that allows to mark action responses that support acknowledgements.
  * Facilitates consistency across different api.
  */
 public abstract class AcknowledgedResponse extends ActionResponse {
+
+    private static final String ACKNOWLEDGED = "acknowledged";
+    private static final ParseField ACKNOWLEDGED_PARSER = new ParseField(ACKNOWLEDGED);
+
+    protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> PARSER) {
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED_PARSER,
+            ObjectParser.ValueType.BOOLEAN);
+    }
 
     private boolean acknowledged;
 
@@ -60,5 +75,9 @@ public abstract class AcknowledgedResponse extends ActionResponse {
      */
     protected void writeAcknowledged(StreamOutput out) throws IOException {
         out.writeBoolean(acknowledged);
+    }
+
+    protected void addAcknowledgedField(XContentBuilder builder) throws IOException {
+        builder.field(ACKNOWLEDGED, isAcknowledged());
     }
 }

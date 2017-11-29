@@ -48,6 +48,19 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
         this.scrollId = scrollId;
     }
 
+    public SearchScrollRequest(StreamInput in) throws IOException {
+        super(in);
+        scrollId = in.readString();
+        scroll = in.readOptionalWriteable(Scroll::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(scrollId);
+        out.writeOptionalWriteable(scroll);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -100,16 +113,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        scrollId = in.readString();
-        scroll = in.readOptionalWriteable(Scroll::new);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(scrollId);
-        out.writeOptionalWriteable(scroll);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 
@@ -43,7 +43,7 @@ import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
  *
  * @see SearchExtSpec
  */
-public abstract class SearchExtBuilder implements NamedWriteable, ToXContent {
+public abstract class SearchExtBuilder implements NamedWriteable, ToXContentFragment {
 
     public abstract int hashCode();
 

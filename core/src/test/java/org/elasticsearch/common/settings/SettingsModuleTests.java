@@ -113,8 +113,8 @@ public class SettingsModuleTests extends ModuleTestCase {
             Setting.boolSetting("bar.baz", true, Property.NodeScope)), Arrays.asList("foo.*"));
         assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).size() == 1);
-        assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().containsKey("bar.baz"));
-        assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).getAsMap().get("bar.baz").equals("false"));
+        assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).keySet().contains("bar.baz"));
+        assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).get("bar.baz").equals("false"));
 
     }
 

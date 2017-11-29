@@ -275,10 +275,6 @@ replicas.
 
 The `preference` can be set to:
 
-`_primary`::
-	The operation will go and be executed only on the primary
-	shards.
-
 `_local`::
 	The operation will prefer to be executed on a local
 	allocated shard if possible.

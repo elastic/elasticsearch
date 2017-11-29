@@ -24,12 +24,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public class ObjectMapper extends Mapper implements Cloneable {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(ObjectMapper.class));
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
@@ -100,8 +103,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected Dynamic dynamic = Defaults.DYNAMIC;
 
-        protected Boolean includeInAll;
-
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
         public Builder(String name) {
@@ -121,11 +122,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public T nested(Nested nested) {
             this.nested = nested;
-            return builder;
-        }
-
-        public T includeInAll(boolean includeInAll) {
-            this.includeInAll = includeInAll;
             return builder;
         }
 
@@ -150,14 +146,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
             context.path().remove();
 
             ObjectMapper objectMapper = createMapper(name, context.path().pathAsText(name), enabled, nested, dynamic,
-                    includeInAll, mappers, context.indexSettings());
+                mappers, context.indexSettings());
 
             return (Y) objectMapper;
         }
 
         protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
-                Boolean includeInAll, Map<String, Mapper> mappers, @Nullable Settings settings) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, includeInAll, mappers, settings);
+                Map<String, Mapper> mappers, @Nullable Settings settings) {
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers, settings);
         }
     }
 
@@ -200,7 +196,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                builder.includeInAll(TypeParsers.nodeBooleanValue(fieldName, "include_in_all", fieldNode, parserContext));
+                deprecationLogger.deprecated("[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }
             return false;
@@ -313,25 +309,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private volatile Dynamic dynamic;
 
-    private Boolean includeInAll;
-
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
-            Boolean includeInAll, Map<String, Mapper> mappers, Settings settings) {
+            Map<String, Mapper> mappers, Settings settings) {
         super(name);
         assert settings != null;
-        Version indexCreatedVersion = Version.indexCreated(settings);
-        if (indexCreatedVersion.onOrAfter(Version.V_5_0_0_beta1)) {
-            if (name.isEmpty()) {
-                throw new IllegalArgumentException("name cannot be empty string");
-            }
+        if (name.isEmpty()) {
+            throw new IllegalArgumentException("name cannot be empty string");
         }
         this.fullPath = fullPath;
         this.enabled = enabled;
         this.nested = nested;
         this.dynamic = dynamic;
-        this.includeInAll = includeInAll;
         if (mappers == null) {
             this.mappers = new CopyOnWriteHashMap<>();
         } else {
@@ -381,10 +371,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return this.nested;
     }
 
-    public Boolean includeInAll() {
-        return includeInAll;
-    }
-
     public Query nestedTypeFilter() {
         return this.nestedTypeFilter;
     }
@@ -410,6 +396,35 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return dynamic;
     }
 
+    /**
+     * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
+     * isn't any.
+     */
+    public ObjectMapper getParentObjectMapper(MapperService mapperService) {
+        int indexOfLastDot = fullPath().lastIndexOf('.');
+        if (indexOfLastDot != -1) {
+            String parentNestObjectPath = fullPath().substring(0, indexOfLastDot);
+            return mapperService.getObjectMapper(parentNestObjectPath);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Returns whether all parent objects fields are nested too.
+     */
+    public boolean parentObjectMapperAreNested(MapperService mapperService) {
+        for (ObjectMapper parent = getParentObjectMapper(mapperService);
+             parent != null;
+             parent = parent.getParentObjectMapper(mapperService)) {
+
+            if (parent.nested().isNested() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     public ObjectMapper merge(Mapper mergeWith, boolean updateAllTypes) {
         if (!(mergeWith instanceof ObjectMapper)) {
@@ -432,7 +447,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
-        this.includeInAll = mergeWith.includeInAll;
         if (mergeWith.dynamic != null) {
             this.dynamic = mergeWith.dynamic;
         }
@@ -497,9 +511,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
-        }
-        if (includeInAll != null) {
-            builder.field("include_in_all", includeInAll);
         }
 
         if (custom != null) {

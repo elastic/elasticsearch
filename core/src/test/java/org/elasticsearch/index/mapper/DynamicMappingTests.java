@@ -217,7 +217,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
             ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, source, xContentParser);
             assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
             ctx.parser().nextToken();
-            DocumentParser.parseObjectOrNested(ctx, mapper.root(), true);
+            DocumentParser.parseObjectOrNested(ctx, mapper.root());
             Mapping mapping = DocumentParser.createDynamicUpdate(mapper.mapping(), mapper, ctx.getDynamicMappers());
             return mapping == null ? null : mapping.root();
         }
@@ -639,8 +639,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .field("baz", (double) 3.2f) // double that can be accurately represented as a float
                 .field("quux", "3.2") // float detected through numeric detection
                 .endObject().bytes();
-        ParsedDocument parsedDocument = mapper.parse(SourceToParse.source("index", "type", "id", source,
-                XContentType.JSON));
+        ParsedDocument parsedDocument = mapper.parse(SourceToParse.source("index", "type", "id", source, builder.contentType()));
         Mapping update = parsedDocument.dynamicMappingsUpdate();
         assertNotNull(update);
         assertThat(((FieldMapper) update.root().getMapper("foo")).fieldType().typeName(), equalTo("float"));

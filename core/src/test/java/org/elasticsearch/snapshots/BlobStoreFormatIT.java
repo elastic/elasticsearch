@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -56,7 +57,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
 
     public static final String BLOB_CODEC = "blob";
 
-    private static class BlobObj implements ToXContent {
+    private static class BlobObj implements ToXContentFragment {
 
         private final String text;
 

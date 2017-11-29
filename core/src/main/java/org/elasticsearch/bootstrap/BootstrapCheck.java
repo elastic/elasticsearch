@@ -19,24 +19,58 @@
 
 package org.elasticsearch.bootstrap;
 
+import java.util.Objects;
+
 /**
  * Encapsulates a bootstrap check.
  */
 public interface BootstrapCheck {
 
     /**
-     * Test if the node fails the check.
-     *
-     * @return {@code true} if the node failed the check
+     * Encapsulate the result of a bootstrap check.
      */
-    boolean check();
+    final class BootstrapCheckResult {
+
+        private final String message;
+
+        private static final BootstrapCheckResult SUCCESS = new BootstrapCheckResult(null);
+
+        public static BootstrapCheckResult success() {
+            return SUCCESS;
+        }
+
+        public static BootstrapCheckResult failure(final String message) {
+            Objects.requireNonNull(message);
+            return new BootstrapCheckResult(message);
+        }
+
+        private BootstrapCheckResult(final String message) {
+            this.message = message;
+        }
+
+        public boolean isSuccess() {
+            return this == SUCCESS;
+        }
+
+        public boolean isFailure() {
+            return !isSuccess();
+        }
+
+        public String getMessage() {
+            assert isFailure();
+            assert message != null;
+            return message;
+        }
+
+    }
 
     /**
-     * The error message for a failed check.
+     * Test if the node fails the check.
      *
-     * @return the error message on check failure
+     * @param context the bootstrap context
+     * @return the result of the bootstrap check
      */
-    String errorMessage();
+    BootstrapCheckResult check(BootstrapContext context);
 
     default boolean alwaysEnforce() {
         return false;

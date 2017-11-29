@@ -39,6 +39,19 @@ import static org.hamcrest.Matchers.equalTo;
 // Tests borrowed from Solr's Icu collation key filter factory test.
 public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     /*
+     * Tests usage where we do not provide a language or locale
+     */
+    public void testDefaultUsage() throws Exception {
+        Settings settings = Settings.builder()
+                .put("index.analysis.filter.myCollator.type", "icu_collation")
+                .put("index.analysis.filter.myCollator.strength", "primary")
+                .build();
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
+        assertCollatesToSame(filterFactory, "FOO", "foo");
+    }
+    /*
     * Turkish has some funny casing.
     * This test shows how you can solve this kind of thing easily with collation.
     * Instead of using LowerCaseFilter, use a turkish collator with primary strength.

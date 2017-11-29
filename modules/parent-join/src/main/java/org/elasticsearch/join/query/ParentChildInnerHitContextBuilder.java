@@ -70,7 +70,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     }
 
     @Override
-    public void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
+    protected void doBuild(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
         if (parentSearchContext.mapperService().getIndexSettings().isSingleType()) {
             handleJoinFieldInnerHits(parentSearchContext, innerHitsContext);
         } else {

@@ -20,7 +20,7 @@
 package org.elasticsearch.client.sniff;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-import org.elasticsearch.client.http.HttpHost;
+import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientTestCase;
 

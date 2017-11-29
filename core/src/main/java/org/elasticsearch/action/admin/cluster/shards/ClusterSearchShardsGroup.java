@@ -23,13 +23,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class ClusterSearchShardsGroup implements Streamable, ToXContent {
+public class ClusterSearchShardsGroup implements Streamable, ToXContentObject {
 
     private ShardId shardId;
     private ShardRouting[] shards;

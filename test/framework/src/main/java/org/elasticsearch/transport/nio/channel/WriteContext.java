@@ -27,7 +27,7 @@ import java.io.IOException;
 
 public interface WriteContext {
 
-    void sendMessage(BytesReference reference, ActionListener<NioChannel> listener);
+    void sendMessage(BytesReference reference, ActionListener<Void> listener);
 
     void queueWriteOperations(WriteOperation writeOperation);
 

@@ -29,7 +29,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.Segment;
 
@@ -39,11 +39,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Locale;
 
-public class IndicesSegmentResponse extends BroadcastResponse implements ToXContent {
+public class IndicesSegmentResponse extends BroadcastResponse implements ToXContentFragment {
 
     private ShardSegments[] shards;
 
@@ -154,6 +154,9 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
                                 toXContent(builder, child);
                             }
                             builder.endArray();
+                        }
+                        if (segment.attributes != null && segment.attributes.isEmpty() == false) {
+                            builder.field("attributes", segment.attributes);
                         }
                         builder.endObject();
                     }

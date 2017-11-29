@@ -24,9 +24,10 @@ import org.elasticsearch.common.metrics.CounterMetric;
 public class ScriptMetrics {
     final CounterMetric compilationsMetric = new CounterMetric();
     final CounterMetric cacheEvictionsMetric = new CounterMetric();
+    final CounterMetric compilationLimitTriggered = new CounterMetric();
 
     public ScriptStats stats() {
-        return new ScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count());
+        return new ScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count(), compilationLimitTriggered.count());
     }
 
     public void onCompilation() {
@@ -35,5 +36,9 @@ public class ScriptMetrics {
 
     public void onCacheEviction() {
         cacheEvictionsMetric.inc();
+    }
+
+    public void onCompilationLimit() {
+        compilationLimitTriggered.inc();
     }
 }

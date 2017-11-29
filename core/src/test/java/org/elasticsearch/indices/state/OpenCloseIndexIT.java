@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -67,6 +68,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         OpenIndexResponse openIndexResponse = client.admin().indices().prepareOpen("test1").execute().actionGet();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(openIndexResponse.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1");
     }
 
@@ -123,6 +125,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         OpenIndexResponse openIndexResponse = client.admin().indices().prepareOpen("test1", "test2")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(openIndexResponse.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1");
     }
 
@@ -141,8 +144,10 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         OpenIndexResponse openIndexResponse1 = client.admin().indices().prepareOpen("test1").execute().actionGet();
         assertThat(openIndexResponse1.isAcknowledged(), equalTo(true));
+        assertThat(openIndexResponse1.isShardsAcknowledged(), equalTo(true));
         OpenIndexResponse openIndexResponse2 = client.admin().indices().prepareOpen("test2").execute().actionGet();
         assertThat(openIndexResponse2.isAcknowledged(), equalTo(true));
+        assertThat(openIndexResponse2.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1", "test2", "test3");
     }
 
@@ -159,6 +164,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         OpenIndexResponse openIndexResponse = client.admin().indices().prepareOpen("test*").execute().actionGet();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(openIndexResponse.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1", "test2", "a");
     }
 
@@ -174,6 +180,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         OpenIndexResponse openIndexResponse = client.admin().indices().prepareOpen("_all").execute().actionGet();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(openIndexResponse.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1", "test2", "test3");
     }
 
@@ -189,6 +196,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         OpenIndexResponse openIndexResponse = client.admin().indices().prepareOpen("*").execute().actionGet();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(openIndexResponse.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1", "test2", "test3");
     }
 
@@ -229,6 +237,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         //no problem if we try to open an index that's already in open state
         OpenIndexResponse openIndexResponse1 = client.admin().indices().prepareOpen("test1").execute().actionGet();
         assertThat(openIndexResponse1.isAcknowledged(), equalTo(true));
+        assertThat(openIndexResponse1.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1");
     }
 
@@ -264,6 +273,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         OpenIndexResponse openIndexResponse = client.admin().indices().prepareOpen("test1-alias").execute().actionGet();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(openIndexResponse.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1");
     }
 
@@ -284,7 +294,22 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         OpenIndexResponse openIndexResponse = client.admin().indices().prepareOpen("test-alias").execute().actionGet();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(openIndexResponse.isShardsAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1", "test2");
+    }
+
+    public void testOpenWaitingForActiveShardsFailed() {
+        Client client = client();
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+        assertAcked(client.admin().indices().prepareCreate("test").setSettings(settings).get());
+        assertAcked(client.admin().indices().prepareClose("test").get());
+
+        OpenIndexResponse response = client.admin().indices().prepareOpen("test").setTimeout("100ms").setWaitForActiveShards(2).get();
+        assertAcked(response);
+        assertThat(response.isShardsAcknowledged(), equalTo(false));
     }
 
     private void assertIndexIsOpened(String... indices) {
@@ -359,6 +384,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
                 // Opening an index is not blocked
                 OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").execute().actionGet();
                 assertAcked(openIndexResponse);
+                assertThat(openIndexResponse.isShardsAcknowledged(), equalTo(true));
                 assertIndexIsOpened("test");
             } finally {
                 disableIndexBlock("test", blockSetting);

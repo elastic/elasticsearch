@@ -54,6 +54,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.core.IsEqual.equalTo;
+
 public class CollapsingTopDocsCollectorTests extends ESTestCase {
     private static class SegmentSearcher extends IndexSearcher {
         private final List<LeafReaderContext> ctx;
@@ -82,12 +84,15 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
     }
 
     <T extends Comparable> void assertSearchCollapse(CollapsingDocValuesProducer<T> dvProducers, boolean numeric) throws IOException {
-        assertSearchCollapse(dvProducers, numeric, true);
-        assertSearchCollapse(dvProducers, numeric, false);
+        assertSearchCollapse(dvProducers, numeric, true, true);
+        assertSearchCollapse(dvProducers, numeric, true, false);
+        assertSearchCollapse(dvProducers, numeric, false, true);
+        assertSearchCollapse(dvProducers, numeric, false, false);
     }
 
     private <T extends Comparable> void assertSearchCollapse(CollapsingDocValuesProducer<T> dvProducers,
-                                                             boolean numeric, boolean multivalued) throws IOException {
+                                                             boolean numeric, boolean multivalued,
+                                                             boolean trackMaxScores) throws IOException {
         final int numDocs = randomIntBetween(1000, 2000);
         int maxGroup = randomIntBetween(2, 500);
         final Directory dir = newDirectory();
@@ -118,14 +123,14 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         final CollapsingTopDocsCollector collapsingCollector;
         if (numeric) {
             collapsingCollector =
-                CollapsingTopDocsCollector.createNumeric(collapseField.getField(), sort, expectedNumGroups, false);
+                CollapsingTopDocsCollector.createNumeric(collapseField.getField(), sort, expectedNumGroups, trackMaxScores);
         } else {
             collapsingCollector =
-                CollapsingTopDocsCollector.createKeyword(collapseField.getField(), sort, expectedNumGroups, false);
+                CollapsingTopDocsCollector.createKeyword(collapseField.getField(), sort, expectedNumGroups, trackMaxScores);
         }
 
         TopFieldCollector topFieldCollector =
-            TopFieldCollector.create(sort, totalHits, true, false, false);
+            TopFieldCollector.create(sort, totalHits, true, trackMaxScores, trackMaxScores);
 
         searcher.search(new MatchAllDocsQuery(), collapsingCollector);
         searcher.search(new MatchAllDocsQuery(), topFieldCollector);
@@ -136,6 +141,11 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         assertEquals(totalHits, collapseTopFieldDocs.totalHits);
         assertEquals(totalHits, topDocs.scoreDocs.length);
         assertEquals(totalHits, topDocs.totalHits);
+        if (trackMaxScores) {
+            assertThat(collapseTopFieldDocs.getMaxScore(), equalTo(topDocs.getMaxScore()));
+        } else {
+            assertThat(collapseTopFieldDocs.getMaxScore(), equalTo(Float.NaN));
+        }
 
         Set<Object> seen = new HashSet<>();
         // collapse field is the last sort
@@ -186,14 +196,14 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         }
 
         final CollapseTopFieldDocs[] shardHits = new CollapseTopFieldDocs[subSearchers.length];
-        final Weight weight = searcher.createNormalizedWeight(new MatchAllDocsQuery(), false);
+        final Weight weight = searcher.createNormalizedWeight(new MatchAllDocsQuery(), true);
         for (int shardIDX = 0; shardIDX < subSearchers.length; shardIDX++) {
             final SegmentSearcher subSearcher = subSearchers[shardIDX];
             final CollapsingTopDocsCollector c;
             if (numeric) {
-                c = CollapsingTopDocsCollector.createNumeric(collapseField.getField(), sort, expectedNumGroups, false);
+                c = CollapsingTopDocsCollector.createNumeric(collapseField.getField(), sort, expectedNumGroups, trackMaxScores);
             } else {
-                c = CollapsingTopDocsCollector.createKeyword(collapseField.getField(), sort, expectedNumGroups, false);
+                c = CollapsingTopDocsCollector.createKeyword(collapseField.getField(), sort, expectedNumGroups, trackMaxScores);
             }
             subSearcher.search(weight, c);
             shardHits[shardIDX] = c.getTopDocs();

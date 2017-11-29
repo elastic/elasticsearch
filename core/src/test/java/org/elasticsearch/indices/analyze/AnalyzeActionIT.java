@@ -117,9 +117,9 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
             .setSettings(Settings.builder().put(indexSettings())
                 .put("index.analysis.filter.syns.type", "synonym")
-                .putArray("index.analysis.filter.syns.synonyms", "wtf, what the fudge")
+                .putList("index.analysis.filter.syns.synonyms", "wtf, what the fudge")
                 .put("index.analysis.analyzer.custom_syns.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.custom_syns.filter", "lowercase", "syns")));
+                .putList("index.analysis.analyzer.custom_syns.filter", "lowercase", "syns")));
         ensureGreen();
 
         AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("say what the fudge").setIndex("test").setAnalyzer("custom_syns").get();
@@ -446,7 +446,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
             .setSettings(Settings.builder().put(indexSettings())
                 .put("index.analysis.normalizer.my_normalizer.type", "custom")
-                .putArray("index.analysis.normalizer.my_normalizer.filter", "lowercase"))
+                .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase"))
             .addMapping("test", "keyword", "type=keyword,normalizer=my_normalizer"));
         ensureGreen("test");
 

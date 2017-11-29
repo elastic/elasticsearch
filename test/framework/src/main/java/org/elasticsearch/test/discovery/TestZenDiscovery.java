@@ -83,7 +83,7 @@ public class TestZenDiscovery extends ZenDiscovery {
                              ClusterApplier clusterApplier, ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
                              AllocationService allocationService) {
         super(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier, clusterSettings,
-            hostsProvider, allocationService);
+            hostsProvider, allocationService, Collections.emptyList());
     }
 
     @Override

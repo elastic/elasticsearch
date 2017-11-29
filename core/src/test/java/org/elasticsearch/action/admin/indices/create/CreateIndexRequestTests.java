@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Base64;
 
 public class CreateIndexRequestTests extends ESTestCase {
 
@@ -48,25 +46,27 @@ public class CreateIndexRequestTests extends ESTestCase {
             }
         }
     }
+    
+    public void testTopLevelKeys() throws IOException {
+        String createIndex =
+                "{\n"
+                + "  \"FOO_SHOULD_BE_ILLEGAL_HERE\": {\n"
+                + "    \"BAR_IS_THE_SAME\": 42\n"
+                + "  },\n"
+                + "  \"mappings\": {\n"
+                + "    \"test\": {\n"
+                + "      \"properties\": {\n"
+                + "        \"field1\": {\n"
+                + "          \"type\": \"text\"\n"
+                + "       }\n"
+                + "     }\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
 
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("ADwDAANmb28APAMBB215X3R5cGULeyJ0eXBlIjp7fX0AAAD////+AA==");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2, Version.V_5_1_1, Version.V_5_1_2,
-            Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            CreateIndexRequest serialized = new CreateIndexRequest();
-            serialized.readFrom(in);
-            assertEquals("foo", serialized.index());
-            BytesReference bytesReference = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().bytes();
-            assertEquals(bytesReference.utf8ToString(), serialized.mappings().get("my_type"));
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                serialized.writeTo(out);
-                out.flush();
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
-        }
+        CreateIndexRequest request = new CreateIndexRequest();
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, 
+                () -> {request.source(createIndex, XContentType.JSON);});
+        assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }
 }

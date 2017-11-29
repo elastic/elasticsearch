@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
+import java.util.function.Predicate;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static java.util.Collections.emptyMap;
@@ -198,17 +199,17 @@ public class RecoveryIT extends ESRestTestCase {
     }
 
 
-    private String getNewNodeName() throws IOException {
+    private String getNodeId(Predicate<Version> versionPredicate) throws IOException {
         Response response = client().performRequest("GET", "_nodes");
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         for (String id : nodesAsMap.keySet()) {
             Version version = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
-            if (version.equals(Version.CURRENT)) {
-                return objectPath.evaluate("nodes." + id + ".name");
+            if (versionPredicate.test(version)) {
+                return id;
             }
         }
-        throw new IllegalStateException("couldn't find an old node");
+        return null;
     }
 
 
@@ -228,24 +229,30 @@ public class RecoveryIT extends ESRestTestCase {
                 createIndex(index, settings.build());
                 indexDocs(index, 0, 10);
                 ensureGreen(index);
-                // make sure that the replicas are not started (so we have the primary on an old node)
-                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
+                // make sure that no shards are allocated, so we can make sure the primary stays on the old node (when one
+                // node stops, we lose the master too, so a replica will not be promoted)
+                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
                 break;
             case MIXED:
-                final String newNodeName = getNewNodeName();
+                final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
+                final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
                 // remove the replica now that we know that the primary is an old node
                 updateIndexSetting(index, Settings.builder()
                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null)
+                    .put("index.routing.allocation.include._id", oldNode)
                 );
-                updateIndexSetting(index, Settings.builder().put("index.routing.allocation.include._name", newNodeName));
+                updateIndexSetting(index, Settings.builder().put("index.routing.allocation.include._id", newNode));
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
                 assertCount(index, "_primary", 60);
                 break;
             case UPGRADED:
-                updateIndexSetting(index, Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
+                updateIndexSetting(index, Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put("index.routing.allocation.include._id", (String)null)
+                );
                 asyncIndexDocs(index, 60, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));

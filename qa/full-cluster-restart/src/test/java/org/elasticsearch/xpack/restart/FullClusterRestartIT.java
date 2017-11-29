@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
-import org.elasticsearch.xpack.test.rest.XPackRestTestCase;
+import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
@@ -68,7 +68,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        XPackRestTestCase.waitForMlTemplates();
+        XPackRestTestHelper.waitForMlTemplates(client());
     }
 
     @Override

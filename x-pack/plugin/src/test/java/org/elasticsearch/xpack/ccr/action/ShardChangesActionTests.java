@@ -19,7 +19,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.mockito.Mockito;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -49,12 +49,12 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             int min = randomIntBetween(0, numWrites - 1);
             int max = randomIntBetween(min, numWrites - 1);
 
-            final List<Translog.Operation> operations = ShardChangesAction.getOperationsBetween(indexShard, min, max);
+            final Translog.Operation[] operations = ShardChangesAction.getOperationsBetween(indexShard, min, max);
             /*
              * We are not guaranteed that operations are returned to us in order they are in the translog (if our read crosses multiple
              * generations) so the best we can assert is that we see the expected operations.
              */
-            final Set<Long> seenSeqNos = operations.stream().map(Translog.Operation::seqNo).collect(Collectors.toSet());
+            final Set<Long> seenSeqNos = Arrays.stream(operations).map(Translog.Operation::seqNo).collect(Collectors.toSet());
             final Set<Long> expectedSeqNos = LongStream.range(min, max + 1).boxed().collect(Collectors.toSet());
             assertThat(seenSeqNos, equalTo(expectedSeqNos));
         }

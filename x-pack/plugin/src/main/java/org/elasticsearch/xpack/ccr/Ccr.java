@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
+import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 import org.elasticsearch.xpack.ccr.rest.RestFollowExistingIndexAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowIndexAction;
@@ -79,8 +81,8 @@ public final class Ccr {
         return Arrays.asList(
                 new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
                 new ActionHandler<>(FollowExistingIndexAction.INSTANCE, FollowExistingIndexAction.TransportAction.class),
-                new ActionHandler<>(UnfollowIndexAction.INSTANCE, UnfollowIndexAction.TransportAction.class)
-        );
+                new ActionHandler<>(UnfollowIndexAction.INSTANCE, UnfollowIndexAction.TransportAction.class),
+                new ActionHandler<>(BulkShardOperationsAction.INSTANCE, TransportBulkShardOperationsAction.class));
     }
 
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController) {

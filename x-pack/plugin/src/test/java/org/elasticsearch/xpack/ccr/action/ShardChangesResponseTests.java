@@ -5,25 +5,17 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.nullValue;
 
 public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardChangesAction.Response> {
 
     @Override
     protected ShardChangesAction.Response createTestInstance() {
-        int numOps = randomInt(8);
-        List<Translog.Operation> operations = new ArrayList<>(numOps);
+        final int numOps = randomInt(8);
+        final Translog.Operation[] operations = new Translog.Operation[numOps];
         for (int i = 0; i < numOps; i++) {
-            operations.add(new Translog.NoOp(i, 0, "test"));
+            operations[i] = new Translog.NoOp(i, 0, "test");
         }
         return new ShardChangesAction.Response(operations);
     }

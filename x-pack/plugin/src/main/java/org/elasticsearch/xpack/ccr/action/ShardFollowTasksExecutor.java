@@ -14,13 +14,14 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
+import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
+import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
+import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.persistent.AllocatedPersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 
@@ -28,7 +29,6 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
@@ -61,7 +61,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, ShardFollowTask params, Task.Status status) {
-        final ShardId shardId = params.getLeaderShardId();
         final ShardFollowTask.Status shardFollowStatus = (ShardFollowTask.Status) status;
         final long followGlobalCheckPoint;
         if (shardFollowStatus != null) {
@@ -69,10 +68,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         } else {
             followGlobalCheckPoint = SequenceNumbers.NO_OPS_PERFORMED;
         }
-        prepare(task, shardId, followGlobalCheckPoint);
+        prepare(task, params.getLeaderShardId(), params.getFollowShardId(), followGlobalCheckPoint);
     }
 
-    private void prepare(AllocatedPersistentTask task, ShardId leaderShard, long followGlobalCheckPoint) {
+    void prepare(AllocatedPersistentTask task, ShardId leaderShard, ShardId followerShard, long followGlobalCheckPoint) {
         if (task.getState() != AllocatedPersistentTask.State.STARTED) {
             // TODO: need better cancellation control
             return;
@@ -87,18 +86,17 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             if (leaderShardStats.isPresent()) {
                 final long leaderGlobalCheckPoint = leaderShardStats.get().getSeqNoStats().getGlobalCheckpoint();
                 // TODO: check if both indices have the same history uuid
-
                 if (leaderGlobalCheckPoint == followGlobalCheckPoint) {
-                    retry(task, leaderShard, followGlobalCheckPoint);
+                    retry(task, leaderShard, followerShard, followGlobalCheckPoint);
                 } else {
                     assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + leaderGlobalCheckPoint +
                             "] is not below leaderGlobalCheckPoint [" + followGlobalCheckPoint + "]";
-                    ChunksCoordinator coordinator = new ChunksCoordinator(leaderShard, e -> {
+                    ChunksCoordinator coordinator = new ChunksCoordinator(leaderShard, followerShard, e -> {
                         if (e == null) {
                             ShardFollowTask.Status newStatus = new ShardFollowTask.Status();
                             newStatus.setProcessedGlobalCheckpoint(leaderGlobalCheckPoint);
                             task.updatePersistentStatus(newStatus, ActionListener.wrap(
-                                    persistentTask -> prepare(task, leaderShard, leaderGlobalCheckPoint), task::markAsFailed)
+                                    persistentTask -> prepare(task, leaderShard, followerShard, leaderGlobalCheckPoint), task::markAsFailed)
                             );
                         } else {
                             task.markAsFailed(e);
@@ -113,7 +111,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }, task::markAsFailed));
     }
 
-    private void retry(AllocatedPersistentTask task, ShardId leaderShard, long followGlobalCheckPoint) {
+    private void retry(AllocatedPersistentTask task, ShardId leaderShard, ShardId followerShard, long followGlobalCheckPoint) {
         threadPool.schedule(RETRY_TIMEOUT, Ccr.CCR_THREAD_POOL_NAME, new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -122,7 +120,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             @Override
             protected void doRun() throws Exception {
-                prepare(task, leaderShard, followGlobalCheckPoint);
+                prepare(task, leaderShard, followerShard, followGlobalCheckPoint);
             }
         });
     }
@@ -130,11 +128,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     class ChunksCoordinator {
 
         private final ShardId leaderShard;
+        private final ShardId followerShard;
         private final Consumer<Exception> handler;
         private final Queue<long[]> chunks = new ConcurrentLinkedQueue<>();
 
-        ChunksCoordinator(ShardId leaderShard, Consumer<Exception> handler) {
+        ChunksCoordinator(ShardId leaderShard, ShardId followerShard, Consumer<Exception> handler) {
             this.leaderShard = leaderShard;
+            this.followerShard = followerShard;
             this.handler = handler;
         }
 
@@ -146,35 +146,37 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }
 
         void processChuck() {
-            long[] chuck = chunks.poll();
-            if (chuck == null) {
+            long[] chunk = chunks.poll();
+            if (chunk == null) {
                 handler.accept(null);
                 return;
             }
-            ChunkProcessor processor = new ChunkProcessor(leaderShard, (success, e) -> {
-                if (success) {
+            ChunkProcessor processor = new ChunkProcessor(leaderShard, followerShard, e -> {
+                if (e == null) {
                     processChuck();
                 } else {
                     handler.accept(e);
                 }
             });
-            processor.start(chuck[0], chuck[1]);
+            processor.start(chunk[0], chunk[1]);
         }
 
     }
 
     class ChunkProcessor {
 
-        private final ShardId shardId;
-        private final BiConsumer<Boolean, Exception> handler;
+        private final ShardId leaderShard;
+        private final ShardId followerShard;
+        private final Consumer<Exception> handler;
 
-        ChunkProcessor(ShardId shardId, BiConsumer<Boolean, Exception> handler) {
-            this.shardId = shardId;
+        ChunkProcessor(ShardId leaderShard, ShardId followerShard, Consumer<Exception> handler) {
+            this.leaderShard = leaderShard;
+            this.followerShard = followerShard;
             this.handler = handler;
         }
 
         void start(long from, long to) {
-            ShardChangesAction.Request request = new ShardChangesAction.Request(shardId);
+            ShardChangesAction.Request request = new ShardChangesAction.Request(leaderShard);
             request.setMinSeqNo(from);
             request.setMaxSeqNo(to);
             client.execute(ShardChangesAction.INSTANCE, request, new ActionListener<ShardChangesAction.Response>() {
@@ -185,7 +187,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                 @Override
                 public void onFailure(Exception e) {
-                    handler.accept(false, e);
+                    assert e != null;
+                    handler.accept(e);
                 }
             });
         }
@@ -194,29 +197,29 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             threadPool.executor(Ccr.CCR_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-                    handler.accept(false, e);
+                    assert e != null;
+                    handler.accept(e);
                 }
 
                 @Override
                 protected void doRun() throws Exception {
-                    // TODO: Wait for api to be available that accepts raw translog operations and log translog operations for now:
-                    for (Translog.Operation operation : response.getOperations()) {
-                        if (operation instanceof Translog.Index) {
-                            Translog.Index indexOp = (Translog.Index) operation;
-                            logger.debug("index op [{}], [{}]", indexOp.seqNo(), indexOp.id());
-                        } else if (operation instanceof Translog.Delete) {
-                            Engine.Delete deleteOp = (Engine.Delete) operation;
-                            logger.debug("delete op [{}], [{}]", deleteOp.seqNo(), deleteOp.id());
-                        } else if (operation instanceof Translog.NoOp) {
-                            Engine.NoOp noOp = (Engine.NoOp) operation;
-                            logger.debug("no op [{}], [{}]", noOp.seqNo(), noOp.reason());
+                    final BulkShardOperationsRequest request = new BulkShardOperationsRequest(followerShard, response.getOperations());
+                    client.execute(BulkShardOperationsAction.INSTANCE, request, new ActionListener<BulkShardOperationsResponse>() {
+                        @Override
+                        public void onResponse(final BulkShardOperationsResponse bulkShardOperationsResponse) {
+                            handler.accept(null);
                         }
-                    }
-                    handler.accept(true, null);
+
+                        @Override
+                        public void onFailure(final Exception e) {
+                            assert e != null;
+                            handler.accept(e);
+                        }
+                    });
                 }
             });
         }
 
-
     }
+
 }

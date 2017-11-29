@@ -103,7 +103,7 @@ public class IndexingIT extends ESRestTestCase {
             final int finalVersionForDoc1 = indexDocWithConcurrentUpdates(index, 1, nUpdates);
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
-            ensureGreen();
+            ensureGreen(index);
             assertOK(client().performRequest("POST", index + "/_refresh"));
             List<Shard> shards = buildShards(index, nodes, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
@@ -128,7 +128,7 @@ public class IndexingIT extends ESRestTestCase {
             primary = shards.stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
             updateIndexSetting(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
-            ensureGreen();
+            ensureGreen(index);
             nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing docs with [{}] concurrent updates after moving primary", nUpdates);
             final int finalVersionForDoc3 = indexDocWithConcurrentUpdates(index, 3, nUpdates);
@@ -141,7 +141,7 @@ public class IndexingIT extends ESRestTestCase {
 
             logger.info("setting number of replicas to 0");
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 0));
-            ensureGreen();
+            ensureGreen(index);
             nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing doc with [{}] concurrent updates after setting number of replicas to 0", nUpdates);
             final int finalVersionForDoc4 = indexDocWithConcurrentUpdates(index, 4, nUpdates);
@@ -154,7 +154,7 @@ public class IndexingIT extends ESRestTestCase {
 
             logger.info("setting number of replicas to 1");
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
-            ensureGreen();
+            ensureGreen(index);
             nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing doc with [{}] concurrent updates after setting number of replicas to 1", nUpdates);
             final int finalVersionForDoc5 = indexDocWithConcurrentUpdates(index, 5, nUpdates);
@@ -192,7 +192,7 @@ public class IndexingIT extends ESRestTestCase {
             assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
-            ensureGreen();
+            ensureGreen(index);
             assertOK(client().performRequest("POST", index + "/_refresh"));
             for (final String bwcName : bwcNamesList) {
                 assertCount(index, "_only_nodes:" + bwcName, numDocs);
@@ -204,7 +204,7 @@ public class IndexingIT extends ESRestTestCase {
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
             updateIndexSetting(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
-            ensureGreen();
+            ensureGreen(index);
             int numDocsOnNewPrimary = 0;
             final int numberOfDocsAfterMovingPrimary = 1 + randomInt(5);
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
@@ -223,7 +223,7 @@ public class IndexingIT extends ESRestTestCase {
             numDocs += numberOfDocsAfterDroppingReplicas;
             logger.info("setting number of replicas to 1");
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
-            ensureGreen();
+            ensureGreen(index);
             assertOK(client().performRequest("POST", index + "/_refresh"));
             // the number of documents on the primary and on the recovered replica should match the number of indexed documents
             assertCount(index, "_primary", numDocs);

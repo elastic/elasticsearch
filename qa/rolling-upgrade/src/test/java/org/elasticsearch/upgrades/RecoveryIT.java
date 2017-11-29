@@ -101,7 +101,7 @@ public class RecoveryIT extends ESRestTestCase {
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
             createIndex(index, settings.build());
         } else if (clusterType == CLUSTER_TYPE.UPGRADED) {
-            ensureGreen();
+            ensureGreen(index);
             Response response = client().performRequest("GET", index + "/_stats", Collections.singletonMap("level", "shards"));
             assertOK(response);
             ObjectPath objectPath = ObjectPath.createFromResponse(response);
@@ -163,14 +163,14 @@ public class RecoveryIT extends ESRestTestCase {
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
                 createIndex(index, settings.build());
                 indexDocs(index, 0, 10);
-                ensureGreen();
+                ensureGreen(index);
                 // make sure that we can index while the replicas are recovering
                 updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
                 break;
             case MIXED:
                 updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
                 asyncIndexDocs(index, 10, 50).get();
-                ensureGreen();
+                ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
                 assertCount(index, "_primary", 60);
                 assertCount(index, "_replica", 60);
@@ -180,7 +180,7 @@ public class RecoveryIT extends ESRestTestCase {
             case UPGRADED:
                 updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
                 asyncIndexDocs(index, 10, 50).get();
-                ensureGreen();
+                ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
                 assertCount(index, "_primary", 110);
                 assertCount(index, "_replica", 110);
@@ -227,7 +227,7 @@ public class RecoveryIT extends ESRestTestCase {
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
                 createIndex(index, settings.build());
                 indexDocs(index, 0, 10);
-                ensureGreen();
+                ensureGreen(index);
                 // make sure that the replicas are not started (so we have the primary on an old node)
                 updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
                 break;
@@ -240,14 +240,14 @@ public class RecoveryIT extends ESRestTestCase {
                 );
                 updateIndexSetting(index, Settings.builder().put("index.routing.allocation.include._name", newNodeName));
                 asyncIndexDocs(index, 10, 50).get();
-                ensureGreen();
+                ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
                 assertCount(index, "_primary", 60);
                 break;
             case UPGRADED:
                 updateIndexSetting(index, Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
                 asyncIndexDocs(index, 10, 50).get();
-                ensureGreen();
+                ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
                 assertCount(index, "_primary", 110);
                 assertCount(index, "_replica", 110);

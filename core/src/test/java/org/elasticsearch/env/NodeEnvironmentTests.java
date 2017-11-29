@@ -397,14 +397,14 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testPersistentNodeId() throws IOException {
-        String[] paths = tmpPaths();
-        NodeEnvironment env = newNodeEnvironment(paths, Settings.builder()
+        NodeEnvironment env = newNodeEnvironment(new String[0], Settings.builder()
             .put("node.local_storage", false)
             .put("node.master", false)
             .put("node.data", false)
             .build());
         String nodeID = env.nodeId();
         env.close();
+        final String[] paths = tmpPaths();
         env = newNodeEnvironment(paths, Settings.EMPTY);
         assertThat("previous node didn't have local storage enabled, id should change", env.nodeId(), not(equalTo(nodeID)));
         nodeID = env.nodeId();

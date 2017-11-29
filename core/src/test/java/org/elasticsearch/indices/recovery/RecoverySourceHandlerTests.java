@@ -188,8 +188,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         operations.add(null);
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
         final long requiredStartingSeqNo = randomIntBetween((int) startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
-        final long endingSeqNo = randomIntBetween((int) requiredStartingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
-        // todo add proper tests
+        final long endingSeqNo = randomIntBetween((int) requiredStartingSeqNo - 1, numberOfDocsWithValidSequenceNumbers - 1);
         RecoverySourceHandler.SendSnapshotResult result = handler.sendSnapshot(startingSeqNo, requiredStartingSeqNo,
             endingSeqNo, new Translog.Snapshot() {
                 @Override
@@ -222,7 +221,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 assertThat(shippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
             }
         } else {
-            verify(recoveryTarget, never()).indexTranslogOperations(null, 0);
+            verify(recoveryTarget, never()).indexTranslogOperations(any(), any());
         }
         if (endingSeqNo >= requiredStartingSeqNo + 1) {
             // check that missing ops blows up
@@ -249,8 +248,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                             Translog.Operation op;
                             do {
                                 op = operations.get(counter++);
-                            }
-                            while (op != null && opsToSkip.contains(op));
+                            } while (op != null && opsToSkip.contains(op));
                             return op;
                         }
                     }));

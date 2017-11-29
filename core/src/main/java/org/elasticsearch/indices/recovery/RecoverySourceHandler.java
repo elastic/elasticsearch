@@ -585,7 +585,7 @@ public class RecoverySourceHandler {
         }
 
         if (requiredOpsTracker.getCheckpoint() < endingSeqNo) {
-            throw new IllegalStateException("translog replay failed to covered required sequence numbers" +
+            throw new IllegalStateException("translog replay failed to cover required sequence numbers" +
                 " (required range [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "). first missing op is ["
                 + (requiredOpsTracker.getCheckpoint() + 1) + "]");
         }

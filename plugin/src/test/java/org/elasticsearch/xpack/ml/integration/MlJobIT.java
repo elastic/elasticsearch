@@ -17,6 +17,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.After;
 
 import java.io.BufferedReader;
@@ -648,5 +649,6 @@ public class MlJobIT extends ESRestTestCase {
     @After
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
+        XPackRestTestHelper.waitForPendingTasks(adminClient());
     }
 }

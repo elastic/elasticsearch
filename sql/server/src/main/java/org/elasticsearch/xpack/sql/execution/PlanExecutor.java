@@ -57,11 +57,11 @@ public class PlanExecutor {
     }
 
 
-    public SearchSourceBuilder searchSource(String sql, Configuration settings) {
-        PhysicalPlan executable = newSession(settings).executable(sql);
+    public SearchSourceBuilder searchSource(String sql, Configuration cfg) {
+        PhysicalPlan executable = newSession(cfg).executable(sql);
         if (executable instanceof EsQueryExec) {
             EsQueryExec e = (EsQueryExec) executable;
-            return SourceGenerator.sourceBuilder(e.queryContainer(), settings.filter(), settings.pageSize());
+            return SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize());
         }
         else {
             throw new PlanningException("Cannot generate a query DSL for %s", sql);
@@ -72,8 +72,8 @@ public class PlanExecutor {
         sql(Configuration.DEFAULT, sql, listener);
     }
 
-    public void sql(Configuration sqlSettings, String sql, ActionListener<SchemaRowSet> listener) {
-        SqlSession session = newSession(sqlSettings);
+    public void sql(Configuration cfg, String sql, ActionListener<SchemaRowSet> listener) {
+        SqlSession session = newSession(cfg);
         try {
             PhysicalPlan executable = session.executable(sql);
             executable.execute(session, listener);

@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.client.shared;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.StringBuilder;
-import java.nio.file.Files;
-import java.util.Locale;
-
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.util.Locale;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -61,8 +60,7 @@ public class RemoteFailureTests extends ESTestCase {
     public void testNoError() throws IOException {
         IOException e = expectThrows(IOException.class, () -> parse("no_error.json"));
         assertEquals(
-            "Can't parse error from Elasticearch [Expected [error] but didn't see it.] at [line 2 col 1]. Response:\n"
-                + "{\n}\n",
+                "Can't parse error from Elasticearch [Expected [error] but didn't see it.] at [line 1 col 2]. Response:\n{}",
             e.getMessage());
     }
 
@@ -70,8 +68,8 @@ public class RemoteFailureTests extends ESTestCase {
         IOException e = expectThrows(IOException.class, () -> parse("bogus_error.json"));
         assertEquals(
             "Can't parse error from Elasticearch [Expected [error] to be an object but was [VALUE_STRING][bogus]] "
-                + "at [line 2 col 12]. Response:\n"
-                + "{\n  \"error\": \"bogus\"\n}",
+                + "at [line 1 col 12]. Response:\n"
+                + "{ \"error\": \"bogus\" }",
             e.getMessage());
     }
 
@@ -93,7 +91,7 @@ public class RemoteFailureTests extends ESTestCase {
         assertEquals(
             "Can't parse error from Elasticearch [Unrecognized token 'I': was expecting 'null', 'true', 'false' or NaN] "
                 + "at [line 1 col 1]. Response:\n"
-                + "I'm not json at all\n",
+                + "I'm not json at all",
             e.getMessage());
     }
 

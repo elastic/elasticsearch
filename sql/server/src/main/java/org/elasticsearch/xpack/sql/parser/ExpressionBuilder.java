@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Div;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Extract;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.Equals;
@@ -79,7 +79,6 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 
@@ -266,17 +265,17 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     // 
     @Override
     public Object visitStringQuery(StringQueryContext ctx) {
-        return new StringQueryPredicate(source(ctx), text(ctx.queryString), text(ctx.options));
+        return new StringQueryPredicate(source(ctx), string(ctx.queryString), string(ctx.options));
     }
 
     @Override
     public Object visitMatchQuery(MatchQueryContext ctx) {
-        return new MatchQueryPredicate(source(ctx), new UnresolvedAttribute(source(ctx.singleField), visitQualifiedName(ctx.singleField)), text(ctx.queryString), text(ctx.options));
+        return new MatchQueryPredicate(source(ctx), new UnresolvedAttribute(source(ctx.singleField), visitQualifiedName(ctx.singleField)), string(ctx.queryString), string(ctx.options));
     }
 
     @Override
     public Object visitMultiMatchQuery(MultiMatchQueryContext ctx) {
-        return new MultiMatchQueryPredicate(source(ctx), text(ctx.multiFields), text(ctx.queryString), text(ctx.options));
+        return new MultiMatchQueryPredicate(source(ctx), string(ctx.multiFields), string(ctx.queryString), string(ctx.options));
     }
 
     @Override
@@ -405,7 +404,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitStringLiteral(StringLiteralContext ctx) {
-        return new Literal(source(ctx), ctx.STRING().stream().map(AbstractBuilder::text).collect(Collectors.joining()), DataTypes.KEYWORD);
+        StringBuilder sb = new StringBuilder();
+        for (TerminalNode node : ctx.STRING()) {
+            sb.append(unquoteString(text(node)));
+        }
+        return new Literal(source(ctx), sb.toString(), DataTypes.KEYWORD);
     }
 
     @Override

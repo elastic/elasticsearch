@@ -43,7 +43,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
-        return ctx == null ? null : ctx.quoteIdentifier() != null ? text(ctx.quoteIdentifier()) : text(ctx.unquoteIdentifier());
+        return ctx == null ? null : ctx.getText();
     }
 
     @Override

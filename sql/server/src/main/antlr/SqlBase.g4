@@ -392,11 +392,11 @@ DIGIT_IDENTIFIER
     ;
 
 QUOTED_IDENTIFIER
-    : '"' ( ~['"'|'.'] | '"' )* '"'
+    : '"' ( ~'"' | '""' )* '"'
     ;
 
 BACKQUOTED_IDENTIFIER
-    : '`' ( ~['`'|'.'] | '``' )* '`'
+    : '`' ( ~'`' | '``' )* '`'
     ;
 
 fragment EXPONENT

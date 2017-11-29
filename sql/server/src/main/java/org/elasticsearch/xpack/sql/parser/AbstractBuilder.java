@@ -5,20 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import java.util.List;
-import java.util.Optional;
-
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.sql.parser.SqlBaseBaseVisitor;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.Check;
 
-import static java.util.stream.Collectors.toList;
+import java.util.ArrayList;
+import java.util.List;
 
 abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
 
@@ -29,10 +25,11 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
         return result;
     }
 
+    @SuppressWarnings("unchecked")
     protected <T> T typedParsing(ParseTree ctx, Class<T> type) {
         Object result = ctx.accept(this);
         if (type.isInstance(result)) {
-            return type.cast(result);
+            return (T) result;
         }
 
         throw new ParsingException(source(ctx), "Invalid query '%s'[%s] given; expected %s but found %s",
@@ -44,23 +41,16 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
         return typedParsing(ctx, LogicalPlan.class);
     }
 
-
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
         return visitList(ctxs, LogicalPlan.class);
     }
-
-    // Helpers
-    protected <T> Optional<T> visitIfPresent(ParserRuleContext context, Class<T> clazz) {
-        return Optional.ofNullable(context)
-                .map(this::visit)
-                .map(clazz::cast);
-    }
     
     protected <T> List<T> visitList(List<? extends ParserRuleContext> contexts, Class<T> clazz) {
-        return contexts.stream()
-                .map(this::visit)
-                .map(clazz::cast)
-                .collect(toList());
+        List<T> results = new ArrayList<>(contexts.size());
+        for (ParserRuleContext context : contexts) {
+            results.add(clazz.cast(visit(context)));
+        }
+        return results;
     }
 
     static Location source(ParseTree ctx) {
@@ -85,26 +75,23 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
         return new Location(token.getLine(), token.getCharPositionInLine());
     }
 
+    /**
+     * Retrieves the raw text of the node (without interpreting it as a string literal).
+     */
     static String text(ParseTree node) {
-        return node == null ? null : text(node.getText());
+        return node == null ? null : node.getText();
     }
 
-    static List<String> texts(List<? extends ParseTree> list) {
-        return list.stream()
-                .map(AbstractBuilder::text)
-                .collect(toList());
+    /**
+     * Extracts the actual unescaped string (literal) value of a token. 
+     */
+    static String string(Token token) {
+        return token == null ? null : unquoteString(token.getText());
     }
 
-    static String text(Token token) {
-        return token == null ? null : text(token.getText());
-    }
-
-    private static String text(String text) {
-        String txt = text != null && Strings.hasText(text) ? text.trim() : null;
-        if (txt != null && txt.startsWith("'") && txt.endsWith("'") && txt.length() > 1) {
-            txt = txt.substring(1, txt.length() - 1);
-        }
-        return txt;
+    static String unquoteString(String text) {
+        // remove leading and trailing ' for strings and also eliminate escaped single quotes
+        return text == null ? null : text.substring(1, text.length() - 1).replace("''", "'");
     }
 
     @Override

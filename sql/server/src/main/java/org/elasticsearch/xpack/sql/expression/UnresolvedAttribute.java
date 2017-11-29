@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -19,7 +18,6 @@ import static java.lang.String.format;
 
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
-    private final List<String> nameParts;
     private final String unresolvedMsg;
 
     public UnresolvedAttribute(Location location, String name) {
@@ -32,12 +30,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     public UnresolvedAttribute(Location location, String name, String qualifier, String unresolvedMessage) {
         super(location, name, qualifier, null);
-        nameParts = Arrays.asList(name.split("\\."));
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
-    }
-
-    public List<String> nameParts() {
-        return nameParts;
     }
 
     @Override

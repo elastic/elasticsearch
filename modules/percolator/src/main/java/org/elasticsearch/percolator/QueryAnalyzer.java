@@ -29,6 +29,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -70,6 +71,7 @@ final class QueryAnalyzer {
     static {
         Map<Class<? extends Query>, BiFunction<Query, Version, Result>> map = new HashMap<>();
         map.put(MatchNoDocsQuery.class, matchNoDocsQuery());
+        map.put(MatchAllDocsQuery.class, matchAllDocsQuery());
         map.put(ConstantScoreQuery.class, constantScoreQuery());
         map.put(BoostQuery.class, boostQuery());
         map.put(TermQuery.class, termQuery());
@@ -140,6 +142,10 @@ final class QueryAnalyzer {
 
     private static BiFunction<Query, Version, Result> matchNoDocsQuery() {
         return (query, version) -> new Result(true, Collections.emptySet(), 1);
+    }
+
+    private static BiFunction<Query, Version, Result> matchAllDocsQuery() {
+        return (query, version) -> new Result(true, true);
     }
 
     private static BiFunction<Query, Version, Result> constantScoreQuery() {
@@ -356,6 +362,7 @@ final class QueryAnalyzer {
                         int msm = 0;
                         boolean requiredShouldClauses = minimumShouldMatch > 0 && numOptionalClauses > 0;
                         boolean verified = uqe == null && numProhibitedClauses == 0 && requiredShouldClauses == false;
+                        boolean matchAllDocs = true;
                         Set<QueryExtraction> extractions = new HashSet<>();
                         Set<String> seenRangeFields = new HashSet<>();
                         for (Result result : results) {
@@ -376,9 +383,14 @@ final class QueryAnalyzer {
                                 msm += result.minimumShouldMatch;
                             }
                             verified &= result.verified;
+                            matchAllDocs &= result.matchAllDocs;
                             extractions.addAll(result.extractions);
                         }
-                        return new Result(verified, extractions, msm);
+                        if (matchAllDocs) {
+                            return new Result(matchAllDocs, verified);
+                        } else {
+                            return new Result(verified, extractions, msm);
+                        }
                     }
                 } else {
                     Set<QueryExtraction> bestClause = null;
@@ -498,12 +510,15 @@ final class QueryAnalyzer {
         if (version.before(Version.V_6_1_0)) {
             verified &= requiredShouldClauses <= 1;
         }
-
+        int numMatchAllClauses = 0;
         Set<QueryExtraction> terms = new HashSet<>();
         for (int i = 0; i < disjunctions.size(); i++) {
             Query disjunct = disjunctions.get(i);
             Result subResult = analyze(disjunct, version);
             verified &= subResult.verified;
+            if (subResult.matchAllDocs) {
+                numMatchAllClauses++;
+            }
             terms.addAll(subResult.extractions);
 
             QueryExtraction[] t = subResult.extractions.toArray(new QueryExtraction[1]);
@@ -512,6 +527,7 @@ final class QueryAnalyzer {
                 rangeFieldNames[i] = t[0].range.fieldName;
             }
         }
+        boolean matchAllDocs = numMatchAllClauses > 0 && numMatchAllClauses >= requiredShouldClauses;
 
         int msm = 0;
         if (version.onOrAfter(Version.V_6_1_0)) {
@@ -532,7 +548,11 @@ final class QueryAnalyzer {
         } else {
             msm = 1;
         }
-        return new Result(verified, terms, msm);
+        if (matchAllDocs) {
+            return new Result(matchAllDocs, verified);
+        } else {
+            return new Result(verified, terms, msm);
+        }
     }
 
     static Set<QueryExtraction> selectBestExtraction(Set<QueryExtraction> extractions1, Set<QueryExtraction> extractions2) {
@@ -619,11 +639,20 @@ final class QueryAnalyzer {
         final Set<QueryExtraction> extractions;
         final boolean verified;
         final int minimumShouldMatch;
+        final boolean matchAllDocs;
 
         Result(boolean verified, Set<QueryExtraction> extractions, int minimumShouldMatch) {
             this.extractions = extractions;
             this.verified = verified;
             this.minimumShouldMatch = minimumShouldMatch;
+            this.matchAllDocs = false;
+        }
+
+        Result(boolean matchAllDocs, boolean verified) {
+            this.extractions = Collections.emptySet();
+            this.verified = verified;
+            this.minimumShouldMatch = 0;
+            this.matchAllDocs = matchAllDocs;
         }
 
     }

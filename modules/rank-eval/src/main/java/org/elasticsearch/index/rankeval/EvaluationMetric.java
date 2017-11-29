@@ -89,4 +89,13 @@ public interface EvaluationMetric extends ToXContent, NamedWriteable {
     default double combine(Collection<EvalQueryQuality> partialResults) {
         return partialResults.stream().mapToDouble(EvalQueryQuality::getQualityLevel).sum() / partialResults.size();
     }
+
+    /**
+     * Metrics can define a size of the search hits windows they want to retrieve by overwriting
+     * this method. The default implementation returns an empty optional.
+     * @return the number of search hits this metrics requests
+     */
+    default Optional<Integer> forcedSearchSize() {
+        return Optional.empty();
+    }
 }

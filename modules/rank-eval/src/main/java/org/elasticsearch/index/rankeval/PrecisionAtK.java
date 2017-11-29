@@ -45,6 +45,7 @@ import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRati
  * relevant_rating_threshold` parameter.<br>
  * The `ignore_unlabeled` parameter (default to false) controls if unrated
  * documents should be ignored.
+ * The `k` parameter (defaults to 10) controls the search window size.
  */
 public class PrecisionAtK implements EvaluationMetric {
 
@@ -52,9 +53,13 @@ public class PrecisionAtK implements EvaluationMetric {
 
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
     private static final ParseField IGNORE_UNLABELED_FIELD = new ParseField("ignore_unlabeled");
+    private static final ParseField K_FIELD = new ParseField("k");
+
+    private static final int DEFAULT_K = 10;
 
     private final boolean ignoreUnlabeled;
     private final int relevantRatingThreshhold;
+    private final int k;
 
     /**
      * Metric implementing Precision@K.
@@ -65,42 +70,52 @@ public class PrecisionAtK implements EvaluationMetric {
      *            Set to 'true', unlabeled documents are ignored and neither count
      *            as true or false positives. Set to 'false', they are treated as
      *            false positives.
+     * @param k
+     *            controls the window size for the search results the metric takes into account
      */
-    public PrecisionAtK(int threshold, boolean ignoreUnlabeled) {
+    public PrecisionAtK(int threshold, boolean ignoreUnlabeled, int k) {
         if (threshold < 0) {
             throw new IllegalArgumentException("Relevant rating threshold for precision must be positive integer.");
         }
+        if (k <= 0) {
+            throw new IllegalArgumentException("Window size k must be positive.");
+        }
         this.relevantRatingThreshhold = threshold;
         this.ignoreUnlabeled = ignoreUnlabeled;
+        this.k = k;
     }
 
     public PrecisionAtK() {
-        this(1, false);
+        this(1, false, DEFAULT_K);
     }
-
 
     private static final ConstructingObjectParser<PrecisionAtK, Void> PARSER = new ConstructingObjectParser<>(NAME,
             args -> {
                 Integer threshHold = (Integer) args[0];
                 Boolean ignoreUnlabeled = (Boolean) args[1];
+                Integer k = (Integer) args[2];
                 return new PrecisionAtK(threshHold == null ? 1 : threshHold,
-                        ignoreUnlabeled == null ? false : ignoreUnlabeled);
+                        ignoreUnlabeled == null ? false : ignoreUnlabeled,
+                                k == null ? 10 : k);
             });
 
     static {
         PARSER.declareInt(optionalConstructorArg(), RELEVANT_RATING_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), IGNORE_UNLABELED_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), K_FIELD);
     }
 
     PrecisionAtK(StreamInput in) throws IOException {
         relevantRatingThreshhold = in.readVInt();
         ignoreUnlabeled = in.readBoolean();
+        k = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(relevantRatingThreshhold);
         out.writeBoolean(ignoreUnlabeled);
+        out.writeVInt(k);
     }
 
     @Override
@@ -121,6 +136,11 @@ public class PrecisionAtK implements EvaluationMetric {
      */
     public boolean getIgnoreUnlabeled() {
         return ignoreUnlabeled;
+    }
+
+    @Override
+    public Optional<Integer> forcedSearchSize() {
+        return Optional.of(k);
     }
 
     public static PrecisionAtK fromXContent(XContentParser parser) {
@@ -167,6 +187,7 @@ public class PrecisionAtK implements EvaluationMetric {
         builder.startObject(NAME);
         builder.field(RELEVANT_RATING_FIELD.getPreferredName(), this.relevantRatingThreshhold);
         builder.field(IGNORE_UNLABELED_FIELD.getPreferredName(), this.ignoreUnlabeled);
+        builder.field(K_FIELD.getPreferredName(), this.k);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -182,12 +203,13 @@ public class PrecisionAtK implements EvaluationMetric {
         }
         PrecisionAtK other = (PrecisionAtK) obj;
         return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold)
+                && Objects.equals(k, other.k)
                 && Objects.equals(ignoreUnlabeled, other.ignoreUnlabeled);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(relevantRatingThreshhold, ignoreUnlabeled);
+        return Objects.hash(relevantRatingThreshhold, ignoreUnlabeled, k);
     }
 
     static class Breakdown implements MetricDetails {

@@ -20,10 +20,12 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
@@ -68,6 +70,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
+        testQuery.sort(FieldSortBuilder.DOC_FIELD_NAME);
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
                 createRelevant("2", "3", "4", "5"), testQuery);
         amsterdamRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
@@ -79,7 +82,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         specifications.add(berlinRequest);
 
-        PrecisionAtK metric = new PrecisionAtK(1, true);
+        PrecisionAtK metric = new PrecisionAtK(1, false, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
         task.addIndices(indices);
 
@@ -89,7 +92,8 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request())
                 .actionGet();
-        assertEquals(1.0, response.getEvaluationResult(), Double.MIN_VALUE);
+        double expectedPrecision = (1.0 / 6.0 + 4.0 / 6.0) / 2.0;
+        assertEquals(expectedPrecision, response.getEvaluationResult(), Double.MIN_VALUE);
         Set<Entry<String, EvalQueryQuality>> entrySet = response.getPartialResults().entrySet();
         assertEquals(2, entrySet.size());
         for (Entry<String, EvalQueryQuality> entry : entrySet) {
@@ -121,6 +125,18 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                 }
             }
         }
+
+        // test that a different window size k affects the result
+        metric = new PrecisionAtK(1, false, 3);
+        task = new RankEvalSpec(specifications, metric);
+        task.addIndices(indices);
+
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
+
+        response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        expectedPrecision = (1.0 / 3.0 + 2.0 / 3.0) / 2.0;
+        assertEquals(0.5, response.getEvaluationResult(), Double.MIN_VALUE);
     }
 
     /**
@@ -146,18 +162,16 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
         task.addIndices(indices);
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
-                RankEvalAction.INSTANCE, new RankEvalRequest());
-        builder.setRankEvalSpec(task);
+        try (Client client = client()) {
+            RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client, RankEvalAction.INSTANCE, new RankEvalRequest());
+            builder.setRankEvalSpec(task);
 
-        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request())
-                .actionGet();
-        assertEquals(1, response.getFailures().size());
-        ElasticsearchException[] rootCauses = ElasticsearchException
-                .guessRootCauses(response.getFailures().get("broken_query"));
-        assertEquals("java.lang.NumberFormatException: For input string: \"noStringOnNumericFields\"",
-                rootCauses[0].getCause().toString());
-
+            RankEvalResponse response = client.execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+            assertEquals(1, response.getFailures().size());
+            ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(response.getFailures().get("broken_query"));
+            assertEquals("java.lang.NumberFormatException: For input string: \"noStringOnNumericFields\"",
+                    rootCauses[0].getCause().toString());
+        }
     }
 
     private static List<RatedDocument> createRelevant(String... docs) {

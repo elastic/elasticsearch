@@ -79,7 +79,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = randomBoolean();
                 TermsAggregatorFactory.REMAP_GLOBAL_ORDS = randomBoolean();
             }
-            return super.createAggregator(aggregationBuilder, indexSearcher, 10000, fieldTypes);
+            return super.createAggregator(aggregationBuilder, indexSearcher, fieldTypes);
         } finally {
             TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
             TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;

@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBuckets;
+import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 
 public class DateHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -346,19 +346,19 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             "2017-01-01T00:00:00.000Z"
         );
 
-        TooManyBuckets exc = expectThrows(TooManyBuckets.class, () -> testSearchCase(query, timestamps,
+        TooManyBucketsException exc = expectThrows(TooManyBucketsException.class, () -> testSearchCase(query, timestamps,
             aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD),
             histogram -> {}, 2));
 
-        exc = expectThrows(TooManyBuckets.class, () -> testSearchAndReduceCase(query, timestamps,
+        exc = expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
             aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD),
             histogram -> {}, 2));
 
-        exc = expectThrows(TooManyBuckets.class, () -> testSearchAndReduceCase(query, timestamps,
+        exc = expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
             aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(0L),
             histogram -> {}, 100));
 
-        exc = expectThrows(TooManyBuckets.class, () -> testSearchAndReduceCase(query, timestamps,
+        exc = expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
             aggregation ->
                 aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5))
                     .field(DATE_FIELD)

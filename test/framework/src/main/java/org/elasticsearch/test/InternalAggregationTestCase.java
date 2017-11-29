@@ -38,7 +38,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -140,8 +142,11 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
 
@@ -237,17 +242,28 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
+            MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS);
             InternalAggregation.ReduceContext context =
-                new InternalAggregation.ReduceContext(bigArrays, mockScriptService, false);
+                new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer,false);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
+            if (reduced instanceof MultiBucketsAggregation) {
+                assertMultiBucketConsumer((MultiBucketsAggregation) reduced, bucketConsumer);
+            }
             toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
             toReduce.add(reduced);
         }
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS);
         InternalAggregation.ReduceContext context =
-            new InternalAggregation.ReduceContext(bigArrays, mockScriptService, true);
+            new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer, true);
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
+        if (reduced instanceof MultiBucketsAggregation) {
+            MultiBucketsAggregation multi = (MultiBucketsAggregation) reduced;
+            if (multi.getBuckets().size() > 0) {
+                assertMultiBucketConsumer((MultiBucketsAggregation) reduced, bucketConsumer);
+            }
+        }
         assertReduced(reduced, inputs);
     }
 
@@ -391,5 +407,15 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         formats.add(() -> DocValueFormat.RAW);
         formats.add(() -> new DocValueFormat.Decimal(randomFrom("###.##", "###,###.##")));
         return randomFrom(formats).get();
+    }
+
+    public static void assertMultiBucketConsumer(MultiBucketsAggregation multi, MultiBucketConsumer bucketConsumer) {
+        if (multi.getBuckets().size() > 0) {
+            assertThat(bucketConsumer.getCount(), greaterThan(0));
+        } else {
+            // NOCOMMIT
+            // TODO uncomment when all multi bucket aggregators uses the multi bucket consumer
+            // assertThat(bucketConsumer.getCount(), equalTo(0));
+        }
     }
 }

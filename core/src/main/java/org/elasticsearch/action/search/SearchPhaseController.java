@@ -76,10 +76,11 @@ public final class SearchPhaseController extends AbstractComponent {
 
     private final Function<Boolean, ReduceContext> reduceContextFunction;
 
-    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
-        this(settings, (b) -> new ReduceContext(bigArrays, scriptService, b));
-    }
-
+    /**
+     * Constructor.
+     * @param settings Node settings
+     * @param reduceContextFunction A function that builds a context for the reduce of an {@link InternalAggregation}
+     */
     public SearchPhaseController(Settings settings, Function<Boolean, ReduceContext> reduceContextFunction) {
         super(settings);
         this.reduceContextFunction = reduceContextFunction;

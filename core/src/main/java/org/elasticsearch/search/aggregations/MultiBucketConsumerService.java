@@ -18,22 +18,24 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.IntConsumer;
 
+/**
+ * An aggregation service that creates instances of {@link MultiBucketConsumer}.
+ * The consumer is used by {@link BucketsAggregator} and {@link InternalMultiBucketAggregation} to limit the number of buckets created
+ * in {@link Aggregator#buildAggregation} and {@link InternalAggregation#reduce}.
+ * The limit can be set by changing the `search.max_buckets` cluster setting and defaults to 10000.
+ */
 public class MultiBucketConsumerService {
     public static final int DEFAULT_MAX_BUCKETS = 10000;
     public static final Setting<Integer> MAX_BUCKET_SETTING =
@@ -46,24 +48,19 @@ public class MultiBucketConsumerService {
        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBucket);
     }
 
-    // For tests
-    protected MultiBucketConsumerService(int maxBucket) {
-        this.maxBucket = maxBucket;
-    }
-
     private void setMaxBucket(int maxBucket) {
         this.maxBucket = maxBucket;
     }
 
-    public static class TooManyBuckets extends ElasticsearchException {
+    public static class TooManyBucketsException extends AggregationExecutionException {
         private final int maxBuckets;
 
-        public TooManyBuckets(String message, int maxBuckets) {
+        public TooManyBucketsException(String message, int maxBuckets) {
             super(message);
             this.maxBuckets = maxBuckets;
         }
 
-        public TooManyBuckets(StreamInput in) throws IOException {
+        public TooManyBucketsException(StreamInput in) throws IOException {
             super(in);
             maxBuckets = in.readInt();
         }
@@ -89,26 +86,37 @@ public class MultiBucketConsumerService {
         }
     }
 
-    static class MultiBucketConsumer implements IntConsumer {
-        private final int max;
+    /**
+     * An {@link IntConsumer} that throws a {@link TooManyBucketsException}
+     * when the sum of the provided values is above the limit (`search.max_buckets`).
+     * It is used by aggregators to limit the number of bucket creation during
+     * {@link Aggregator#buildAggregation} and {@link InternalAggregation#reduce}.
+     */
+    public static class MultiBucketConsumer implements IntConsumer {
+        private final int limit;
+        // aggregations execute in a single thread so no atomic here
         private int count;
 
-        MultiBucketConsumer(int max) {
-            this.max = max;
+        public MultiBucketConsumer(int limit) {
+            this.limit = limit;
         }
 
         @Override
         public void accept(int value) {
             count += value;
-            if (count >= max) {
-                throw new TooManyBuckets("Trying to create too many buckets. Must be less than or equal to: [" + max
+            if (count > limit) {
+                throw new TooManyBucketsException("Trying to create too many buckets. Must be less than or equal to: [" + limit
                     + "] but was [" + count + "]. This limit can be set by changing the [" +
-                    MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", max);
+                    MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
             }
         }
 
         public void reset() {
             this.count = 0;
+        }
+
+        public int getCount() {
+            return count;
         }
     }
 

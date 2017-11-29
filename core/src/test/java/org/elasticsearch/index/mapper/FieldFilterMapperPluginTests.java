@@ -21,10 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -32,7 +34,9 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiPredicate;
 
 import static org.elasticsearch.cluster.metadata.MetaDataTests.assertLeafs;
@@ -65,14 +69,49 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertExpectedMappings(getIndexResponse.mappings());
     }
 
+    public void testGetFieldMappings() {
+        GetFieldMappingsResponse getFieldMappingsResponse = client().admin().indices().prepareGetFieldMappings().setFields("*").get();
+        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings = getFieldMappingsResponse.mappings();
+        assertEquals(2, mappings.size());
+        assertFieldMappings(mappings.get("index1"), ALL_FLAT_FIELDS);
+        assertFieldMappings(mappings.get("filtered"), FILTERED_FLAT_FIELDS);
+        //double check that submitting the filtered mappings to an unfiltered index leads to the same get field mappings output
+        //as the one coming from a filtered index with same mappings
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
+        ImmutableOpenMap<String, MappingMetaData> filtered = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", filtered.get("doc").getSourceAsMap()));
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setFields("*").get();
+        assertEquals(1, response.mappings().size());
+        assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
+    }
+
+    private static void assertFieldMappings(Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings,
+                                            String[] expectedFields) {
+        assertEquals(1, mappings.size());
+        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(mappings.get("doc"));
+        Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
+        for (String field : builtInMetaDataFields) {
+            GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = fields.remove(field);
+            assertNotNull(" expected field [" + field + "] not found", fieldMappingMetaData);
+        }
+        for (String field : expectedFields) {
+            GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = fields.remove(field);
+            assertNotNull("expected field [" + field + "] not found", fieldMappingMetaData);
+        }
+        assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
+    }
+
     private void assertExpectedMappings(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings) {
         assertEquals(2, mappings.size());
         assertNotFiltered(mappings.get("index1"));
         ImmutableOpenMap<String, MappingMetaData> filtered = mappings.get("filtered");
         assertFiltered(filtered);
+        assertMappingsAreValid(filtered.get("doc").getSourceAsMap());
+    }
 
-        //try and see if the returned filtered mappings are still valid mappings by submitting them and retrieving them back
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", filtered.get("doc").getSourceAsMap()));
+    private void assertMappingsAreValid(Map<String, Object> sourceAsMap) {
+        //check that the returned filtered mappings are still valid mappings by submitting them and retrieving them back
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", sourceAsMap));
         GetMappingsResponse testMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         assertEquals(1, testMappingsResponse.getMappings().size());
         //the mappings are returned unfiltered for this index, yet they are the same as the previous ones that were returned filtered
@@ -85,7 +124,10 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         MappingMetaData mappingMetaData = mappings.get("doc");
         assertNotNull(mappingMetaData);
         Map<String, Object> sourceAsMap = mappingMetaData.getSourceAsMap();
-        assertEquals(1, sourceAsMap.size());
+        assertEquals(4, sourceAsMap.size());
+        assertTrue(sourceAsMap.containsKey("_meta"));
+        assertTrue(sourceAsMap.containsKey("_routing"));
+        assertTrue(sourceAsMap.containsKey("_source"));
         Map<String, Object> typeProperties = (Map<String, Object>)sourceAsMap.get("properties");
         assertEquals(4, typeProperties.size());
 
@@ -129,7 +171,10 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         MappingMetaData mappingMetaData = mappings.get("doc");
         assertNotNull(mappingMetaData);
         Map<String, Object> sourceAsMap = mappingMetaData.getSourceAsMap();
-        assertEquals(1, sourceAsMap.size());
+        assertEquals(4, sourceAsMap.size());
+        assertTrue(sourceAsMap.containsKey("_meta"));
+        assertTrue(sourceAsMap.containsKey("_routing"));
+        assertTrue(sourceAsMap.containsKey("_source"));
         Map<String, Object> typeProperties = (Map<String, Object>)sourceAsMap.get("properties");
         assertEquals(5, typeProperties.size());
 
@@ -167,8 +212,26 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         }
     }
 
+    private static final String[] ALL_FLAT_FIELDS = new String[]{
+        "name.first", "name.last_visible", "birth", "age_visible", "address.street", "address.location", "address.area_visible",
+        "properties.key_visible", "properties.key_visible.keyword", "properties.value", "properties.value.keyword_visible"
+    };
+
+    private static final String[] FILTERED_FLAT_FIELDS = new String[]{
+            "name.last_visible", "age_visible", "address.area_visible", "properties.key_visible", "properties.value.keyword_visible"
+    };
+
     private static final String TEST_ITEM = "{\n" +
             "  \"doc\": {\n" +
+            "      \"_meta\": {\n" +
+            "        \"version\":0.19\n" +
+            "      }," +
+            "      \"_routing\": {\n" +
+            "        \"required\":true\n" +
+            "      }," +
+            "      \"_source\": {\n" +
+            "        \"enabled\":false\n" +
+            "      }," +
             "      \"properties\": {\n" +
             "        \"name\": {\n" +
             "          \"properties\": {\n" +

@@ -1264,7 +1264,20 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
+    /**
+     * Returns a predicate that fields must match in order to be returned by get mappings, get index and get field mappings API.
+     * Useful to filter the fields that such API return. The predicate receives the index name and the field name as input arguments.
+     * In case multiple plugins register a field filter through {@link org.elasticsearch.plugins.MapperPlugin#getFieldFilter()},
+     * only fields that match all the registered filters will be returned by get mappings, get index and get field mappings API.
+     */
     public BiPredicate<String, String> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
+    }
+
+    /**
+     * Returns true if the provide field is a registered metadata field, falso otherwise
+     */
+    public boolean isMetaDataField(String field) {
+        return mapperRegistry.isMetaDataField(field);
     }
 }

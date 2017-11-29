@@ -326,11 +326,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return false;
     }
 
-    /*
-     * Finds all mappings for types and concrete indices. Types are expanded to
-     * include all types that match the glob patterns in the types array. Empty
-     * types array, null or {"_all"} will be expanded to all types available for
-     * the given indices.
+    /**
+     * Finds all mappings for types and concrete indices. Types are expanded to include all types that match the glob
+     * patterns in the types array. Empty types array, null or {"_all"} will be expanded to all types available for
+     * the given indices. Only fields that match the provided field filter will be returned (default is a predicate
+     * that always returns true, which can be overridden via plugins)
+     *
+     * @see MapperPlugin#getFieldFilter()
+     *
      */
     public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices,
                                                                                             final String[] types,

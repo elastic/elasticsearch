@@ -21,22 +21,34 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiPredicate;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class IndicesModuleTests extends ESTestCase {
 
@@ -71,17 +83,44 @@ public class IndicesModuleTests extends ESTestCase {
         }
     });
 
+    private static String[] EXPECTED_METADATA_FIELDS = new String[]{UidFieldMapper.NAME, IdFieldMapper.NAME, RoutingFieldMapper.NAME,
+            IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME, VersionFieldMapper.NAME, ParentFieldMapper.NAME,
+            SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
+
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
         assertFalse(module.getMapperRegistry().getMetadataMapperParsers().isEmpty());
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers();
+        int i = 0;
+        for (String field : metadataMapperParsers.keySet()) {
+            assertEquals(EXPECTED_METADATA_FIELDS[i++], field);
+        }
     }
 
     public void testBuiltinWithPlugins() {
+        IndicesModule noPluginsModule = new IndicesModule(Collections.emptyList());
         IndicesModule module = new IndicesModule(fakePlugins);
         MapperRegistry registry = module.getMapperRegistry();
-        assertThat(registry.getMapperParsers().size(), Matchers.greaterThan(1));
-        assertThat(registry.getMetadataMapperParsers().size(), Matchers.greaterThan(1));
+        assertThat(registry.getMapperParsers().size(), greaterThan(noPluginsModule.getMapperRegistry().getMapperParsers().size()));
+        assertThat(registry.getMetadataMapperParsers().size(),
+                greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers().size()));
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers();
+        Iterator<String> iterator = metadataMapperParsers.keySet().iterator();
+        assertEquals(UidFieldMapper.NAME, iterator.next());
+        String last = null;
+        while(iterator.hasNext()) {
+            last = iterator.next();
+        }
+        assertEquals(FieldNamesFieldMapper.NAME, last);
+    }
+
+    public void testGetBuiltInMetaDataFields() {
+        Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
+        int i = 0;
+        for (String field : builtInMetaDataFields) {
+            assertEquals(EXPECTED_METADATA_FIELDS[i++], field);
+        }
     }
 
     public void testDuplicateBuiltinMapper() {
@@ -93,7 +132,7 @@ public class IndicesModuleTests extends ESTestCase {
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));
-        assertThat(e.getMessage(), Matchers.containsString("already registered"));
+        assertThat(e.getMessage(), containsString("already registered"));
     }
 
     public void testDuplicateOtherPluginMapper() {
@@ -106,7 +145,7 @@ public class IndicesModuleTests extends ESTestCase {
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));
-        assertThat(e.getMessage(), Matchers.containsString("already registered"));
+        assertThat(e.getMessage(), containsString("already registered"));
     }
 
     public void testDuplicateBuiltinMetadataMapper() {
@@ -118,7 +157,7 @@ public class IndicesModuleTests extends ESTestCase {
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));
-        assertThat(e.getMessage(), Matchers.containsString("already registered"));
+        assertThat(e.getMessage(), containsString("already registered"));
     }
 
     public void testDuplicateOtherPluginMetadataMapper() {
@@ -131,7 +170,7 @@ public class IndicesModuleTests extends ESTestCase {
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));
-        assertThat(e.getMessage(), Matchers.containsString("already registered"));
+        assertThat(e.getMessage(), containsString("already registered"));
     }
 
     public void testDuplicateFieldNamesMapper() {
@@ -143,7 +182,7 @@ public class IndicesModuleTests extends ESTestCase {
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));
-        assertThat(e.getMessage(), Matchers.containsString("cannot contain metadata mapper [_field_names]"));
+        assertThat(e.getMessage(), containsString("cannot contain metadata mapper [_field_names]"));
     }
 
     public void testFieldNamesIsLast() {

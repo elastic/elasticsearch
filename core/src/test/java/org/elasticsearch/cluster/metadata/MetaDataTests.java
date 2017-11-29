@@ -347,7 +347,9 @@ public class MetaDataTests extends ESTestCase {
             assertNotNull(docMapping);
 
             Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
-            assertEquals(1, sourceAsMap.size());
+            assertEquals(3, sourceAsMap.size());
+            assertTrue(sourceAsMap.containsKey("_routing"));
+            assertTrue(sourceAsMap.containsKey("_source"));
 
             Map<String, Object> typeProperties = (Map<String, Object>) sourceAsMap.get("properties");
             assertEquals(6, typeProperties.size());
@@ -393,7 +395,9 @@ public class MetaDataTests extends ESTestCase {
             assertEquals(1, index3.size());
             MappingMetaData mappingMetaData = index3.get("doc");
             Map<String, Object> sourceAsMap = mappingMetaData.getSourceAsMap();
-            assertEquals(1, sourceAsMap.size());
+            assertEquals(3, sourceAsMap.size());
+            assertTrue(sourceAsMap.containsKey("_routing"));
+            assertTrue(sourceAsMap.containsKey("_source"));
             Map<String, Object> typeProperties = (Map<String, Object>) sourceAsMap.get("properties");
             assertNotNull(typeProperties);
             assertEquals(1, typeProperties.size());
@@ -436,7 +440,9 @@ public class MetaDataTests extends ESTestCase {
         MappingMetaData docMapping = indexMappings.get("doc");
         assertNotNull(docMapping);
         Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
-        assertEquals(1, sourceAsMap.size());
+        assertEquals(3, sourceAsMap.size());
+        assertTrue(sourceAsMap.containsKey("_routing"));
+        assertTrue(sourceAsMap.containsKey("_source"));
         Map<String, Object> typeProperties = (Map<String, Object>) sourceAsMap.get("properties");
         assertEquals(0, typeProperties.size());
     }
@@ -452,7 +458,9 @@ public class MetaDataTests extends ESTestCase {
         assertNotNull(docMapping);
 
         Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
-        assertEquals(1, sourceAsMap.size());
+        assertEquals(3, sourceAsMap.size());
+        assertTrue(sourceAsMap.containsKey("_routing"));
+        assertTrue(sourceAsMap.containsKey("_source"));
 
         Map<String, Object> typeProperties = (Map<String, Object>) sourceAsMap.get("properties");
         assertEquals(7, typeProperties.size());
@@ -514,6 +522,12 @@ public class MetaDataTests extends ESTestCase {
 
     private static final String FIND_MAPPINGS_TEST_ITEM = "{\n" +
             "  \"doc\": {\n" +
+            "      \"_routing\": {\n" +
+            "        \"required\":true\n" +
+            "      }," +
+            "      \"_source\": {\n" +
+            "        \"enabled\":false\n" +
+            "      }," +
             "      \"properties\": {\n" +
             "        \"name\": {\n" +
             "          \"properties\": {\n" +

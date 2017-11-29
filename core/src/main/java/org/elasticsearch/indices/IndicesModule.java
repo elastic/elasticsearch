@@ -64,6 +64,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiPredicate;
 
 /**
@@ -120,23 +121,42 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(mappers);
     }
 
-    private Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
+    private static final Map<String, MetadataFieldMapper.TypeParser> builtInMetadataMappers = initBuiltInMetadataMappers();
+
+    private static Map<String, MetadataFieldMapper.TypeParser> initBuiltInMetadataMappers() {
+        Map<String, MetadataFieldMapper.TypeParser> builtInMetadataMappers;
         // Use a LinkedHashMap for metadataMappers because iteration order matters
+        builtInMetadataMappers = new LinkedHashMap<>();
+        // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
+        builtInMetadataMappers.put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser());
+        builtInMetadataMappers.put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser());
+        builtInMetadataMappers.put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser());
+        builtInMetadataMappers.put(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser());
+        builtInMetadataMappers.put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser());
+        builtInMetadataMappers.put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser());
+        builtInMetadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
+        builtInMetadataMappers.put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser());
+        builtInMetadataMappers.put(SeqNoFieldMapper.NAME, new SeqNoFieldMapper.TypeParser());
+        //_field_names must be added last so that it has a chance to see all the other mappers
+        builtInMetadataMappers.put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser());
+        return Collections.unmodifiableMap(builtInMetadataMappers);
+    }
+
+    private static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
         Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new LinkedHashMap<>();
 
-        // builtin metadata mappers
-        // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
-
-        metadataMappers.put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser());
-        metadataMappers.put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser());
-        metadataMappers.put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser());
-        metadataMappers.put(IndexFieldMapper.NAME, new IndexFieldMapper.TypeParser());
-        metadataMappers.put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser());
-        metadataMappers.put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser());
-        metadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
-        metadataMappers.put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser());
-        metadataMappers.put(SeqNoFieldMapper.NAME, new SeqNoFieldMapper.TypeParser());
-        // _field_names is not registered here, see below
+        int i = 0;
+        Map.Entry<String, MetadataFieldMapper.TypeParser> fieldNamesEntry = null;
+        for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : builtInMetadataMappers.entrySet()) {
+            if (i < builtInMetadataMappers.size() - 1) {
+                metadataMappers.put(entry.getKey(), entry.getValue());
+            } else {
+                assert entry.getKey().equals(FieldNamesFieldMapper.NAME);
+                fieldNamesEntry = entry;
+            }
+            i++;
+        }
+        assert fieldNamesEntry != null;
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperPlugin.getMetadataMappers().entrySet()) {
@@ -149,9 +169,13 @@ public class IndicesModule extends AbstractModule {
             }
         }
 
-        // we register _field_names here so that it has a chance to see all other mappers, including from plugins
-        metadataMappers.put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser());
+        // we register _field_names here so that it has a chance to see all the other mappers, including from plugins
+        metadataMappers.put(fieldNamesEntry.getKey(), fieldNamesEntry.getValue());
         return Collections.unmodifiableMap(metadataMappers);
+    }
+
+    public static Set<String> getBuiltInMetaDataFields() {
+        return builtInMetadataMappers.keySet();
     }
 
     private static BiPredicate<String, String> getFieldFilter(List<MapperPlugin> mapperPlugins) {

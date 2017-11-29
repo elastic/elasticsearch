@@ -29,13 +29,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentFieldMappers;
@@ -50,7 +49,11 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
@@ -89,7 +92,6 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
 
     @Override
     protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) {
-        //TODO filter mappings here too
         assert shardId != null;
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         Collection<String> typeIntersection;
@@ -106,16 +108,16 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             }
         }
 
-        MapBuilder<String, Map<String, FieldMappingMetaData>> typeMappings = new MapBuilder<>();
+        Map<String, Map<String, FieldMappingMetaData>> typeMappings = new HashMap<>();
         for (String type : typeIntersection) {
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            Map<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, request);
+            Map<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(shardId.getIndexName(),
+                    indicesService::isMetaDataField, indicesService.getFieldFilter(), documentMapper, request);
             if (!fieldMapping.isEmpty()) {
                 typeMappings.put(type, fieldMapping);
             }
         }
-
-        return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), typeMappings.immutableMap()));
+        return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), Collections.unmodifiableMap(typeMappings)));
     }
 
     @Override
@@ -165,47 +167,54 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         }
     };
 
-    private Map<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) {
-        MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<>();
+    private static Map<String, FieldMappingMetaData> findFieldMappingsByType(String index,
+                                                                             Predicate<String> metaDataFieldPredicate,
+                                                                             BiPredicate<String, String> fieldFilter,
+                                                                             DocumentMapper documentMapper,
+                                                                             GetFieldMappingsIndexRequest request) {
+        Map<String, FieldMappingMetaData> fieldMappings = new HashMap<>();
         final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (FieldMapper fieldMapper : allFieldMappers) {
-                    addFieldMapper(fieldMapper.fieldType().name(), fieldMapper, fieldMappings, request.includeDefaults());
+                    addFieldMapper(index, metaDataFieldPredicate, fieldFilter, fieldMapper.fieldType().name(),
+                            fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
                 for (FieldMapper fieldMapper : allFieldMappers) {
                     if (Regex.simpleMatch(field, fieldMapper.fieldType().name())) {
-                        addFieldMapper(fieldMapper.fieldType().name(), fieldMapper, fieldMappings,
-                            request.includeDefaults());
+                        addFieldMapper(index, metaDataFieldPredicate, fieldFilter,  fieldMapper.fieldType().name(),
+                                fieldMapper, fieldMappings, request.includeDefaults());
                     }
                 }
             } else {
                 // not a pattern
                 FieldMapper fieldMapper = allFieldMappers.smartNameFieldMapper(field);
                 if (fieldMapper != null) {
-                    addFieldMapper(field, fieldMapper, fieldMappings, request.includeDefaults());
+                    addFieldMapper(index, metaDataFieldPredicate, fieldFilter, field, fieldMapper, fieldMappings, request.includeDefaults());
                 } else if (request.probablySingleFieldRequest()) {
                     fieldMappings.put(field, FieldMappingMetaData.NULL);
                 }
             }
         }
-        return fieldMappings.immutableMap();
+        return Collections.unmodifiableMap(fieldMappings);
     }
 
-    private void addFieldMapper(String field, FieldMapper fieldMapper, MapBuilder<String, FieldMappingMetaData> fieldMappings, boolean includeDefaults) {
+    private static void addFieldMapper(String index, Predicate<String> metaDataFieldPredicate, BiPredicate<String, String> fieldFilter,
+                                       String field, FieldMapper fieldMapper, Map<String, FieldMappingMetaData> fieldMappings,
+                                       boolean includeDefaults) {
         if (fieldMappings.containsKey(field)) {
             return;
         }
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.startObject();
-            fieldMapper.toXContent(builder, includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.fieldType().name(), builder.bytes()));
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
+        //metadata fields are not filtered out
+        if (metaDataFieldPredicate.test(field) || fieldFilter.test(index, field)) {
+            try {
+                BytesReference bytes = XContentHelper.toXContent(fieldMapper, XContentType.JSON,
+                        includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS, false);
+                fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.fieldType().name(), bytes));
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
+            }
         }
     }
-
 }

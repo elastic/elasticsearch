@@ -91,7 +91,6 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -211,17 +210,13 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         assertThat(result.totalOperations, equalTo(expectedOps));
         final ArgumentCaptor<List> shippedOpsCaptor = ArgumentCaptor.forClass(List.class);
-        if (expectedOps > 0) {
-            verify(recoveryTarget).indexTranslogOperations(shippedOpsCaptor.capture(), ArgumentCaptor.forClass(Integer.class).capture());
-            List<Translog.Operation> shippedOps = shippedOpsCaptor.getAllValues().stream()
-                .flatMap(List::stream).map(o -> (Translog.Operation) o).collect(Collectors.toList());
-            shippedOps.sort(Comparator.comparing(Translog.Operation::seqNo));
-            assertThat(shippedOps.size(), equalTo(expectedOps));
-            for (int i = 0; i < shippedOps.size(); i++) {
-                assertThat(shippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
-            }
-        } else {
-            verify(recoveryTarget, never()).indexTranslogOperations(any(), any());
+        verify(recoveryTarget).indexTranslogOperations(shippedOpsCaptor.capture(), ArgumentCaptor.forClass(Integer.class).capture());
+        List<Translog.Operation> shippedOps = shippedOpsCaptor.getAllValues().stream()
+            .flatMap(List::stream).map(o -> (Translog.Operation) o).collect(Collectors.toList());
+        shippedOps.sort(Comparator.comparing(Translog.Operation::seqNo));
+        assertThat(shippedOps.size(), equalTo(expectedOps));
+        for (int i = 0; i < shippedOps.size(); i++) {
+            assertThat(shippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
         }
         if (endingSeqNo >= requiredStartingSeqNo + 1) {
             // check that missing ops blows up

@@ -29,6 +29,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Matchers.any;
@@ -57,7 +58,7 @@ public class TcpReadContextTests extends ESTestCase {
         byte[] bytes = createMessage(messageLength);
         byte[] fullMessage = combineMessageAndHeader(bytes);
 
-        final AtomicInteger bufferCapacity = new AtomicInteger();
+        final AtomicLong bufferCapacity = new AtomicLong();
         when(channel.read(any(InboundChannelBuffer.class))).thenAnswer(invocationOnMock -> {
             InboundChannelBuffer buffer = (InboundChannelBuffer) invocationOnMock.getArguments()[0];
             ByteBuffer byteBuffer = buffer.getPostIndexBuffers()[0];
@@ -82,7 +83,7 @@ public class TcpReadContextTests extends ESTestCase {
         byte[] fullPart1 = combineMessageAndHeader(part1, messageLength + messageLength);
         byte[] part2 = createMessage(messageLength);
 
-        final AtomicInteger bufferCapacity = new AtomicInteger();
+        final AtomicLong bufferCapacity = new AtomicLong();
         final AtomicReference<byte[]> bytes = new AtomicReference<>();
 
         when(channel.read(any(InboundChannelBuffer.class))).thenAnswer(invocationOnMock -> {

@@ -41,7 +41,7 @@ public class InboundChannelBufferTests extends ESTestCase {
         assertEquals(PAGE_SIZE, channelBuffer.getCapacity());
         assertEquals(PAGE_SIZE, channelBuffer.getRemaining());
 
-        channelBuffer.expandCapacity(PAGE_SIZE + 1);
+        channelBuffer.ensureCapacity(PAGE_SIZE + 1);
 
         assertEquals(PAGE_SIZE * 2, channelBuffer.getCapacity());
         assertEquals(PAGE_SIZE * 2, channelBuffer.getRemaining());
@@ -53,7 +53,7 @@ public class InboundChannelBufferTests extends ESTestCase {
         assertEquals(PAGE_SIZE, channelBuffer.getCapacity());
 
         int multiple = randomInt(80);
-        channelBuffer.expandCapacity(PAGE_SIZE + ((multiple * PAGE_SIZE) - randomInt(500)));
+        channelBuffer.ensureCapacity(PAGE_SIZE + ((multiple * PAGE_SIZE) - randomInt(500)));
 
         assertEquals(PAGE_SIZE * (multiple + 1), channelBuffer.getCapacity());
         assertEquals(PAGE_SIZE * (multiple + 1), channelBuffer.getRemaining());
@@ -67,12 +67,12 @@ public class InboundChannelBufferTests extends ESTestCase {
 
         int offset = randomInt(300);
 
-        channelBuffer.releasePagesFromHead(offset);
+        channelBuffer.release(offset);
 
         assertEquals(PAGE_SIZE - offset, channelBuffer.getCapacity());
         assertEquals(PAGE_SIZE - offset, channelBuffer.getRemaining());
 
-        channelBuffer.expandCapacity(PAGE_SIZE + 1);
+        channelBuffer.ensureCapacity(PAGE_SIZE + 1);
 
         assertEquals(PAGE_SIZE * 2 - offset, channelBuffer.getCapacity());
         assertEquals(PAGE_SIZE * 2 - offset, channelBuffer.getRemaining());
@@ -96,7 +96,7 @@ public class InboundChannelBufferTests extends ESTestCase {
         assertEquals(0, channelBuffer.getIndex());
         assertEquals(PAGE_SIZE, channelBuffer.getRemaining());
 
-        channelBuffer.releasePagesFromHead(10);
+        channelBuffer.release(10);
         assertEquals(PAGE_SIZE - 10, channelBuffer.getRemaining());
 
         channelBuffer.incrementIndex(10);
@@ -104,7 +104,7 @@ public class InboundChannelBufferTests extends ESTestCase {
         assertEquals(10, channelBuffer.getIndex());
         assertEquals(PAGE_SIZE - 20, channelBuffer.getRemaining());
 
-        channelBuffer.releasePagesFromHead(2);
+        channelBuffer.release(2);
         assertEquals(8, channelBuffer.getIndex());
         assertEquals(PAGE_SIZE - 20, channelBuffer.getRemaining());
     }
@@ -113,9 +113,9 @@ public class InboundChannelBufferTests extends ESTestCase {
         InboundChannelBuffer channelBuffer = new InboundChannelBuffer();
 
         int pages = randomInt(50) + 5;
-        channelBuffer.expandCapacity(pages * PAGE_SIZE);
+        channelBuffer.ensureCapacity(pages * PAGE_SIZE);
 
-        int capacity = channelBuffer.getCapacity();
+        long capacity = channelBuffer.getCapacity();
 
         ByteBuffer[] postIndexBuffers = channelBuffer.getPostIndexBuffers();
         int i = 0;
@@ -130,7 +130,7 @@ public class InboundChannelBufferTests extends ESTestCase {
         while (indexIncremented < capacity) {
             assertEquals(indexIncremented - bytesReleased, channelBuffer.getIndex());
 
-            int amountToInc = Math.min(randomInt(2000), channelBuffer.getRemaining());
+            long amountToInc = Math.min(randomInt(2000), channelBuffer.getRemaining());
             assertEquals((byte) ((channelBuffer.getIndex() + bytesReleased) % 127), channelBuffer.getPostIndexBuffers()[0].get());
             ByteBuffer[] preIndexBuffers = channelBuffer.getPreIndexBuffers();
             if (preIndexBuffers.length > 0) {
@@ -138,8 +138,8 @@ public class InboundChannelBufferTests extends ESTestCase {
                 assertEquals((byte) ((channelBuffer.getIndex() + bytesReleased - 1) % 127), preIndexBuffer.get(preIndexBuffer.limit() - 1));
             }
             if (randomBoolean()) {
-                int bytesToRelease = Math.min(randomInt(50), channelBuffer.getIndex());
-                channelBuffer.releasePagesFromHead(bytesToRelease);
+                long bytesToRelease = Math.min(randomInt(50), channelBuffer.getIndex());
+                channelBuffer.release(bytesToRelease);
                 bytesReleased += bytesToRelease;
             }
             channelBuffer.incrementIndex(amountToInc);

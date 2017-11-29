@@ -29,32 +29,34 @@ import java.util.function.Supplier;
 public class InboundChannelBuffer {
 
     public static final int PAGE_SIZE = 1 << 14;
+    private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
+
     private final int pageMask;
     private final int pageShift;
 
     private final ArrayDeque<Page> pages;
     private final Supplier<Page> pageSupplier;
 
-    private int capacity = 0;
-    private int internalIndex = 0;
+    private long capacity = 0;
+    private long internalIndex = 0;
     private int offset = 0;
 
     public InboundChannelBuffer() {
         this(() -> new Page(ByteBuffer.wrap(new byte[PAGE_SIZE]), () -> {}));
     }
 
-    public InboundChannelBuffer(Supplier<Page> pageSupplier) {
+    private InboundChannelBuffer(Supplier<Page> pageSupplier) {
         this.pageSupplier = pageSupplier;
         this.pages = new ArrayDeque<>();
         this.pageMask = PAGE_SIZE - 1;
         this.pageShift = Integer.numberOfTrailingZeros(PAGE_SIZE);
         this.capacity = PAGE_SIZE * pages.size();
-        expandCapacity(PAGE_SIZE);
+        ensureCapacity(PAGE_SIZE);
     }
 
-    public void expandCapacity(int newCapacity) {
-        if (capacity < newCapacity) {
-            int numPages = numPages(newCapacity + offset);
+    public void ensureCapacity(long requiredCapacity) {
+        if (capacity < requiredCapacity) {
+            int numPages = numPages(requiredCapacity + offset);
             int pagesToAdd = numPages - pages.size();
             for (int i = 0; i < pagesToAdd; ++i) {
                 pages.addLast(pageSupplier.get());
@@ -63,7 +65,12 @@ public class InboundChannelBuffer {
         }
     }
 
-    public void releasePagesFromHead(int bytesToRelease) {
+    /**
+     * This method will release bytes from the head of this buffer.
+     *
+     * @param bytesToRelease number of bytes to drop
+     */
+    public void release(long bytesToRelease) {
         if (bytesToRelease > capacity) {
             throw new IllegalArgumentException("Releasing more bytes [" + bytesToRelease + "] than buffer capacity [" + capacity + "].");
         }
@@ -78,11 +85,19 @@ public class InboundChannelBuffer {
         offset = indexInPage(bytesToRelease + offset);
     }
 
+    /**
+     * This method will return an array of {@link ByteBuffer} representing the bytes from the beginning of
+     * this buffer up through the current index. The buffers will be duplicates of the internal buffers, so
+     * any modifications to the markers {@link ByteBuffer#position()}, {@link ByteBuffer#limit()}, etc will
+     * not modify the this class.
+     *
+     * @return the byte buffers
+     */
     public ByteBuffer[] getPreIndexBuffers() {
         if (internalIndex == 0) {
-            return new ByteBuffer[0];
+            return EMPTY_BYTE_BUFFER_ARRAY;
         }
-        int indexWithOffset = internalIndex + offset;
+        long indexWithOffset = internalIndex + offset;
         int pageCount = pageIndex(indexWithOffset);
         int finalLimit = indexInPage(indexWithOffset);
         if (finalLimit != 0) {
@@ -104,11 +119,19 @@ public class InboundChannelBuffer {
         return buffers;
     }
 
+    /**
+     * This method will return an array of {@link ByteBuffer} representing the bytes from the current index
+     * of this buffer through the end. The buffers will be duplicates of the internal buffers, so any
+     * modifications to the markers {@link ByteBuffer#position()}, {@link ByteBuffer#limit()}, etc will not
+     * modify the this class.
+     *
+     * @return the byte buffers
+     */
     public ByteBuffer[] getPostIndexBuffers() {
         if (internalIndex == capacity) {
             return new ByteBuffer[0];
         }
-        int indexWithOffset = offset + internalIndex;
+        long indexWithOffset = offset + internalIndex;
 
         int pageIndex = pageIndex(indexWithOffset);
         int indexInPage = indexInPage(indexWithOffset);
@@ -125,8 +148,12 @@ public class InboundChannelBuffer {
         return buffers;
     }
 
-    public void incrementIndex(int delta) {
-        int newIndex = delta + internalIndex;
+    public void incrementIndex(long delta) {
+        if (delta < 0) {
+            throw new IllegalArgumentException("Cannot increment an index with a negative delta [" + delta + "]");
+        }
+
+        long newIndex = delta + internalIndex;
         if (newIndex > capacity) {
             throw new IllegalArgumentException("Cannot increment an index [" + internalIndex + "] with a delta [" + delta +
                 "] that will result in a new index [" + newIndex + "] that is greater than the capacity [" + capacity + "].");
@@ -134,37 +161,41 @@ public class InboundChannelBuffer {
         internalIndex = newIndex;
     }
 
-    public int getIndex() {
+    public long getIndex() {
         return internalIndex;
     }
 
-    public int getCapacity() {
+    public long getCapacity() {
         return capacity;
     }
 
-    public int getRemaining() {
+    public long getRemaining() {
         return capacity - internalIndex;
     }
 
-    private int numPages(int capacity) {
-        return (capacity + pageMask) >>> pageShift;
+    private int numPages(long capacity) {
+        final long numPages = (capacity + pageMask) >>> pageShift;
+        if (numPages > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("pageSize=" + (pageMask + 1) + " is too small for such as capacity: " + capacity);
+        }
+        return (int) numPages;
     }
 
-    private int pageIndex(int index) {
-        return index >>> pageShift;
+    private int pageIndex(long index) {
+        return (int) (index >>> pageShift);
     }
 
-    private int indexInPage(int index) {
-        return index & pageMask;
+    private int indexInPage(long index) {
+        return (int) (index & pageMask);
     }
 
-    public static class Page implements Releasable {
+    private static class Page implements Releasable {
 
         private final ByteBuffer buffer;
         private final Releasable releasable;
 
 
-        public Page(ByteBuffer buffer, Releasable releasable) {
+        private Page(ByteBuffer buffer, Releasable releasable) {
             this.buffer = buffer;
             this.releasable = releasable;
         }

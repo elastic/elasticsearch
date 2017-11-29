@@ -23,6 +23,15 @@ import org.apache.lucene.util.BytesRef;
 
 import java.nio.ByteBuffer;
 
+/**
+ * This is a {@link BytesReference} backed by a {@link ByteBuffer}. The byte buffer can either be a heap or
+ * direct byte buffer. The reference is composed of the space between the {@link ByteBuffer#position} and
+ * {@link ByteBuffer#limit} at construction time. If the position or limit of the underlying byte buffer is
+ * changed, those changes will not be reflected in this reference. However, modifying the limit or position
+ * of the underlying byte buffer is not recommended as those can be used during {@link ByteBuffer#get()}
+ * bounds checks. Use {@link ByteBuffer#duplicate()} at creation time if you plan on modifying the markers of
+ * the underlying byte buffer. Any changes to the underlying data in the byte buffer will be reflected.
+ */
 public class ByteBufferReference extends BytesReference {
 
     private final ByteBuffer buffer;
@@ -48,7 +57,7 @@ public class ByteBufferReference extends BytesReference {
     @Override
     public BytesReference slice(int from, int length) {
         if (from < 0 || (from + length) > this.length) {
-            throw new IllegalArgumentException("can't slice a buffer with length [" + this.length + "], with slice parameters from ["
+            throw new IndexOutOfBoundsException("can't slice a buffer with length [" + this.length + "], with slice parameters from ["
                 + from + "], length [" + length + "]");
         }
         ByteBuffer newByteBuffer = buffer.duplicate();
@@ -57,6 +66,12 @@ public class ByteBufferReference extends BytesReference {
         return new ByteBufferReference(newByteBuffer);
     }
 
+    /**
+     * This will return a bytes ref composed of the bytes. If this is a direct byte buffer, the bytes will
+     * have to be copied.
+     *
+     * @return the bytes ref
+     */
     @Override
     public BytesRef toBytesRef() {
         if (buffer.hasArray()) {

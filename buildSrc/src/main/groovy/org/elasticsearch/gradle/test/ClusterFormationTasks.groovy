@@ -167,7 +167,7 @@ class ClusterFormationTasks {
             delete node.homeDir
             delete node.cwd
         }
-        setup = project.tasks.create(name: taskName(prefix, node, 'createCwd'), type: DefaultTask, dependsOn: dependsOn) {
+        setup = project.tasks.create(name: taskName(prefix, node, 'createCwd'), type: DefaultTask, dependsOn: setup) {
             doLast {
                 node.cwd.mkdirs()
             }

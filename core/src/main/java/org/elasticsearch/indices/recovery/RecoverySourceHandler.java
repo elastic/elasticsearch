@@ -440,11 +440,11 @@ public class RecoverySourceHandler {
      * point-in-time view of the translog). It then sends each translog operation to the target node so it can be replayed into the new
      * shard.
      *
-     * @param startingSeqNo the sequence number to start recovery from, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if all
-     *                      ops should be sent
+     * @param startingSeqNo           the sequence number to start recovery from, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if all
+     *                                ops should be sent
      * @param requiredSeqNoRangeStart the lower sequence number of the required range (ending with endingSeqNo)
-     * @param endingSeqNo   the highest sequence number that should be sent
-     * @param snapshot      a snapshot of the translog
+     * @param endingSeqNo             the highest sequence number that should be sent
+     * @param snapshot                a snapshot of the translog
      * @return the local checkpoint on the target
      */
     long phase2(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, final Translog.Snapshot snapshot)
@@ -521,11 +521,11 @@ public class RecoverySourceHandler {
      * <p>
      * Operations are bulked into a single request depending on an operation count limit or size-in-bytes limit.
      *
-     * @param startingSeqNo the sequence number for which only operations with a sequence number greater than this will be sent
+     * @param startingSeqNo           the sequence number for which only operations with a sequence number greater than this will be sent
      * @param requiredSeqNoRangeStart the lower sequence number of the required range
-     * @param endingSeqNo   the upper bound of the sequence number range to be sent (inclusive)
-     * @param snapshot      the translog snapshot to replay operations from  @return the local checkpoint on the target and the total
-     *                      number of operations sent
+     * @param endingSeqNo             the upper bound of the sequence number range to be sent (inclusive)
+     * @param snapshot                the translog snapshot to replay operations from  @return the local checkpoint on the target and the
+     *                                total number of operations sent
      * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
     protected SendSnapshotResult sendSnapshot(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo,

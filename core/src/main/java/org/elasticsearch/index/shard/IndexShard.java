@@ -498,7 +498,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 final Engine engine = getEngine();
                                 engine.restoreLocalCheckpointFromTranslog();
                                 if (indexSettings.getIndexVersionCreated().onOrBefore(Version.V_6_0_0_alpha1)) {
-                                    // an index that was created before sequence numbers were introduce may contain operations in its
+                                    // an index that was created before sequence numbers were introduced may contain operations in its
                                     // translog that do not have a sequence numbers. We want to make sure those operations will never
                                     // be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq# (due
                                     // to active indexing) and operations without a seq# coming from the translog. We therefore flush

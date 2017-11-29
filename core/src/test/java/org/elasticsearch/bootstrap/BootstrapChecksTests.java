@@ -45,7 +45,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasToString;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -688,6 +687,26 @@ public class BootstrapChecksTests extends ESTestCase {
 
         // if not Java 8, nothing should happen
         BootstrapChecks.check(defaultContext, true, Collections.singletonList(nonJava8Check), "testG1GCCheck");
+    }
+
+    public void testAllPermissionCheck() throws NodeValidationException {
+        final AtomicBoolean isAllPermissionGranted = new AtomicBoolean(true);
+        final BootstrapChecks.AllPermissionCheck allPermissionCheck = new BootstrapChecks.AllPermissionCheck() {
+            @Override
+            boolean isAllPermissionGranted() {
+                return isAllPermissionGranted.get();
+            }
+        };
+
+        final List<BootstrapCheck> checks = Collections.singletonList(allPermissionCheck);
+        final NodeValidationException e = expectThrows(
+                NodeValidationException.class,
+                () -> BootstrapChecks.check(defaultContext, true, checks, "testIsAllPermissionCheck"));
+        assertThat(e, hasToString(containsString("granting the all permission effectively disables security")));
+
+        // if all permissions are not granted, nothing should happen
+        isAllPermissionGranted.set(false);
+        BootstrapChecks.check(defaultContext, true, checks, "testIsAllPermissionCheck");
     }
 
     public void testAlwaysEnforcedChecks() {

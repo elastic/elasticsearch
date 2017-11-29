@@ -3,7 +3,7 @@
 
 [partintro]
 --
-The *elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
+The *Elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
 
 The conventions listed in this chapter can be applied throughout the REST
 API, unless otherwise specified.
@@ -228,7 +228,7 @@ Some examples are:
 === Response Filtering
 
 All REST APIs accept a `filter_path` parameter that can be used to reduce
-the response returned by elasticsearch. This parameter takes a comma
+the response returned by Elasticsearch. This parameter takes a comma
 separated list of filters expressed with the dot notation:
 
 [source,js]
@@ -360,7 +360,7 @@ Responds:
 --------------------------------------------------
 // TESTRESPONSE
 
-Note that elasticsearch sometimes returns directly the raw value of a field,
+Note that Elasticsearch sometimes returns directly the raw value of a field,
 like the `_source` field. If you want to filter `_source` fields, you should
 consider combining the already existing `_source` parameter (see
 <<get-source-filtering,Get API>> for more details) with the `filter_path`

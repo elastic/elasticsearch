@@ -143,7 +143,7 @@ favor of the options documented above.
 ===== Nested sorting examples
 
 In the below example `offer` is a field of type `nested`.
-The nested `path` needs to be specified; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
+The nested `path` needs to be specified; otherwise, Elasticsearch doesn't know on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------
@@ -171,7 +171,7 @@ POST /_search
 // CONSOLE
 
 In the below example `parent` and `child` fields are of type `nested`.
-The `nested_path` needs to be specified at each level; otherwise, elasticsearch doesn't know on what nested level sort values need to be captured.
+The `nested_path` needs to be specified at each level; otherwise, Elasticsearch doesn't know on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------

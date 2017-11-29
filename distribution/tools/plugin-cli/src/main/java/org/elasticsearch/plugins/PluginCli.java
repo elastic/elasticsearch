@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 
@@ -31,7 +32,7 @@ import java.util.Collections;
 /**
  * A cli tool for adding, removing and listing plugins for elasticsearch.
  */
-public class PluginCli extends MultiCommand {
+public class PluginCli extends LoggingAwareMultiCommand {
 
     private final Collection<Command> commands;
 

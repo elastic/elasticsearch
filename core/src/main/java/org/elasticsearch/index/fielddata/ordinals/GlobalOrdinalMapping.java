@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * A {@link SortedSetDocValues} implementation that returns ordinals that are global.
  */
-public class GlobalOrdinalMapping extends SortedSetDocValues {
+final class GlobalOrdinalMapping extends SortedSetDocValues {
 
     private final SortedSetDocValues values;
     private final OrdinalMap ordinalMap;
@@ -49,7 +49,7 @@ public class GlobalOrdinalMapping extends SortedSetDocValues {
         return ordinalMap.getValueCount();
     }
 
-    public final long getGlobalOrd(long segmentOrd) {
+    public long getGlobalOrd(long segmentOrd) {
         return mapping.get(segmentOrd);
     }
 

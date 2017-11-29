@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket;
+package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -34,9 +34,11 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
@@ -44,6 +46,8 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStat
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,6 +86,18 @@ public class StringTermsIT extends AbstractTermsTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(CustomScriptPlugin.class);
+    }
+
+    @Before
+    public void randomizeOptimizations() {
+        TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = false;randomBoolean();
+        TermsAggregatorFactory.REMAP_GLOBAL_ORDS = randomBoolean();
+    }
+
+    @After
+    public void resetOptimizations() {
+        TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
+        TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
     }
 
     public static class CustomScriptPlugin extends AggregationTestScriptsPlugin {

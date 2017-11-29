@@ -493,24 +493,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * subsequently fails before the primary/replica re-sync completes successfully and we are now being
                                  * promoted, the local checkpoint tracker here could be left in a state where it would re-issue sequence
                                  * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
-                                 * replaying the translog and marking any operations there are completed. Rolling the translog generation is
-                                 * not strictly needed here (as we will never have collisions between sequence numbers in a translog
-                                 * generation in a new primary as it takes the last known sequence number as a starting point), but it
-                                 * simplifies reasoning about the relationship between primary terms and translog generations.
+                                 * replaying the translog and marking any operations there are completed.
                                  */
                                 final Engine engine = getEngine();
                                 engine.restoreLocalCheckpointFromTranslog();
-                                if (indexSettings.getIndexVersionCreated().onOrBefore(Version.V_6_0_0_alpha1) &&
-                                    engine.getTranslog().uncommittedOperations() > 0) {
+                                if (indexSettings.getIndexVersionCreated().onOrBefore(Version.V_6_0_0_alpha1)) {
                                     // an index that was created before sequence numbers were introduce may contain operations in its
                                     // translog that do not have a sequence numbers. We want to make sure those operations will never
                                     // be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq# (due
                                     // to active indexing) and operations without a seq# coming from the translog. We therefore flush
                                     // to create a lucene commit point to an empty translog file.
                                     engine.flush(false, true);
-                                } else {
-                                    engine.rollTranslogGeneration();
                                 }
+                                /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
+                                 * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
+                                 * as a starting point), but it simplifies reasoning about the relationship between primary terms and
+                                 * translog generations.
+                                 */
+                                engine.rollTranslogGeneration();
                                 engine.fillSeqNoGaps(newPrimaryTerm);
                                 engine.seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
                                     getEngine().seqNoService().getLocalCheckpoint());

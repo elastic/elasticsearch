@@ -32,6 +32,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -2774,4 +2775,75 @@ public class IndexShardTests extends IndexShardTestCase {
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(breaker.getUsed(), equalTo(0L));
     }
+
+    public void testSegmentMemoryTrackedWithRandomSearchers() throws Exception {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoverShardFromStore(primary);
+
+        int threadCount = randomIntBetween(2, 6);
+        List<Thread> threads = new ArrayList<>(threadCount);
+        int iterations = randomIntBetween(50, 300);
+        List<Engine.Searcher> searchers = Collections.synchronizedList(new ArrayList<>());
+
+        for (int threadId = 0; threadId < threadCount; threadId++) {
+            final String threadName = "thread-" + threadId;
+            Runnable r = () -> {
+                for (int i = 0; i < iterations; i++) {
+                    try {
+                        if (randomBoolean()) {
+                            indexDoc(primary, "test", "id-" + threadName + "-" + i, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
+                        }
+
+                        if (randomBoolean() && i > 10) {
+                            deleteDoc(primary, "test", "id-" + threadName + "-" + randomIntBetween(0, i - 1));
+                        }
+
+                        if (randomBoolean()) {
+                            primary.refresh("forced refresh");
+                        }
+
+                        if (randomBoolean()) {
+                            // Acquire a new searcher, adding it to the list
+                            searchers.add(primary.acquireSearcher("searcher-" + threadName + "-" + i));
+                        }
+
+                        if (randomBoolean() && searchers.size() > 1) {
+                            // Close one of the searchers at random
+                            Engine.Searcher searcher = searchers.remove(0);
+                            IOUtils.close(searcher);
+                        }
+                    } catch (Exception e) {
+                        logger.info("--> got exception: ", e);
+                        fail("got an exception we didn't expect");
+                    }
+                }
+
+            };
+            threads.add(new Thread(r, threadName));
+        }
+        threads.stream().forEach(t -> t.start());
+
+        for (Thread t : threads) {
+            t.join();
+        }
+
+        // Close remaining searchers
+        IOUtils.close(searchers);
+
+        // Close shard
+        closeShards(primary);
+
+        // Check that the breaker was successfully reset to 0, meaning that all the accounting was correctly applied
+        CircuitBreaker breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
 }

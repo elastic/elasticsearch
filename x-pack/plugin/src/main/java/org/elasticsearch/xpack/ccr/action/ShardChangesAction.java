@@ -35,6 +35,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -139,44 +140,44 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         }
     }
 
-    public static class Response extends ActionResponse {
+    public static final class Response extends ActionResponse {
 
-        private List<Translog.Operation> operations;
+        private Translog.Operation[] operations;
 
         Response() {
         }
 
-        Response(List<Translog.Operation> operations) {
+        Response(final Translog.Operation[] operations) {
             this.operations = operations;
         }
 
-        public List<Translog.Operation> getOperations() {
+        public Translog.Operation[] getOperations() {
             return operations;
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            operations = Translog.readOperations(in);
+            operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-            Translog.writeOperations(out, operations);
+            out.writeArray(Translog.Operation::writeOperation, operations);
         }
 
         @Override
-        public boolean equals(Object o) {
+        public boolean equals(final Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(operations, response.operations);
+            final Response response = (Response) o;
+            return Arrays.equals(operations, response.operations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(operations);
+            return Arrays.hashCode(operations);
         }
     }
 
@@ -209,7 +210,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             IndexShard indexShard = indexService.getShard(request.getShard().id());
 
-            List<Translog.Operation> operations = getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo);
+            Translog.Operation[] operations = getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo);
             return new Response(operations);
         }
 
@@ -233,7 +234,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     }
 
-    static List<Translog.Operation> getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo) throws IOException {
+    private static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
+
+    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
@@ -250,7 +253,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         }
 
         if (tracker.getCheckpoint() == maxSeqNo) {
-            return operations;
+            return operations.toArray(EMPTY_OPERATIONS_ARRAY);
         } else {
             String message = "Not all operations between min_seq_no [" + minSeqNo + "] and max_seq_no [" + maxSeqNo +
                     "] found, tracker checkpoint [" + tracker.getCheckpoint() + "]";

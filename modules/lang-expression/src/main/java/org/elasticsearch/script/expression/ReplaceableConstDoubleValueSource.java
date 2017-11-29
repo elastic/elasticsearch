@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
 
 import java.io.IOException;
 
@@ -71,5 +72,15 @@ final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
     @Override
     public String toString() {
         return getClass().getSimpleName();
+    }
+
+    @Override
+    public boolean isCacheable(LeafReaderContext ctx) {
+        return false;
+    }
+
+    @Override
+    public DoubleValuesSource rewrite(IndexSearcher reader) throws IOException {
+        return this;
     }
 }

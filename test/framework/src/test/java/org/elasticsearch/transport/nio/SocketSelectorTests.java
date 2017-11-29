@@ -308,4 +308,23 @@ public class SocketSelectorTests extends ESTestCase {
         verify(eventHandler).handleClose(channel);
         verify(eventHandler).handleClose(unRegisteredChannel);
     }
+
+    public void testExecuteListenerWillHandleException() throws Exception {
+        RuntimeException exception = new RuntimeException();
+        doThrow(exception).when(listener).onResponse(null);
+
+        socketSelector.executeListener(listener, null);
+
+        verify(eventHandler).listenerException(listener, exception);
+    }
+
+    public void testExecuteFailedListenerWillHandleException() throws Exception {
+        IOException ioException = new IOException();
+        RuntimeException exception = new RuntimeException();
+        doThrow(exception).when(listener).onFailure(ioException);
+
+        socketSelector.executeFailedListener(listener, ioException);
+
+        verify(eventHandler).listenerException(listener, exception);
+    }
 }

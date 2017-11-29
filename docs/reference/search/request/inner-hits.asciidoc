@@ -152,6 +152,9 @@ An example of a response snippet that could be generated from the above search r
               "max_score": 1.0,
               "hits": [
                 {
+                  "_index": "test",
+                  "_type": "doc",
+                  "_id": "1",
                   "_nested": {
                     "field": "comments",
                     "offset": 1
@@ -197,7 +200,7 @@ its `_source` field. To include the source of just the nested document, the sour
 the relevant bit for the nested document is included as source in the inner hit. Doing this for each matching nested document
 has an impact on the time it takes to execute the entire search request, especially when `size` and the inner hits' `size`
 are set higher than the default. To avoid the relatively expensive source extraction for nested inner hits, one can disable
-including the source and solely rely on stored fields. Like this:
+including the source and solely rely on doc values fields. Like this:
 
 [source,js]
 --------------------------------------------------
@@ -207,13 +210,7 @@ PUT test
     "doc": {
       "properties": {
         "comments": {
-          "type": "nested",
-          "properties": {
-            "text": {
-              "type": "text",
-              "store": true
-            }
-          }
+          "type": "nested"
         }
       }
     }
@@ -245,7 +242,7 @@ POST test/_search
       },
       "inner_hits": {
         "_source" : false,
-        "stored_fields" : ["comments.text"]
+        "docvalue_fields" : ["comments.text.keyword"]
       }
     }
   }
@@ -278,13 +275,16 @@ Response not included in text but tested for completeness sake.
               "max_score": 1.0444683,
               "hits": [
                 {
+                  "_index": "test",
+                  "_type": "doc",
+                  "_id": "1",
                   "_nested": {
                     "field": "comments",
                     "offset": 1
                   },
                   "_score": 1.0444683,
                   "fields": {
-                    "comments.text": [
+                    "comments.text.keyword": [
                       "words words words"
                     ]
                   }
@@ -320,10 +320,6 @@ PUT test
         "comments": {
           "type": "nested",
           "properties": {
-            "message": {
-              "type": "text",
-              "store": true
-            },
             "votes": {
               "type": "nested"
             }
@@ -394,6 +390,9 @@ Which would look like:
               "max_score": 0.6931472,
               "hits": [
                 {
+                  "_index": "test",
+                  "_type": "doc",
+                  "_id": "1",
                   "_nested": {
                     "field": "comments",
                     "offset": 1,
@@ -505,6 +504,7 @@ An example of a response snippet that could be generated from the above search r
                             "max_score": 1.0,
                             "hits": [
                                 {
+                                    "_index": "test",
                                     "_type": "doc",
                                     "_id": "2",
                                     "_score": 1.0,

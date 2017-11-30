@@ -15,7 +15,6 @@
             path: "/user/elasticsearch/test/snapshot"
             security:
               principal: "elasticsearch@BUILD.ELASTIC.CO"
-            conf.dfs.data.transfer.protection: "authentication"
 
   # Create index
   - do:

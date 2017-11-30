@@ -13,7 +13,6 @@
               path: "/user/elasticsearch/test/repository_verify"
               security:
                 principal: "elasticsearch@BUILD.ELASTIC.CO"
-              conf.dfs.data.transfer.protection: "authentication"
 
     # Verify repository
     - do:

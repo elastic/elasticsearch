@@ -94,7 +94,6 @@ public class MiniHDFS {
             cfg.set(DFSConfigKeys.DFS_NAMENODE_ACLS_ENABLED_KEY, "true");
             cfg.set(DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY, "true");
             cfg.set(DFSConfigKeys.IGNORE_SECURE_PORTS_FOR_TESTING_KEY, "true");
-            cfg.set(HdfsClientConfigKeys.DFS_DATA_TRANSFER_PROTECTION_KEY, "authentication");
             cfg.set(DFSConfigKeys.DFS_ENCRYPT_DATA_TRANSFER_KEY, "true");
         }
 

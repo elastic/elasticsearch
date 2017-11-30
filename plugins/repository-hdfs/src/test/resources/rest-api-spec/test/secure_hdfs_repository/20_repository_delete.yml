@@ -14,7 +14,6 @@
               path: "/user/elasticsearch/foo/bar"
               security:
                 principal: "elasticsearch@BUILD.ELASTIC.CO"
-              conf.dfs.data.transfer.protection: "authentication"
 
     # Get repository
     - do:
@@ -46,7 +45,6 @@
               path: "/user/elasticsearch/foo/bar"
               security:
                 principal: "elasticsearch@BUILD.ELASTIC.CO"
-              conf.dfs.data.transfer.protection: "authentication"
 
     # Get repository again
     - do:

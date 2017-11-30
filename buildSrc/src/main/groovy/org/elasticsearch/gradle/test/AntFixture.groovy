@@ -69,7 +69,6 @@ public class AntFixture extends AntTask implements Fixture {
      * as well as a groovy AntBuilder, to enable running ant condition checks. The default wait
      * condition is for http on the http port.
      */
-    @Input
     Closure waitCondition = { AntFixture fixture, AntBuilder ant ->
         File tmpFile = new File(fixture.cwd, 'wait.success')
         ant.get(src: "http://${fixture.addressAndPort}",

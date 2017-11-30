@@ -155,11 +155,13 @@ class ClusterFormationTasks {
         Task setup = project.tasks.create(name: taskName(prefix, node, 'clean'), type: Delete, dependsOn: dependsOn) {
             delete node.homeDir
             delete node.cwd
+        }
+        setup = project.tasks.create(name: taskName(prefix, node, 'createCwd'), type: DefaultTask, dependsOn: setup) {
             doLast {
                 node.cwd.mkdirs()
             }
+            outputs.dir node.cwd
         }
-
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution)
@@ -270,6 +272,7 @@ class ClusterFormationTasks {
                         rpmDatabase.deleteDir()
                         rpmExtracted.deleteDir()
                     }
+                    outputs.dir rpmExtracted
                 }
                 break;
             case 'deb':
@@ -281,6 +284,7 @@ class ClusterFormationTasks {
                     doFirst {
                         debExtracted.deleteDir()
                     }
+                    outputs.dir debExtracted
                 }
                 break;
             default:

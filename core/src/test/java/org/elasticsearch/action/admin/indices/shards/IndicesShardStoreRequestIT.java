@@ -60,7 +60,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-@TestLogging("_root:DEBUG,org.elasticsearch.action.admin.indices.shards:TRACE,org.elasticsearch.cluster.service:TRACE")
+@TestLogging("_root:DEBUG,org.elasticsearch.action.admin.indices.shards:TRACE,org.elasticsearch.cluster.service:TRACE," +
+    "org.elasticsearch.gateway.TransportNodesListGatewayStartedShards:TRACE")
 public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
     @Override
@@ -151,7 +152,6 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(shardStatuses.get(index1).size(), equalTo(2));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12416")
     public void testCorruptedShards() throws Exception {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -175,7 +175,9 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             for (Integer shardId : indexShards.shardIds()) {
                 IndexShard shard = indexShards.getShard(shardId);
                 if (randomBoolean()) {
+                    logger.debug("--> failing shard [{}] on node [{}]", shardId, node);
                     shard.failShard("test", new CorruptIndexException("test corrupted", ""));
+                    logger.debug("--> failed shard [{}] on node [{}]", shardId, node);
                     Set<String> nodes = corruptedShardIDMap.get(shardId);
                     if (nodes == null) {
                         nodes = new HashSet<>();
@@ -194,9 +196,11 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
                 if (corruptedShardIDMap.containsKey(shardStatus.key)
                         && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().getName())) {
-                    assertThat(status.getStoreException(), notNullValue());
+                    assertThat("shard [" + shardStatus.key + "] is failed on node [" + status.getNode().getName() + "]",
+                        status.getStoreException(), notNullValue());
                 } else {
-                    assertNull(status.getStoreException());
+                    assertNull("shard [" + shardStatus.key + "] is not failed on node [" + status.getNode().getName() + "]",
+                        status.getStoreException());
                 }
             }
         }

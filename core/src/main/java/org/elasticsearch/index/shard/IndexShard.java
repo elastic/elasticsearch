@@ -1333,6 +1333,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             active.set(true);
             newEngine.recoverFromTranslog();
         }
+        assertSequenceNumbersInCommit();
+    }
+
+    private boolean assertSequenceNumbersInCommit() throws IOException {
+        final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
+        assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
+        assert userData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
+        assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
+        assert userData.get(Engine.HISTORY_UUID_KEY).equals(getHistoryUUID()) : "commit point history uuid ["
+            + userData.get(Engine.HISTORY_UUID_KEY) + "] is different than engine [" + getHistoryUUID() + "]";
+        return true;
     }
 
     private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {

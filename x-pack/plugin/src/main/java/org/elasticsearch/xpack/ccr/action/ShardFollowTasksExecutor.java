@@ -68,10 +68,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         } else {
             followGlobalCheckPoint = SequenceNumbers.NO_OPS_PERFORMED;
         }
-        prepare(task, params.getLeaderShardId(), params.getFollowShardId(), followGlobalCheckPoint);
+        prepare(task, params.getLeaderShardId(), params.getFollowShardId(), params.getBatchSize(), followGlobalCheckPoint);
     }
 
-    void prepare(AllocatedPersistentTask task, ShardId leaderShard, ShardId followerShard, long followGlobalCheckPoint) {
+    void prepare(AllocatedPersistentTask task, ShardId leaderShard, ShardId followerShard, long batchSize, long followGlobalCheckPoint) {
         if (task.getState() != AllocatedPersistentTask.State.STARTED) {
             // TODO: need better cancellation control
             return;
@@ -97,14 +97,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             ShardFollowTask.Status newStatus = new ShardFollowTask.Status();
                             newStatus.setProcessedGlobalCheckpoint(leaderGlobalCheckPoint);
                             task.updatePersistentStatus(newStatus, ActionListener.wrap(persistentTask -> prepare(task,
-                                    leaderShard, followerShard, leaderGlobalCheckPoint), task::markAsFailed)
+                                    leaderShard, followerShard, batchSize, leaderGlobalCheckPoint), task::markAsFailed)
                             );
                         } else {
                             task.markAsFailed(e);
                         }
                     };
                     ChunksCoordinator coordinator =
-                            new ChunksCoordinator(client, ccrExecutor, DEFAULT_BATCH_SIZE, leaderShard, followerShard, handler);
+                            new ChunksCoordinator(client, ccrExecutor, batchSize, leaderShard, followerShard, handler);
                     coordinator.createChucks(followGlobalCheckPoint, leaderGlobalCheckPoint);
                     coordinator.processChuck();
                 }
@@ -123,7 +123,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             @Override
             protected void doRun() throws Exception {
-                prepare(task, leaderShard, followerShard, followGlobalCheckPoint);
+                prepare(task, leaderShard, followerShard, params.getBatchSize(), followGlobalCheckPoint);
             }
         });
     }

@@ -59,8 +59,22 @@ class VersionValue implements Accountable {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        VersionValue that = (VersionValue) o;
+
+        return version == that.version;
+    }
+
+    @Override
+    public int hashCode() {
+        return (int) (version ^ (version >>> 32));
+    }
+
+    @Override
     public String toString() {
-        return "VersionValue{" +
-            "version=" + version + "}";
+        return "VersionValue{ version=" + version + "}";
     }
 }

@@ -25,7 +25,6 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMapping;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -179,16 +178,10 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
             if (lookup == null) {
                 lookup = dvs;
                 if (topValue != null && topValueLong == null) {
-                    if (lookup instanceof GlobalOrdinalMapping) {
-                        // Find the global ordinal (or the insertion point) for the provided top value.
-                        topValueLong = lookupGlobalOrdinals((GlobalOrdinalMapping) lookup, topValue);
-                    } else {
-                        // Global ordinals are not needed, switch back to ordinals (single segment case).
-                        topValueLong = lookup.lookupTerm(topValue);
-                        if (topValueLong < 0) {
-                            // convert negative insert position
-                            topValueLong = -topValueLong - 2;
-                        }
+                    topValueLong = lookup.lookupTerm(topValue);
+                    if (topValueLong < 0) {
+                        // convert negative insert position
+                        topValueLong = -topValueLong - 2;
                     }
                 }
             }
@@ -201,25 +194,6 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
                     }
                 }
             };
-        }
-
-        private static long lookupGlobalOrdinals(GlobalOrdinalMapping mapping, BytesRef key) throws IOException {
-            long low = 0;
-            long high = mapping.getValueCount();
-
-            while (low <= high) {
-                long mid = (low + high) >>> 1;
-                BytesRef midVal = mapping.lookupOrd(mid);
-                int cmp = midVal.compareTo(key);
-                if (cmp < 0) {
-                    low = mid + 1;
-                } else if (cmp > 0) {
-                    high = mid - 1;
-                } else {
-                    return mid;
-                }
-            }
-            return low-1;
         }
     }
 

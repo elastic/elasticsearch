@@ -1,7 +1,7 @@
 [[modules-http]]
 == HTTP
 
-The http module allows to expose *elasticsearch* APIs
+The http module allows to expose *Elasticsearch* APIs
 over HTTP.
 
 The http mechanism is completely asynchronous in nature, meaning that
@@ -74,7 +74,7 @@ allowed. If you prepend and append a `/` to the value, this will
 be treated as a regular expression, allowing you to support HTTP and HTTPs.
 for example using `/https?:\/\/localhost(:[0-9]+)?/` would return the
 request header appropriately in both cases. `*` is a valid value but is
-considered a *security risk* as your elasticsearch instance is open to cross origin
+considered a *security risk* as your Elasticsearch instance is open to cross origin
 requests from *anywhere*.
 
 |`http.cors.max-age` |Browsers send a "preflight" OPTIONS-request to

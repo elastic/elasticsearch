@@ -45,6 +45,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.CoveringQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
@@ -505,16 +506,17 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             }
             try (IndexReader ir = DirectoryReader.open(directory)){
                 IndexSearcher percolateSearcher = new IndexSearcher(ir);
-                Query query =
+                PercolateQuery query = (PercolateQuery)
                     fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, v);
+                BooleanQuery candidateQuery = (BooleanQuery) query.getCandidateMatchesQuery();
+                assertThat(candidateQuery.clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
                 TopDocs topDocs = shardSearcher.search(query, 10);
                 assertEquals(2L, topDocs.totalHits);
                 assertEquals(2, topDocs.scoreDocs.length);
                 assertEquals(0, topDocs.scoreDocs[0].doc);
                 assertEquals(2, topDocs.scoreDocs[1].doc);
 
-                query = new ConstantScoreQuery(query);
-                topDocs = shardSearcher.search(query, 10);
+                topDocs = shardSearcher.search(new ConstantScoreQuery(query), 10);
                 assertEquals(2L, topDocs.totalHits);
                 assertEquals(2, topDocs.scoreDocs.length);
                 assertEquals(0, topDocs.scoreDocs[0].doc);
@@ -526,7 +528,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         try (RAMDirectory directory = new RAMDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
                 Document document = new Document();
-                for (int i = 0; i < 1025; i++) {
+                for (int i = 0; i < 1024; i++) {
                     int fieldNumber = 2 + i;
                     document.add(new StringField("field", "value" + fieldNumber, Field.Store.NO));
                 }
@@ -692,6 +694,11 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                             return _score;
                         }
                     };
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false; // doesn't matter
                 }
             };
         }

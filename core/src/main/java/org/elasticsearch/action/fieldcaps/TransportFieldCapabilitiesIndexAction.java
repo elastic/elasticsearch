@@ -82,7 +82,9 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
             MappedFieldType ft = mapperService.fullName(field);
             if (ft != null) {
                 FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
-                responseMap.put(field, fieldCap);
+                if (indicesService.isMetaDataField(field) || indicesService.getFieldFilter().test(shardId.getIndexName(), field)) {
+                    responseMap.put(field, fieldCap);
+                }
             }
         }
         return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap);

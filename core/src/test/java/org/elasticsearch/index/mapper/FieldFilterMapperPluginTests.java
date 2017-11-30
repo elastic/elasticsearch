@@ -23,6 +23,9 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -83,6 +86,34 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setFields("*").get();
         assertEquals(1, response.mappings().size());
         assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
+    }
+
+    public void testFieldCapabilites() {
+        FieldCapabilitiesResponse index1 = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("index1")).actionGet();
+        assertFieldCaps(index1, ALL_FLAT_FIELDS);
+        FieldCapabilitiesResponse filtered = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("filtered")).actionGet();
+        assertFieldCaps(filtered, FILTERED_FLAT_FIELDS);
+        //double check that submitting the filtered mappings to an unfiltered index leads to the same field_caps output
+        //as the one coming from a filtered index with same mappings
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
+        ImmutableOpenMap<String, MappingMetaData> filteredMapping = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", filteredMapping.get("doc").getSourceAsMap()));
+        FieldCapabilitiesResponse test = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("test")).actionGet();
+        assertFieldCaps(test, FILTERED_FLAT_FIELDS);
+    }
+
+    private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, String[] expectedFields) {
+        Map<String, Map<String, FieldCapabilities>> responseMap = fieldCapabilitiesResponse.get();
+        Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
+        for (String field : builtInMetaDataFields) {
+            Map<String, FieldCapabilities> remove = responseMap.remove(field);
+            assertNotNull(" expected field [" + field + "] not found", remove);
+        }
+        for (String field : expectedFields) {
+            Map<String, FieldCapabilities> remove = responseMap.remove(field);
+            assertNotNull(" expected field [" + field + "] not found", remove);
+        }
+        assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
     }
 
     private static void assertFieldMappings(Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings,

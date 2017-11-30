@@ -142,13 +142,13 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
+import static org.elasticsearch.search.aggregations.InternalMultiBucketAggregation.countInnerBucket;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
+    public static final int DEFAULT_MAX_BUCKETS = 100000;
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
             new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
@@ -259,10 +259,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
         if (reduced instanceof MultiBucketsAggregation) {
-            MultiBucketsAggregation multi = (MultiBucketsAggregation) reduced;
-            if (multi.getBuckets().size() > 0) {
-                assertMultiBucketConsumer((MultiBucketsAggregation) reduced, bucketConsumer);
-            }
+            assertMultiBucketConsumer((MultiBucketsAggregation) reduced, bucketConsumer);
         }
         assertReduced(reduced, inputs);
     }
@@ -410,12 +407,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     public static void assertMultiBucketConsumer(MultiBucketsAggregation multi, MultiBucketConsumer bucketConsumer) {
-        if (multi.getBuckets().size() > 0) {
-            assertThat(bucketConsumer.getCount(), greaterThan(0));
-        } else {
-            // NOCOMMIT
-            // TODO uncomment when all multi bucket aggregators uses the multi bucket consumer
-            // assertThat(bucketConsumer.getCount(), equalTo(0));
-        }
+        assertThat(bucketConsumer.getCount(), equalTo(countInnerBucket(multi)));
     }
 }

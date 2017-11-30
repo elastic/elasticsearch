@@ -82,6 +82,35 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         }
     }
 
+    /**
+     * Counts the number of inner buckets inside the provided {@link InternalBucket}
+     */
+    public static int countInnerBucket(InternalBucket bucket) {
+        int count = 0;
+        for (Aggregation agg : bucket.getAggregations().asList()) {
+            if (agg instanceof MultiBucketsAggregation) {
+                count += countInnerBucket((MultiBucketsAggregation) agg);
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Counts the number of inner buckets inside the provided {@link MultiBucketsAggregation}
+     */
+    public static int countInnerBucket(MultiBucketsAggregation multi) {
+        int size = 0;
+        for (MultiBucketsAggregation.Bucket bucket : multi.getBuckets()) {
+            ++ size;
+            for (Aggregation bucketAgg : bucket.getAggregations().asList()) {
+                if (bucketAgg instanceof MultiBucketsAggregation) {
+                    size += countInnerBucket((MultiBucketsAggregation) bucketAgg);
+                }
+            }
+        }
+        return size;
+    }
+
     public abstract static class InternalBucket implements Bucket, Writeable {
 
         public Object getProperty(String containingAggName, List<String> path) {

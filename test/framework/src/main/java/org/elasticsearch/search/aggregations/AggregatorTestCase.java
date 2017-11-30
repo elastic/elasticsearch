@@ -71,22 +71,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
 import org.mockito.Matchers;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.IntConsumer;
 
-import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 /**
  * Base class for testing {@link Aggregator} implementations.
@@ -101,7 +98,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            MappedFieldType... fieldTypes) throws IOException {
-        return createAggregatorFactory(aggregationBuilder, indexSearcher, createIndexSettings(),  new MultiBucketConsumer(DEFAULT_MAX_BUCKETS), fieldTypes);
+        return createAggregatorFactory(aggregationBuilder, indexSearcher, createIndexSettings(),
+            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS), fieldTypes);
     }
 
     /** Create a factory for the given aggregation builder. */
@@ -124,12 +122,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
                 new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
                 }), circuitBreakerService, mapperService);
-        when(searchContext.getForField(Mockito.any(MappedFieldType.class))).thenAnswer(new Answer<Object>() {
-            @Override
-            public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                return ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]);
-            }
-        });
+        when(searchContext.getForField(Mockito.any(MappedFieldType.class)))
+            .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]));
 
         SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField, new String[]{TYPE_NAME});
         when(searchContext.lookup()).thenReturn(searchLookup);
@@ -147,14 +141,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
                                                         IndexSearcher indexSearcher,
                                                         MappedFieldType... fieldTypes) throws IOException {
-        return createAggregator(aggregationBuilder, indexSearcher, createIndexSettings(), new MultiBucketConsumer(DEFAULT_MAX_BUCKETS), fieldTypes);
+        return createAggregator(aggregationBuilder, indexSearcher, createIndexSettings(),
+            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS), fieldTypes);
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
                                                         IndexSearcher indexSearcher,
                                                         IndexSettings indexSettings,
                                                         MappedFieldType... fieldTypes) throws IOException {
-        return createAggregator(aggregationBuilder, indexSearcher, indexSettings, new MultiBucketConsumer(DEFAULT_MAX_BUCKETS), fieldTypes);
+        return createAggregator(aggregationBuilder, indexSearcher, indexSettings,
+            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS), fieldTypes);
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
@@ -337,24 +333,26 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 Collections.shuffle(aggs, random());
                 int r = randomIntBetween(1, toReduceSize);
                 List<InternalAggregation> toReduce = aggs.subList(0, r);
+                MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket);
                 InternalAggregation.ReduceContext context =
                     new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
-                        new MultiBucketConsumer(maxBucket), false);
+                        reduceBucketConsumer, false);
                 A reduced = (A) aggs.get(0).doReduce(toReduce, context);
                 if (reduced instanceof MultiBucketsAggregation) {
-                    InternalAggregationTestCase.assertMultiBucketConsumer((MultiBucketsAggregation) reduced, bucketConsumer);
+                    InternalAggregationTestCase.assertMultiBucketConsumer((MultiBucketsAggregation) reduced, reduceBucketConsumer);
                 }
                 aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
                 aggs.add(reduced);
             }
             // now do the final reduce
+            MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket);
             InternalAggregation.ReduceContext context =
-                new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
-                    new MultiBucketConsumer(maxBucket), true);
+                new InternalAggregation.ReduceContext(root.context().bigArrays(), null, reduceBucketConsumer, true);
+
             @SuppressWarnings("unchecked")
             A internalAgg = (A) aggs.get(0).doReduce(aggs, context);
             if (internalAgg instanceof MultiBucketsAggregation) {
-                InternalAggregationTestCase.assertMultiBucketConsumer((MultiBucketsAggregation) internalAgg, bucketConsumer);
+                InternalAggregationTestCase.assertMultiBucketConsumer((MultiBucketsAggregation) internalAgg, reduceBucketConsumer);
             }
             return internalAgg;
         }

@@ -5,8 +5,8 @@ include::../Versions.asciidoc[]
 
 [preface]
 == Preface
-This section describes the Java API that elasticsearch provides. All
-elasticsearch operations are executed using a
+This section describes the Java API that Elasticsearch provides. All
+Elasticsearch operations are executed using a
 <<client,Client>> object. All
 operations are completely asynchronous in nature (either accepts a
 listener, or returns a future).

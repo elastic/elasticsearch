@@ -38,6 +38,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -68,7 +69,27 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TermsAggregatorTests extends AggregatorTestCase {
+
+    private boolean randomizeAggregatorImpl = true;
+
+    @Override
+    protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
+            IndexSearcher indexSearcher, IndexSettings indexSettings, MappedFieldType... fieldTypes) throws IOException {
+        try {
+            if (randomizeAggregatorImpl) {
+                TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = randomBoolean();
+                TermsAggregatorFactory.REMAP_GLOBAL_ORDS = randomBoolean();
+            }
+            return super.createAggregator(aggregationBuilder, indexSearcher, indexSettings, fieldTypes);
+        } finally {
+            TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
+            TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
+        }
+    }
+
     public void testGlobalOrdinalsExecutionHint() throws Exception {
+        randomizeAggregatorImpl = false;
+
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         indexWriter.close();

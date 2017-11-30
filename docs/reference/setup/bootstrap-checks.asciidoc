@@ -227,3 +227,9 @@ have issues that can lead to index corruption when the G1GC collector is
 enabled.  The versions impacted are those earlier than the version of
 HotSpot that shipped with JDK 8u40. The G1GC check detects these early
 versions of the HotSpot JVM.
+
+=== All permission check
+
+The all permission check ensures that the security policy used during bootstrap
+does not grant the `java.security.AllPermission` to Elasticsearch. Running with
+the all permission granted is equivalent to disabling the security manager.

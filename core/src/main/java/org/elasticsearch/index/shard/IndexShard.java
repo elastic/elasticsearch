@@ -423,7 +423,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final DiscoveryNode recoverySourceNode = recoveryState.getSourceNode();
                     if (currentRouting.isRelocationTarget() == false || recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
                         // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
-                        getEngine().seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
+                        final Engine engine = getEngine();
+                        engine.seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
+                        // Flush the translog as it may contain operations with no sequence numbers. We want to make sure those
+                        // operations will never be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq#
+                        // (due to active indexing) and operations without a seq# coming from the translog. We therefore flush
+                        // to create a lucene commit point to an empty translog file.
+                        engine.flush(false, true);
                     }
                 }
 
@@ -488,15 +494,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * subsequently fails before the primary/replica re-sync completes successfully and we are now being
                                  * promoted, the local checkpoint tracker here could be left in a state where it would re-issue sequence
                                  * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
-                                 * replaying the translog and marking any operations there are completed. Rolling the translog generation is
-                                 * not strictly needed here (as we will never have collisions between sequence numbers in a translog
-                                 * generation in a new primary as it takes the last known sequence number as a starting point), but it
-                                 * simplifies reasoning about the relationship between primary terms and translog generations.
+                                 * replaying the translog and marking any operations there are completed.
                                  */
-                                getEngine().rollTranslogGeneration();
-                                getEngine().restoreLocalCheckpointFromTranslog();
-                                getEngine().fillSeqNoGaps(newPrimaryTerm);
-                                getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
+                                final Engine engine = getEngine();
+                                engine.restoreLocalCheckpointFromTranslog();
+                                if (indexSettings.getIndexVersionCreated().onOrBefore(Version.V_6_0_0_alpha1)) {
+                                    // an index that was created before sequence numbers were introduced may contain operations in its
+                                    // translog that do not have a sequence numbers. We want to make sure those operations will never
+                                    // be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq# (due
+                                    // to active indexing) and operations without a seq# coming from the translog. We therefore flush
+                                    // to create a lucene commit point to an empty translog file.
+                                    engine.flush(false, true);
+                                }
+                                /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
+                                 * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
+                                 * as a starting point), but it simplifies reasoning about the relationship between primary terms and
+                                 * translog generations.
+                                 */
+                                engine.rollTranslogGeneration();
+                                engine.fillSeqNoGaps(newPrimaryTerm);
+                                engine.seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
                                     getEngine().seqNoService().getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
@@ -1317,6 +1334,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             active.set(true);
             newEngine.recoverFromTranslog();
         }
+        assertSequenceNumbersInCommit();
+    }
+
+    private boolean assertSequenceNumbersInCommit() throws IOException {
+        final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
+        assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
+        assert userData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
+        assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
+        assert userData.get(Engine.HISTORY_UUID_KEY).equals(getHistoryUUID()) : "commit point history uuid ["
+            + userData.get(Engine.HISTORY_UUID_KEY) + "] is different than engine [" + getHistoryUUID() + "]";
+        return true;
     }
 
     private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {

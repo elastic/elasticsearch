@@ -392,13 +392,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
-    protected void ensureGreen() throws IOException {
+    /**
+     * checks that the specific index is green. we force a selection of an index as the tests share a cluster and often leave indices
+     * in an non green state
+     * @param index index to test for
+     **/
+    protected void ensureGreen(String index) throws IOException {
         Map<String, String> params = new HashMap<>();
         params.put("wait_for_status", "green");
         params.put("wait_for_no_relocating_shards", "true");
         params.put("timeout", "70s");
         params.put("level", "shards");
-        assertOK(client().performRequest("GET", "_cluster/health", params));
+        assertOK(client().performRequest("GET", "_cluster/health/" + index, params));
     }
 
     protected void createIndex(String name, Settings settings) throws IOException {
@@ -411,4 +416,12 @@ public abstract class ESRestTestCase extends ESTestCase {
                 + ", \"mappings\" : {" + mapping + "} }", ContentType.APPLICATION_JSON)));
     }
 
+    protected void updateIndexSetting(String index, Settings.Builder settings) throws IOException {
+        updateIndexSetting(index, settings.build());
+    }
+
+    private void updateIndexSetting(String index, Settings settings) throws IOException {
+        assertOK(client().performRequest("PUT", index + "/_settings", Collections.emptyMap(),
+            new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
+    }
 }

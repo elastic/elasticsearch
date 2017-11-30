@@ -37,10 +37,6 @@
             },
             "name": {
               "type": "keyword"
-            },
-            "timestamp": {
-              "type": "date",
-              "format": "date_time"
             }
           }
         },
@@ -69,6 +65,136 @@
                 },
                 "name": {
                   "type": "keyword"
+                }
+              }
+            },
+            "metrics": {
+              "properties": {
+                "beat": {
+                  "properties": {
+                    "memstats": {
+                      "properties": {
+                        "gc_next": {
+                          "type": "long"
+                        },
+                        "memory_alloc": {
+                          "type": "long"
+                        },
+                        "memory_total": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "libbeat": {
+                  "properties": {
+                    "config": {
+                      "properties": {
+                        "module": {
+                          "properties": {
+                            "running": {
+                              "type": "long"
+                            },
+                            "starts": {
+                              "type": "long"
+                            },
+                            "stops": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "reloads": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "output": {
+                      "properties": {
+                        "events": {
+                          "properties": {
+                            "acked": {
+                              "type": "long"
+                            },
+                            "active": {
+                              "type": "long"
+                            },
+                            "batches": {
+                              "type": "long"
+                            },
+                            "failed": {
+                              "type": "long"
+                            },
+                            "total": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "read": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "type": {
+                          "type": "keyword"
+                        },
+                        "write": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "pipeline": {
+                      "properties": {
+                        "clients": {
+                          "type": "long"
+                        },
+                        "events": {
+                          "properties": {
+                            "active": {
+                              "type": "long"
+                            },
+                            "dropped": {
+                              "type": "long"
+                            },
+                            "failed": {
+                              "type": "long"
+                            },
+                            "filtered": {
+                              "type": "long"
+                            },
+                            "published": {
+                              "type": "long"
+                            },
+                            "retry": {
+                              "type": "long"
+                            },
+                            "total": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "queue": {
+                          "properties": {
+                            "acked": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

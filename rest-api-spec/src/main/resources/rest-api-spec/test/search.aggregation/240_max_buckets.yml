@@ -85,11 +85,11 @@ setup:
             test:
               terms:
                 field: keyword
-            aggs:
-              2:
-                date_histogram:
-                  field: date
-                  interval: 1d
+              aggs:
+                2:
+                  date_histogram:
+                    field: date
+                    interval: 1d
 
   - do:
       cluster.put_settings:

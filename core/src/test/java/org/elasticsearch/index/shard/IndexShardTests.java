@@ -2790,38 +2790,47 @@ public class IndexShardTests extends IndexShardTestCase {
 
         int threadCount = randomIntBetween(2, 6);
         List<Thread> threads = new ArrayList<>(threadCount);
-        int iterations = randomIntBetween(50, 300);
+        int iterations = randomIntBetween(50, 100);
         List<Engine.Searcher> searchers = Collections.synchronizedList(new ArrayList<>());
 
+        logger.info("--> running with {} threads and {} iterations each", threadCount, iterations);
         for (int threadId = 0; threadId < threadCount; threadId++) {
             final String threadName = "thread-" + threadId;
             Runnable r = () -> {
                 for (int i = 0; i < iterations; i++) {
                     try {
                         if (randomBoolean()) {
-                            indexDoc(primary, "test", "id-" + threadName + "-" + i, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
+                            String id = "id-" + threadName + "-" + i;
+                            logger.debug("--> {} indexing {}", threadName, id);
+                            indexDoc(primary, "test", id, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
                         }
 
                         if (randomBoolean() && i > 10) {
-                            deleteDoc(primary, "test", "id-" + threadName + "-" + randomIntBetween(0, i - 1));
+                            String id = "id-" + threadName + "-" + randomIntBetween(0, i - 1);
+                            logger.debug("--> {}, deleting {}", threadName, id);
+                            deleteDoc(primary, "test", id);
                         }
 
                         if (randomBoolean()) {
+                            logger.debug("--> {} refreshing", threadName);
                             primary.refresh("forced refresh");
                         }
 
                         if (randomBoolean()) {
+                            String searcherName = "searcher-" + threadName + "-" + i;
+                            logger.debug("--> {} acquiring new searcher {}", threadName, searcherName);
                             // Acquire a new searcher, adding it to the list
-                            searchers.add(primary.acquireSearcher("searcher-" + threadName + "-" + i));
+                            searchers.add(primary.acquireSearcher(searcherName));
                         }
 
                         if (randomBoolean() && searchers.size() > 1) {
                             // Close one of the searchers at random
                             Engine.Searcher searcher = searchers.remove(0);
+                            logger.debug("--> {} closing searcher {}", threadName, searcher.source());
                             IOUtils.close(searcher);
                         }
                     } catch (Exception e) {
-                        logger.info("--> got exception: ", e);
+                        logger.warn("--> got exception: ", e);
                         fail("got an exception we didn't expect");
                     }
                 }
@@ -2838,12 +2847,18 @@ public class IndexShardTests extends IndexShardTestCase {
         // Close remaining searchers
         IOUtils.close(searchers);
 
+        SegmentsStats ss = primary.segmentStats(randomBoolean());
+        CircuitBreaker breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
+        long segmentMem = ss.getMemoryInBytes();
+        long breakerMem = breaker.getUsed();
+        logger.info("--> comparing segmentMem: {} - breaker: {} => {}", segmentMem, breakerMem, segmentMem == breakerMem);
+        assertThat(segmentMem, equalTo(breakerMem));
+
         // Close shard
         closeShards(primary);
 
         // Check that the breaker was successfully reset to 0, meaning that all the accounting was correctly applied
-        CircuitBreaker breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
+        breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(breaker.getUsed(), equalTo(0L));
     }
-
 }

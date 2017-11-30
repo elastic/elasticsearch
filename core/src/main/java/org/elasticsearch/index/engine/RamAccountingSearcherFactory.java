@@ -52,14 +52,14 @@ final class RamAccountingSearcherFactory extends SearcherFactory {
 
         // Construct a list of the previous segment readers, we only want to track memory used
         // by new readers, so these will be exempted from the circuit breaking accounting
-        final Set<SegmentReader> prevReaders;
+        final Set<IndexReader.CacheKey> prevReaders;
         if (previousReader == null) {
             prevReaders = Collections.emptySet();
         } else {
             final List<LeafReaderContext> previousReaderLeaves = previousReader.leaves();
             prevReaders = new HashSet<>(previousReaderLeaves.size());
             for (LeafReaderContext lrc : previousReaderLeaves) {
-                prevReaders.add(Lucene.segmentReader(lrc.reader()));
+                prevReaders.add(Lucene.segmentReader(lrc.reader()).getCoreCacheHelper().getKey());
             }
         }
 
@@ -67,7 +67,7 @@ final class RamAccountingSearcherFactory extends SearcherFactory {
             final SegmentReader segmentReader = Lucene.segmentReader(lrc.reader());
             // don't add the segment's memory unless it is not referenced by the previous reader
             // (only new segments)
-            if (prevReaders.contains(segmentReader) == false) {
+            if (prevReaders.contains(segmentReader.getCoreCacheHelper().getKey()) == false) {
                 final long ramBytesUsed = segmentReader.ramBytesUsed();
                 // add the segment memory to the breaker (non-breaking)
                 breaker.addWithoutBreaking(ramBytesUsed);

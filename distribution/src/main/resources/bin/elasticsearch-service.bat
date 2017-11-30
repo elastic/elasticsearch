@@ -104,7 +104,7 @@ if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
 @setlocal
 for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%" ^| findstr /b /v "\-server \-client"`) do set JVM_OPTIONS=!JVM_OPTIONS!%%a;
-@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS%%ES_JAVA_OPTS%
+@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS:${ES_TMPDIR}=!ES_TMPDIR!%%ES_JAVA_OPTS%
 
 if "%ES_JAVA_OPTS:~-1%"==";" set ES_JAVA_OPTS=%ES_JAVA_OPTS:~0,-1%
 

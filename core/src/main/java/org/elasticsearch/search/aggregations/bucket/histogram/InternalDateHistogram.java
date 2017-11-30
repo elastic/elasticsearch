@@ -346,6 +346,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                     if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
                         reduceContext.consumeBucketsAndMaybeBreak(1);
                         reducedBuckets.add(reduced);
+                    } else {
+                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
                     }
                     currentBuckets.clear();
                     key = top.current.key;
@@ -368,6 +370,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                 if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
                     reduceContext.consumeBucketsAndMaybeBreak(1);
                     reducedBuckets.add(reduced);
+                } else {
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
                 }
             }
         }

@@ -1,0 +1,18 @@
+[[networkaddress-cache-ttl]]
+=== DNS cache settings
+
+Elasticsearch runs with a security manager in place. With a security manager in
+place, the JVM defaults to caching positive hostname resolutions
+indefinitely. If your Elasticsearch nodes rely on DNS in an environment where
+DNS resolutions vary with time (e.g., for node-to-node discovery) then you might
+want to modify the default JVM behavior.  This can be modified by adding
+http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`]
+to your
+http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
+security policy]. Any hosts that fail to resolve will be logged. Note also that
+with the Java security manager in place, the JVM defaults to caching negative
+hostname resolutions for ten seconds. This can be modified by adding
+http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
+to your
+http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
+security policy].

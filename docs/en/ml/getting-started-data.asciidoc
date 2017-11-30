@@ -203,18 +203,17 @@ Next, you must define an index pattern for this data set:
 . Open {kib} in your web browser and log in. If you are running {kib}
 locally, go to `http://localhost:5601/`.
 
-. Click the **Management** tab, then **Index Patterns**.
+. Click the **Management** tab, then **{kib}** > **Index Patterns**.
 
-. If you already have index patterns, click the plus sign (+) to define a new
-one. Otherwise, the **Configure an index pattern** wizard is already open.
+. If you already have index patterns, click **Create Index** to define a new
+one. Otherwise, the **Create index pattern** wizard is already open.
 
 . For this tutorial, any pattern that matches the name of the index you've
 loaded will work. For example, enter `server-metrics*` as the index pattern.
 
-. Verify that the **Index contains time-based events** is checked.
+. In the **Configure settings** step, select the `@timestamp` field in the
+**Time Filter field name** list.
 
-. Select the `@timestamp` field from the **Time-field name** list.
-
-. Click **Create**.
+. Click **Create index pattern**.
 
 This data set can now be analyzed in {ml} jobs in {kib}.

@@ -16,10 +16,10 @@ web browser so that it does not block pop-up windows or create an
 exception for your {kib} URL.
 --
 
-You can choose to create single metric, multi-metric, or advanced jobs in
-{kib}. At this point in the tutorial, the goal is to detect anomalies in the
-total requests received by your applications and services. The sample data
-contains a single key performance indicator to track this, which is the total
+You can choose to create single metric, multi-metric, population, or advanced
+jobs in {kib}. At this point in the tutorial, the goal is to detect anomalies in
+the total requests received by your applications and services. The sample data
+contains a single key performance indicator(KPI) to track this, which is the total
 requests over time. It is therefore logical to start by creating a single metric
 job for this KPI.
 
@@ -38,28 +38,14 @@ To create a single metric job in {kib}:
 . Open {kib} in your web browser and log in. If you are running {kib} locally,
 go to `http://localhost:5601/`.
 
-. Click **Machine Learning** in the side navigation: +
-+
---
-[role="screenshot"]
-image::images/ml-kibana.jpg[Job Management]
---
+. Click **Machine Learning** in the side navigation.
 
 . Click **Create new job**.
 
-. Click **Create single metric job**. +
-+
---
-[role="screenshot"]
-image::images/ml-create-jobs.jpg["Create a new job"]
---
+. Select the index pattern that you created for the sample data.  For example,
+`server-metrics*`.
 
-. Click the `server-metrics` index. +
-+
---
-[role="screenshot"]
-image::images/ml-gs-index.jpg["Select an index"]
---
+. In the **Use a wizard** section, click **Single metric**.
 
 . Configure the job by providing the following information: +
 +
@@ -78,7 +64,8 @@ Others perform some aggregation over the length of the bucket. For example,
 `mean` calculates the mean of all the data points seen within the bucket.
 Similarly, `count` calculates the total number of data points within the bucket.
 In this tutorial, you are using the `sum` function, which calculates the sum of
-the specified field's values within the bucket.
+the specified field's values within the bucket. For descriptions of all the
+functions, see <<ml-functions>>.
 --
 
 .. For the **Field**, select `total`. This value specifies the field that
@@ -95,7 +82,6 @@ interval that the analysis is aggregated into.
 The {xpackml} features use the concept of a bucket to divide up the time series
 into batches for processing. For example, if you are monitoring
 the total number of requests in the system,
-//and receive a data point every 10 minutes
 using a bucket span of 1 hour would mean that at the end of each hour, it
 calculates the sum of the requests for the last hour and computes the
 anomalousness of that value compared to previous hours.
@@ -112,7 +98,7 @@ in time.
 The bucket span has a significant impact on the analysis. When you're trying to
 determine what value to use, take into account the granularity at which you
 want to perform the analysis, the frequency of the input data, the duration of
-typical anomalies and the frequency at which alerting is required.
+typical anomalies, and the frequency at which alerting is required.
 --
 
 . Determine whether you want to process all of the data or only part of it. If
@@ -131,11 +117,16 @@ image::images/ml-gs-job1-time.jpg["Setting the time range for the {dfeed}"]
 +
 --
 A graph is generated, which represents the total number of requests over time.
+
+Note that the **Estimate bucket span** option is no longer greyed out in the
+**Buck span** field. This is an experimental feature that you can use to help
+determine an appropriate bucket span for your data. For the purposes of this
+tutorial, we will leave the bucket span at 10 minutes.
 --
 
 . Provide a name for the job, for example `total-requests`. The job name must
 be unique in your cluster. You can also optionally provide a description of the
-job.
+job and create a job group.
 
 . Click **Create Job**. +
 +
@@ -147,6 +138,10 @@ image::images/ml-gs-job1.jpg["A graph of the total number of requests over time"
 As the job is created, the graph is updated to give a visual representation of
 the progress of {ml} as the data is processed. This view is only available whilst the
 job is running.
+
+When the job is created, you can choose to view the results, continue the job
+in real-time, and create a watch. In this tutorial, we will look at how to
+manage jobs and {dfeeds} before we view the results.
 
 TIP: The `create_single_metic.sh` script creates a similar job and {dfeed} by
 using the {ml} APIs. You can download that script by clicking
@@ -190,7 +185,7 @@ As a result, not all incoming data was processed.
 
 Job state::
 The status of the job, which can be one of the following values: +
-`open`::: The job is available to receive and process data.
+`opened`::: The job is available to receive and process data.
 `closed`::: The job finished successfully with its model state persisted.
 The job must be opened before it can accept further data.
 `closing`::: The job close action is in progress and has not yet completed.
@@ -245,9 +240,7 @@ image::images/ml-gs-job1-datafeed.jpg["Restarting a {dfeed}"]
 
 The {dfeed} state changes to `started`, the job state changes to `opened`,
 and the number of processed records increases as the new data is analyzed. The
-latest timestamp information also increases. For example:
-[role="screenshot"]
-image::images/ml-gs-job1-manage2.jpg["Job opened and {dfeed} started"]
+latest timestamp information also increases.
 
 TIP: If your data is being loaded continuously, you can continue running the job
 in real time. For this, start your {dfeed} and select **No end time**.

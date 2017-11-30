@@ -1,14 +1,9 @@
 [[ml-getting-started]]
-== Getting Started
+== Getting Started with Machine Learning
+++++
+<titleabbrev>Getting Started</titleabbrev>
+++++
 
-////
-{xpackml} features automatically detect:
-* Anomalies in single or multiple time series
-* Outliers in a population (also known as _entity profiling_)
-* Rare events (also known as _log categorization_)
-
-This tutorial is focuses on an anomaly detection scenario in single time series.
-////
 Ready to get some hands-on experience with the {xpackml} features? This
 tutorial shows you how to:
 

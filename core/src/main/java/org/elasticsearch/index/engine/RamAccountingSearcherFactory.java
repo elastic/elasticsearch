@@ -42,7 +42,7 @@ final class RamAccountingSearcherFactory extends SearcherFactory {
 
     private final CircuitBreakerService breakerService;
 
-    public RamAccountingSearcherFactory(CircuitBreakerService breakerService) {
+    RamAccountingSearcherFactory(CircuitBreakerService breakerService) {
         this.breakerService = breakerService;
     }
 

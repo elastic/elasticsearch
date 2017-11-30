@@ -78,6 +78,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -2765,6 +2766,15 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(preRefreshBytes, equalTo(breaker.getUsed()));
 
         primary.refresh("refresh");
+
+        ss = primary.segmentStats(randomBoolean());
+        breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
+        assertThat(breaker.getUsed(), equalTo(ss.getMemoryInBytes()));
+        assertThat(breaker.getUsed(), greaterThan(preRefreshBytes));
+
+        indexDoc(primary, "test", "4", "{\"foo\": \"potato\"}");
+        // Forces a refresh with the INTERNAL scope
+        ((InternalEngine) primary.getEngine()).writeIndexingBuffer();
 
         ss = primary.segmentStats(randomBoolean());
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);

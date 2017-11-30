@@ -30,10 +30,11 @@ public class ShardFollowTask implements PersistentTaskParams {
     static final ParseField LEADER_SHARD_INDEX_FIELD = new ParseField("leader_shard_index");
     static final ParseField LEADER_SHARD_INDEX_UUID_FIELD = new ParseField("leader_shard_index_uuid");
     static final ParseField LEADER_SHARD_SHARDID_FIELD = new ParseField("leader_shard_shard");
+    static final ParseField BATCH_SIZE = new ParseField("batch_size");
 
     public static ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
             (a) -> new ShardFollowTask(new ShardId((String) a[0], (String) a[1], (int) a[2]),
-                    new ShardId((String) a[3], (String) a[4], (int) a[5])));
+                    new ShardId((String) a[3], (String) a[4], (int) a[5]), (long) a[6]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_INDEX_FIELD);
@@ -42,24 +43,24 @@ public class ShardFollowTask implements PersistentTaskParams {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_SHARD_INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_SHARD_INDEX_UUID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), LEADER_SHARD_SHARDID_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BATCH_SIZE);
     }
 
-    public ShardFollowTask(ShardId followShardId, ShardId leaderShardId) {
+    private final ShardId followShardId;
+    private final ShardId leaderShardId;
+    private final long batchSize;
+
+    public ShardFollowTask(ShardId followShardId, ShardId leaderShardId, long batchSize) {
         this.followShardId = followShardId;
         this.leaderShardId = leaderShardId;
+        this.batchSize = batchSize;
     }
 
     public ShardFollowTask(StreamInput in) throws IOException {
         this.followShardId = ShardId.readShardId(in);
         this.leaderShardId = ShardId.readShardId(in);
+        this.batchSize = in.readVLong();
     }
-
-    public static ShardFollowTask fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
-    private final ShardId followShardId;
-    private final ShardId leaderShardId;
 
     public ShardId getFollowShardId() {
         return followShardId;
@@ -67,6 +68,10 @@ public class ShardFollowTask implements PersistentTaskParams {
 
     public ShardId getLeaderShardId() {
         return leaderShardId;
+    }
+
+    public long getBatchSize() {
+        return batchSize;
     }
 
     @Override
@@ -78,6 +83,11 @@ public class ShardFollowTask implements PersistentTaskParams {
     public void writeTo(StreamOutput out) throws IOException {
         followShardId.writeTo(out);
         leaderShardId.writeTo(out);
+        out.writeVLong(batchSize);
+    }
+
+    public static ShardFollowTask fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     @Override
@@ -89,6 +99,7 @@ public class ShardFollowTask implements PersistentTaskParams {
         builder.field(LEADER_SHARD_INDEX_FIELD.getPreferredName(), leaderShardId.getIndex().getName());
         builder.field(LEADER_SHARD_INDEX_UUID_FIELD.getPreferredName(), leaderShardId.getIndex().getUUID());
         builder.field(LEADER_SHARD_SHARDID_FIELD.getPreferredName(), leaderShardId.id());
+        builder.field(BATCH_SIZE.getPreferredName(), batchSize);
         return builder.endObject();
     }
 
@@ -98,12 +109,13 @@ public class ShardFollowTask implements PersistentTaskParams {
         if (o == null || getClass() != o.getClass()) return false;
         ShardFollowTask that = (ShardFollowTask) o;
         return Objects.equals(followShardId, that.followShardId) &&
-                Objects.equals(leaderShardId, that.leaderShardId);
+                Objects.equals(leaderShardId, that.leaderShardId) &&
+                batchSize == that.batchSize;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(followShardId, leaderShardId);
+        return Objects.hash(followShardId, leaderShardId, batchSize);
     }
 
     public String toString() {

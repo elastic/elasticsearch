@@ -29,12 +29,12 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
-    // TODO: turn into cluster wide settings:
-    private static final long BATCH_SIZE = 256;
+    static final long DEFAULT_BATCH_SIZE = 1024;
     private static final TimeValue RETRY_TIMEOUT = TimeValue.timeValueMillis(500);
 
     private final Client client;
@@ -91,7 +91,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 } else {
                     assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + leaderGlobalCheckPoint +
                             "] is not below leaderGlobalCheckPoint [" + followGlobalCheckPoint + "]";
-                    ChunksCoordinator coordinator = new ChunksCoordinator(leaderShard, followerShard, e -> {
+                    Executor ccrExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
+                    ChunksCoordinator coordinator = new ChunksCoordinator(client, ccrExecutor, DEFAULT_BATCH_SIZE, leaderShard, followerShard, e -> {
                         if (e == null) {
                             ShardFollowTask.Status newStatus = new ShardFollowTask.Status();
                             newStatus.setProcessedGlobalCheckpoint(leaderGlobalCheckPoint);
@@ -125,23 +126,31 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         });
     }
 
-    class ChunksCoordinator {
+    static class ChunksCoordinator {
 
+        private final Client client;
+        private final Executor ccrExecutor;
+
+        private final long batchSize;
         private final ShardId leaderShard;
         private final ShardId followerShard;
         private final Consumer<Exception> handler;
         private final Queue<long[]> chunks = new ConcurrentLinkedQueue<>();
 
-        ChunksCoordinator(ShardId leaderShard, ShardId followerShard, Consumer<Exception> handler) {
+        ChunksCoordinator(Client client, Executor ccrExecutor, long batchSize, ShardId leaderShard, ShardId followerShard,
+                          Consumer<Exception> handler) {
+            this.client = client;
+            this.ccrExecutor = ccrExecutor;
+            this.batchSize = batchSize;
             this.leaderShard = leaderShard;
             this.followerShard = followerShard;
             this.handler = handler;
         }
 
         void createChucks(long from, long to) {
-            for (long i = from; i <= to; i += BATCH_SIZE) {
-                long v2 = i + BATCH_SIZE < to ? i + BATCH_SIZE : to;
-                chunks.add(new long[]{i, v2});
+            for (long i = from; i < to; i += batchSize) {
+                long v2 = i + batchSize < to ? i + batchSize : to;
+                chunks.add(new long[]{i == from ? i : i + 1, v2});
             }
         }
 
@@ -151,7 +160,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 handler.accept(null);
                 return;
             }
-            ChunkProcessor processor = new ChunkProcessor(leaderShard, followerShard, e -> {
+            ChunkProcessor processor = new ChunkProcessor(client, ccrExecutor, leaderShard, followerShard, e -> {
                 if (e == null) {
                     processChuck();
                 } else {
@@ -161,15 +170,24 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             processor.start(chunk[0], chunk[1]);
         }
 
+        Queue<long[]> getChunks() {
+            return chunks;
+        }
+
     }
 
-    class ChunkProcessor {
+    static class ChunkProcessor {
+
+        private final Client client;
+        private final Executor ccrExecutor;
 
         private final ShardId leaderShard;
         private final ShardId followerShard;
         private final Consumer<Exception> handler;
 
-        ChunkProcessor(ShardId leaderShard, ShardId followerShard, Consumer<Exception> handler) {
+        ChunkProcessor(Client client, Executor ccrExecutor, ShardId leaderShard, ShardId followerShard, Consumer<Exception> handler) {
+            this.client = client;
+            this.ccrExecutor = ccrExecutor;
             this.leaderShard = leaderShard;
             this.followerShard = followerShard;
             this.handler = handler;
@@ -194,7 +212,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }
 
         void handleResponse(ShardChangesAction.Response response) {
-            threadPool.executor(Ccr.CCR_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+            ccrExecutor.execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     assert e != null;

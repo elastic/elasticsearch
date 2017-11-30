@@ -57,6 +57,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
 
         private String leaderIndex;
         private String followIndex;
+        private long batchSize = ShardFollowTasksExecutor.DEFAULT_BATCH_SIZE;
 
         public String getLeaderIndex() {
             return leaderIndex;
@@ -74,6 +75,18 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
             this.followIndex = followIndex;
         }
 
+        public long getBatchSize() {
+            return batchSize;
+        }
+
+        public void setBatchSize(long batchSize) {
+            if (batchSize < 1) {
+                throw new IllegalArgumentException("Illegal batch_size [" + batchSize + "]");
+            }
+
+            this.batchSize = batchSize;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -84,6 +97,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
             super.readFrom(in);
             leaderIndex = in.readString();
             followIndex = in.readString();
+            batchSize = in.readVLong();
         }
 
         @Override
@@ -91,6 +105,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
             super.writeTo(out);
             out.writeString(leaderIndex);
             out.writeString(followIndex);
+            out.writeVLong(batchSize);
         }
     }
 
@@ -153,7 +168,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
                         final int shardId = i;
                         String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
                         ShardFollowTask shardFollowTask =  new ShardFollowTask(new ShardId(followIndexMetadata.getIndex(), shardId),
-                                new ShardId(leaderIndexMetadata.getIndex(), shardId));
+                                new ShardId(leaderIndexMetadata.getIndex(), shardId), request.batchSize);
                         persistentTasksService.startPersistentTask(taskId, ShardFollowTask.NAME, shardFollowTask,
                                 new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                             @Override

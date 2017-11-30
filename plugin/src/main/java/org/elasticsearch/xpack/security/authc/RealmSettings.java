@@ -16,6 +16,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.elasticsearch.common.settings.AbstractScopedSettings;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.extensions.XPackExtension;
@@ -167,6 +168,11 @@ public class RealmSettings {
             // perfectly aligned
             return;
         }
+
+        // Don't validate secure settings because they might have been cleared already
+        settings = Settings.builder().put(settings, false).build();
+        validSettings.removeIf(s -> s instanceof SecureSetting);
+
         Set<Setting<?>> settingSet = new HashSet<>(validSettings);
         settingSet.add(TYPE_SETTING);
         settingSet.add(ENABLED_SETTING);

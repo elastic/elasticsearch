@@ -152,6 +152,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(shardStatuses.get(index1).size(), equalTo(2));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12416")
     public void testCorruptedShards() throws Exception {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);

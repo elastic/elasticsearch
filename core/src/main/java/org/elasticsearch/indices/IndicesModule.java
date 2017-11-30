@@ -187,13 +187,15 @@ public class IndicesModule extends AbstractModule {
     }
 
     private static BiPredicate<String, String> and(BiPredicate<String, String> first, BiPredicate<String, String> second) {
+        //the purpose of this method is to not chain noop field filters, so that we can easily find out when no plugins plug in
+        //a field filter, hence skip the mappings filtering part as a whole
         if (first == MapperPlugin.NOOP_FIELD_FILTER) {
             return second;
         }
         if (second == MapperPlugin.NOOP_FIELD_FILTER) {
             return first;
         }
-        return (index, field) -> first.test(index, field) && second.test(index, field);
+        return first.and(second);
     }
 
     @Override

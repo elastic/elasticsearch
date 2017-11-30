@@ -56,14 +56,15 @@ public interface MapperPlugin {
 
     /**
      * Returns a predicate that fields must match in order to be returned by get mappings, get index and get field mappings API.
-     * Useful to filter the fields that such API return. The predicate receives the index name and the field name as input arguments.
+     * Useful to filter the fields that such API return. The predicate receives the index name and the field name as input arguments
+     * and should return true to show the field and false to hide it.
      */
     default BiPredicate<String, String> getFieldFilter() {
         return NOOP_FIELD_FILTER;
     }
 
     /**
-     * The default predicate applied, which returns true for any field in any index. That means that by default get mappings, get index
+     * The default predicate applied, which doesn't filter anything. That means that by default get mappings, get index
      * and get field mappings API will return every field that's present in the mappings.
      */
     BiPredicate<String, String> NOOP_FIELD_FILTER = (index, field) -> true;

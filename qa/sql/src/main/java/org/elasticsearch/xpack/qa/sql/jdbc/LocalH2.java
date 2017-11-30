@@ -5,15 +5,22 @@
  */
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.xpack.sql.client.shared.SuppressForbidden;
 import org.junit.rules.ExternalResource;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Calendar;
+import java.util.Locale;
 import java.util.Properties;
 
 public class LocalH2 extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
+    private final Logger logger = Loggers.getLogger(getClass());
+
     static {
         try {
             // Initialize h2 so we can use it for testing
@@ -36,6 +43,7 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
     private final String url;
     // H2 in-memory will keep the db alive as long as this connection is opened
     private Connection keepAlive;
+    Locale locale;
 
     /*
      * The syntax on the connection string is fairly particular:
@@ -53,7 +61,13 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
     }
 
     @Override
+    @SuppressForbidden(reason = "H2 gets really confused with non Gregorian calendars")
     protected void before() throws Throwable {
+        if ("gregory".equals(Calendar.getInstance().getCalendarType()) == false) {
+            logger.info("Non gregorian calendar is detected. Overriding locale.");
+            locale = Locale.getDefault();
+            Locale.setDefault(Locale.ROOT);
+        }
         keepAlive = get();
         keepAlive.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'");
     }
@@ -64,6 +78,11 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
             keepAlive.close();
         } catch (SQLException ex) {
             // close
+        }
+        if (locale != null) {
+            logger.info("Restoring locale.");
+            Locale.setDefault(locale);
+            locale = null;
         }
     }
 

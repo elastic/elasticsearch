@@ -27,20 +27,20 @@ public final class Role {
 
     public static final Role EMPTY = Role.builder("__empty").build();
 
-    private final String name;
+    private final String[] names;
     private final ClusterPermission cluster;
     private final IndicesPermission indices;
     private final RunAsPermission runAs;
 
-    Role(String name, ClusterPermission cluster, IndicesPermission indices, RunAsPermission runAs) {
-        this.name = name;
+    Role(String[] names, ClusterPermission cluster, IndicesPermission indices, RunAsPermission runAs) {
+        this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
         this.indices = Objects.requireNonNull(indices);
         this.runAs = Objects.requireNonNull(runAs);
     }
 
-    public String name() {
-        return name;
+    public String[] names() {
+        return names;
     }
 
     public ClusterPermission cluster() {
@@ -55,12 +55,12 @@ public final class Role {
         return runAs;
     }
 
-    public static Builder builder(String name) {
-        return new Builder(name, null);
+    public static Builder builder(String... names) {
+        return new Builder(names, null);
     }
 
-    public static Builder builder(String name, FieldPermissionsCache fieldPermissionsCache) {
-        return new Builder(name, fieldPermissionsCache);
+    public static Builder builder(String[] names, FieldPermissionsCache fieldPermissionsCache) {
+        return new Builder(names, fieldPermissionsCache);
     }
 
     public static Builder builder(RoleDescriptor rd, FieldPermissionsCache fieldPermissionsCache) {
@@ -91,19 +91,19 @@ public final class Role {
 
     public static class Builder {
 
-        private final String name;
+        private final String[] names;
         private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private List<IndicesPermission.Group> groups = new ArrayList<>();
         private FieldPermissionsCache fieldPermissionsCache = null;
 
-        private Builder(String name, FieldPermissionsCache fieldPermissionsCache) {
-            this.name = name;
+        private Builder(String[] names, FieldPermissionsCache fieldPermissionsCache) {
+            this.names = names;
             this.fieldPermissionsCache = fieldPermissionsCache;
         }
 
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache) {
-            this.name = rd.getName();
+            this.names = new String[] { rd.getName() };
             this.fieldPermissionsCache = fieldPermissionsCache;
             if (rd.getClusterPrivileges().length == 0) {
                 cluster = ClusterPermission.NONE;
@@ -140,7 +140,7 @@ public final class Role {
         public Role build() {
             IndicesPermission indices = groups.isEmpty() ? IndicesPermission.NONE :
                     new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
-            return new Role(name, cluster, indices, runAs);
+            return new Role(names, cluster, indices, runAs);
         }
 
         static List<IndicesPermission.Group> convertFromIndicesPrivileges(RoleDescriptor.IndicesPrivileges[] indicesPrivileges,

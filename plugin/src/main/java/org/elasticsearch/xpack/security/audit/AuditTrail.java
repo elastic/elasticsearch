@@ -37,9 +37,9 @@ public interface AuditTrail {
 
     void authenticationFailed(String realm, AuthenticationToken token, RestRequest request);
 
-    void accessGranted(User user, String action, TransportMessage message);
+    void accessGranted(User user, String action, TransportMessage message, String[] roleNames);
 
-    void accessDenied(User user, String action, TransportMessage message);
+    void accessDenied(User user, String action, TransportMessage message, String[] roleNames);
 
     void tamperedRequest(RestRequest request);
 
@@ -51,9 +51,9 @@ public interface AuditTrail {
 
     void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule);
 
-    void runAsGranted(User user, String action, TransportMessage message);
+    void runAsGranted(User user, String action, TransportMessage message, String[] roleNames);
 
-    void runAsDenied(User user, String action, TransportMessage message);
+    void runAsDenied(User user, String action, TransportMessage message, String[] roleNames);
 
-    void runAsDenied(User user, RestRequest request);
+    void runAsDenied(User user, RestRequest request, String[] roleNames);
 }

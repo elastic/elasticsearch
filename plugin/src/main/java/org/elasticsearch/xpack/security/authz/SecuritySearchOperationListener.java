@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.ORIGINATING_ACTION_KEY;
+import static org.elasticsearch.xpack.security.authz.AuthorizationService.ROLE_NAMES_KEY;
 
 /**
  * A {@link SearchOperationListener} that is used to provide authorization for scroll requests.
@@ -59,7 +60,8 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
                 final Authentication originalAuth = searchContext.scrollContext().getFromContext(Authentication.AUTHENTICATION_KEY);
                 final Authentication current = Authentication.getAuthentication(threadContext);
                 final String action = threadContext.getTransient(ORIGINATING_ACTION_KEY);
-                ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, searchContext.id(), action, request);
+                ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, searchContext.id(), action, request,
+                        threadContext.getTransient(ROLE_NAMES_KEY));
             }
         }
     }
@@ -71,7 +73,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      * (or lookup) realm. To work around this we compare the username and the originating realm type.
      */
     static void ensureAuthenticatedUserIsSame(Authentication original, Authentication current, AuditTrailService auditTrailService,
-                                              long id, String action, TransportRequest request) {
+                                              long id, String action, TransportRequest request, String[] roleNames) {
         // this is really a best effort attempt since we cannot guarantee principal uniqueness
         // and realm names can change between nodes.
         final boolean samePrincipal = original.getUser().principal().equals(current.getUser().principal());
@@ -90,7 +92,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
         final boolean sameUser = samePrincipal && sameRealmType;
         if (sameUser == false) {
-            auditTrailService.accessDenied(current.getUser(), action, request);
+            auditTrailService.accessDenied(current.getUser(), action, request, roleNames);
             throw new SearchContextMissingException(id);
         }
     }

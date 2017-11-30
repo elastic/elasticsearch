@@ -477,7 +477,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("_realm", sourceMap.get("realm"));
         if (message instanceof IndicesRequest) {
             List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
+            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest) message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -507,7 +507,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         } else {
             user = new User("_username", new String[]{"r1"});
         }
-        auditor.accessGranted(user, "_action", message);
+        String role = randomAlphaOfLengthBetween(1, 6);
+        auditor.accessGranted(user, "_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "access_granted");
@@ -520,9 +521,10 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             assertEquals("_username", sourceMap.get("principal"));
         }
         assertEquals("_action", sourceMap.get("action"));
+        assertThat((Iterable<String>) sourceMap.get(IndexAuditTrail.Field.ROLE_NAMES), containsInAnyOrder(role));
         if (message instanceof IndicesRequest) {
             List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
+            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest) message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -530,7 +532,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public void testSystemAccessGranted() throws Exception {
         initialize(new String[] { "system_access_granted" }, null);
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
-        auditor.accessGranted(SystemUser.INSTANCE, "internal:_action", message);
+        String role = randomAlphaOfLengthBetween(1, 6);
+        auditor.accessGranted(SystemUser.INSTANCE, "internal:_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "access_granted");
@@ -538,6 +541,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("transport", sourceMap.get("origin_type"));
         assertEquals(SystemUser.INSTANCE.principal(), sourceMap.get("principal"));
         assertEquals("internal:_action", sourceMap.get("action"));
+        assertThat((Iterable<String>) sourceMap.get(IndexAuditTrail.Field.ROLE_NAMES), containsInAnyOrder(role));
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
@@ -551,7 +555,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         } else {
             user = new User("_username", new String[]{"r1"});
         }
-        auditor.accessDenied(user, "_action", message);
+        String role = randomAlphaOfLengthBetween(1, 6);
+        auditor.accessDenied(user, "_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         Map<String, Object> sourceMap = hit.getSourceAsMap();
@@ -566,9 +571,10 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("_action", sourceMap.get("action"));
         if (message instanceof IndicesRequest) {
             List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
+            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest) message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
+        assertThat((Iterable<String>) sourceMap.get(IndexAuditTrail.Field.ROLE_NAMES), containsInAnyOrder(role));
     }
 
     public void testTamperedRequestRest() throws Exception {
@@ -659,7 +665,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
-        auditor.runAsGranted(user, "_action", message);
+        String role = randomAlphaOfLengthBetween(1, 6);
+        auditor.runAsGranted(user, "_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "run_as_granted");
@@ -667,6 +674,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("transport", sourceMap.get("origin_type"));
         assertThat(sourceMap.get("principal"), is("_username"));
         assertThat(sourceMap.get("run_as_principal"), is("running as"));
+        assertThat((Iterable<String>) sourceMap.get(IndexAuditTrail.Field.ROLE_NAMES), containsInAnyOrder(role));
         assertEquals("_action", sourceMap.get("action"));
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -675,7 +683,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
-        auditor.runAsDenied(user, "_action", message);
+        auditor.runAsDenied(user, "_action", message, new String[] { "r1" });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "run_as_denied");

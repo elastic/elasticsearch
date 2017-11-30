@@ -83,6 +83,7 @@ public class AuthorizationService extends AbstractComponent {
             Setting.boolSetting(setting("authc.anonymous.authz_exception"), true, Property.NodeScope);
     public static final String INDICES_PERMISSIONS_KEY = "_indices_permissions";
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
+    public static final String ROLE_NAMES_KEY = "_effective_role_names";
 
     private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
@@ -148,12 +149,13 @@ public class AuthorizationService extends AbstractComponent {
 
         // first we need to check if the user is the system. If it is, we'll just authorize the system access
         if (SystemUser.is(authentication.getUser())) {
-            if (SystemUser.isAuthorized(action) && SystemUser.is(authentication.getUser())) {
-                setIndicesAccessControl(IndicesAccessControl.ALLOW_ALL);
-                grant(authentication, action, request);
+            if (SystemUser.isAuthorized(action)) {
+                putTransientIfNonExisting(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
+                putTransientIfNonExisting(ROLE_NAMES_KEY, new String[] { SystemUser.ROLE_NAME });
+                grant(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
                 return;
             }
-            throw denial(authentication, action, request);
+            throw denial(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
         }
 
         // get the roles of the authenticated user, which may be different than the effective
@@ -165,29 +167,30 @@ public class AuthorizationService extends AbstractComponent {
             // if we are running as a user we looked up then the authentication must contain a lookedUpBy. If it doesn't then this user
             // doesn't really exist but the authc service allowed it through to avoid leaking users that exist in the system
             if (authentication.getLookedUpBy() == null) {
-                throw denyRunAs(authentication, action, request);
+                throw denyRunAs(authentication, action, request, permission.names());
             } else if (permission.runAs().check(authentication.getUser().principal())) {
-                grantRunAs(authentication, action, request);
+                grantRunAs(authentication, action, request, permission.names());
                 permission = runAsRole;
             } else {
-                throw denyRunAs(authentication, action, request);
+                throw denyRunAs(authentication, action, request, permission.names());
             }
         }
+        putTransientIfNonExisting(ROLE_NAMES_KEY, permission.names());
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
             ClusterPermission cluster = permission.cluster();
             if (cluster.check(action) || checkSameUserPermissions(action, request, authentication)) {
-                setIndicesAccessControl(IndicesAccessControl.ALLOW_ALL);
-                grant(authentication, action, request);
+                putTransientIfNonExisting(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
+                grant(authentication, action, request, permission.names());
                 return;
             }
-            throw denial(authentication, action, request);
+            throw denial(authentication, action, request, permission.names());
         }
 
         // ok... this is not a cluster action, let's verify it's an indices action
         if (!IndexPrivilege.ACTION_MATCHER.test(action)) {
-            throw denial(authentication, action, request);
+            throw denial(authentication, action, request, permission.names());
         }
 
         //composite actions are explicitly listed and will be authorized at the sub-request / shard level
@@ -198,10 +201,10 @@ public class AuthorizationService extends AbstractComponent {
             }
             // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
             if (permission.indices().check(action)) {
-                grant(authentication, action, request);
+                grant(authentication, action, request, permission.names());
                 return;
             }
-            throw denial(authentication, action, request);
+            throw denial(authentication, action, request, permission.names());
         } else if (isTranslatedToBulkAction(action)) {
             if (request instanceof CompositeIndicesRequest == false) {
                 throw new IllegalStateException("Bulk translated actions must implement " + CompositeIndicesRequest.class.getSimpleName()
@@ -209,10 +212,10 @@ public class AuthorizationService extends AbstractComponent {
             }
             // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
             if (permission.indices().check(action)) {
-                grant(authentication, action, request);
+                grant(authentication, action, request, permission.names());
                 return;
             }
-            throw denial(authentication, action, request);
+            throw denial(authentication, action, request, permission.names());
         } else if (TransportActionProxy.isProxyAction(action)) {
             // we authorize proxied actions once they are "unwrapped" on the next node
             if (TransportActionProxy.isProxyRequest(originalRequest) == false) {
@@ -220,12 +223,12 @@ public class AuthorizationService extends AbstractComponent {
                         + action + "] is a proxy action");
             }
             if (permission.indices().check(action)) {
-                grant(authentication, action, request);
+                grant(authentication, action, request, permission.names());
                 return;
             } else {
                 // we do this here in addition to the denial below since we might run into an assertion on scroll requrest below if we
                 // don't have permission to read cross cluster but wrap a scroll request.
-                throw denial(authentication, action, request);
+                throw denial(authentication, action, request, permission.names());
             }
         }
 
@@ -244,18 +247,18 @@ public class AuthorizationService extends AbstractComponent {
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
                 if (SearchScrollAction.NAME.equals(action) && permission.indices().check(action) == false) {
-                    throw denial(authentication, action, request);
+                    throw denial(authentication, action, request, permission.names());
                 } else {
                     // we store the request as a transient in the ThreadContext in case of a authorization failure at the shard
                     // level. If authorization fails we will audit a access_denied message and will use the request to retrieve
                     // information such as the index and the incoming address of the request
-                    grant(authentication, action, request);
+                    grant(authentication, action, request, permission.names());
                     return;
                 }
             } else {
                 assert false :
                         "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
-                throw denial(authentication, action, request);
+                throw denial(authentication, action, request, permission.names());
             }
         }
 
@@ -265,33 +268,33 @@ public class AuthorizationService extends AbstractComponent {
         // If this request does not allow remote indices
         // then the user must have permission to perform this action on at least 1 local index
         if (allowsRemoteIndices == false && permission.indices().check(action) == false) {
-            throw denial(authentication, action, request);
+            throw denial(authentication, action, request, permission.names());
         }
 
         final MetaData metaData = clusterService.state().metaData();
         final AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getUser(), permission, action, metaData);
-        final ResolvedIndices resolvedIndices = resolveIndexNames(authentication, action, request, metaData, authorizedIndices);
+        final ResolvedIndices resolvedIndices = resolveIndexNames(authentication, action, request, metaData, authorizedIndices, permission);
         assert !resolvedIndices.isEmpty()
                 : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
         // If this request does reference any remote indices
         // then the user must have permission to perform this action on at least 1 local index
         if (resolvedIndices.getRemote().isEmpty() && permission.indices().check(action) == false) {
-            throw denial(authentication, action, request);
+            throw denial(authentication, action, request, permission.names());
         }
 
         //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
         //'-*' matches no indices so we allow the request to go through, which will yield an empty response
         if (resolvedIndices.isNoIndicesPlaceholder()) {
-            setIndicesAccessControl(IndicesAccessControl.ALLOW_NO_INDICES);
-            grant(authentication, action, request);
+            putTransientIfNonExisting(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
+            grant(authentication, action, request, permission.names());
             return;
         }
 
         final Set<String> localIndices = new HashSet<>(resolvedIndices.getLocal());
         IndicesAccessControl indicesAccessControl = permission.authorize(action, localIndices, metaData, fieldPermissionsCache);
         if (!indicesAccessControl.isGranted()) {
-            throw denial(authentication, action, request);
+            throw denial(authentication, action, request, permission.names());
         } else if (hasSecurityIndexAccess(indicesAccessControl)
                 && MONITOR_INDEX_PREDICATE.test(action) == false
                 && isSuperuser(authentication.getUser()) == false) {
@@ -299,9 +302,9 @@ public class AuthorizationService extends AbstractComponent {
             // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
                     authentication.getUser().principal(), action, SecurityLifecycleService.SECURITY_INDEX_NAME);
-            throw denial(authentication, action, request);
+            throw denial(authentication, action, request, permission.names());
         } else {
-            setIndicesAccessControl(indicesAccessControl);
+            putTransientIfNonExisting(INDICES_PERMISSIONS_KEY, indicesAccessControl);
         }
 
         //if we are creating an index we need to authorize potential aliases created at the same time
@@ -315,7 +318,7 @@ public class AuthorizationService extends AbstractComponent {
                 }
                 indicesAccessControl = permission.authorize("indices:admin/aliases", aliasesAndIndices, metaData, fieldPermissionsCache);
                 if (!indicesAccessControl.isGranted()) {
-                    throw denial(authentication, "indices:admin/aliases", request);
+                    throw denial(authentication, "indices:admin/aliases", request, permission.names());
                 }
                 // no need to re-add the indicesAccessControl in the context,
                 // because the create index call doesn't do anything FLS or DLS
@@ -330,7 +333,7 @@ public class AuthorizationService extends AbstractComponent {
             authorizeBulkItems(authentication, (BulkShardRequest) request, permission, metaData, localIndices, authorizedIndices);
         }
 
-        grant(authentication, action, originalRequest);
+        grant(authentication, action, originalRequest, permission.names());
     }
 
     private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
@@ -345,13 +348,17 @@ public class AuthorizationService extends AbstractComponent {
 
     /**
      * Performs authorization checks on the items within a {@link BulkShardRequest}.
-     * This inspects the {@link BulkItemRequest items} within the request, computes an <em>implied</em> action for each item's
-     * {@link DocWriteRequest#opType()}, and then checks whether that action is allowed on the targeted index.
-     * Items that fail this checks are {@link BulkItemRequest#abort(String, Exception) aborted}, with an
-     * {@link #denial(Authentication, String, TransportRequest) access denied} exception.
-     * Because a shard level request is for exactly 1 index, and there are a small number of possible item
-     * {@link DocWriteRequest.OpType types}, the number of distinct authorization checks that need to be performed is very small, but the
-     * results must be cached, to avoid adding a high overhead to each bulk request.
+     * This inspects the {@link BulkItemRequest items} within the request, computes
+     * an <em>implied</em> action for each item's {@link DocWriteRequest#opType()},
+     * and then checks whether that action is allowed on the targeted index. Items
+     * that fail this checks are {@link BulkItemRequest#abort(String, Exception)
+     * aborted}, with an
+     * {@link #denial(Authentication, String, TransportRequest, String[]) access
+     * denied} exception. Because a shard level request is for exactly 1 index, and
+     * there are a small number of possible item {@link DocWriteRequest.OpType
+     * types}, the number of distinct authorization checks that need to be performed
+     * is very small, but the results must be cached, to avoid adding a high
+     * overhead to each bulk request.
      */
     private void authorizeBulkItems(Authentication authentication, BulkShardRequest request, Role permission,
                                     MetaData metaData, Set<String> indices, AuthorizedIndices authorizedIndices) {
@@ -385,7 +392,7 @@ public class AuthorizationService extends AbstractComponent {
                 return itemAccessControl.isGranted();
             });
             if (granted == false) {
-                item.abort(resolvedIndex, denial(authentication, itemAction, request));
+                item.abort(resolvedIndex, denial(authentication, itemAction, request, permission.names()));
             }
         }
     }
@@ -410,18 +417,12 @@ public class AuthorizationService extends AbstractComponent {
     }
 
     private ResolvedIndices resolveIndexNames(Authentication authentication, String action, TransportRequest request, MetaData metaData,
-                                              AuthorizedIndices authorizedIndices) {
+                                              AuthorizedIndices authorizedIndices, Role permission) {
         try {
             return indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
         } catch (Exception e) {
-            auditTrail.accessDenied(authentication.getUser(), action, request);
+            auditTrail.accessDenied(authentication.getUser(), action, request, permission.names());
             throw e;
-        }
-    }
-
-    private void setIndicesAccessControl(IndicesAccessControl accessControl) {
-        if (threadContext.getTransient(INDICES_PERMISSIONS_KEY) == null) {
-            threadContext.putTransient(INDICES_PERMISSIONS_KEY, accessControl);
         }
     }
 
@@ -462,7 +463,7 @@ public class AuthorizationService extends AbstractComponent {
 
         if (roleNames.isEmpty()) {
             roleActionListener.onResponse(Role.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE.name())) {
+        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
             roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
         } else {
             rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
@@ -543,22 +544,23 @@ public class AuthorizationService extends AbstractComponent {
         return ReservedRealm.TYPE.equals(realmType) || NativeRealm.TYPE.equals(realmType);
     }
 
-    ElasticsearchSecurityException denial(Authentication authentication, String action, TransportRequest request) {
-        auditTrail.accessDenied(authentication.getUser(), action, request);
+    ElasticsearchSecurityException denial(Authentication authentication, String action, TransportRequest request, String[] roleNames) {
+        auditTrail.accessDenied(authentication.getUser(), action, request, roleNames);
         return denialException(authentication, action);
     }
 
-    private ElasticsearchSecurityException denyRunAs(Authentication authentication, String action, TransportRequest request) {
-        auditTrail.runAsDenied(authentication.getUser(), action, request);
+    private ElasticsearchSecurityException denyRunAs(Authentication authentication, String action, TransportRequest request,
+                                                     String[] roleNames) {
+        auditTrail.runAsDenied(authentication.getUser(), action, request, roleNames);
         return denialException(authentication, action);
     }
 
-    private void grant(Authentication authentication, String action, TransportRequest request) {
-        auditTrail.accessGranted(authentication.getUser(), action, request);
+    private void grant(Authentication authentication, String action, TransportRequest request, String[] roleNames) {
+        auditTrail.accessGranted(authentication.getUser(), action, request, roleNames);
     }
 
-    private void grantRunAs(Authentication authentication, String action, TransportRequest request) {
-        auditTrail.runAsGranted(authentication.getUser(), action, request);
+    private void grantRunAs(Authentication authentication, String action, TransportRequest request, String[] roleNames) {
+        auditTrail.runAsGranted(authentication.getUser(), action, request, roleNames);
     }
 
     private ElasticsearchSecurityException denialException(Authentication authentication, String action) {
@@ -579,7 +581,7 @@ public class AuthorizationService extends AbstractComponent {
 
     static boolean isSuperuser(User user) {
         return Arrays.stream(user.roles())
-                .anyMatch(ReservedRolesStore.SUPERUSER_ROLE.name()::equals);
+                .anyMatch(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()::equals);
     }
 
     public static void addSettings(List<Setting<?>> settings) {

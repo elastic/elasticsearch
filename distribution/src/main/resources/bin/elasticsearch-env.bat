@@ -51,5 +51,5 @@ if not defined ES_PATH_CONF (
 )
 
 if not defined ES_TMPDIR (
-  set ES_TMPDIR=!TMP!
+  set ES_TMPDIR=!TMP!\elasticsearch
 )

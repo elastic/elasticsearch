@@ -18,6 +18,8 @@ public class JdbcConnectionIT extends ConnectionTestCase {
 
     @Override
     protected Properties connectionProperties() {
-        return JdbcSecurityIT.adminProperties();
+        Properties properties = super.connectionProperties();
+        properties.putAll(JdbcSecurityIT.adminProperties());
+        return properties;
     }
 }

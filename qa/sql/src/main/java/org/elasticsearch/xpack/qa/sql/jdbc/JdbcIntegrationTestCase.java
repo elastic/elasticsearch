@@ -74,8 +74,10 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         // tag::connect-dm
         String address = "jdbc:es://" + elasticsearchAddress();   // <1>
         Properties connectionProperties = connectionProperties(); // <2>
-        return DriverManager.getConnection(address, connectionProperties);
+        Connection connection = DriverManager.getConnection(address, connectionProperties);
         // end::connect-dm
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JdbcConfiguration.TIME_ZONE));
+        return connection;
     }
 
     protected Connection useDataSource() throws SQLException {
@@ -85,8 +87,10 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         dataSource.setUrl(address);
         Properties connectionProperties = connectionProperties(); // <2>
         dataSource.setProperties(connectionProperties);
-        return dataSource.getConnection();
+        Connection connection = dataSource.getConnection();
         // end::connect-ds
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JdbcConfiguration.TIME_ZONE));
+        return connection;
     }
 
     public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {

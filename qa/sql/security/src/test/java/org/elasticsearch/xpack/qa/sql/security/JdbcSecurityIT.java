@@ -19,6 +19,7 @@ import java.util.Properties;
 
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcAssert.assertResultSets;
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcIntegrationTestCase.elasticsearchAddress;
+import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcIntegrationTestCase.randomKnownTimeZone;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 
@@ -33,7 +34,10 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
     }
 
     static Connection es(Properties properties) throws SQLException {
-        return DriverManager.getConnection("jdbc:es://" + elasticsearchAddress(), properties);
+        Properties props = new Properties();
+        props.put("timezone", randomKnownTimeZone());
+        props.putAll(properties);
+        return DriverManager.getConnection("jdbc:es://" + elasticsearchAddress(), props);
     }
 
     static Properties userProperties(String user) {

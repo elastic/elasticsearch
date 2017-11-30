@@ -18,6 +18,8 @@ public class JdbcErrorsIT extends ErrorsTestCase {
 
     @Override
     protected Properties connectionProperties() {
-        return JdbcSecurityIT.adminProperties();
+        Properties properties = super.connectionProperties();
+        properties.putAll(JdbcSecurityIT.adminProperties());
+        return properties;
     }
 }

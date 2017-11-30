@@ -32,26 +32,12 @@ To create a multi-metric job in {kib}:
 . Open {kib} in your web browser and log in. If you are running {kib} locally,
 go to `http://localhost:5601/`.
 
-. Click **Machine Learning** in the side navigation, then click **Create new job**. +
-+
---
-[role="screenshot"]
-image::images/ml-kibana.jpg[Job Management]
---
+. Click **Machine Learning** in the side navigation, then click **Create new job**.
 
-. Click **Create multi metric job**. +
-+
---
-[role="screenshot"]
-image::images/ml-create-job2.jpg["Create a multi metric job"]
---
+. Select the index pattern that you created for the sample data.  For example,
+`server-metrics*`.
 
-. Click the `server-metrics` index. +
-+
---
-[role="screenshot"]
-image::images/ml-gs-index.jpg["Select an index"]
---
+. In the **Use a wizard** section, click **Multi metric**.
 
 . Configure the job by providing the following job settings: +
 +

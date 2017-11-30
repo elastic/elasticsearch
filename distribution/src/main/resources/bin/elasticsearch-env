@@ -73,3 +73,7 @@ if [ -z "$ES_PATH_CONF" ]; then
   echo "ES_PATH_CONF must be set to the configuration path"
   exit 1
 fi
+
+if [ -z "$ES_TMPDIR" ]; then
+  ES_TMPDIR=`mktemp -d`
+fi

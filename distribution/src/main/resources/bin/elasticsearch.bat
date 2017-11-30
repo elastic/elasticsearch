@@ -47,7 +47,7 @@ set "ES_JVM_OPTIONS=%ES_PATH_CONF%\jvm.options"
 rem extract the options from the JVM options file %ES_JVM_OPTIONS%
 rem such options are the lines beginning with '-', thus "findstr /b"
 for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM_OPTIONS=!JVM_OPTIONS! %%a
-@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS% %ES_JAVA_OPTS%
+@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS:${ES_TMPDIR}=!ES_TMPDIR!% %ES_JAVA_OPTS%
 
 %JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 

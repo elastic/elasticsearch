@@ -92,17 +92,19 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + leaderGlobalCheckPoint +
                             "] is not below leaderGlobalCheckPoint [" + followGlobalCheckPoint + "]";
                     Executor ccrExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
-                    ChunksCoordinator coordinator = new ChunksCoordinator(client, ccrExecutor, DEFAULT_BATCH_SIZE, leaderShard, followerShard, e -> {
+                    Consumer<Exception> handler = e -> {
                         if (e == null) {
                             ShardFollowTask.Status newStatus = new ShardFollowTask.Status();
                             newStatus.setProcessedGlobalCheckpoint(leaderGlobalCheckPoint);
-                            task.updatePersistentStatus(newStatus, ActionListener.wrap(
-                                    persistentTask -> prepare(task, leaderShard, followerShard, leaderGlobalCheckPoint), task::markAsFailed)
+                            task.updatePersistentStatus(newStatus, ActionListener.wrap(persistentTask -> prepare(task,
+                                    leaderShard, followerShard, leaderGlobalCheckPoint), task::markAsFailed)
                             );
                         } else {
                             task.markAsFailed(e);
                         }
-                    });
+                    };
+                    ChunksCoordinator coordinator =
+                            new ChunksCoordinator(client, ccrExecutor, DEFAULT_BATCH_SIZE, leaderShard, followerShard, handler);
                     coordinator.createChucks(followGlobalCheckPoint, leaderGlobalCheckPoint);
                     coordinator.processChuck();
                 }

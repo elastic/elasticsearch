@@ -428,9 +428,11 @@ public class InternalEngine extends Engine {
         } else if (translog.isCurrent(translogGeneration) == false) {
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
             refreshLastCommittedSegmentInfos();
-        } else if (lastCommittedSegmentInfos.getUserData().containsKey(HISTORY_UUID_KEY) == false)  {
-            assert historyUUID != null;
-            // put the history uuid into the index
+        } else if (lastCommittedSegmentInfos.getUserData().containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) == false)  {
+            assert engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) :
+                "index was created on version " + engineConfig.getIndexSettings().getIndexVersionCreated() + "but has "
+                    + "no sequence numbers info in commit";
+
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
             refreshLastCommittedSegmentInfos();
         }

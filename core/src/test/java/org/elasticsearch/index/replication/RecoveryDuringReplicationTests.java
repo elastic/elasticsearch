@@ -374,15 +374,15 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
 
             CountDownLatch recoveryStart = new CountDownLatch(1);
-            AtomicBoolean preparedForTranslog = new AtomicBoolean(false);
+            AtomicBoolean opsSent = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
                 recoveryStart.countDown();
                 return new RecoveryTarget(indexShard, node, recoveryListener, l -> {
                 }) {
                     @Override
-                    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
-                        preparedForTranslog.set(true);
-                        super.prepareForTranslogOperations(totalTranslogOps);
+                    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
+                        opsSent.set(true);
+                        return super.indexTranslogOperations(operations, totalTranslogOps);
                     }
                 };
             });
@@ -392,7 +392,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // index some more
             docs += shards.indexDocs(randomInt(5));
 
-            assertFalse("recovery should wait on pending docs", preparedForTranslog.get());
+            assertFalse("recovery should wait on pending docs", opsSent.get());
 
             primaryEngineFactory.releaseLatchedIndexers();
             pendingDocsDone.await();

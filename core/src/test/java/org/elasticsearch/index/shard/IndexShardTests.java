@@ -1045,8 +1045,9 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    public void testAcquireIndexCommit() throws IOException {
-        final IndexShard shard = newStartedShard();
+    public void testAcquireIndexCommit() throws Exception {
+        boolean isPrimary = randomBoolean();
+        final IndexShard shard = newStartedShard(isPrimary);
         int numDocs = randomInt(20);
         for (int i = 0; i < numDocs; i++) {
             indexDoc(shard, "type", "id_" + i);
@@ -1063,6 +1064,12 @@ public class IndexShardTests extends IndexShardTestCase {
             assertThat(reader.numDocs(), equalTo(flushFirst ? numDocs : 0));
         }
         commit.close();
+        // Make the global checkpoint in sync with the local checkpoint.
+        if (isPrimary) {
+            shard.getEngine().seqNoService().markAllocationIdAsInSync(shard.shardRouting.allocationId().getId(), numDocs + moreDocs - 1);
+        } else {
+            shard.updateGlobalCheckpointOnReplica(shard.getLocalCheckpoint(), "test");
+        }
         flushShard(shard, true);
 
         // check it's clean up

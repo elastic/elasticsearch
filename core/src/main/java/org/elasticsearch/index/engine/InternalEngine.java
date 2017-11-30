@@ -25,7 +25,6 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -163,12 +162,6 @@ public class InternalEngine extends Engine {
             maxUnsafeAutoIdTimestamp.set(Long.MAX_VALUE);
         }
         this.uidField = engineConfig.getIndexSettings().isSingleType() ? IdFieldMapper.NAME : UidFieldMapper.NAME;
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
-                engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
-                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
-        );
-        this.deletionPolicy = new CombinedDeletionPolicy(
-                new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), translogDeletionPolicy, openMode);
         store.incRef();
         IndexWriter writer = null;
         Translog translog = null;
@@ -183,28 +176,37 @@ public class InternalEngine extends Engine {
             throttle = new IndexThrottle();
             try {
                 final SeqNoStats seqNoStats;
+                final boolean shouldCreateIndex;
                 switch (openMode) {
                     case OPEN_INDEX_AND_TRANSLOG:
-                        writer = createWriter(false);
                         final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
                         seqNoStats = store.loadSeqNoStats(globalCheckpoint);
+                        shouldCreateIndex = false;
                         break;
                     case OPEN_INDEX_CREATE_TRANSLOG:
-                        writer = createWriter(false);
                         seqNoStats = store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO);
+                        shouldCreateIndex = false;
                         break;
                     case CREATE_INDEX_AND_TRANSLOG:
-                        writer = createWriter(true);
                         seqNoStats = new SeqNoStats(
                                 SequenceNumbers.NO_OPS_PERFORMED,
                                 SequenceNumbers.NO_OPS_PERFORMED,
                                 SequenceNumbers.UNASSIGNED_SEQ_NO);
+                        shouldCreateIndex = true;
                         break;
                     default:
                         throw new IllegalArgumentException(openMode.toString());
                 }
                 logger.trace("recovered [{}]", seqNoStats);
                 seqNoService = seqNoServiceSupplier.apply(engineConfig, seqNoStats);
+                final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
+                    engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
+                    engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
+                );
+                this.deletionPolicy = new CombinedDeletionPolicy(
+                    new SnapshotDeletionPolicy(new KeepUntilGlobalCheckpointDeletionPolicy(seqNoService::getGlobalCheckpoint)),
+                    translogDeletionPolicy, openMode);
+                writer = createWriter(shouldCreateIndex);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 historyUUID = loadOrGenerateHistoryUUID(writer, engineConfig.getForceNewHistoryUUID());
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");

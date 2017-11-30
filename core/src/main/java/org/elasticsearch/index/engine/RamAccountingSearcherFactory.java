@@ -51,7 +51,10 @@ final class RamAccountingSearcherFactory extends SearcherFactory {
         final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
 
         // Construct a list of the previous segment readers, we only want to track memory used
-        // by new readers, so these will be exempted from the circuit breaking accounting
+        // by new readers, so these will be exempted from the circuit breaking accounting.
+        //
+        // The Core CacheKey is used as the key for the set so that deletions still keep the correct
+        // accounting, as using the Reader or Reader's CacheKey causes incorrect accounting.
         final Set<IndexReader.CacheKey> prevReaders;
         if (previousReader == null) {
             prevReaders = Collections.emptySet();

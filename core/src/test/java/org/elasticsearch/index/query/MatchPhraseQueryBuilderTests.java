@@ -42,23 +42,13 @@ import static org.hamcrest.Matchers.notNullValue;
 public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhraseQueryBuilder> {
     @Override
     protected MatchPhraseQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
-                DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
-        if (fieldName.equals(DATE_FIELD_NAME)) {
-            assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String fieldName = STRING_FIELD_NAME;
+        int terms = randomIntBetween(0, 3);
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < terms; i++) {
+            builder.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
         }
-        Object value;
-        if (fieldName.equals(STRING_FIELD_NAME)) {
-            int terms = randomIntBetween(0, 3);
-            StringBuilder builder = new StringBuilder();
-            for (int i = 0; i < terms; i++) {
-                builder.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
-            }
-            value = builder.toString().trim();
-        } else {
-            value = getRandomValueForFieldName(fieldName);
-        }
-
+        String value = builder.toString().trim();
         MatchPhraseQueryBuilder matchQuery = new MatchPhraseQueryBuilder(fieldName, value);
 
         if (randomBoolean()) {

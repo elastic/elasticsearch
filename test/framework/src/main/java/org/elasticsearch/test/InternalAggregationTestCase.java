@@ -247,9 +247,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer,false);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
-            if (reduced instanceof MultiBucketsAggregation) {
-                assertMultiBucketConsumer((MultiBucketsAggregation) reduced, bucketConsumer);
-            }
+            assertMultiBucketConsumer(reduced, bucketConsumer);
             toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
             toReduce.add(reduced);
         }
@@ -258,9 +256,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer, true);
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
-        if (reduced instanceof MultiBucketsAggregation) {
-            assertMultiBucketConsumer((MultiBucketsAggregation) reduced, bucketConsumer);
-        }
+        assertMultiBucketConsumer(reduced, bucketConsumer);
         assertReduced(reduced, inputs);
     }
 
@@ -406,7 +402,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return randomFrom(formats).get();
     }
 
-    public static void assertMultiBucketConsumer(MultiBucketsAggregation multi, MultiBucketConsumer bucketConsumer) {
-        assertThat(bucketConsumer.getCount(), equalTo(countInnerBucket(multi)));
+    public static void assertMultiBucketConsumer(Aggregation agg, MultiBucketConsumer bucketConsumer) {
+        assertThat(bucketConsumer.getCount(), equalTo(countInnerBucket(agg)));
     }
 }

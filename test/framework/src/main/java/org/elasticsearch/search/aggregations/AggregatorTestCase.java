@@ -267,9 +267,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         a.postCollection();
         @SuppressWarnings("unchecked")
         A internalAgg = (A) a.buildAggregation(0L);
-        if (internalAgg instanceof MultiBucketsAggregation) {
-            InternalAggregationTestCase.assertMultiBucketConsumer((MultiBucketsAggregation) internalAgg, bucketConsumer);
-        }
+        InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, bucketConsumer);
         return internalAgg;
 
     }
@@ -319,10 +317,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
             a.preCollection();
             subSearcher.search(weight, a);
             a.postCollection();
-            aggs.add(a.buildAggregation(0L));
-            if (a instanceof MultiBucketsAggregation) {
-                InternalAggregationTestCase.assertMultiBucketConsumer((MultiBucketsAggregation) a, shardBucketConsumer);
-            }
+            InternalAggregation agg = a.buildAggregation(0L);
+            aggs.add(agg);
+            InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
         }
         if (aggs.isEmpty()) {
             return null;
@@ -338,9 +335,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
                         reduceBucketConsumer, false);
                 A reduced = (A) aggs.get(0).doReduce(toReduce, context);
-                if (reduced instanceof MultiBucketsAggregation) {
-                    InternalAggregationTestCase.assertMultiBucketConsumer((MultiBucketsAggregation) reduced, reduceBucketConsumer);
-                }
+                InternalAggregationTestCase.assertMultiBucketConsumer(reduced, reduceBucketConsumer);
                 aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
                 aggs.add(reduced);
             }
@@ -351,9 +346,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             @SuppressWarnings("unchecked")
             A internalAgg = (A) aggs.get(0).doReduce(aggs, context);
-            if (internalAgg instanceof MultiBucketsAggregation) {
-                InternalAggregationTestCase.assertMultiBucketConsumer((MultiBucketsAggregation) internalAgg, reduceBucketConsumer);
-            }
+            InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             return internalAgg;
         }
 

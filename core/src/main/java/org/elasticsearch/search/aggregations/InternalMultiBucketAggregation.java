@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -88,24 +89,28 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     public static int countInnerBucket(InternalBucket bucket) {
         int count = 0;
         for (Aggregation agg : bucket.getAggregations().asList()) {
-            if (agg instanceof MultiBucketsAggregation) {
-                count += countInnerBucket((MultiBucketsAggregation) agg);
-            }
+            count += countInnerBucket(agg);
         }
         return count;
     }
 
     /**
-     * Counts the number of inner buckets inside the provided {@link MultiBucketsAggregation}
+     * Counts the number of inner buckets inside the provided {@link Aggregation}
      */
-    public static int countInnerBucket(MultiBucketsAggregation multi) {
+    public static int countInnerBucket(Aggregation agg) {
         int size = 0;
-        for (MultiBucketsAggregation.Bucket bucket : multi.getBuckets()) {
-            ++ size;
-            for (Aggregation bucketAgg : bucket.getAggregations().asList()) {
-                if (bucketAgg instanceof MultiBucketsAggregation) {
-                    size += countInnerBucket((MultiBucketsAggregation) bucketAgg);
+        if (agg instanceof MultiBucketsAggregation) {
+            MultiBucketsAggregation multi = (MultiBucketsAggregation) agg;
+            for (MultiBucketsAggregation.Bucket bucket : multi.getBuckets()) {
+                ++ size;
+                for (Aggregation bucketAgg : bucket.getAggregations().asList()) {
+                    size += countInnerBucket(bucketAgg);
                 }
+            }
+        } else if (agg instanceof SingleBucketAggregation) {
+            SingleBucketAggregation single = (SingleBucketAggregation) agg;
+            for (Aggregation bucketAgg : single.getAggregations().asList()) {
+                size += countInnerBucket(bucketAgg);
             }
         }
         return size;

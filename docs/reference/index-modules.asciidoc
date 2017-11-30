@@ -193,6 +193,11 @@ specific index module:
     Maximum number of refresh listeners available on each shard of the index.
     These listeners are used to implement <<docs-refresh,`refresh=wait_for`>>.
 
+ `index.analyze.max_token_count`::
+
+    The maximum number of tokens that can be produced using _analyze API.
+    Defaults to `10000`.
+
 
 [float]
 === Settings in other index modules

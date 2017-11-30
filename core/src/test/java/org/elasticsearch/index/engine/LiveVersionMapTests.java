@@ -209,5 +209,12 @@ public class LiveVersionMapTests extends ESTestCase {
             assertNotNull(versionValue);
             assertEquals(v, versionValue);
         });
+
+        map.getAllTombstones().forEach(e -> {
+            VersionValue versionValue = values.get(e.getKey());
+            assertNotNull(versionValue);
+            assertEquals(e.getValue(), versionValue);
+            assertTrue(versionValue instanceof DeleteVersionValue);
+        });
     }
 }

@@ -5,35 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.internal.Nullable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xpack.common.IteratingActionListener;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
-import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
-import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.security.authz.privilege.Privilege;
-
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -47,6 +20,35 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.common.IteratingActionListener;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
+import org.elasticsearch.xpack.security.authz.permission.Role;
+import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.security.authz.privilege.Privilege;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 
@@ -143,14 +145,21 @@ public class CompositeRolesStore extends AbstractComponent {
     }
 
     private void roleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> roleDescriptorActionListener) {
-        final Set<String> filteredRoleNames =
-                roleNames.stream().filter((s) -> negativeLookupCache.contains(s) == false).collect(Collectors.toSet());
+        final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
+            if (negativeLookupCache.contains(s)) {
+                logger.debug("Requested role [{}] does not exist (cached)", s);
+                return false;
+            } else {
+                return true;
+            }
+        }).collect(Collectors.toSet());
         final Set<RoleDescriptor> builtInRoleDescriptors = getBuiltInRoleDescriptors(filteredRoleNames);
         Set<String> remainingRoleNames = difference(filteredRoleNames, builtInRoleDescriptors);
         if (remainingRoleNames.isEmpty()) {
             roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
         } else {
             nativeRolesStore.getRoleDescriptors(remainingRoleNames.toArray(Strings.EMPTY_ARRAY), ActionListener.wrap((descriptors) -> {
+                logger.debug(() -> new ParameterizedMessage("Roles [{}] were resolved from the native index store", names(descriptors)));
                 builtInRoleDescriptors.addAll(descriptors);
                 callCustomRoleProvidersIfEnabled(builtInRoleDescriptors, filteredRoleNames, roleDescriptorActionListener);
             }, e -> {
@@ -169,6 +178,8 @@ public class CompositeRolesStore extends AbstractComponent {
                 new IteratingActionListener<>(roleDescriptorActionListener, (rolesProvider, listener) -> {
                     // resolve descriptors with role provider
                     rolesProvider.accept(missing, ActionListener.wrap((resolvedDescriptors) -> {
+                        logger.debug(() ->
+                                new ParameterizedMessage("Roles [{}] were resolved by [{}]", names(resolvedDescriptors), rolesProvider));
                         builtInRoleDescriptors.addAll(resolvedDescriptors);
                         // remove resolved descriptors from the set of roles still needed to be resolved
                         for (RoleDescriptor descriptor : resolvedDescriptors) {
@@ -187,6 +198,8 @@ public class CompositeRolesStore extends AbstractComponent {
                     return builtInRoleDescriptors;
                 }).run();
             } else {
+                logger.debug(() ->
+                        new ParameterizedMessage("Requested roles [{}] do not exist", Strings.collectionToCommaDelimitedString(missing)));
                 negativeLookupCache.addAll(missing);
                 roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
             }
@@ -199,13 +212,22 @@ public class CompositeRolesStore extends AbstractComponent {
         final Set<RoleDescriptor> descriptors = reservedRolesStore.roleDescriptors().stream()
                 .filter((rd) -> roleNames.contains(rd.getName()))
                 .collect(Collectors.toCollection(HashSet::new));
-
+        if (descriptors.size() > 0) {
+            logger.debug(() -> new ParameterizedMessage("Roles [{}] are builtin roles", names(descriptors)));
+        }
         final Set<String> difference = difference(roleNames, descriptors);
         if (difference.isEmpty() == false) {
-            descriptors.addAll(fileRolesStore.roleDescriptors(difference));
+            final Set<RoleDescriptor> fileRoles = fileRolesStore.roleDescriptors(difference);
+            logger.debug(() ->
+                    new ParameterizedMessage("Roles [{}] were resolved from [{}]", names(fileRoles), fileRolesStore.getFile()));
+            descriptors.addAll(fileRoles);
         }
 
         return descriptors;
+    }
+
+    private String names(Collection<RoleDescriptor> descriptors) {
+        return descriptors.stream().map(RoleDescriptor::getName).collect(Collectors.joining(","));
     }
 
     private Set<String> difference(Set<String> roleNames, Set<RoleDescriptor> descriptors) {

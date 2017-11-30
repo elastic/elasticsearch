@@ -26,6 +26,12 @@ import java.util.ArrayDeque;
 import java.util.Iterator;
 import java.util.function.Supplier;
 
+/**
+ * This is a channel byte buffer composed internally of 16kb pages. When an entire message has been read
+ * and consumed, the {@link #release(long)} method releases the bytes from the head of the buffer and closes
+ * the pages internally. If more space is needed at the end of the buffer {@link #ensureCapacity(long)} can
+ * be called and the buffer will expand using the supplier provided.
+ */
 public class InboundChannelBuffer {
 
     public static final int PAGE_SIZE = 1 << 14;

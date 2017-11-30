@@ -1,5 +1,5 @@
 [[reindex-upgrade]]
-=== Reindex before upgrading
+== Reindex before upgrading
 
 Elasticsearch can read indices created in the *previous major version*.
 Older indices must be reindexed or deleted. Elasticsearch 6.x
@@ -56,7 +56,7 @@ been deleted.
 
 
 [[reindex-upgrade-inplace]]
-==== Reindex in place
+=== Reindex in place
 
 To manually reindex your old indices with the <<docs-reindex,`reindex` API>>:
 
@@ -88,7 +88,7 @@ regular part of your Elastic Stack. For more information, see
 *******************************************
 
 [[reindex-upgrade-remote]]
-==== Reindex from a remote cluster
+=== Reindex from a remote cluster
 
 You can use <<reindex-from-remote,reindex from remote>> to migrate indices from
 your old cluster to a new 6.x cluster. This enables you move to 6.x from a

@@ -591,7 +591,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
      * Tests that a single empty shard index is correctly recovered. Empty shards are often an edge case.
      */
     public void testEmptyShard() throws IOException {
-        final String index = "test_empty_hard";
+        final String index = "test_empty_shard";
 
         if (runningAgainstOldCluster) {
             Settings.Builder settings = Settings.builder()

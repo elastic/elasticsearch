@@ -149,7 +149,7 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
         }
 
         public static Request parseRequest(String name, XContentParser parser, NamedXContentRegistry namedXContentRegistry) {
-            return PARSER.apply(parser, new Tuple<String, NamedXContentRegistry>(name, namedXContentRegistry));
+            return PARSER.apply(parser, new Tuple<>(name, namedXContentRegistry));
         }
 
         @Override
@@ -163,13 +163,13 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            policy = new LifecyclePolicy(in);
+            policy = in.readNamedWriteable(LifecyclePolicy.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            policy.writeTo(out);
+            out.writeNamedWriteable(policy);
         }
 
         @Override

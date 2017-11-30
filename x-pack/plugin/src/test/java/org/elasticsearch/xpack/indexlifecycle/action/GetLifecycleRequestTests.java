@@ -25,5 +25,4 @@ public class GetLifecycleRequestTests extends AbstractStreamableTestCase<GetLife
     protected MutateFunction<Request> getMutateFunction() {
         return resp -> new Request(resp.getPolicyName() + randomAlphaOfLengthBetween(1, 10));
     }
-
 }

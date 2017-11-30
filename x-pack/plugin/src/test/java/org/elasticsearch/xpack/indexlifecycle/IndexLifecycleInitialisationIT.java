@@ -90,7 +90,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         phases.add(new Phase("new", TimeValue.timeValueSeconds(0), Collections.emptyList()));
         List<LifecycleAction> deletePhaseActions = Collections.singletonList(new DeleteAction());
         phases.add(new Phase("delete", TimeValue.timeValueSeconds(3), deletePhaseActions));
-        lifecyclePolicy = new LifecyclePolicy("test_lifecycle", phases);
+        lifecyclePolicy = new TestLifecyclePolicy("test", phases);
     }
 
     public void testSingleNodeCluster() throws Exception {

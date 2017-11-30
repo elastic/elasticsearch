@@ -13,13 +13,17 @@ import org.elasticsearch.xpack.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.indexlifecycle.Phase;
+import org.elasticsearch.xpack.indexlifecycle.TestLifecyclePolicy;
+import org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy;
 import org.elasticsearch.xpack.indexlifecycle.action.GetLifecycleAction.Response;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLifecycleAction.Response> {
     
@@ -33,17 +37,7 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
 
     @Override
     protected Response createTestInstance() {
-        int numberPhases = randomInt(5);
-        List<Phase> phases = new ArrayList<>(numberPhases);
-        for (int i = 0; i < numberPhases; i++) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
-            List<LifecycleAction> actions = new ArrayList<>();
-            if (randomBoolean()) {
-                actions.add(new DeleteAction());
-            }
-            phases.add(new Phase(randomAlphaOfLength(10), after, actions));
-        }
-        return new Response(new LifecyclePolicy(lifecycleName, phases));
+        return new Response(new TestLifecyclePolicy(lifecycleName, Collections.emptyList()));
     }
 
     @Override
@@ -53,7 +47,8 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new)));
+            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecyclePolicy.class, TestLifecyclePolicy.TYPE, TestLifecyclePolicy::new)));
     }
 
     @Override
@@ -61,21 +56,21 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
         return resp -> {
             LifecyclePolicy policy = resp.getPolicy();
             String name = policy.getName();
-            List<Phase> phases = policy.getPhases();
+            Map<String, Phase> phases = policy.getPhases();
             switch (between(0, 1)) {
-            case 0:
-                name = name + randomAlphaOfLengthBetween(1, 5);
-                break;
-            case 1:
-                phases = new ArrayList<>(phases);
-                phases.add(new Phase(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
+                case 0:
+                    name = name + randomAlphaOfLengthBetween(1, 5);
+                    break;
+                case 1:
+                    phases = new HashMap<>(phases);
+                    String newPhaseName = randomAlphaOfLengthBetween(1, 10);
+                    phases.put(name, new Phase(newPhaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
                         Collections.emptyList()));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+                    break;
+                default:
+                    throw new AssertionError("Illegal randomisation branch");
             }
-            return new Response(new LifecyclePolicy(name, phases));
+            return new Response(new TestLifecyclePolicy(name, new ArrayList<>(phases.values())));
         };
     }
-
 }

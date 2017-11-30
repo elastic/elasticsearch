@@ -18,11 +18,17 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
     private final TableIdentifier table;
     private final String alias;
+    private final String unresolvedMsg;
 
     public UnresolvedRelation(Location location, TableIdentifier table, String alias) {
+        this(location, table, alias, null);
+    }
+
+    public UnresolvedRelation(Location location, TableIdentifier table, String alias, String unresolvedMessage) {
         super(location);
         this.table = table;
         this.alias = alias;
+        this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + table.index() + "]" : unresolvedMessage;
     }
 
     public TableIdentifier table() {
@@ -39,11 +45,6 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     }
 
     @Override
-    public String unresolvedMessage() {
-        return "Unknown index [" + table.index() + "]";
-    }
-
-    @Override
     public boolean expressionsResolved() {
         return false;
     }
@@ -51,6 +52,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     @Override
     public List<Attribute> output() {
         return Collections.emptyList();
+    }
+
+    @Override
+    public String unresolvedMessage() {
+        return unresolvedMsg;
     }
 
     @Override

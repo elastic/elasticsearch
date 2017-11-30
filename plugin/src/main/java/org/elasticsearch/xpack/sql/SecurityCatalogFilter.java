@@ -75,7 +75,7 @@ public class SecurityCatalogFilter implements FilteredCatalog.Filter {
                 filteredMapping.put(entry.getKey(), entry.getValue());
             }
         }
-        return GetIndexResult.valid(new EsIndex(index.name(), filteredMapping, index.aliases(), index.settings()));
+        return GetIndexResult.valid(new EsIndex(index.name(), filteredMapping));
     }
 
     /**

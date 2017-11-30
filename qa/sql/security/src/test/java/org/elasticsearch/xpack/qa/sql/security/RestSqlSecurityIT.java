@@ -30,6 +30,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RestSqlSecurityIT extends SqlSecurityTestCase {
     private static class RestActions implements Actions {
@@ -111,7 +112,15 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectForbidden(String user, String sql) {
             ResponseException e = expectThrows(ResponseException.class, () -> runSql(user, sql));
-            assertThat(e.getMessage(), containsString("403 Forbidden"));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("unauthorized"));
+        }
+
+        @Override
+        public void expectUnknownIndex(String user, String sql) {
+            ResponseException e = expectThrows(ResponseException.class, () -> runSql(user, sql));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("Unknown index"));
         }
 
         @Override
@@ -171,7 +180,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
 
         new AuditLogAsserter()
-            .expectSqlWithSyncLookup("test_admin", "test")
+            .expectSqlCompositeAction("test_admin", "test")
             .expect(true, SQL_ACTION_NAME, "full_access", empty())
             // One scroll access denied per shard
             .expect(false, SQL_ACTION_NAME, "full_access", empty(), "InternalScrollSearchRequest")

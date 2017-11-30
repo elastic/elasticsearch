@@ -49,9 +49,10 @@ public class RestSqlAction extends BaseRestHandler {
         if (xContentType != null) {
             // The client expects us to send back results in a XContent format
             return channel -> client.executeLocally(SqlAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
-        }
+    }
         // The client accepts plain text
         long startNanos = System.nanoTime();
+
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, new RestResponseListener<SqlResponse>(channel) {
             @Override
             public RestResponse buildResponse(SqlResponse response) throws Exception {

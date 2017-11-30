@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.xpack.qa.sql.jdbc.LocalH2;
@@ -58,12 +59,20 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         }
     }
 
-    static void expectActionForbidden(String user, CheckedConsumer<Connection, SQLException> action) throws Exception {
+    static void expectForbidden(String user, CheckedConsumer<Connection, SQLException> action) throws Exception {
+        expectError(user, action, "is unauthorized for user [" + user + "]");
+    }
+
+    static void expectUnknownIndex(String user, CheckedConsumer<Connection, SQLException> action) throws Exception {
+        expectError(user, action, "Unknown index");
+    }
+
+    static void expectError(String user, CheckedConsumer<Connection, SQLException> action, String errorMessage) throws Exception {
         SQLException e;
         try (Connection connection = es(userProperties(user))) {
             e = expectThrows(SQLException.class, () -> action.accept(connection));
         }
-        assertThat(e.getMessage(), containsString("is unauthorized for user [" + user + "]"));
+        assertThat(e.getMessage(), containsString(errorMessage));
     }
 
     static void expectActionThrowsUnknownColumn(String user,
@@ -118,18 +127,20 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
                     Connection es = es(userProperties(user))) {
                 // h2 doesn't have the same sort of DESCRIBE that we have so we emulate it
                 h2.createStatement().executeUpdate("CREATE TABLE mock (column VARCHAR, type VARCHAR)");
-                StringBuilder insert = new StringBuilder();
-                insert.append("INSERT INTO mock (column, type) VALUES ");
-                boolean first = true;
-                for (Map.Entry<String, String> column : columns.entrySet()) {
-                    if (first) {
-                        first = false;
-                    } else {
-                        insert.append(", ");
+                if (columns.size() > 0) {
+                    StringBuilder insert = new StringBuilder();
+                    insert.append("INSERT INTO mock (column, type) VALUES ");
+                    boolean first = true;
+                    for (Map.Entry<String, String> column : columns.entrySet()) {
+                        if (first) {
+                            first = false;
+                        } else {
+                            insert.append(", ");
+                        }
+                        insert.append("('").append(column.getKey()).append("', '").append(column.getValue()).append("')");
                     }
-                    insert.append("('").append(column.getKey()).append("', '").append(column.getValue()).append("')");
+                    h2.createStatement().executeUpdate(insert.toString());
                 }
-                h2.createStatement().executeUpdate(insert.toString());
 
                 ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock");
                 assertResultSets(expected, es.createStatement().executeQuery("DESCRIBE test"));
@@ -162,7 +173,12 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectForbidden(String user, String sql) throws Exception {
-            expectActionForbidden(user, con -> con.createStatement().executeQuery(sql));
+            JdbcSecurityIT.expectForbidden(user, con -> con.createStatement().executeQuery(sql));
+        }
+
+        @Override
+        public void expectUnknownIndex(String user, String sql) throws Exception {
+            JdbcSecurityIT.expectUnknownIndex(user, con -> con.createStatement().executeQuery(sql));
         }
 
         @Override
@@ -187,18 +203,18 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             "full_access",
             con -> con.getMetaData().getTables("%", "%", "%", null));
         new AuditLogAsserter()
-            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("bort", "test"))
-            .expect(true, SQL_INDICES_ACTION_NAME, "full_access", contains("bort", "test"))
+            .expect(true, GetIndexAction.NAME, "test_admin", contains("bort", "test"))
+            .expect(true, GetIndexAction.NAME, "full_access", contains("bort", "test"))
             .assertLogs();
     }
 
     public void testMetaDataGetTablesWithNoAccess() throws Exception {
         createUser("no_access", "read_nothing");
 
-        expectActionForbidden("no_access", con -> con.getMetaData().getTables("%", "%", "%", null));
+        expectForbidden("no_access", con -> con.getMetaData().getTables("%", "%", "%", null));
         new AuditLogAsserter()
             // TODO figure out why this generates *no* logs
-            // .expect(false, SQL_INDICES_ACTION_NAME, "no_access", contains("bort", "test"))
+            // .expect(false, GetIndexAction.NAME, "no_access", contains("bort", "test"))
             .assertLogs();
     }
 
@@ -210,8 +226,8 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             "read_bort",
             con -> con.getMetaData().getTables("%", "%", "%", null));
         new AuditLogAsserter()
-            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("bort"))
-            .expect(true, SQL_INDICES_ACTION_NAME, "read_bort", contains("bort"))
+            .expect(true, GetIndexAction.NAME, "test_admin", contains("bort"))
+            .expect(true, GetIndexAction.NAME, "read_bort", contains("bort"))
             .assertLogs();
     }
 
@@ -223,8 +239,8 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             "read_bort",
             con -> con.getMetaData().getTables("%", "%", "test", null));
         new AuditLogAsserter()
-            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("*", "-*"))
-            .expect(true, SQL_INDICES_ACTION_NAME, "read_bort", contains("*", "-*"))
+            .expect(true, GetIndexAction.NAME, "test_admin", contains("*", "-*"))
+            .expect(true, GetIndexAction.NAME, "read_bort", contains("*", "-*"))
             .assertLogs();
     }
 
@@ -236,18 +252,18 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             "full_access",
             con -> con.getMetaData().getColumns("%", "%", "%", "%"));
         new AuditLogAsserter()
-            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("bort", "test"))
-            .expect(true, SQL_INDICES_ACTION_NAME, "full_access", contains("bort", "test"))
+            .expect(true, GetIndexAction.NAME, "test_admin", contains("bort", "test"))
+            .expect(true, GetIndexAction.NAME, "full_access", contains("bort", "test"))
             .assertLogs();
     }
 
     public void testMetaDataGetColumnsWithNoAccess() throws Exception {
         createUser("no_access", "read_nothing");
 
-        expectActionForbidden("no_access", con -> con.getMetaData().getColumns("%", "%", "%", "%"));
+        expectForbidden("no_access", con -> con.getMetaData().getColumns("%", "%", "%", "%"));
         new AuditLogAsserter()
             // TODO figure out why this generates *no* logs
-            // .expect(false, SQL_INDICES_ACTION_NAME, "no_access", contains("bort", "test"))
+            // .expect(false, GetIndexAction.NAME, "no_access", contains("bort", "test"))
             .assertLogs();
     }
 
@@ -259,8 +275,8 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             "wrong_access",
             con -> con.getMetaData().getColumns("%", "%", "test", "%"));
         new AuditLogAsserter()
-            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("*", "-*"))
-            .expect(true, SQL_INDICES_ACTION_NAME, "wrong_access", contains("*", "-*"))
+            .expect(true, GetIndexAction.NAME, "test_admin", contains("*", "-*"))
+            .expect(true, GetIndexAction.NAME, "wrong_access", contains("*", "-*"))
             .assertLogs();
     }
 
@@ -272,8 +288,8 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             "only_a",
             con -> con.getMetaData().getColumns("%", "%", "test", "%"));
         new AuditLogAsserter()
-            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("test"))
-            .expect(true, SQL_INDICES_ACTION_NAME, "only_a", contains("test"))
+            .expect(true, GetIndexAction.NAME, "test_admin", contains("test"))
+            .expect(true, GetIndexAction.NAME, "only_a", contains("test"))
             .assertLogs();
     }
 
@@ -294,7 +310,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             assertFalse(result.next());
         }
         new AuditLogAsserter()
-            .expect(true, SQL_INDICES_ACTION_NAME, "not_c", contains("test"))
+            .expect(true, GetIndexAction.NAME, "not_c", contains("test"))
             .assertLogs();
     }
 
@@ -306,8 +322,8 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             "no_3s",
             con -> con.getMetaData().getColumns("%", "%", "test", "%"));
         new AuditLogAsserter()
-            .expect(true, SQL_INDICES_ACTION_NAME, "test_admin", contains("test"))
-            .expect(true, SQL_INDICES_ACTION_NAME, "no_3s", contains("test"))
+            .expect(true, GetIndexAction.NAME, "test_admin", contains("test"))
+            .expect(true, GetIndexAction.NAME, "no_3s", contains("test"))
             .assertLogs();
     }
 }

@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
-import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -22,16 +22,22 @@ import org.elasticsearch.xpack.sql.util.Graphviz;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.action.ActionListener.wrap;
 
 public class Explain extends Command {
 
     public enum Type {
-        PARSED, ANALYZED, OPTIMIZED, MAPPED, EXECUTABLE, ALL
+        PARSED, ANALYZED, OPTIMIZED, MAPPED, EXECUTABLE, ALL;
+        
+        public String printableName() {
+            return Strings.capitalize(name().toLowerCase(Locale.ROOT));
+        }
     }
 
     public enum Format {
@@ -74,99 +80,135 @@ public class Explain extends Command {
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        String planString = null;
-        String planName = "Parsed";
 
-        if (type == Type.ALL) {
-            LogicalPlan analyzedPlan = session.analyzedPlan(plan, verify);
-            LogicalPlan optimizedPlan = null;
-            PhysicalPlan mappedPlan = null, executionPlan = null;
-
+        if (type == Type.PARSED) {
+            listener.onResponse(Rows.singleton(output(), formatPlan(format, plan)));
+            return;
+        }
+        
+        // to avoid duplicating code, the type/verification filtering happens inside the listeners instead of outside using a CASE
+        session.analyzedPlan(plan, verify, wrap(analyzedPlan -> {
+            
+            if (type == Type.ANALYZED) {
+                listener.onResponse(Rows.singleton(output(), formatPlan(format, analyzedPlan)));
+                return;
+            }
+            
             Planner planner = session.planner();
-
             // verification is on, exceptions can be thrown
             if (verify) {
-                optimizedPlan = session.optimizedPlan(plan);
-                mappedPlan = planner.mapPlan(optimizedPlan, verify);
-                executionPlan = planner.foldPlan(mappedPlan, verify);
+                session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
+                    if (type == Type.OPTIMIZED) {
+                        listener.onResponse(Rows.singleton(output(), formatPlan(format, optimizedPlan)));
+                        return;
+                    }
+                    
+                    PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, verify);
+                    if (type == Type.MAPPED) {
+                        listener.onResponse(Rows.singleton(output(), formatPlan(format, mappedPlan)));
+                        return;
+                    }
+                    
+                    PhysicalPlan executablePlan = planner.foldPlan(mappedPlan, verify);
+                    if (type == Type.EXECUTABLE) {
+                        listener.onResponse(Rows.singleton(output(), formatPlan(format, executablePlan)));
+                        return;
+                    }
+                    
+                    // Type.All
+                    listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan)));
+                }, listener::onFailure));
             }
+            
             // check errors manually to see how far the plans work out
             else {
                 // no analysis failure, can move on
                 if (session.analyzer().verifyFailures(analyzedPlan).isEmpty()) {
-                    optimizedPlan = session.optimizedPlan(analyzedPlan);
-                    if (optimizedPlan != null) {
-                        mappedPlan = planner.mapPlan(optimizedPlan, verify);
-                        if (planner.verifyMappingPlanFailures(mappedPlan).isEmpty()) {
-                            executionPlan = planner.foldPlan(mappedPlan, verify);
+                    session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
+                        if (type == Type.OPTIMIZED) {
+                            listener.onResponse(Rows.singleton(output(), formatPlan(format, optimizedPlan)));
+                            return;
                         }
+                        
+                        PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, verify);
+                        
+                        if (type == Type.MAPPED) {
+                            listener.onResponse(Rows.singleton(output(), formatPlan(format, mappedPlan)));
+                            return;
+                        }
+
+                        if (planner.verifyMappingPlanFailures(mappedPlan).isEmpty()) {
+                            PhysicalPlan executablePlan = planner.foldPlan(mappedPlan, verify);
+                            
+                            if (type == Type.EXECUTABLE) {
+                                listener.onResponse(Rows.singleton(output(), formatPlan(format, executablePlan)));
+                                return;
+                            }
+                            
+                            listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan)));
+                            return;
+                        }
+                        // mapped failed
+                        if (type != Type.ALL) {
+                            listener.onResponse(Rows.singleton(output(), formatPlan(format, mappedPlan)));
+                            return;
+                        }
+
+                        listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null)));    
+                    }, listener::onFailure));
+                // cannot continue
+                } else {
+                    if (type != Type.ALL) {
+                        listener.onResponse(Rows.singleton(output(), formatPlan(format, analyzedPlan)));
+                    }
+                    else {
+                        listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, null, null, null)));    
                     }
                 }
             }
+        }, listener::onFailure));
+    }
 
-            if (format == Format.TEXT) {
-                StringBuilder sb = new StringBuilder();
-                sb.append("Parsed\n");
-                sb.append("-----------\n");
-                sb.append(plan.toString());
-                sb.append("\nAnalyzed\n");
-                sb.append("--------\n");
-                sb.append(analyzedPlan.toString());
-                sb.append("\nOptimized\n");
-                sb.append("---------\n");
-                sb.append(optimizedPlan.toString());
-                sb.append("\nMapped\n");
-                sb.append("---------\n");
-                sb.append(mappedPlan.toString());
-                sb.append("\nExecutable\n");
-                sb.append("---------\n");
-                sb.append(executionPlan.toString());
+    private static String printPlans(Format format, LogicalPlan parsed, LogicalPlan analyzedPlan, LogicalPlan optimizedPlan, PhysicalPlan mappedPlan, PhysicalPlan executionPlan) {
+        if (format == Format.TEXT) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Parsed\n");
+            sb.append("-----------\n");
+            sb.append(parsed.toString());
+            sb.append("\nAnalyzed\n");
+            sb.append("--------\n");
+            sb.append(analyzedPlan.toString());
+            sb.append("\nOptimized\n");
+            sb.append("---------\n");
+            sb.append(nullablePlan(optimizedPlan));
+            sb.append("\nMapped\n");
+            sb.append("---------\n");
+            sb.append(nullablePlan(mappedPlan));
+            sb.append("\nExecutable\n");
+            sb.append("---------\n");
+            sb.append(nullablePlan(executionPlan));
 
-                planString = sb.toString();
-            } else {
-                Map<String, QueryPlan<?>> plans = new HashMap<>();
-                plans.put("Parsed", plan);
-                plans.put("Analyzed", analyzedPlan);
+            return sb.toString();
+        } else {
+            Map<String, QueryPlan<?>> plans = new HashMap<>();
+            plans.put("Parsed", parsed);
+            plans.put("Analyzed", analyzedPlan);
+
+            if (optimizedPlan != null) {
                 plans.put("Optimized", optimizedPlan);
                 plans.put("Mapped", mappedPlan);
                 plans.put("Execution", executionPlan);
-                planString = Graphviz.dot(unmodifiableMap(plans), false);
             }
+            return Graphviz.dot(unmodifiableMap(plans), false);
         }
+    }
 
-        else {
-            QueryPlan<?> queryPlan = null;
+    private static String nullablePlan(QueryPlan<?> plan) {
+        return plan != null ? plan.toString() : "<not computed due to failures>";
+    }
 
-            switch (type) {
-                case PARSED:
-                    queryPlan = plan;
-                    planName = "Parsed";
-                    break;
-                case ANALYZED:
-                    queryPlan = session.analyzedPlan(plan, verify);
-                    planName = "Analyzed";
-                    break;
-                case OPTIMIZED:
-                    queryPlan = session.optimizedPlan(session.analyzedPlan(plan, verify));
-                    planName = "Optimized";
-                    break;
-                case MAPPED:
-                    queryPlan = session.planner().mapPlan(session.optimizedPlan(session.analyzedPlan(plan, verify)), verify);
-                    planName = "Mapped";
-                    break;
-                case EXECUTABLE:
-                    queryPlan = session.planner().foldPlan(session.planner().mapPlan(session.optimizedPlan(session.analyzedPlan(plan, verify)), verify), verify);
-                    planName = "Executable";
-                    break;
-
-                default:
-                    break;
-            }
-
-            planString = (format == Format.TEXT ? queryPlan.toString() : Graphviz.dot(planName, queryPlan));
-        }
-
-        listener.onResponse(Rows.singleton(output(), planString));
+    private String formatPlan(Format format, QueryPlan<?> plan) {
+        return (format == Format.TEXT ? nullablePlan(plan) : Graphviz.dot(type.printableName(), plan));
     }
 
     @Override

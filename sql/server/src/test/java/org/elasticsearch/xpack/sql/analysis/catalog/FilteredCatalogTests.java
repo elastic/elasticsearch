@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
 
 import java.util.Arrays;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 
@@ -45,7 +43,7 @@ public class FilteredCatalogTests extends ESTestCase {
                 if (index.name().equals("cat")) {
                     return delegateResult;
                 }
-                return GetIndexResult.valid(new EsIndex("rat", index.mapping(), index.aliases(), index.settings()));
+                return GetIndexResult.valid(new EsIndex("rat", index.mapping()));
             });
         assertEquals(orig.getIndex("cat"), filtered.getIndex("cat"));
         assertEquals("rat", filtered.getIndex("dog").get().name());
@@ -64,7 +62,7 @@ public class FilteredCatalogTests extends ESTestCase {
 
     private Catalog inMemoryCatalog(String... indexNames) {
         List<EsIndex> indices = Arrays.stream(indexNames)
-                .map(i -> new EsIndex(i, singletonMap("field", null), emptyList(), Settings.EMPTY))
+                .map(i -> new EsIndex(i, singletonMap("field", null)))
                 .collect(toList());
         return new InMemoryCatalog(indices);
     }

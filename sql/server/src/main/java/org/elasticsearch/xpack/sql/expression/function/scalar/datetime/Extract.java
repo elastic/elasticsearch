@@ -110,7 +110,7 @@ public enum Extract {
     };
 
     public DateTimeFunction toFunction(Location source, Expression argument) {
-        return toFunction(source, argument, SqlSession.CURRENT_SETTINGS.get().timeZone());
+        return toFunction(source, argument, SqlSession.currentContext().configuration.timeZone());
     }
 
     public abstract DateTimeFunction toFunction(Location source, Expression argument, DateTimeZone timeZone);

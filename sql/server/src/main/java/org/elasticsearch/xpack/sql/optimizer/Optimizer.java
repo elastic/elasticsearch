@@ -79,6 +79,7 @@ import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
+
     public ExecutionInfo debugOptimize(LogicalPlan verified) {
         return verified.optimized() ? null : executeWithInfo(verified);
     }

@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.qa.sql.embed;
 
 import com.sun.net.httpserver.HttpExchange;
-
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.sql.analysis.catalog.IndexResolver;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.plugin.RestSqlJdbcAction;
 import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
@@ -26,7 +26,8 @@ class JdbcProtoHandler extends ProtoHandler {
 
     JdbcProtoHandler(Client client) {
         super(client);
-        action = new RestSqlJdbcAction(Settings.EMPTY, mock(RestController.class), new SqlLicenseChecker(() -> {}, () -> {}));
+        action = new RestSqlJdbcAction(Settings.EMPTY, mock(RestController.class), new SqlLicenseChecker(() -> {}, () -> {}),
+                new IndexResolver(client, null));
     }
 
     @Override

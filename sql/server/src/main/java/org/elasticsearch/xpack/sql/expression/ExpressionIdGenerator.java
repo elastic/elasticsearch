@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicLong;
 //TODO: this class is thread-safe but used across multiple sessions might cause the id to roll over and potentially generate an already assigned id
 // making this session scope would simplify things
 // (which also begs the question on whether thread-safety is needed than)
+
+// TODO: hook this into SqlSession#SessionContext
 public class ExpressionIdGenerator {
 
     private static final AtomicLong GLOBAL_ID = new AtomicLong();

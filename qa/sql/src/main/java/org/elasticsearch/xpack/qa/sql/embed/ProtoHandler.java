@@ -12,25 +12,21 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
+import org.elasticsearch.xpack.sql.analysis.catalog.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 public abstract class ProtoHandler implements HttpHandler, AutoCloseable {
+
     private static PlanExecutor planExecutor(EmbeddedModeFilterClient client) {
-        Supplier<ClusterState> clusterStateSupplier = () -> client.admin().cluster().prepareState().get(timeValueMinutes(1)).getState();
-        return new PlanExecutor(client, clusterStateSupplier, EsCatalog::new);
+        return new PlanExecutor(client, new IndexResolver(client, null));
     }
 
     protected static final Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());

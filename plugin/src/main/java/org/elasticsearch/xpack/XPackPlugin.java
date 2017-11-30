@@ -84,8 +84,8 @@ import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
 import org.elasticsearch.xpack.sql.SecurityCatalogFilter;
+import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
 import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.upgrade.Upgrade;
 import org.elasticsearch.xpack.watcher.Watcher;
 
+import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -111,10 +112,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import javax.security.auth.DestroyFailedException;
-
-import static org.elasticsearch.xpack.watcher.Watcher.ENCRYPT_SENSITIVE_DATA_SETTING;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin {
 
@@ -304,7 +301,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         /* Note that we need *client*, not *internalClient* because client preserves the
          * authenticated user while internalClient throws that user away and acts as the
          * x-pack user. */
-        components.addAll(sql.createComponents(client, clusterService, securityCatalogFilter));
+        components.addAll(sql.createComponents(client, securityCatalogFilter));
 
         PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(settings, tasksExecutors);
         PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(settings, registry, clusterService);

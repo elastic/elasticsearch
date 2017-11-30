@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
@@ -78,11 +77,9 @@ import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     private final FunctionRegistry functionRegistry;
-    private final Catalog catalog;
 
-    public Analyzer(FunctionRegistry functionRegistry, Catalog catalog) {
+    public Analyzer(FunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
-        this.catalog = catalog;
     }
 
     @Override
@@ -190,6 +187,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         // too many references - should it be ignored?
+        // TODO: move away from exceptions inside the analyzer
         if (!lenient) {
             throw new AnalysisException(u, "Reference %s is ambiguous, matches any of %s", u.nodeString(), matches);
         }
@@ -260,12 +258,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             TableIdentifier table = plan.table();
             EsIndex found = null;
             
-            GetIndexResult index = catalog.getIndex(table.index());
+            GetIndexResult index = SqlSession.currentContext().catalog.getIndex(table.index());
             if (index.isValid()) {
                 found = index.get();
-            }
-            if (found == null) {
-                return plan;
+            } else {
+                return plan.unresolvedMessage().equals(index.toString()) ? plan : new UnresolvedRelation(plan.location(), plan.table(),
+                        plan.alias(), index.toString());
             }
 
             LogicalPlan catalogTable = new EsRelation(plan.location(), found);
@@ -699,7 +697,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         return new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), uf.children(), true, message);
                     }
                     // TODO: look into Generator for significant terms, etc..
-                    Function f = functionRegistry.resolveFunction(uf, SqlSession.CURRENT_SETTINGS.get());
+                    Function f = functionRegistry.resolveFunction(uf, SqlSession.currentContext().configuration);
 
                     list.add(f);
                     return f;

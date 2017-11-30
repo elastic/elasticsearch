@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +25,7 @@ public class SqlPluginTests  extends ESTestCase {
 
     public void testSqlDisabled() {
         SqlPlugin plugin = new SqlPlugin(false, new SqlLicenseChecker(() -> {}, () -> {}));
-        assertThat(plugin.createComponents(mock(Client.class), mock(ClusterService.class), mock(FilteredCatalog.Filter.class)), empty());
+        assertThat(plugin.createComponents(mock(Client.class), mock(FilteredCatalog.Filter.class)), empty());
         assertThat(plugin.getActions(), empty());
         assertThat(plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

@@ -66,8 +66,8 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.security.user.XPackUser;
-import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
+import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 
 import java.util.Arrays;
 import java.util.Collections;

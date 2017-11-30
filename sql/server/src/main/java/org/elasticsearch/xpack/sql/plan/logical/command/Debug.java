@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor.Batch;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor.ExecutionInfo;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor.Transformation;
-import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -29,6 +28,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.ActionListener.wrap;
 
 public class Debug extends Command {
 
@@ -68,32 +68,30 @@ public class Debug extends Command {
         return singletonList(new RootFieldAttribute(location(), "plan", DataTypes.KEYWORD));
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        String planString = null;
-
-        ExecutionInfo info = null;
-
         switch (type) {
             case ANALYZED:
-                info = session.analyzer().debugAnalyze(plan);
+                session.debugAnalyzedPlan(plan, wrap(i -> handleInfo(i, listener), listener::onFailure));
                 break;
-
             case OPTIMIZED:
-                info = session.optimizer().debugOptimize(session.analyzedPlan(plan, true));
+                session.analyzedPlan(plan, true,
+                        wrap(analyzedPlan -> handleInfo(session.optimizer().debugOptimize(analyzedPlan), listener), listener::onFailure));
                 break;
-
             default:
                 break;
         }
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private void handleInfo(ExecutionInfo info, ActionListener<SchemaRowSet> listener) {
+        String planString = null;
 
         if (format == Format.TEXT) {
             StringBuilder sb = new StringBuilder();
             if (info == null) {
                 sb.append(plan.toString());
-            }
-            else {
+            } else {
                 Map<Batch, List<Transformation>> map = info.transformations();
 
                 for (Entry<Batch, List<Transformation>> entry : map.entrySet()) {
@@ -110,12 +108,10 @@ public class Debug extends Command {
                 }
             }
             planString = sb.toString();
-        }
-        else {
+        } else {
             if (info == null) {
                 planString = Graphviz.dot("Planned", plan);
-            }
-            else {
+            } else {
                 Map<String, Node<?>> plans = new LinkedHashMap<>();
                 Map<Batch, List<Transformation>> map = info.transformations();
                 plans.put("start", info.before());
@@ -150,8 +146,6 @@ public class Debug extends Command {
             return false;
         }
         Debug o = (Debug) obj;
-        return Objects.equals(format, o.format)
-                && Objects.equals(type, o.type)
-                && Objects.equals(plan, o.plan);
+        return Objects.equals(format, o.format) && Objects.equals(type, o.type) && Objects.equals(plan, o.plan);
     }
 }

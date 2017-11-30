@@ -37,8 +37,8 @@ public class SqlGetIndicesRequestTests extends AbstractWireSerializingTestCase<S
         Supplier<Request> supplier = randomFrom(
                 () -> {
                     Request mutant = new Request(
-                        randomValueOtherThan(request.indicesOptions(), SqlGetIndicesRequestTests::randomIndicesOptions),
-                        request.indices());
+                            randomValueOtherThan(request.indicesOptions(), SqlGetIndicesRequestTests::randomIndicesOptions),
+                            request.indices());
                     mutant.local(request.local());
                     mutant.masterNodeTimeout(request.masterNodeTimeout());
                     mutant.setParentTask(request.getParentTask());
@@ -46,8 +46,8 @@ public class SqlGetIndicesRequestTests extends AbstractWireSerializingTestCase<S
                 },
                 () -> {
                     Request mutant = new Request(
-                        request.indicesOptions(),
-                        randomValueOtherThanMany(i -> Arrays.equals(request.indices(), i), SqlGetIndicesRequestTests::randomIndices));
+                            request.indicesOptions(),
+                            randomValueOtherThanMany(i -> Arrays.equals(request.indices(), i), SqlGetIndicesRequestTests::randomIndices));
                     mutant.local(request.local());
                     mutant.masterNodeTimeout(request.masterNodeTimeout());
                     mutant.setParentTask(request.getParentTask());

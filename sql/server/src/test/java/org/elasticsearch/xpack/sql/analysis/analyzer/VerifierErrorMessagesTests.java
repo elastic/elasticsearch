@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
@@ -14,13 +13,15 @@ import org.elasticsearch.xpack.sql.analysis.catalog.InMemoryCatalog;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
+import org.elasticsearch.xpack.sql.session.TestingSqlSession;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
@@ -39,9 +40,19 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         mapping.put("int", DataTypes.INTEGER);
         mapping.put("text", DataTypes.TEXT);
         mapping.put("keyword", DataTypes.KEYWORD);
-        EsIndex test = new EsIndex("test", mapping, emptyList(), Settings.EMPTY);
+        EsIndex test = new EsIndex("test", mapping);
         catalog = new InMemoryCatalog(singletonList(test));
-        analyzer = new Analyzer(functionRegistry, catalog);
+        analyzer = new Analyzer(functionRegistry);
+    }
+
+    @Before
+    public void setupContext() {
+        TestingSqlSession.setCurrentContext(TestingSqlSession.ctx(catalog));
+    }
+
+    @After
+    public void disposeContext() {
+        TestingSqlSession.removeCurrentContext();
     }
 
     private String verify(String sql) {
@@ -59,7 +70,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Unknown column [xxx]", verify("SELECT xxx FROM test"));
     }
     
-    public void testMispelledColumn() {
+    public void testMisspelledColumn() {
         assertEquals("1:8: Unknown column [txt], did you mean [text]?", verify("SELECT txt FROM test"));
     }
 

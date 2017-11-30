@@ -27,19 +27,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
+import org.elasticsearch.xpack.sql.analysis.catalog.IndexResolver;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
-
-import static java.util.Comparator.comparing;
 
 public class SqlGetIndicesAction
         extends Action<SqlGetIndicesAction.Request, SqlGetIndicesAction.Response, SqlGetIndicesAction.RequestBuilder> {
@@ -181,17 +175,18 @@ public class SqlGetIndicesAction
     }
 
     public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
-        private final Function<ClusterState, Catalog> catalogSupplier;
+        private final IndexResolver indexResolver;
         private final SqlLicenseChecker licenseChecker;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService,
-                ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, CatalogHolder catalog, SqlLicenseChecker licenseChecker) {
+                               ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                               IndexNameExpressionResolver indexNameExpressionResolver, SqlLicenseChecker licenseChecker,
+                               IndexResolver indexResolver) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters,
                     Request::new, indexNameExpressionResolver);
-            this.catalogSupplier = catalog.catalogSupplier;
             this.licenseChecker = licenseChecker;
+            this.indexResolver = indexResolver;
         }
 
         @Override
@@ -208,7 +203,7 @@ public class SqlGetIndicesAction
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
             licenseChecker.checkIfSqlAllowed();
-            operation(indexNameExpressionResolver, catalogSupplier, request, state, listener);
+            operation(indexResolver, request, listener);
         }
 
         @Override
@@ -216,43 +211,10 @@ public class SqlGetIndicesAction
             return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
                     indexNameExpressionResolver.concreteIndexNames(state, request));
         }
-
-        /**
-         * Class that holds that {@link Catalog} to aid in guice binding.
-         */
-        public static class CatalogHolder {
-            final Function<ClusterState, Catalog> catalogSupplier;
-
-            public CatalogHolder(Function<ClusterState, Catalog> catalogSupplier) {
-                this.catalogSupplier = catalogSupplier;
-            }
-        }
     }
 
-    /**
-     * Actually looks up the indices in the cluster state and converts
-     * them into {@link EsIndex} instances. The rest of the contents of
-     * this class integrates this behavior cleanly into Elasticsearch,
-     * makes sure that we only try and read the cluster state when it is
-     * ready, integrate with security to filter the requested indices to
-     * what the user has permission to access, and leaves an appropriate
-     * audit trail.
-     */
-    public static void operation(IndexNameExpressionResolver indexNameExpressionResolver, Function<ClusterState, Catalog> catalogSupplier,
-            Request request, ClusterState state, ActionListener<Response> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        List<EsIndex> results = new ArrayList<>(concreteIndices.length);
-        Catalog catalog = catalogSupplier.apply(state);
-        for (String index : concreteIndices) {
-            GetIndexResult result = catalog.getIndex(index);
-            if (result.isValid()) {
-                results.add(result.get());
-            }
-        }
-
-        // Consistent sorting is better for testing and for humans
-        Collections.sort(results, comparing(EsIndex::name));
-
-        listener.onResponse(new Response(results));
+    static void operation(IndexResolver indexResolver, Request request, ActionListener<Response> listener) {
+        indexResolver.asList(ActionListener.wrap(results -> listener.onResponse(new Response(results)), listener::onFailure),
+                request.indices);
     }
 }

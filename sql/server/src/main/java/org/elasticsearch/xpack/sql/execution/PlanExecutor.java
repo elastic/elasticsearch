@@ -7,16 +7,16 @@ package org.elasticsearch.xpack.sql.execution;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
+import org.elasticsearch.xpack.sql.analysis.catalog.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.session.Configuration;
@@ -25,61 +25,47 @@ import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
-import java.util.function.Function;
-import java.util.function.Supplier;
-
 public class PlanExecutor {
     private final Client client;
-    private final Supplier<ClusterState> stateSupplier;
-    private final Function<ClusterState, Catalog> catalogSupplier;
+
+    private final FunctionRegistry functionRegistry;
 
     private final SqlParser parser;
-    private final FunctionRegistry functionRegistry;
+    private final IndexResolver catalogResolver;
+    private final PreAnalyzer preAnalyzer;
+    private final Analyzer analyzer;
     private final Optimizer optimizer;
     private final Planner planner;
 
-    public PlanExecutor(Client client, Supplier<ClusterState> stateSupplier,
-            Function<ClusterState, Catalog> catalogSupplier) {
+    public PlanExecutor(Client client, IndexResolver catalogResolver) {
         this.client = client;
-        this.stateSupplier = stateSupplier;
-        this.catalogSupplier = catalogSupplier;
-
-        this.parser = new SqlParser();
+        this.catalogResolver = catalogResolver;
         this.functionRegistry = new DefaultFunctionRegistry();
 
+        this.parser = new SqlParser();
+        this.preAnalyzer = new PreAnalyzer();
+        this.analyzer = new Analyzer(functionRegistry);
         this.optimizer = new Optimizer();
         this.planner = new Planner();
     }
 
-    public SqlSession newSession(Configuration cfg) {
-        Catalog catalog = catalogSupplier.apply(stateSupplier.get());
-        return new SqlSession(cfg, client, catalog, functionRegistry, parser, optimizer, planner);
+    private SqlSession newSession(Configuration cfg) {
+        return new SqlSession(cfg, client, functionRegistry, parser, catalogResolver, preAnalyzer, analyzer, optimizer, planner);
     }
 
-
-    public SearchSourceBuilder searchSource(String sql, Configuration cfg) {
-        PhysicalPlan executable = newSession(cfg).executable(sql);
-        if (executable instanceof EsQueryExec) {
-            EsQueryExec e = (EsQueryExec) executable;
-            return SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize());
-        }
-        else {
-            throw new PlanningException("Cannot generate a query DSL for %s", sql);
-        }
-    }
-
-    public void sql(String sql, ActionListener<SchemaRowSet> listener) {
-        sql(Configuration.DEFAULT, sql, listener);
+    public void searchSource(String sql, Configuration settings, ActionListener<SearchSourceBuilder> listener) {
+        newSession(settings).sqlExecutable(sql, ActionListener.wrap(exec -> {
+            if (exec instanceof EsQueryExec) {
+                EsQueryExec e = (EsQueryExec) exec;
+                listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), settings.filter(), settings.pageSize()));
+            } else {
+                listener.onFailure(new PlanningException("Cannot generate a query DSL for %s", sql));
+            }
+        }, listener::onFailure));
     }
 
     public void sql(Configuration cfg, String sql, ActionListener<SchemaRowSet> listener) {
-        SqlSession session = newSession(cfg);
-        try {
-            PhysicalPlan executable = session.executable(sql);
-            executable.execute(session, listener);
-        } catch (Exception ex) {
-            listener.onFailure(ex);
-        }
+        newSession(cfg).sql(sql, listener);
     }
 
     public void nextPage(Configuration cfg, Cursor cursor, ActionListener<RowSet> listener) {

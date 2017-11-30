@@ -20,6 +20,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
+import org.elasticsearch.xpack.sql.analysis.catalog.IndexResolver;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnInfo;
@@ -57,11 +58,14 @@ import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
 
 public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     private final SqlLicenseChecker sqlLicenseChecker;
+    private final IndexResolver indexResolver;
 
-    public RestSqlJdbcAction(Settings settings, RestController controller, SqlLicenseChecker sqlLicenseChecker) {
+    public RestSqlJdbcAction(Settings settings, RestController controller, SqlLicenseChecker sqlLicenseChecker,
+                             IndexResolver indexResolver) {
         super(settings, Proto.INSTANCE);
         controller.registerHandler(POST, "/_sql/jdbc", this);
         this.sqlLicenseChecker = sqlLicenseChecker;
+        this.indexResolver = indexResolver;
     }
 
     @Override
@@ -102,38 +106,60 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     }
 
     private Consumer<RestChannel> metaTable(Client client, MetaTableRequest request) {
+        //TODO once mappings are filtered this can go directly to the IndexResolver (code commented out below)
         String indexPattern = hasText(request.pattern()) ? StringUtils.jdbcToEsPattern(request.pattern()) : "*";
         SqlGetIndicesAction.Request getRequest = new SqlGetIndicesAction.Request(IndicesOptions.lenientExpandOpen(), indexPattern);
-        getRequest.local(true); // TODO serialization not supported by get indices action
-        return channel -> client.execute(SqlGetIndicesAction.INSTANCE, getRequest, toActionListener(channel, response -> {
-            return new MetaTableResponse(response.indices().stream()
-                    .map(EsIndex::name)
-                    .collect(toList()));
-        }));
+        getRequest.local(true);
+        return channel -> client.execute(SqlGetIndicesAction.INSTANCE, getRequest, toActionListener(channel,
+                response -> new MetaTableResponse(response.indices().stream().map(EsIndex::name).collect(toList()))));
+        /*String indexPattern = hasText(request.pattern()) ? StringUtils.jdbcToEsPattern(request.pattern()) : "*";
+        return channel -> indexResolver.asList(indexPattern, toActionListener(request, channel, list ->
+                new MetaTableResponse(list.stream()
+                        .map(EsIndex::name)
+                        .collect(toList()))));*/
     }
 
     private Consumer<RestChannel> metaColumn(Client client, MetaColumnRequest request) {
+        //TODO once mappings are filtered this can go directly to the IndexResolver (code commented out below)
         String indexPattern = Strings.hasText(request.tablePattern()) ? StringUtils.jdbcToEsPattern(request.tablePattern()) : "*";
         Pattern columnMatcher = hasText(request.columnPattern()) ? StringUtils.likeRegex(request.columnPattern()) : null;
 
         SqlGetIndicesAction.Request getRequest = new SqlGetIndicesAction.Request(IndicesOptions.lenientExpandOpen(), indexPattern);
-        getRequest.local(true); // TODO serialization not supported by get indices action
+        getRequest.local(true);
         return channel -> client.execute(SqlGetIndicesAction.INSTANCE, getRequest, toActionListener(channel, response -> {
             List<MetaColumnInfo> columns = new ArrayList<>();
             for (EsIndex esIndex : response.indices()) {
-              int pos = 0;
-              for (Map.Entry<String, DataType> entry : esIndex.mapping().entrySet()) {
-                  pos++;
-                  String name = entry.getKey();
-                  if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
-                      DataType type = entry.getValue();
-                      // the column size it's actually its precision (based on the Javadocs)
-                      columns.add(new MetaColumnInfo(esIndex.name(), name, type.sqlType(), type.precision(), pos));
-                  }
-              }
+                int pos = 0;
+                for (Map.Entry<String, DataType> entry : esIndex.mapping().entrySet()) {
+                    pos++;
+                    String name = entry.getKey();
+                    if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
+                        DataType type = entry.getValue();
+                        // the column size it's actually its precision (based on the Javadocs)
+                        columns.add(new MetaColumnInfo(esIndex.name(), name, type.sqlType(), type.precision(), pos));
+                    }
+                }
             }
             return new MetaColumnResponse(columns);
         }));
+        /*String indexPattern = Strings.hasText(request.tablePattern()) ? StringUtils.jdbcToEsPattern(request.tablePattern()) : "*";
+        Pattern columnMatcher = hasText(request.columnPattern()) ? StringUtils.likeRegex(request.columnPattern()) : null;
+        return channel -> indexResolver.asList(indexPattern, toActionListener(request, channel, esIndices -> {
+            List<MetaColumnInfo> columns = new ArrayList<>();
+            for (EsIndex esIndex : esIndices) {
+                int pos = 0;
+                for (Map.Entry<String, DataType> entry : esIndex.mapping().entrySet()) {
+                    pos++;
+                    String name = entry.getKey();
+                    if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
+                        DataType type = entry.getValue();
+                        // the column size it's actually its precision (based on the Javadocs)
+                        columns.add(new MetaColumnInfo(esIndex.name(), name, type.sqlType(), type.precision(), pos));
+                    }
+                }
+            }
+            return new MetaColumnResponse(columns);
+        }));*/
     }
 
     private Consumer<RestChannel> queryInit(Client client, QueryInitRequest request) {
@@ -170,10 +196,9 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
                                                 TimeValue.timeValueMillis(request.timeout.pageTimeout),
                                                 cursor);
         long start = System.nanoTime();
-        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
-            return new QueryPageResponse(System.nanoTime() - start, serializeCursor(response.cursor(), types),
-                    new SqlResponsePayload(types, response.rows()));
-        }));
+        return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel,
+                response -> new QueryPageResponse(System.nanoTime() - start, serializeCursor(response.cursor(), types),
+                    new SqlResponsePayload(types, response.rows()))));
     }
 
     private static byte[] serializeCursor(Cursor cursor, List<JDBCType> types) {

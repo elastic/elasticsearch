@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.session.Rows;
@@ -24,6 +24,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
 
 public class ShowColumns extends Command {
 
@@ -46,12 +47,13 @@ public class ShowColumns extends Command {
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        session.getIndices(new String[]{index}, IndicesOptions.strictExpandOpenAndForbidClosed(), ActionListener.wrap(
-                esIndices -> {
-                    List<List<?>> rows = new ArrayList<>();
-                    if (esIndices.isEmpty() == false) {
-                        //TODO: we are using only the first index for now - add support for aliases
-                        fillInRows(esIndices.get(0).mapping(), null, rows);
+        session.indexResolver().asCatalog(index, ActionListener.wrap(
+                c -> {
+                    List<List<?>> rows = emptyList();
+                    GetIndexResult indexResult = c.getIndex(index);
+                    if (indexResult.isValid()) {
+                        rows = new ArrayList<>();
+                        fillInRows(indexResult.get().mapping(), null, rows);
                     }
                     listener.onResponse(Rows.of(output(), rows));
                 },

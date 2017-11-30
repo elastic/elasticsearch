@@ -6,12 +6,10 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
-import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -19,10 +17,10 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 
@@ -42,17 +40,18 @@ public class ShowTables extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new RootFieldAttribute(location(), "table", DataTypes.KEYWORD));
+        return Arrays.asList(new RootFieldAttribute(location(), "table", DataTypes.KEYWORD));
     }
 
     @Override
     public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         String pattern = Strings.hasText(this.pattern) ? StringUtils.jdbcToEsPattern(this.pattern) : "*";
-        session.getIndices(new String[] {pattern}, IndicesOptions.lenientExpandOpen(), ActionListener.wrap(result -> {
+
+        session.indexResolver().asList(ActionListener.wrap(result -> {
             listener.onResponse(Rows.of(output(), result.stream()
                 .map(t -> singletonList(t.name()))
                 .collect(toList())));
-        }, listener::onFailure));
+        }, listener::onFailure), pattern);
     }
 
     @Override

@@ -14,8 +14,17 @@ import java.util.List;
 
 public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Resolvable {
 
-    private boolean analyzed = false;
-    private boolean optimized = false;
+    /**
+     * Order is important in the enum; any values should be added at the end.
+     */
+    public enum Stage {
+        PARSED,
+        PRE_ANALYZED,
+        ANALYZED,
+        OPTIMIZED;
+    }
+
+    private Stage stage = Stage.PARSED;
     private Boolean lazyChildrenResolved = null;
     private Boolean lazyResolved = null;
 
@@ -23,20 +32,28 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
         super(location, children);
     }
 
+    public boolean preAnalyzed() {
+        return stage.ordinal() >= Stage.PRE_ANALYZED.ordinal();
+    }
+
+    public void setPreAnalyzed() {
+        stage = Stage.PRE_ANALYZED;
+    }
+
     public boolean analyzed() {
-        return analyzed;
+        return stage.ordinal() >= Stage.ANALYZED.ordinal();
     }
 
     public void setAnalyzed() {
-        analyzed = true;
+        stage = Stage.ANALYZED;
     }
 
     public boolean optimized() {
-        return optimized;
+        return stage.ordinal() >= Stage.OPTIMIZED.ordinal();
     }
 
     public void setOptimized() {
-        optimized = true;
+        stage = Stage.OPTIMIZED;
     }
 
     public final boolean childrenResolved() {
@@ -61,5 +78,4 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
 
     @Override
     public abstract boolean equals(Object obj);
-
 }

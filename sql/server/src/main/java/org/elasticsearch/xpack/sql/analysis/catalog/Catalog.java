@@ -15,6 +15,9 @@ import java.util.Objects;
  * into a representation that is compatible with SQL (@{link {@link EsIndex}).
  */
 public interface Catalog {
+
+    Catalog EMPTY = GetIndexResult::notFound;
+            
     /**
      * Lookup the information for a table.
      */
@@ -35,12 +38,11 @@ public interface Catalog {
             return invalid("Index '" + name + "' does not exist");
         }
 
-        @Nullable
         private final EsIndex index;
         @Nullable
         private final String invalid;
 
-        private GetIndexResult(@Nullable EsIndex index, @Nullable String invalid) {
+        private GetIndexResult(EsIndex index, @Nullable String invalid) {
             this.index = index;
             this.invalid = invalid;
         }
@@ -82,10 +84,7 @@ public interface Catalog {
 
         @Override
         public String toString() {
-            if (invalid != null) {
-                return "GetIndexResult[" + invalid + "]";
-            }
-            return "GetIndexResult[" + index + "]";
+            return invalid != null ? invalid : index.name();
         }
     }
 }

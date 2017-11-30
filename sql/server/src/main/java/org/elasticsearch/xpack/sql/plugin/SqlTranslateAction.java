@@ -189,7 +189,8 @@ public class SqlTranslateAction
             Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),
                     request.requestTimeout(), request.pageTimeout(), request.filter());
 
-            listener.onResponse(new Response(planExecutor.searchSource(query, cfg)));
+            planExecutor.searchSource(query, cfg, ActionListener.wrap(
+                    searchSourceBuilder -> listener.onResponse(new Response(searchSourceBuilder)), listener::onFailure));
         }
     }
 
@@ -206,9 +207,7 @@ public class SqlTranslateAction
             try (XContentParser parser = request.contentOrSourceParamParser()) {
                 sqlRequest = Request.PARSER.apply(parser, null);
             }
-
-            return channel -> client.executeLocally(SqlTranslateAction.INSTANCE,
-                    sqlRequest, new RestToXContentListener<Response>(channel));
+            return channel -> client.executeLocally(SqlTranslateAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
         }
 
         @Override

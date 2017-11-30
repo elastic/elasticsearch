@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.qa.sql.security;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.xpack.qa.sql.cli.RemoteCli;
 
-import static org.elasticsearch.xpack.qa.sql.cli.CliIntegrationTestCase.elasticsearchAddress;
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.startsWith;
-
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.qa.sql.cli.CliIntegrationTestCase.elasticsearchAddress;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 
 public class CliSecurityIT extends SqlSecurityTestCase {
     static String adminEsUrlPrefix() {
@@ -104,6 +104,14 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                     assertThat(cli.readLine(), containsString(table));
                 }
                 assertEquals("[0m", cli.readLine());
+            }
+        }
+
+        @Override
+        public void expectUnknownIndex(String user, String sql) throws Exception {
+            try (RemoteCli cli = new RemoteCli(userPrefix(user) + elasticsearchAddress())) {
+                assertThat(cli.command(sql), containsString("Bad request"));
+                assertThat(cli.readLine(), containsString("Unknown index"));
             }
         }
 

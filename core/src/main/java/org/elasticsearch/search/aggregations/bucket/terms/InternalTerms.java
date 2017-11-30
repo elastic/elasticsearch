@@ -297,6 +297,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 } else {
                     reduceContext.consumeBucketsAndMaybeBreak(1);
                 }
+            } else {
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
             }
         }
         B[] list = createBucketsArray(ordered.size());

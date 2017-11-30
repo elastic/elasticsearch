@@ -216,6 +216,8 @@ public class InternalAdjacencyMatrix
             if(reducedBucket.docCount >= 1){
                 reduceContext.consumeBucketsAndMaybeBreak(1);
                 reducedBuckets.add(reducedBucket);
+            } else {
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reducedBucket));
             }
         }
         Collections.sort(reducedBuckets, Comparator.comparing(InternalBucket::getKey));

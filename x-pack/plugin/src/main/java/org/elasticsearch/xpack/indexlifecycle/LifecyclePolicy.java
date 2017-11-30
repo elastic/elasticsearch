@@ -7,12 +7,13 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -22,8 +23,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleContext.Listener;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Represents the lifecycle of an index from creation to deletion. A
@@ -33,40 +41,32 @@ import java.util.Objects;
  * dictate the order in which the {@link Phase}s are executed and will define
  * which {@link LifecycleAction}s are allowed in each phase.
  */
-public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implements ToXContentObject, Writeable {
+public abstract class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implements ToXContentObject, NamedWriteable {
     private static final Logger logger = ESLoggerFactory.getLogger(LifecyclePolicy.class);
 
     public static final ParseField PHASES_FIELD = new ParseField("phases");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
 
-    @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<LifecyclePolicy, Tuple<String, NamedXContentRegistry>> PARSER = new ConstructingObjectParser<>(
-            "lifecycle_policy", false, (a, c) -> new LifecyclePolicy(c.v1(), (List<Phase>) a[0]));
+//    public static LifecyclePolicy parse(XContentParser parser, Tuple<String, NamedXContentRegistry> context) {
+//        parser.getXContentRegistry().parseNamedObject()
+//        Map<String, Object> map = PARSER.apply(parser, context);
+//        return context.v2().parseNamedObject(LifecyclePolicy.class, map.get("lifecycle_type"), parser, context.v2());
+//    }
 
-    static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, new Tuple<>(n, c.v2())),
-                v -> {
-                    throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
-                }, PHASES_FIELD);
-    }
-
-    public static LifecyclePolicy parse(XContentParser parser, Tuple<String, NamedXContentRegistry> context) {
-        return PARSER.apply(parser, context);
-    }
-
-    private final String name;
-    private final List<Phase> phases;
+    protected final String name;
+    protected final Map<String, Phase> phases;
 
     /**
      * @param name
      *            the name of this {@link LifecyclePolicy}
      * @param phases
-     *            a {@link List} of {@link Phase}s which make up this
-     *            {@link LifecyclePolicy}. These {@link Phase}s are executed in
-     *            the order of the {@link List}.
+     *            a {@link Map} of {@link Phase}s which make up this
+     *            {@link LifecyclePolicy}.
      */
-    public LifecyclePolicy(String name, List<Phase> phases) {
+    public LifecyclePolicy(String name, Map<String, Phase> phases) {
         this.name = name;
         this.phases = phases;
+        validate(phases.values());
     }
 
     /**
@@ -74,13 +74,22 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
      */
     public LifecyclePolicy(StreamInput in) throws IOException {
         name = in.readString();
-        phases = in.readList(Phase::new);
+        phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
+    }
+
+    public static LifecyclePolicy parse(XContentParser parser, Tuple<String, NamedXContentRegistry> context) {
+        return ToXContentContext.PARSER.apply(parser, context);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeList(phases);
+        out.writeMap(phases, StreamOutput::writeString, (o, val) -> val.writeTo(o));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return getType();
     }
 
     /**
@@ -94,18 +103,19 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
      * @return the {@link Phase}s for this {@link LifecyclePolicy} in the order
      *         in which they will be executed.
      */
-    public List<Phase> getPhases() {
+    public Map<String, Phase> getPhases() {
         return phases;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(PHASES_FIELD.getPreferredName());
-        for (Phase phase : phases) {
-            builder.field(phase.getName(), phase);
-        }
-        builder.endObject();
+            builder.field(TYPE_FIELD.getPreferredName(), getType());
+            builder.startObject(PHASES_FIELD.getPreferredName());
+                for (Phase phase : phases.values()) {
+                    builder.field(phase.getName(), phase);
+                }
+            builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -121,45 +131,36 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
         String currentPhaseName = context.getPhase();
         boolean currentPhaseActionsComplete = context.getAction().equals(Phase.PHASE_COMPLETED);
         String indexName = context.getLifecycleTarget();
+        Phase currentPhase = phases.get(currentPhaseName);
         if (Strings.isNullOrEmpty(currentPhaseName) || currentPhaseActionsComplete) {
-            // Either this is the first time we have seen this index or the current phase is complete, in both cases we need to move to the next phase
-            int currentPhaseIndex = -1;
-            // First find the current phase (will not find it if this is the first time we've seen this index)
-            for (int i = 0; i < phases.size(); i++) {
-                if (phases.get(i).getName().equals(currentPhaseName)) {
-                    currentPhaseIndex = i;
-                    break;
-                }
-            }
-            // If we have reached the last phase then we don't need to do anything (maybe the last phase doesn't have a delete action?)
-            if (currentPhaseIndex < phases.size() - 1) {
-                Phase nextPhase = phases.get(currentPhaseIndex + 1);
-                // We only want to execute the phase if the conditions for executing are met (e.g. the index is old enough)
-                if (context.canExecute(nextPhase)) {
-                    String nextPhaseName = nextPhase.getName();
-                    // Set the phase on the context to this phase so we know where we are next time we execute
-                    context.setPhase(nextPhaseName, new Listener() {
+            Phase nextPhase = nextPhase(currentPhase);
+            // We only want to execute the phase if the conditions for executing are met (e.g. the index is old enough)
+            if (nextPhase != null && context.canExecute(nextPhase)) {
+                String nextPhaseName = nextPhase.getName();
+                // Set the phase on the context to this phase so we know where we are next time we execute
+                context.setPhase(nextPhaseName, new Listener() {
 
-                        @Override
-                        public void onSuccess() {
-                            logger.info("Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
-                            // We might as well execute the phase now rather than waiting for execute to be called again
-                            nextPhase.execute(context);
-                        }
+                    @Override
+                    public void onSuccess() {
+                        logger.info("Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
+                        // We might as well execute the phase now rather than waiting for execute to be called again
+                        nextPhase.execute(context);
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.error("Failed to initialised phase [" + nextPhaseName + "] for index [" + indexName + "]", e);
-                        }
-                    });
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("Failed to initialised phase [" + nextPhaseName + "] for index [" + indexName + "]", e);
+                    }
+                });
             }
         } else {
             // If we have already seen this index and the action is not PHASE_COMPLETED then we just need to execute the current phase again
-            Phase currentPhase = phases.stream().filter(phase -> phase.getName().equals(currentPhaseName)).findAny()
-                    .orElseThrow(() -> new IllegalStateException("Current phase [" + currentPhaseName + "] not found in lifecycle ["
-                            + getName() + "] for index [" + indexName + "]"));
-            currentPhase.execute(context);
+            if (currentPhase == null) {
+                throw new IllegalStateException("Current phase [" + currentPhaseName + "] not found in lifecycle ["
+                    + getName() + "] for index [" + indexName + "]");
+            } else {
+                currentPhase.execute(context);
+            }
         }
     }
 
@@ -184,5 +185,76 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy> implement
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    /**
+     * @return the first phase of this policy to execute
+     */
+    protected abstract Phase getFirstPhase();
+
+    /**
+     * @param currentPhase the current phase that is or was just executed
+     * @return the next phase after {@param currentPhase} to be execute. If it is `null`, the first
+     *         phase to be executed is returned. If it is the last phase, then no next phase is to be
+     *         executed and `null` is returned.
+     */
+    protected abstract Phase nextPhase(@Nullable Phase currentPhase);
+
+    /**
+     * validates whether the specified {@param phases} are valid for this policy instance.
+     * @param phases the phases to verify validity against
+     * @throws IllegalArgumentException if a specific phase or lack of a specific phase is invalid.
+     */
+    protected abstract void validate(Collection<Phase> phases);
+
+    /**
+     * Each {@link LifecyclePolicy} has a specific type to differentiate themselves. Every implementation
+     * is responsible to providing its specific type.
+     * @return the {@link LifecyclePolicy} type.
+     */
+    protected abstract String getType();
+
+    /**
+     * This class is here to assist in creating a context from which the specific LifecyclePolicy sub-classes can inherit
+     * all the previously parsed values
+     */
+    public static class ToXContentContext {
+        private final Map<String, Phase> phases;
+        private final String name;
+
+        @SuppressWarnings("unchecked")
+        public static ConstructingObjectParser<LifecyclePolicy, Tuple<String, NamedXContentRegistry>> PARSER = new ConstructingObjectParser<>(
+            "lifecycle_policy", false, (a, c) -> {
+                String lifecycleType = (String) a[0];
+                List<Phase> phases = (List<Phase>) a[1];
+                Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
+                NamedXContentRegistry registry = c.v2();
+                ToXContentContext factory = new ToXContentContext(c.v1(), phaseMap);
+                try {
+                    return registry.parseNamedObject(LifecyclePolicy.class, lifecycleType, null, factory);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException(e);
+                }
+        });
+        static {
+            PARSER.declareString(constructorArg(), TYPE_FIELD);
+            PARSER.declareNamedObjects(constructorArg(), (p, c, n) -> Phase.parse(p, new Tuple<>(n, c.v2())),
+                v -> {
+                    throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
+                }, PHASES_FIELD);
+        }
+
+        ToXContentContext(String name, Map<String, Phase> phases) {
+            this.name = name;
+            this.phases = phases;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public Map<String, Phase> getPhases() {
+            return phases;
+        }
     }
 }

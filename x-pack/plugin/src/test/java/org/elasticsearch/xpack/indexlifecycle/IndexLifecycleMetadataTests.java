@@ -34,7 +34,8 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     @Before
     public void setup() {
         List<NamedXContentRegistry.Entry> entries = Arrays
-                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
+            .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+                new NamedXContentRegistry.Entry(LifecyclePolicy.class, new ParseField("test"), TestLifecyclePolicy::parse));
         registry = new NamedXContentRegistry(entries);
     }
 
@@ -54,15 +55,10 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
                 phases.add(new Phase(randomAlphaOfLength(10), after, actions));
             }
             String policyName = randomAlphaOfLength(10);
-            policies.put(policyName, new LifecyclePolicy(policyName, phases));
+            policies.put(policyName, new TestLifecyclePolicy(policyName, phases));
         }
         long pollInterval = randomNonNegativeLong();
         return new IndexLifecycleMetadata(policies, pollInterval);
-    }
-
-    @Override
-    protected String[] getShuffleFieldsExceptions() {
-        return new String[] { "phases" }; // NOCOMMIT this needs to be temporary since we should not rely on the order of the JSON map
     }
 
     @Override
@@ -75,9 +71,12 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         return IndexLifecycleMetadata::new;
     }
 
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new)));
+                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                    new NamedWriteableRegistry.Entry(LifecyclePolicy.class, TestLifecyclePolicy.TYPE,
+                        TestLifecyclePolicy::new)));
     }
 
     @Override
@@ -92,7 +91,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         case 1:
             policies = new TreeMap<>(policies);
             String policyName = randomAlphaOfLength(10);
-            policies.put(policyName, new LifecyclePolicy(policyName, Collections.emptyList()));
+            policies.put(policyName, new TestLifecyclePolicy(policyName, Collections.emptyList()));
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

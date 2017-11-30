@@ -114,6 +114,10 @@ public class IndexLifecycle extends Plugin {
                 new NamedWriteableRegistry.Entry(NamedDiff.class, IndexLifecycleMetadata.TYPE,
                         IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new),
 
+                // Lifecycle policies
+                new NamedWriteableRegistry.Entry(LifecyclePolicy.class, TimeseriesLifecyclePolicy.TYPE,
+                    TimeseriesLifecyclePolicy::new),
+
                 // Lifecycle actions
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new));
     }
@@ -124,6 +128,8 @@ public class IndexLifecycle extends Plugin {
                 // Custom metadata
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
                         parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)),
+                // Lifecycle Policy
+                new NamedXContentRegistry.Entry(LifecyclePolicy.class, new ParseField(TimeseriesLifecyclePolicy.TYPE), (p, c) -> TimeseriesLifecyclePolicy.parse(p, c)),
                 // Lifecycle actions
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
     }

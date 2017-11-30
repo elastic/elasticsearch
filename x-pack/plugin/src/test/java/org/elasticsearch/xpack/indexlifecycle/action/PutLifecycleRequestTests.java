@@ -16,13 +16,16 @@ import org.elasticsearch.xpack.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.indexlifecycle.Phase;
+import org.elasticsearch.xpack.indexlifecycle.TestLifecyclePolicy;
 import org.elasticsearch.xpack.indexlifecycle.action.PutLifecycleAction.Request;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase<PutLifecycleAction.Request> {
     
@@ -32,7 +35,8 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
     @Before
     public void setup() {
         List<NamedXContentRegistry.Entry> entries = Arrays
-                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
+                .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+                    new NamedXContentRegistry.Entry(LifecyclePolicy.class, new ParseField(TestLifecyclePolicy.TYPE), TestLifecyclePolicy::parse));
         registry = new NamedXContentRegistry(entries);
         lifecycleName = randomAlphaOfLength(20); // NOCOMMIT we need to randomise the lifecycle name rather 
                                                  // than use the same name for all instances
@@ -40,17 +44,7 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
 
     @Override
     protected Request createTestInstance() {
-        int numberPhases = 1; // NOCOMMIT need to make this more than one when phase order doesn't rely on JSON map order
-        List<Phase> phases = new ArrayList<>(numberPhases);
-        for (int i = 0; i < numberPhases; i++) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
-            List<LifecycleAction> actions = new ArrayList<>();
-            if (randomBoolean()) {
-                actions.add(new DeleteAction());
-            }
-            phases.add(new Phase(randomAlphaOfLength(10), after, actions));
-        }
-        return new Request(new LifecyclePolicy(lifecycleName, phases));
+        return new Request(new TestLifecyclePolicy(lifecycleName, Collections.emptyList()));
     }
 
     @Override
@@ -65,7 +59,8 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new)));
+            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecyclePolicy.class, TestLifecyclePolicy.TYPE, TestLifecyclePolicy::new)));
     }
 
     protected boolean supportsUnknownFields() {
@@ -77,20 +72,21 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
         return resp -> {
             LifecyclePolicy policy = resp.getPolicy();
             String name = policy.getName();
-            List<Phase> phases = policy.getPhases();
+            Map<String, Phase> phases = policy.getPhases();
             switch (between(0, 1)) {
-            case 0:
-                name = name + randomAlphaOfLengthBetween(1, 5);
-                break;
-            case 1:
-                phases = new ArrayList<>(phases);
-                phases.add(new Phase(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
+                case 0:
+                    name = name + randomAlphaOfLengthBetween(1, 5);
+                    break;
+                case 1:
+                    phases = new HashMap<>(phases);
+                    String newPhaseName = randomAlphaOfLengthBetween(1, 10);
+                    phases.put(name, new Phase(newPhaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
                         Collections.emptyList()));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+                    break;
+                default:
+                    throw new AssertionError("Illegal randomisation branch");
             }
-            return new Request(new LifecyclePolicy(name, phases));
+            return new Request(new TestLifecyclePolicy(name, new ArrayList<>(phases.values())));
         };
     }
 

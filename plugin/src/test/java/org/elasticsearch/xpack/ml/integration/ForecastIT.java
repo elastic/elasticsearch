@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
@@ -132,6 +133,27 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
                 assertThat(forecast.getForecastPrediction(), closeTo(expectedForecastValue, 0.01));
             }
         }
+    }
+
+    public void testDurationCannotBeLessThanBucketSpan() throws Exception {
+        Detector.Builder detector = new Detector.Builder("mean", "value");
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat("epoch");
+        Job.Builder job = new Job.Builder("forecast-it-test-duration-bucket-span");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,() -> forecast(job.getId(),
+                TimeValue.timeValueMinutes(10), null));
+        assertThat(e.getMessage(),
+                equalTo("java.lang.IllegalArgumentException: [duration] must be greater or equal to the bucket span: [10m/1h]"));
     }
 
     private static Map<String, Object> createRecord(long timestamp, double value) {

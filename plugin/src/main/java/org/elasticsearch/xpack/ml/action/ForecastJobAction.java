@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
@@ -33,6 +34,8 @@ import org.elasticsearch.xpack.ml.job.results.Forecast;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.ml.action.ForecastJobAction.Request.DURATION;
 
 public class ForecastJobAction extends Action<ForecastJobAction.Request, ForecastJobAction.Response, ForecastJobAction.RequestBuilder> {
 
@@ -244,13 +247,16 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
 
     public static class TransportAction extends TransportJobTaskAction<Request, Response> {
 
+        private final JobManager jobManager;
+
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                AutodetectProcessManager processManager) {
+                JobManager jobManager, AutodetectProcessManager processManager) {
             super(settings, ForecastJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, ForecastJobAction.Request::new, ForecastJobAction.Response::new, ThreadPool.Names.SAME,
                     processManager);
+            this.jobManager = jobManager;
             // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         }
 
@@ -265,6 +271,16 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             ForecastParams.Builder paramsBuilder = ForecastParams.builder();
             if (request.getDuration() != null) {
+                TimeValue duration = request.getDuration();
+                TimeValue bucketSpan = jobManager.getJobOrThrowIfUnknown(task.getJobId()).getAnalysisConfig().getBucketSpan();
+
+                if (duration.compareTo(bucketSpan) < 0) {
+                    throw new IllegalArgumentException(
+                            "[" + DURATION.getPreferredName()
+                            + "] must be greater or equal to the bucket span: ["
+                            + duration.getStringRep() + "/" + bucketSpan.getStringRep() + "]");
+                }
+
                 paramsBuilder.duration(request.getDuration());
             }
             if (request.getExpiresIn() != null) {

@@ -72,7 +72,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
 
     private static final Version VERSION_INCOMPATIBLE_INTRODUCED = Version.V_5_2_0;
-    private static final Version INCLUDE_GLOBAL_STATE_INTRODUCED = Version.V_7_0_0_alpha1;
+    private static final Version INCLUDE_GLOBAL_STATE_INTRODUCED = Version.V_6_2_0;
     public static final Version VERBOSE_INTRODUCED = Version.V_5_5_0;
 
     private static final Comparator<SnapshotInfo> COMPARATOR =

@@ -147,7 +147,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
             builder.add(SnapshotIndexShardStatus.readShardSnapshotStatus(in));
         }
         shards = Collections.unmodifiableList(builder);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             includeGlobalState = in.readOptionalBoolean();
         }
         updateShardStats();
@@ -161,7 +161,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         for (SnapshotIndexShardStatus shard : shards) {
             shard.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeOptionalBoolean(includeGlobalState);
         }
     }

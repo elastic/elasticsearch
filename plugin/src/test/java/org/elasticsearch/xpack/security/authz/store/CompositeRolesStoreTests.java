@@ -205,9 +205,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verify(nativeRolesStore).getRoleDescriptors(isA(String[].class), any(ActionListener.class));
 
         final int numberOfTimesToCall = scaledRandomIntBetween(0, 32);
-        final boolean getSuperuserRole = randomBoolean() && roleName.equals(ReservedRolesStore.SUPERUSER_ROLE.name()) == false;
-        final Set<String> names = getSuperuserRole ? Sets.newHashSet(roleName, ReservedRolesStore.SUPERUSER_ROLE.name()) :
-                Collections.singleton(roleName);
+        final boolean getSuperuserRole = randomBoolean()
+                && roleName.equals(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()) == false;
+        final Set<String> names = getSuperuserRole ? Sets.newHashSet(roleName, ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
+                : Collections.singleton(roleName);
         for (int i = 0; i < numberOfTimesToCall; i++) {
             future = new PlainActionFuture<>();
             compositeRolesStore.roles(names, fieldPermissionsCache, future);

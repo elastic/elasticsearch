@@ -40,7 +40,7 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testBuildEmptyRole() {
-        Role.Builder permission = Role.builder("some_role");
+        Role.Builder permission = Role.builder(new String[] { "some_role" });
         Role role = permission.build();
         assertThat(role, notNullValue());
         assertThat(role.cluster(), notNullValue());

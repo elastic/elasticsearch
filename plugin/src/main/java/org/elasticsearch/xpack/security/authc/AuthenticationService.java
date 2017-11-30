@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.User;
@@ -531,7 +532,7 @@ public class AuthenticationService extends AbstractComponent {
 
         @Override
         ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token) {
-            auditTrail.runAsDenied(user, action, message);
+            auditTrail.runAsDenied(user, action, message, Role.EMPTY.names());
             return failureHandler.failedAuthentication(message, token, action, threadContext);
         }
 
@@ -593,7 +594,7 @@ public class AuthenticationService extends AbstractComponent {
 
         @Override
         ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token) {
-            auditTrail.runAsDenied(user, request);
+            auditTrail.runAsDenied(user, request, Role.EMPTY.names());
             return failureHandler.failedAuthentication(request, token, threadContext);
         }
 

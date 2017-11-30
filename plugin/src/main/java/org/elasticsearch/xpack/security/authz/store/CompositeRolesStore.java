@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -239,13 +240,12 @@ public class CompositeRolesStore extends AbstractComponent {
         if (roleDescriptors.isEmpty()) {
             return Role.EMPTY;
         }
-        StringBuilder nameBuilder = new StringBuilder();
         Set<String> clusterPrivileges = new HashSet<>();
         Set<String> runAs = new HashSet<>();
         Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
+        List<String> roleNames = new ArrayList<>(roleDescriptors.size());
         for (RoleDescriptor descriptor : roleDescriptors) {
-            nameBuilder.append(descriptor.getName());
-            nameBuilder.append('_');
+            roleNames.add(descriptor.getName());
             if (descriptor.getClusterPrivileges() != null) {
                 clusterPrivileges.addAll(Arrays.asList(descriptor.getClusterPrivileges()));
             }
@@ -276,7 +276,7 @@ public class CompositeRolesStore extends AbstractComponent {
 
         final Set<String> clusterPrivs = clusterPrivileges.isEmpty() ? null : clusterPrivileges;
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
-        Role.Builder builder = Role.builder(nameBuilder.toString(), fieldPermissionsCache)
+        Role.Builder builder = Role.builder(roleNames.toArray(new String[roleNames.size()]), fieldPermissionsCache)
                 .cluster(ClusterPrivilege.get(clusterPrivs))
                 .runAs(runAsPrivilege);
         indicesPrivilegesMap.entrySet().forEach((entry) -> {

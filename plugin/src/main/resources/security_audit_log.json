@@ -40,6 +40,9 @@
         "principal": {
           "type": "keyword"
         },
+        "roles": {
+          "type": "keyword"
+        },
         "run_by_principal": {
           "type": "keyword"
         },

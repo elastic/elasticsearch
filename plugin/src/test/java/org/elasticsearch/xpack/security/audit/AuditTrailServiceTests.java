@@ -138,11 +138,12 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAccessGranted() throws Exception {
         User user = new User("_username", "r1");
-        service.accessGranted(user, "_action", message);
+        String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
+        service.accessGranted(user, "_action", message, roles);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessGranted(user, "_action", message);
+                verify(auditTrail).accessGranted(user, "_action", message, roles);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -151,11 +152,12 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAccessDenied() throws Exception {
         User user = new User("_username", "r1");
-        service.accessDenied(user, "_action", message);
+        String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
+        service.accessDenied(user, "_action", message, roles);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessDenied(user, "_action", message);
+                verify(auditTrail).accessDenied(user, "_action", message, roles);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));

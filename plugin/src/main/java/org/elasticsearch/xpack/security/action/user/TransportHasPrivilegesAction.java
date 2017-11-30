@@ -6,19 +6,20 @@
 package org.elasticsearch.xpack.security.action.user;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,10 +69,9 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
 
     private void checkPrivileges(HasPrivilegesRequest request, Role userRole,
                                  ActionListener<HasPrivilegesResponse> listener) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("Check whether role [{}] has privileges cluster=[{}] index=[{}]", userRole.name(),
-                    Arrays.toString(request.clusterPrivileges()), Arrays.toString(request.indexPrivileges()));
-        }
+        logger.debug(() -> new ParameterizedMessage("Check whether role [{}] has privileges cluster=[{}] index=[{}]",
+                Strings.arrayToCommaDelimitedString(userRole.names()), Strings.arrayToCommaDelimitedString(request.clusterPrivileges()),
+                Strings.arrayToCommaDelimitedString(request.indexPrivileges())));
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
@@ -93,10 +93,12 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                 }
                 for (String privilege : check.getPrivileges()) {
                     if (testIndexMatch(index, privilege, userRole, predicateCache)) {
-                        logger.debug("Role [{}] has [{}] on [{}]", userRole.name(), privilege, index);
+                        logger.debug(() -> new ParameterizedMessage("Role [{}] has [{}] on [{}]",
+                                Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
                         privileges.put(privilege, true);
                     } else {
-                        logger.debug("Role [{}] does not have [{}] on [{}]", userRole.name(), privilege, index);
+                        logger.debug(() -> new ParameterizedMessage("Role [{}] does not have [{}] on [{}]",
+                                Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
                         privileges.put(privilege, false);
                         allMatch = false;
                     }

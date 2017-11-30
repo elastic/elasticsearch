@@ -87,7 +87,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final long leaderGlobalCheckPoint = leaderShardStats.get().getSeqNoStats().getGlobalCheckpoint();
                 // TODO: check if both indices have the same history uuid
                 if (leaderGlobalCheckPoint == followGlobalCheckPoint) {
-                    retry(task, leaderShard, followerShard, followGlobalCheckPoint);
+                    retry(task, leaderShard, followerShard, batchSize, followGlobalCheckPoint);
                 } else {
                     assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + leaderGlobalCheckPoint +
                             "] is not below leaderGlobalCheckPoint [" + followGlobalCheckPoint + "]";
@@ -114,7 +114,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }, task::markAsFailed));
     }
 
-    private void retry(AllocatedPersistentTask task, ShardId leaderShard, ShardId followerShard, long followGlobalCheckPoint) {
+    private void retry(AllocatedPersistentTask task, ShardId leaderShard, ShardId followerShard, long batchSize,
+                       long followGlobalCheckPoint) {
         threadPool.schedule(RETRY_TIMEOUT, Ccr.CCR_THREAD_POOL_NAME, new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -123,7 +124,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             @Override
             protected void doRun() throws Exception {
-                prepare(task, leaderShard, followerShard, params.getBatchSize(), followGlobalCheckPoint);
+                prepare(task, leaderShard, followerShard, batchSize, followGlobalCheckPoint);
             }
         });
     }

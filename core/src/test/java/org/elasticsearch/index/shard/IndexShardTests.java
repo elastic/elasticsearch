@@ -2685,6 +2685,15 @@ public class IndexShardTests extends IndexShardTestCase {
 
         });
         latch1.await();
+
+        indexDoc(primary, "test", "2", "{\"foo\" : \"bar\"}");
+        assertFalse(primary.scheduledRefresh());
+        assertTrue(primary.isSearchIdle());
+        primary.checkIdle(0);
+        assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
+        try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+            assertEquals(3, searcher.reader().numDocs());
+        }
         closeShards(primary);
     }
 

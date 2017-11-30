@@ -873,7 +873,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long numDeletedDocs = 0;
         long sizeInBytes = 0;
         try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accesssed only which will cause
+            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
             // the next scheduled refresh to go through and refresh the stats as well
             markSearcherAccessed();
             for (LeafReaderContext reader : searcher.reader().leaves()) {
@@ -972,7 +972,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
         try (Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accesssed only which will cause
+            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
             // the next scheduled refresh to go through and refresh the stats as well
             markSearcherAccessed();
             completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
@@ -2457,7 +2457,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
         if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
-                && isSearchIdle() && indexSettings.isExplicitRefresh() == false) {
+                && isSearchIdle()
+                && indexSettings.isExplicitRefresh() == false
+                && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                 // cause the next schedule to refresh.

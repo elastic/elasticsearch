@@ -72,7 +72,8 @@ public class UnifiedHighlighter implements Highlighter {
         int numberOfFragments;
         try {
 
-            final Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldMapper.fieldType());
+            final Analyzer analyzer =
+                getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldMapper.fieldType());
             List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldMapper, context, hitContext);
             fieldValues = fieldValues.stream()
                 .map((s) -> convertFieldValue(fieldMapper.fieldType(), s))

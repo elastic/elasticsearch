@@ -17,21 +17,21 @@ setup:
         index: test
         type:  doc
         id:    1
-        body:  { "date": "2014-03-03T00:00:00" }
+        body:  { "date": "2014-03-03T00:00:00", "keyword": "foo" }
 
   - do:
       index:
         index: test
         type:  doc
         id:    2
-        body:  { "date": "2015-03-03T00:00:00" }
+        body:  { "date": "2015-03-03T00:00:00", "keyword": "bar" }
 
   - do:
       index:
         index: test
         type:  doc
         id:    3
-        body:  { "date": "2016-03-03T00:00:00" }
+        body:  { "date": "2016-03-03T00:00:00", "keyword": "foobar" }
 
   - do:
       index:
@@ -75,6 +75,21 @@ setup:
               date_histogram:
                 field: date
                 interval: 1d
+
+  - do:
+      catch: /.*Trying to create too many buckets.*/
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              terms:
+                field: keyword
+            aggs:
+              2:
+                date_histogram:
+                  field: date
+                  interval: 1d
 
   - do:
       cluster.put_settings:

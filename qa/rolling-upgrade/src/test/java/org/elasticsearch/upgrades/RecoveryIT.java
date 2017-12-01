@@ -242,12 +242,14 @@ public class RecoveryIT extends ESRestTestCase {
             case MIXED:
                 final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
                 final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
-                // remove the replica now that we know that the primary is an old node
+                // remove the replica and guaranteed the primary is placed on the old node
                 updateIndexSetting(index, Settings.builder()
                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null)
                     .put("index.routing.allocation.include._id", oldNode)
                 );
+                ensureGreen(index); // wait for the primary to be assigned
+                ensureNoInitializingShards(); // wait for all other shard activity to finish
                 updateIndexSetting(index, Settings.builder().put("index.routing.allocation.include._id", newNode));
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen(index);

@@ -111,6 +111,14 @@ public final class IndexSettings {
         Setting.intSetting("index.max_script_fields", 32, 0, Property.Dynamic, Property.IndexScope);
 
     /**
+     * A setting describing the maximum number of tokens that can be
+     * produced using _analyze API. The default maximum of 10000 is defensive
+     * to prevent generating too many token objects.
+     */
+    public static final Setting<Integer> MAX_TOKEN_COUNT_SETTING =
+        Setting.intSetting("index.analyze.max_token_count", 10000, 1, Property.Dynamic, Property.IndexScope);
+
+    /**
      * Index setting describing for NGramTokenizer and NGramTokenFilter
      * the maximum difference between
      * max_gram (maximum length of characters in a gram) and
@@ -262,6 +270,7 @@ public final class IndexSettings {
     private volatile int maxRescoreWindow;
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
+    private volatile int maxTokenCount;
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
     private volatile boolean TTLPurgeDisabled;
@@ -369,6 +378,7 @@ public final class IndexSettings {
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
+        maxTokenCount = scopedSettings.get(MAX_TOKEN_COUNT_SETTING);
         maxNgramDiff = scopedSettings.get(MAX_NGRAM_DIFF_SETTING);
         maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
@@ -403,6 +413,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
+        scopedSettings.addSettingsUpdateConsumer(MAX_TOKEN_COUNT_SETTING, this::setMaxTokenCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_NGRAM_DIFF_SETTING, this::setMaxNgramDiff);
         scopedSettings.addSettingsUpdateConsumer(MAX_SHINGLE_DIFF_SETTING, this::setMaxShingleDiff);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
@@ -675,6 +686,18 @@ public final class IndexSettings {
     private void setMaxDocvalueFields(int maxDocvalueFields) {
         this.maxDocvalueFields = maxDocvalueFields;
     }
+
+    /**
+     * Returns the maximum number of tokens that can be produced
+     */
+    public int getMaxTokenCount() {
+        return maxTokenCount;
+    }
+
+    private void setMaxTokenCount(int maxTokenCount) {
+        this.maxTokenCount = maxTokenCount;
+    }
+
 
     /**
      * Returns the maximum allowed difference between max and min length of ngram

@@ -129,6 +129,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final Client client;
+    private final CircuitBreakerService circuitBreakerService;
     private Supplier<Sort> indexSortSupplier;
 
     public IndexService(
@@ -158,6 +159,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.circuitBreakerService = circuitBreakerService;
         this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
             mapperRegistry,
             // we parse all percolator queries as they would be parsed on shard 0
@@ -380,7 +382,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
                 indexCache, mapperService, similarityService, engineFactory,
                 eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
-                    searchOperationListeners, indexingOperationListeners, () -> globalCheckpointSyncer.accept(shardId));
+                searchOperationListeners, indexingOperationListeners, () -> globalCheckpointSyncer.accept(shardId),
+                circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();

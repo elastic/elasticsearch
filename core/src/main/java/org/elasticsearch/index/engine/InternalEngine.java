@@ -531,7 +531,8 @@ public class InternalEngine extends Engine {
         try {
             try {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                internalSearcherManager = new SearcherManager(directoryReader, new SearcherFactory());
+                internalSearcherManager = new SearcherManager(directoryReader,
+                        new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
                 lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
                     externalSearcherFactory);
@@ -560,7 +561,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             SearcherScope scope;
             if (get.realtime()) {
-                VersionValue versionValue = versionMap.getUnderLock(get.uid());
+                VersionValue versionValue = versionMap.getUnderLock(get.uid().bytes());
                 if (versionValue != null) {
                     if (versionValue.isDelete()) {
                         return GetResult.NOT_EXISTS;
@@ -598,7 +599,7 @@ public class InternalEngine extends Engine {
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
         assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
         final OpVsLuceneDocStatus status;
-        final VersionValue versionValue = versionMap.getUnderLock(op.uid());
+        final VersionValue versionValue = versionMap.getUnderLock(op.uid().bytes());
         assert incrementVersionLookup();
         if (versionValue != null) {
             if  (op.seqNo() > versionValue.seqNo ||
@@ -635,7 +636,7 @@ public class InternalEngine extends Engine {
     /** resolves the current version of the document, returning null if not found */
     private VersionValue resolveDocVersion(final Operation op) throws IOException {
         assert incrementVersionLookup(); // used for asserting in tests
-        VersionValue versionValue = versionMap.getUnderLock(op.uid());
+        VersionValue versionValue = versionMap.getUnderLock(op.uid().bytes());
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final long currentVersion = loadCurrentVersionFromIndex(op.uid());
@@ -1048,7 +1049,7 @@ public class InternalEngine extends Engine {
      * Asserts that the doc in the index operation really doesn't exist
      */
     private boolean assertDocDoesNotExist(final Index index, final boolean allowDeleted) throws IOException {
-        final VersionValue versionValue = versionMap.getUnderLock(index.uid());
+        final VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
         if (versionValue != null) {
             if (versionValue.isDelete() == false || allowDeleted == false) {
                 throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");
@@ -1376,6 +1377,8 @@ public class InternalEngine extends Engine {
             commitIndexWriter(indexWriter, translog, syncId);
             logger.debug("successfully sync committed. sync id [{}].", syncId);
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            // we are guaranteed to have no operations in the version map here!
+            versionMap.adjustMapSizeUnderLock();
             return SyncedFlushResult.SUCCESS;
         } catch (IOException ex) {
             maybeFailEngine("sync commit", ex);

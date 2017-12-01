@@ -30,10 +30,10 @@ import java.util.Arrays;
 import java.util.Collection;
 
 @SuppressWarnings({"unchecked","varargs"})
+@Deprecated
 public class MockTransportClient extends TransportClient {
     private static final Settings DEFAULT_SETTINGS = Settings.builder().put("transport.type.default",
         MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
-
 
     public MockTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
         this(settings, Arrays.asList(plugins));

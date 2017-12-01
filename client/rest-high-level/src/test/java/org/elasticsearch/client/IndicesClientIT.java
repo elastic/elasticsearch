@@ -30,7 +30,7 @@ import java.io.IOException;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
-    public void testIndexExists_IndexPresent() throws IOException {
+    public void testIndexExistsIfIndexPresent() throws IOException {
         // Delete index if exists
         String indexName = "test_index_exists_index_present";
         createIndex(indexName);
@@ -44,7 +44,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isExists());
     }
 
-    public void testIndexExists_IndexNotPresent() throws IOException {
+    public void testIndexExistsIfIndexNotPresent() throws IOException {
         String indexName = "non_existent_index";
 
         IndicesExistsRequest request = new IndicesExistsRequest(indexName);
@@ -56,7 +56,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(response.isExists());
     }
 
-    public void testIndexExists_OneIndexPresent_OneIsnt() throws IOException {
+    public void testIndexExistsIfOneIndexPresent_OneIsnt() throws IOException {
         String existingIndex = "test_index_exists_index_present";
         createIndex(existingIndex);
 

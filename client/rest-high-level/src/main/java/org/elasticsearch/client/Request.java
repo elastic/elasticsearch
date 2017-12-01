@@ -28,7 +28,6 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -68,8 +67,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
-
-import static java.util.Collections.emptyMap;
 
 public final class Request {
 
@@ -140,7 +137,7 @@ public final class Request {
     }
 
     static Request info() {
-        return new Request(HttpGet.METHOD_NAME, "/", emptyMap(), null);
+        return new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
     }
 
     static Request bulk(BulkRequest bulkRequest) throws IOException {
@@ -310,7 +307,7 @@ public final class Request {
     }
 
     static Request ping() {
-        return new Request(HttpHead.METHOD_NAME, "/", emptyMap(), null);
+        return new Request(HttpHead.METHOD_NAME, "/", Collections.emptyMap(), null);
     }
 
     static Request update(UpdateRequest updateRequest) throws IOException {
@@ -377,12 +374,12 @@ public final class Request {
 
     static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
         HttpEntity entity = createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("GET", "/_search/scroll", emptyMap(), entity);
+        return new Request("GET", "/_search/scroll", Collections.emptyMap(), entity);
     }
 
     static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
         HttpEntity entity = createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("DELETE", "/_search/scroll", emptyMap(), entity);
+        return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -420,8 +417,7 @@ public final class Request {
 
     static Request indicesExist(IndicesExistsRequest request) {
         String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
-
-        return new Request(HttpHead.METHOD_NAME, endpoint, emptyMap(), null);
+        return new Request(HttpHead.METHOD_NAME, endpoint, Collections.emptyMap(), null);
     }
 
     /**

@@ -27,8 +27,7 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsReques
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 
 import java.io.IOException;
-
-import static java.util.Collections.emptySet;
+import java.util.Collections;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
@@ -50,7 +49,7 @@ public final class IndicesClient {
      */
     public DeleteIndexResponse deleteIndex(DeleteIndexRequest deleteIndexRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent,
-            emptySet(), headers);
+            Collections.emptySet(), headers);
     }
 
     /**
@@ -61,15 +60,21 @@ public final class IndicesClient {
      */
     public void deleteIndexAsync(DeleteIndexRequest deleteIndexRequest, ActionListener<DeleteIndexResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent,
-            listener, emptySet(), headers);
+            listener, Collections.emptySet(), headers);
     }
 
+    /**
+     * Checks if the index (indices) exists or not.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
+     * Indices Exists API on elastic.co</a>
+     */
     public IndicesExistsResponse exists(IndicesExistsRequest indicesExistsRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequest(
             indicesExistsRequest,
             Request::indicesExist,
             this::parseIndicesExistResp,
-            emptySet(),
+            Collections.emptySet(),
             headers
         );
     }
@@ -78,13 +83,19 @@ public final class IndicesClient {
         return new IndicesExistsResponse(response.getStatusLine().getStatusCode() == 200);
     }
 
+    /**
+     * Asynchronously checks if the index (indices) exists or not.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
+     * Indices Exists API on elastic.co</a>
+     */
     public void existsAsync(IndicesExistsRequest indicesExistsRequest, ActionListener<IndicesExistsResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsync(
             indicesExistsRequest,
             Request::indicesExist,
             this::parseIndicesExistResp,
             listener,
-            emptySet(),
+            Collections.emptySet(),
             headers
         );
     }

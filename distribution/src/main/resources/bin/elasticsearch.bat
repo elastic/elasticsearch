@@ -49,6 +49,7 @@ rem such options are the lines beginning with '-', thus "findstr /b"
 for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM_OPTIONS=!JVM_OPTIONS! %%a
 @endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS:${ES_TMPDIR}=!ES_TMPDIR!% %ES_JAVA_OPTS%
 
+cd "%ES_HOME%"
 %JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
 endlocal

@@ -79,7 +79,11 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  * <p>
  * The transport client important modules used is the {@link org.elasticsearch.common.network.NetworkModule} which is
  * started in client mode (only connects, no bind).
+ *
+ * @deprecated {@link TransportClient} is deprecated in favour of the High Level REST client and will
+ * be removed in Elasticsearch 8.0.
  */
+@Deprecated
 public abstract class TransportClient extends AbstractClient {
 
     public static final Setting<TimeValue> CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL =

@@ -66,7 +66,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -2180,8 +2179,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
             indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort,
-            this::runTranslogRecovery);
+            Collections.singletonList(refreshListeners),
+            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+            indexSort, this::runTranslogRecovery);
     }
 
     /**

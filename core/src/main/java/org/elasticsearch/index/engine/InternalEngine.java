@@ -232,8 +232,11 @@ public class InternalEngine extends Engine {
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
-            for (ReferenceManager.RefreshListener listener: engineConfig.getRefreshListeners()) {
+            for (ReferenceManager.RefreshListener listener: engineConfig.getExternalRefreshListener()) {
                 this.externalSearcherManager.addListener(listener);
+            }
+            for (ReferenceManager.RefreshListener listener: engineConfig.getInternalRefreshListener()) {
+                this.internalSearcherManager.addListener(listener);
             }
             success = true;
         } finally {

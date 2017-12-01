@@ -24,15 +24,17 @@ import java.lang.reflect.ReflectPermission;
 import java.net.SocketPermission;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
 import java.security.Permission;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import javax.security.auth.AuthPermission;
 import javax.security.auth.PrivateCredentialPermission;
 import javax.security.auth.kerberos.ServicePermission;
 
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.env.Environment;
 
 /**
@@ -42,8 +44,6 @@ import org.elasticsearch.env.Environment;
  * permissions to grant to privileged methods inside the BlobStore.
  */
 class HdfsSecurityContext {
-
-    private static final Logger LOGGER = Loggers.getLogger(HdfsSecurityContext.class);
 
     private static final Permission[] SIMPLE_AUTH_PERMISSIONS;
     private static final Permission[] KERBEROS_AUTH_PERMISSIONS;
@@ -102,10 +102,12 @@ class HdfsSecurityContext {
     }
 
     private final UserGroupInformation ugi;
+    private final boolean restrictPermissions;
     private final Permission[] restrictedExecutionPermissions;
 
-    HdfsSecurityContext(UserGroupInformation ugi) {
+    HdfsSecurityContext(UserGroupInformation ugi, boolean restrictPermissions) {
         this.ugi = ugi;
+        this.restrictPermissions = restrictPermissions;
         this.restrictedExecutionPermissions = renderPermissions(ugi);
     }
 
@@ -129,8 +131,25 @@ class HdfsSecurityContext {
         return permissions;
     }
 
-    Permission[] getRestrictedExecutionPermissions() {
+    private Permission[] getRestrictedExecutionPermissions() {
         return restrictedExecutionPermissions;
+    }
+
+    <T> T doPrivilegedOrThrow(PrivilegedExceptionAction<T> action) throws IOException {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            // unprivileged code such as scripts do not have SpecialPermission
+            sm.checkPermission(new SpecialPermission());
+        }
+        try {
+            if (restrictPermissions) {
+                return AccessController.doPrivileged(action, null, this.getRestrictedExecutionPermissions());
+            } else {
+                return AccessController.doPrivileged(action);
+            }
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
+        }
     }
 
     void ensureLogin() {

@@ -173,9 +173,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     /**
-     * Exists to wrap underlying InputStream methods that might need to make connections or
-     * perform actions within doPrivileged blocks. The HDFS Client performs a lot underneath
-     * the FSInputStream, including making connections and executing reflection based RPC calls.
+     * Exists to wrap underlying InputStream methods that might make socket connections in
+     * doPrivileged blocks. This is due to the way that hdfs client libraries might open
+     * socket connections when you are reading from an InputStream.
      */
     private static class HDFSPrivilegedInputSteam extends FilterInputStream {
 
@@ -187,43 +187,30 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         }
 
         public int read() throws IOException {
-            return doPrivilegedOrThrow(in::read);
+            return securityContext.doPrivilegedOrThrow(in::read);
         }
 
         public int read(byte b[]) throws IOException {
-            return doPrivilegedOrThrow(() -> in.read(b));
+            return securityContext.doPrivilegedOrThrow(() -> in.read(b));
         }
 
         public int read(byte b[], int off, int len) throws IOException {
-            return doPrivilegedOrThrow(() -> in.read(b, off, len));
+            return securityContext.doPrivilegedOrThrow(() -> in.read(b, off, len));
         }
 
         public long skip(long n) throws IOException {
-            return doPrivilegedOrThrow(() -> in.skip(n));
+            return securityContext.doPrivilegedOrThrow(() -> in.skip(n));
         }
 
         public int available() throws IOException {
-            return doPrivilegedOrThrow(() -> in.available());
+            return securityContext.doPrivilegedOrThrow(() -> in.available());
         }
 
         public synchronized void reset() throws IOException {
-            doPrivilegedOrThrow(() -> {
+            securityContext.doPrivilegedOrThrow(() -> {
                 in.reset();
                 return null;
             });
-        }
-
-        private <T> T doPrivilegedOrThrow(PrivilegedExceptionAction<T> action) throws IOException {
-            SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
-                // unprivileged code such as scripts do not have SpecialPermission
-                sm.checkPermission(new SpecialPermission());
-            }
-            try {
-                return AccessController.doPrivileged(action, null, securityContext.getRestrictedExecutionPermissions());
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getCause();
-            }
         }
     }
 }

@@ -161,8 +161,8 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(openMode, config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
                 config.getWarmer(), config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
-                config.getForceNewHistoryUUID(), config.getTranslogConfig(), config.getFlushMergesAfter(), config.getExternalRefreshListener(),
-            Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner());
+                config.getForceNewHistoryUUID(), config.getTranslogConfig(), config.getFlushMergesAfter(),
+                config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner());
     }
 
     @Override

@@ -249,7 +249,7 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @Override
-    protected NettyTcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<TcpChannel> listener)
+    protected NettyTcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> listener)
         throws IOException {
         ChannelFuture channelFuture = bootstrap.connect(node.getAddress().address());
         Channel channel = channelFuture.channel();
@@ -264,7 +264,7 @@ public class Netty4Transport extends TcpTransport {
 
         channelFuture.addListener(f -> {
             if (f.isSuccess()) {
-                listener.onResponse(nettyChannel);
+                listener.onResponse(null);
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {

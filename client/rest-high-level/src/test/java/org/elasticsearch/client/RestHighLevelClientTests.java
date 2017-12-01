@@ -62,7 +62,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
@@ -166,7 +165,8 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testSearchScroll() throws IOException {
         Header[] headers = randomHeaders(random(), "Header");
         SearchResponse mockSearchResponse = new SearchResponse(new SearchResponseSections(SearchHits.empty(), InternalAggregations.EMPTY,
-                null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, new ShardSearchFailure[0]);
+                null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY);
         mockResponse(mockSearchResponse);
         SearchResponse searchResponse = restHighLevelClient.searchScroll(new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)),
                 headers);
@@ -648,7 +648,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(3, namedXContents.size());
+        assertEquals(2, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -659,10 +659,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             }
         }
         assertEquals(1, categories.size());
-        assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
+        assertEquals(Integer.valueOf(2), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
-        assertTrue(names.contains(CompositeAggregationBuilder.NAME));
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

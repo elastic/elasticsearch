@@ -59,23 +59,28 @@ POST /sales/docs/_bulk?refresh
 
 For instance the following document:
 
-```
+[source,js]
+--------------------------------------------------
 {
     "keyword": ["foo", "bar"],
     "number": [23, 65, 76]
 }
-```
+--------------------------------------------------
+// NOTCONSOLE
+
 \... creates the following composite buckets when `keyword` and `number` are used as values source
 for the aggregation:
 
-```
+[source,js]
+--------------------------------------------------
 { "keyword": "foo", "number": 23 }
 { "keyword": "foo", "number": 65 }
 { "keyword": "foo", "number": 76 }
 { "keyword": "bar", "number": 23 }
 { "keyword": "bar", "number": 65 }
 { "keyword": "bar", "number": 76 }
-```
+--------------------------------------------------
+// NOTCONSOLE
 
 ==== Values source
 
@@ -219,7 +224,8 @@ Time values can also be specified via abbreviations supported by <<time-units,ti
 Note that fractional time values are not supported, but you can address this by shifting to another
 time unit (e.g., `1.5h` could instead be specified as `90m`).
 
-====== Time Zone
+[float]
+===== Time Zone
 
 Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate

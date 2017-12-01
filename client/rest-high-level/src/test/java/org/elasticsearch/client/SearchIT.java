@@ -264,7 +264,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(5, matrixStats.getFieldCount("num"));
         assertEquals(56d, matrixStats.getMean("num"), 0d);
         assertEquals(1830d, matrixStats.getVariance("num"), 0d);
-        assertEquals(0.09340198804973057, matrixStats.getSkewness("num"), 0d);
+        assertEquals(0.09340198804973046, matrixStats.getSkewness("num"), 0d);
         assertEquals(1.2741646510794589, matrixStats.getKurtosis("num"), 0d);
         assertEquals(5, matrixStats.getFieldCount("num2"));
         assertEquals(29d, matrixStats.getMean("num2"), 0d);
@@ -470,5 +470,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertThat(searchResponse.getTotalShards(), greaterThan(0));
         assertEquals(searchResponse.getTotalShards(), searchResponse.getSuccessfulShards());
         assertEquals(0, searchResponse.getShardFailures().length);
+        assertEquals(SearchResponse.Clusters.EMPTY, searchResponse.getClusters());
     }
 }

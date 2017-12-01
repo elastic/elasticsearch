@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -67,6 +69,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -87,16 +90,16 @@ public class RefreshListenersTests extends ESTestCase {
     public void setupListeners() throws Exception {
         // Setup dependencies of the listeners
         maxListeners = randomIntBetween(1, 1000);
+        // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
+        threadPool = new TestThreadPool(getTestName());
         listeners = new RefreshListeners(
                 () -> maxListeners,
                 () -> engine.refresh("too-many-listeners"),
                 // Immediately run listeners rather than adding them to the listener thread pool like IndexShard does to simplify the test.
                 Runnable::run,
-                logger
-                );
+                logger,
+                threadPool.getThreadContext());
 
-        // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
-        threadPool = new TestThreadPool(getTestName());
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
         String allocationId = UUIDs.randomBase64UUID(random());
@@ -120,7 +123,7 @@ public class RefreshListenersTests extends ESTestCase {
         EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, allocationId, threadPool,
                 indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
                 eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
-                TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), null, null);
+                TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), null, null, new NoneCircuitBreakerService());
         engine = new InternalEngine(config);
         listeners.setTranslog(engine.getTranslog());
     }
@@ -159,6 +162,23 @@ public class RefreshListenersTests extends ESTestCase {
         assertFalse(listener.forcedRefresh.get());
         listener.assertNoError();
         assertEquals(0, listeners.pendingCount());
+    }
+
+    public void testContextIsPreserved() throws IOException, InterruptedException {
+        assertEquals(0, listeners.pendingCount());
+        Engine.IndexResult index = index("1");
+        CountDownLatch latch = new CountDownLatch(1);
+        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader("test", "foobar");
+            assertFalse(listeners.addOrNotify(index.getTranslogLocation(), forced -> {
+                assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
+                latch.countDown();
+            }));
+        }
+        assertNull(threadPool.getThreadContext().getHeader("test"));
+        assertEquals(1, latch.getCount());
+        engine.refresh("I said so");
+        latch.await();
     }
 
     public void testTooMany() throws Exception {

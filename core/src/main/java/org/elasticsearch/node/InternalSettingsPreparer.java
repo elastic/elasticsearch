@@ -28,9 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -38,10 +37,8 @@ import org.elasticsearch.env.Environment;
 
 public class InternalSettingsPreparer {
 
-    private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json"};
-
-    public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
-    public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
+    private static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
+    private static final String TEXT_PROMPT_VALUE = "${prompt.text}";
 
     /**
      * Prepares the settings by gathering all elasticsearch system properties and setting defaults.
@@ -49,36 +46,29 @@ public class InternalSettingsPreparer {
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, Collections.emptyMap());
-        finalizeSettings(output, null);
+        finalizeSettings(output);
         return output.build();
     }
 
     /**
-     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings,
-     * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
-     * settings with a value of <code>${prompt.text}</code> or <code>${prompt.secret}</code> will result in a prompt for
-     * the setting to the user.
+     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings.
+     *
      * @param input The custom settings to use. These are not overwritten by settings in the configuration file.
-     * @param terminal the Terminal to use for input/output
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
-    public static Environment prepareEnvironment(Settings input, Terminal terminal) {
-        return prepareEnvironment(input, terminal, Collections.emptyMap(), null);
+    public static Environment prepareEnvironment(Settings input) {
+        return prepareEnvironment(input, Collections.emptyMap(), null);
     }
 
     /**
-     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings,
-     * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
-     * settings with a value of <code>${prompt.text}</code> or <code>${prompt.secret}</code> will result in a prompt for
-     * the setting to the user.
+     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings.
      *
      * @param input      the custom settings to use; these are not overwritten by settings in the configuration file
-     * @param terminal   the Terminal to use for input/output
      * @param properties map of properties key/value pairs (usually from the command-line)
      * @param configPath path to config directory; (use null to indicate the default)
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
-    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties, Path configPath) {
+    public static Environment prepareEnvironment(Settings input, Map<String, String> properties, Path configPath) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, properties);
@@ -104,7 +94,8 @@ public class InternalSettingsPreparer {
 
         // re-initialize settings now that the config file has been loaded
         initializeSettings(output, input, properties);
-        finalizeSettings(output, terminal);
+        checkSettingsForTerminalDeprecation(output);
+        finalizeSettings(output);
 
         environment = new Environment(output.build(), configPath);
 
@@ -128,10 +119,28 @@ public class InternalSettingsPreparer {
     }
 
     /**
-     * Finish preparing settings by replacing forced settings, prompts, and any defaults that need to be added.
-     * The provided terminal is used to prompt for settings needing to be replaced.
+     * Checks all settings values to make sure they do not have the old prompt settings. These were deprecated in 6.0.0.
+     * This check should be removed in 8.0.0.
      */
-    private static void finalizeSettings(Settings.Builder output, Terminal terminal) {
+    private static void checkSettingsForTerminalDeprecation(final Settings.Builder output) throws SettingsException {
+        // This method to be removed in 8.0.0, as it was deprecated in 6.0 and removed in 7.0
+        assert Version.CURRENT.major != 8: "Logic pertaining to config driven prompting should be removed";
+        for (String setting : output.keys()) {
+            switch (output.get(setting)) {
+                case SECRET_PROMPT_VALUE:
+                    throw new SettingsException("Config driven secret prompting was deprecated in 6.0.0. Use the keystore" +
+                        " for secure settings.");
+                case TEXT_PROMPT_VALUE:
+                    throw new SettingsException("Config driven text prompting was deprecated in 6.0.0. Use the keystore" +
+                        " for secure settings.");
+            }
+        }
+    }
+
+    /**
+     * Finish preparing settings by replacing forced settings and any defaults that need to be added.
+     */
+    private static void finalizeSettings(Settings.Builder output) {
         // allow to force set properties based on configuration of the settings provided
         List<String> forcedSettings = new ArrayList<>();
         for (String setting : output.keys()) {
@@ -149,53 +158,5 @@ public class InternalSettingsPreparer {
         if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
             output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY).value());
         }
-
-        replacePromptPlaceholders(output, terminal);
-    }
-
-    private static void replacePromptPlaceholders(Settings.Builder settings, Terminal terminal) {
-        List<String> secretToPrompt = new ArrayList<>();
-        List<String> textToPrompt = new ArrayList<>();
-        for (String key : settings.keys()) {
-            switch (settings.get(key)) {
-                case SECRET_PROMPT_VALUE:
-                    secretToPrompt.add(key);
-                    break;
-                case TEXT_PROMPT_VALUE:
-                    textToPrompt.add(key);
-                    break;
-            }
-        }
-        for (String setting : secretToPrompt) {
-            String secretValue = promptForValue(setting, terminal, true);
-            if (Strings.hasLength(secretValue)) {
-                settings.put(setting, secretValue);
-            } else {
-                // TODO: why do we remove settings if prompt returns empty??
-                settings.remove(setting);
-            }
-        }
-        for (String setting : textToPrompt) {
-            String textValue = promptForValue(setting, terminal, false);
-            if (Strings.hasLength(textValue)) {
-                settings.put(setting, textValue);
-            } else {
-                // TODO: why do we remove settings if prompt returns empty??
-                settings.remove(setting);
-            }
-        }
-    }
-
-    private static String promptForValue(String key, Terminal terminal, boolean secret) {
-        if (terminal == null) {
-            throw new UnsupportedOperationException("found property [" + key + "] with value ["
-                + (secret ? SECRET_PROMPT_VALUE : TEXT_PROMPT_VALUE)
-                + "]. prompting for property values is only supported when running elasticsearch in the foreground");
-        }
-
-        if (secret) {
-            return new String(terminal.readSecret("Enter value for [" + key + "]: "));
-        }
-        return terminal.readText("Enter value for [" + key + "]: ");
     }
 }

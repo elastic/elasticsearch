@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
@@ -128,6 +129,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final Client client;
+    private final CircuitBreakerService circuitBreakerService;
     private Supplier<Sort> indexSortSupplier;
 
     public IndexService(
@@ -157,6 +159,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.circuitBreakerService = circuitBreakerService;
         this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
             mapperRegistry,
             // we parse all percolator queries as they would be parsed on shard 0
@@ -379,7 +382,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
                 indexCache, mapperService, similarityService, engineFactory,
                 eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
-                    searchOperationListeners, indexingOperationListeners, () -> globalCheckpointSyncer.accept(shardId));
+                searchOperationListeners, indexingOperationListeners, () -> globalCheckpointSyncer.accept(shardId),
+                circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
@@ -624,6 +628,27 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             }
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
+                // once we change the refresh interval we schedule yet another refresh
+                // to ensure we are in a clean and predictable state.
+                // it doesn't matter if we move from or to <code>-1</code>  in both cases we want
+                // docs to become visible immediately. This also flushes all pending indexing / search reqeusts
+                // that are waiting for a refresh.
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("forced refresh failed after interval change", e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        maybeRefreshEngine(true);
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return true;
+                    }
+                });
                 rescheduleRefreshTasks();
             }
             final Translog.Durability durability = indexSettings.getTranslogDurability();
@@ -686,17 +711,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    private void maybeRefreshEngine() {
-        if (indexSettings.getRefreshInterval().millis() > 0) {
+    private void maybeRefreshEngine(boolean force) {
+        if (indexSettings.getRefreshInterval().millis() > 0 || force) {
             for (IndexShard shard : this.shards.values()) {
-                if (shard.isReadAllowed()) {
-                    try {
-                        if (shard.isRefreshNeeded()) {
-                            shard.refresh("schedule");
-                        }
-                    } catch (IndexShardClosedException | AlreadyClosedException ex) {
-                        // fine - continue;
-                    }
+                try {
+                    shard.scheduledRefresh();
+                } catch (IndexShardClosedException | AlreadyClosedException ex) {
+                    // fine - continue;
                 }
             }
         }
@@ -896,7 +917,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         protected void runInternal() {
-            indexService.maybeRefreshEngine();
+            indexService.maybeRefreshEngine(false);
         }
 
         @Override

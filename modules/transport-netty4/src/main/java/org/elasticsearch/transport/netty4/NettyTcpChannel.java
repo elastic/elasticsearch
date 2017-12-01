@@ -22,25 +22,29 @@ package org.elasticsearch.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelPromise;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
+import java.nio.channels.ClosedSelectorException;
 import java.util.concurrent.CompletableFuture;
 
 public class NettyTcpChannel implements TcpChannel {
 
     private final Channel channel;
-    private final CompletableFuture<TcpChannel> closeContext = new CompletableFuture<>();
+    private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
 
     NettyTcpChannel(Channel channel) {
         this.channel = channel;
         this.channel.closeFuture().addListener(f -> {
             if (f.isSuccess()) {
-                closeContext.complete(this);
+                closeContext.complete(null);
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
@@ -59,7 +63,7 @@ public class NettyTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void addCloseListener(ActionListener<TcpChannel> listener) {
+    public void addCloseListener(ActionListener<Void> listener) {
         closeContext.whenComplete(ActionListener.toBiConsumer(listener));
     }
 
@@ -79,11 +83,11 @@ public class NettyTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(BytesReference reference, ActionListener<TcpChannel> listener) {
-        final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
-        future.addListener(f -> {
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+        ChannelPromise writePromise = channel.newPromise();
+        writePromise.addListener(f -> {
             if (f.isSuccess()) {
-                listener.onResponse(this);
+                listener.onResponse(null);
             } else {
                 final Throwable cause = f.cause();
                 Netty4Utils.maybeDie(cause);
@@ -91,6 +95,11 @@ public class NettyTcpChannel implements TcpChannel {
                 listener.onFailure((Exception) cause);
             }
         });
+        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), writePromise);
+        
+        if (channel.eventLoop().isShutdown()) {
+            listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
+        }
     }
 
     public Channel getLowLevelChannel() {

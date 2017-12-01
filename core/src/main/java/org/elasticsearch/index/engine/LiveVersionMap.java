@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -34,6 +33,18 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** Maps _uid value to its version information. */
 class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
+
+    /**
+     * Resets the internal map and adjusts it's capacity as if there were no indexing operations.
+     * This must be called under write lock in the engine
+     */
+    void adjustMapSizeUnderLock() {
+        if (maps.current.isEmpty() == false || maps.old.isEmpty() == false) {
+            assert false : "map must be empty"; // fail hard if not empty and fail with assertion in tests to ensure we never swallow it
+            throw new IllegalStateException("map must be empty");
+        }
+        maps = new Maps();
+    }
 
     private static class Maps {
 
@@ -50,7 +61,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
         Maps() {
             this(ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency(),
-                 ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency());
+                 Collections.emptyMap());
         }
     }
 
@@ -102,7 +113,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // map.  While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        maps = new Maps(ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency(), maps.current);
+        maps = new Maps(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(maps.current.size()), maps.current);
 
         // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
         // line and this one, but that should be minor, and the error won't accumulate over time:
@@ -117,25 +128,25 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // case.  This is because we assign new maps (in beforeRefresh) slightly before Lucene actually flushes any segments for the
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact reflected
         // in the previous reader.   We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
-        maps = new Maps(maps.current, ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency());
+        maps = new Maps(maps.current, Collections.emptyMap());
     }
 
     /** Returns the live version (add or delete) for this uid. */
-    VersionValue getUnderLock(final Term uid) {
+    VersionValue getUnderLock(final BytesRef uid) {
         Maps currentMaps = maps;
 
         // First try to get the "live" value:
-        VersionValue value = currentMaps.current.get(uid.bytes());
+        VersionValue value = currentMaps.current.get(uid);
         if (value != null) {
             return value;
         }
 
-        value = currentMaps.old.get(uid.bytes());
+        value = currentMaps.old.get(uid);
         if (value != null) {
             return value;
         }
 
-        return tombstones.get(uid.bytes());
+        return tombstones.get(uid);
     }
 
     /** Adds this uid/version to the pending adds map. */
@@ -250,4 +261,8 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // TODO: useful to break down RAM usage here?
         return Collections.emptyList();
     }
-}
+
+    /** Returns the current internal versions as a point in time snapshot*/
+    Map<BytesRef, VersionValue> getAllCurrent() {
+        return maps.current;
+    }}

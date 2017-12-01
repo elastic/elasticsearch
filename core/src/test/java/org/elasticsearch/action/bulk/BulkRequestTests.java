@@ -292,7 +292,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.field("_index", "index");
                 builder.field("_type", "type");
                 builder.field("_id", "id");
-                builder.field("_version", 1L);
+                builder.field("version", 1L);
                 builder.endObject();
                 builder.endObject();
             }
@@ -301,7 +301,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.startObject();
                 builder.field("doc", "{}");
                 Map<String,Object> values = new HashMap<>();
-                values.put("_version", 2L);
+                values.put("version", 2L);
                 values.put("_index", "index");
                 values.put("_type", "type");
                 builder.field("upsert", values);

@@ -25,8 +25,11 @@ import java.util.concurrent.TimeUnit;
  * all of the plugins installed by the {@link PreBuiltTransportClient} and the
  * {@link XPackPlugin} so that the client may be used with an x-pack enabled
  * cluster.
+ *
+ * @deprecated {@link TransportClient} is deprecated in favour of the high-level REST client and will be removed in Elasticsearch 8.0
  */
 @SuppressWarnings({"unchecked","varargs"})
+@Deprecated
 public class PreBuiltXPackTransportClient extends PreBuiltTransportClient {
 
     @SafeVarargs

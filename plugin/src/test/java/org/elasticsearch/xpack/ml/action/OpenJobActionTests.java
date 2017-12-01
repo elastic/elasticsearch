@@ -192,7 +192,7 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, maxRunningJobsPerNode, 30, logger);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id0", cs.build(), 2, maxRunningJobsPerNode, 30, logger);
         assertNull(result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because this node is full. Number of opened jobs [" + maxRunningJobsPerNode
                 + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));

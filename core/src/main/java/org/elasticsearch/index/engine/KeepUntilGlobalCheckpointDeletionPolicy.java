@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntSet;
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.common.lucene.index.ESIndexDeletionPolicy;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -32,7 +36,7 @@ import java.util.function.LongSupplier;
 
 /**
  * An {@link ESIndexDeletionPolicy} that deletes index commits that are not required for recovery.
- * In particular, this policy will delete index commits whose max sequence number is smaller (or equal) than
+ * In particular, this policy will delete index commits whose max sequence number is at most
  * the current global checkpoint except the index commit which has the highest max sequence number among those.
  */
 final class KeepUntilGlobalCheckpointDeletionPolicy implements ESIndexDeletionPolicy {
@@ -56,7 +60,7 @@ final class KeepUntilGlobalCheckpointDeletionPolicy implements ESIndexDeletionPo
 
         final List<IndexCommit> keptCommits = new ArrayList<>();
         final int keptPosition = indexOfKeptCommits(commits);
-        final List<Integer> duplicateIndexes = indexesOfDuplicateCommits(commits);
+        final IntSet duplicateIndexes = indexesOfDuplicateCommits(commits);
 
         for (int i = 0; i < commits.size() - 1; i++) {
             final IndexCommit commit = commits.get(i);
@@ -106,18 +110,18 @@ final class KeepUntilGlobalCheckpointDeletionPolicy implements ESIndexDeletionPo
      *
      * @return index positions of duplicate commits.
      */
-    private List<Integer> indexesOfDuplicateCommits(List<? extends IndexCommit> commits) throws IOException {
-        final List<Integer> duplicateEntries = new ArrayList<>();
-        long lastMaxSeqNo = Long.MIN_VALUE;
+    private IntSet indexesOfDuplicateCommits(List<? extends IndexCommit> commits) throws IOException {
+        final LongSet seenMaxSeqNo = new LongHashSet();
+        final IntSet duplicateEntries = new IntHashSet();
+
         for (int i = commits.size() - 1; i >= 0; i--) {
             final Map<String, String> commitUserData = commits.get(i).getUserData();
             // 5.x commits do not contain MAX_SEQ_NO.
             if (commitUserData.containsKey(SequenceNumbers.MAX_SEQ_NO)) {
                 final long maxSeqNoFromCommit = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));
-                if (lastMaxSeqNo == maxSeqNoFromCommit) {
+                if (seenMaxSeqNo.add(maxSeqNoFromCommit) == false) {
                     duplicateEntries.add(i);
                 }
-                lastMaxSeqNo = maxSeqNoFromCommit;
             }
         }
         return duplicateEntries;

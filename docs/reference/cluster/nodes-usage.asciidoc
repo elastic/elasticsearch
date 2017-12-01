@@ -9,8 +9,8 @@ of features for each node.
 
 [source,js]
 --------------------------------------------------
-GET _nodes/nodeId1,nodeId2/usage
 GET _nodes/usage
+GET _nodes/nodeId1,nodeId2/usage
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:node]

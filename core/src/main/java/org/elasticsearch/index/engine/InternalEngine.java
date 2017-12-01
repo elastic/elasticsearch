@@ -25,7 +25,6 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -360,25 +359,22 @@ public class InternalEngine extends Engine {
     }
 
     private SeqNoStats loadSeqNoStats(EngineConfig.OpenMode openMode) throws IOException {
-        final SeqNoStats seqNoStats;
         switch (openMode) {
             case OPEN_INDEX_AND_TRANSLOG:
                 final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
-                seqNoStats = store.loadSeqNoStats(globalCheckpoint);
-                break;
+                return store.loadSeqNoStats(globalCheckpoint);
+
             case OPEN_INDEX_CREATE_TRANSLOG:
-                seqNoStats = store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO);
-                break;
+                return store.loadSeqNoStats(SequenceNumbers.UNASSIGNED_SEQ_NO);
+
             case CREATE_INDEX_AND_TRANSLOG:
-                seqNoStats = new SeqNoStats(
+                return new SeqNoStats(
                     SequenceNumbers.NO_OPS_PERFORMED,
                     SequenceNumbers.NO_OPS_PERFORMED,
                     SequenceNumbers.UNASSIGNED_SEQ_NO);
-                break;
             default:
                 throw new IllegalArgumentException(openMode.toString());
         }
-        return seqNoStats;
     }
 
     @Override

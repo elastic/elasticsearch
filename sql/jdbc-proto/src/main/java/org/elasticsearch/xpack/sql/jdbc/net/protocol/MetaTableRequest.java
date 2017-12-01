@@ -16,10 +16,7 @@ public class MetaTableRequest extends Request {
     private final String pattern;
 
     public MetaTableRequest(String pattern) {
-        if (pattern == null) {
-            throw new IllegalArgumentException("[pattern] must not be null");
-        }
-        this.pattern = pattern;
+        this.pattern = pattern == null ? "" : pattern;
     }
 
     MetaTableRequest(SqlDataInput in) throws IOException {

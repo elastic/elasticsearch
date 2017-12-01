@@ -57,7 +57,7 @@ setup:
 "Max bucket":
   - skip:
       version: " - 6.99.99"
-      reason:  this uses a new API that has been added in 7.0
+      reason:  search.max_buckets limit has been added in 7.0
 
   - do:
       cluster.put_settings:

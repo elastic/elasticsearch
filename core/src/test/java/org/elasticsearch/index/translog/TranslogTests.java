@@ -2548,7 +2548,8 @@ public class TranslogTests extends ESTestCase {
             }
         }
         long lastGen = randomLongBetween(1, translog.currentFileGeneration());
-        commit(translog, randomLongBetween(1, lastGen), lastGen);    }
+        commit(translog, randomLongBetween(1, lastGen), lastGen);
+    }
 
     public void testAcquiredLockIsPassedToDeletionPolicy() throws IOException {
         final int operations = randomIntBetween(1, 4096);

@@ -211,8 +211,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertThat(result.totalOperations, equalTo(expectedOps));
         final ArgumentCaptor<List> shippedOpsCaptor = ArgumentCaptor.forClass(List.class);
         verify(recoveryTarget).indexTranslogOperations(shippedOpsCaptor.capture(), ArgumentCaptor.forClass(Integer.class).capture());
-        List<Translog.Operation> shippedOps = shippedOpsCaptor.getAllValues().stream()
-            .flatMap(List::stream).map(o -> (Translog.Operation) o).collect(Collectors.toList());
+        List<Translog.Operation> shippedOps = new ArrayList<>();
+        for (List list: shippedOpsCaptor.getAllValues()) {
+            shippedOps.addAll(list);
+        }
         shippedOps.sort(Comparator.comparing(Translog.Operation::seqNo));
         assertThat(shippedOps.size(), equalTo(expectedOps));
         for (int i = 0; i < shippedOps.size(); i++) {

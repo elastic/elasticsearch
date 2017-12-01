@@ -56,7 +56,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -121,6 +123,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertInde
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -932,15 +935,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         Consumer<UnassignedInfo> checkUnassignedInfo = unassignedInfo -> {
             assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            assertThat(unassignedInfo.getNumFailedAllocations(), equalTo(maxRetries));
+            assertThat(unassignedInfo.getNumFailedAllocations(), anyOf(equalTo(maxRetries), equalTo(1)));
         };
 
-        Runnable fixupAction = () -> {
-            // use the Reroute API to retry the failed shards
-            assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true));
-        };
-
-        unrestorableUseCase(indexName, createIndexSettings, repositorySettings, Settings.EMPTY, checkUnassignedInfo, fixupAction);
+        unrestorableUseCase(indexName, createIndexSettings, repositorySettings, Settings.EMPTY, checkUnassignedInfo, () -> {});
     }
 
     /**
@@ -1033,44 +1031,30 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         // check that the shards have been created but are not assigned
         assertThat(clusterStateResponse.getState().getRoutingTable().allShards(indexName), hasSize(numShards.totalNumShards));
 
-        // check that every primary shard failed because the number of allocation retries has been reached
-        assertBusy(() -> {
-            ClusterStateResponse clusterState = client().admin().cluster().prepareState()
-                                                                .clear()
-                                                                .setRoutingTable(true)
-                                                                .setIndices(indexName)
-                                                                .get();
-
-            for (ShardRouting shard : clusterState.getState().getRoutingTable().allShards()) {
-                if (shard.primary()) {
-                    assertTrue("Shard " + shard.shardId() + " must be unassigned", shard.unassigned());
-
-                    UnassignedInfo unassignedInfo = shard.unassignedInfo();
-                    assertThat(unassignedInfo, notNullValue());
-                    assertThat(unassignedInfo.getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.DECIDERS_NO));
-                    checkUnassignedInfo.accept(unassignedInfo);
-                }
+        // check that every primary shard is unassigned
+        for (ShardRouting shard : clusterStateResponse.getState().getRoutingTable().allShards(indexName)) {
+            if (shard.primary()) {
+                assertThat(shard.state(), equalTo(ShardRoutingState.UNASSIGNED));
+                assertThat(shard.recoverySource().getType(), equalTo(RecoverySource.Type.SNAPSHOT));
+                assertThat(shard.unassignedInfo().getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.DECIDERS_NO));
+                checkUnassignedInfo.accept(shard.unassignedInfo());
             }
-        });
+        }
 
         // update the test repository in order to make it work
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                                               .setType("fs")
                                               .setSettings(Settings.builder().put("location", repositoryLocation)));
 
-        final boolean useFixUpAction = randomBoolean();
-        if (useFixUpAction) {
-            // Option 1: use a dedicated fix up action
-            fixUpAction.run();
-        } else {
-            // Option 2: delete the index and restore again
-            assertAcked(client().admin().indices().prepareDelete(indexName));
-            restoreResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
-                .setWaitForCompletion(true)
-                .get();
-            assertThat(restoreResponse.getRestoreInfo().totalShards(), equalTo(numShards.numPrimaries));
-            assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(numShards.numPrimaries));
-        }
+        // execute action to eventually fix the situation
+        fixUpAction.run();
+
+        // delete the index and restore again
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        restoreResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).get();
+        assertThat(restoreResponse.getRestoreInfo().totalShards(), equalTo(numShards.numPrimaries));
+        assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(numShards.numPrimaries));
 
         // Wait for the shards to be assigned
         ensureGreen(indexName);

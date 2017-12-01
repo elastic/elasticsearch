@@ -188,7 +188,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             }
         }
 
-        assertBusy(() -> {
+        assertBusy(() -> { // IndicesClusterStateService#failAndRemoveShard() called asynchronously but we need it to have completed here.
             IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores(index).setShardStatuses("all").get();
             ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStatuses = rsp.getStoreStatuses().get(index);
             assertNotNull(shardStatuses);

@@ -39,7 +39,7 @@ public final class CountedBitSet extends BitSet {
 
     @Override
     public boolean get(int index) {
-        assert index >= 0;
+        assert 0 <= index && index < this.length();
         assert bitset == null || onBits < bitset.length() : "Bitset should be released when all bits are set";
 
         return bitset == null ? true : bitset.get(index);
@@ -47,7 +47,7 @@ public final class CountedBitSet extends BitSet {
 
     @Override
     public void set(int index) {
-        assert index >= 0;
+        assert 0 <= index && index < this.length();
         assert bitset == null || onBits < bitset.length() : "Bitset should be released when all bits are set";
 
         // Ignore set when bitset is full.

@@ -6,7 +6,7 @@
 
 Elasticsearch heavily relies on the filesystem cache in order to make search
 fast. In general, you should make sure that at least half the available memory
-goes to the filesystem cache so that elasticsearch can keep hot regions of the
+goes to the filesystem cache so that Elasticsearch can keep hot regions of the
 index in physical memory.
 
 [float]
@@ -275,8 +275,8 @@ merging to the background merge process.
 Global ordinals are a data-structure that is used in order to run
 <<search-aggregations-bucket-terms-aggregation,`terms`>> aggregations on
 <<keyword,`keyword`>> fields. They are loaded lazily in memory because
-elasticsearch does not know which fields will be used in `terms` aggregations
-and which fields won't. You can tell elasticsearch to load global ordinals
+Elasticsearch does not know which fields will be used in `terms` aggregations
+and which fields won't. You can tell Elasticsearch to load global ordinals
 eagerly at refresh-time by configuring mappings as described below:
 
 [source,js]
@@ -300,7 +300,7 @@ PUT index
 [float]
 === Warm up the filesystem cache
 
-If the machine running elasticsearch is restarted, the filesystem cache will be
+If the machine running Elasticsearch is restarted, the filesystem cache will be
 empty, so it will take some time before the operating system loads hot regions
 of the index into memory so that search operations are fast. You can explicitly
 tell the operating system which files should be loaded into memory eagerly

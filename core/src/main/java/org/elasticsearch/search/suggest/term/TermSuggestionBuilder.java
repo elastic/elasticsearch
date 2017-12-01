@@ -30,6 +30,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -66,6 +68,9 @@ import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBu
  * global options, but are only applicable for this suggestion.
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TermSuggestionBuilder.class));
+
     private static final String SUGGESTION_NAME = "term";
 
     private SuggestMode suggestMode = SuggestMode.MISSING;
@@ -214,9 +219,9 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * string distance for terms inside the index.
      * <li><code>damerau_levenshtein</code> - String distance algorithm based on
      * Damerau-Levenshtein algorithm.
-     * <li><code>levenstein</code> - String distance algorithm based on
-     * Levenstein edit distance algorithm.
-     * <li><code>jarowinkler</code> - String distance algorithm based on
+     * <li><code>levenshtein</code> - String distance algorithm based on
+     * Levenshtein edit distance algorithm.
+     * <li><code>jaro_winkler</code> - String distance algorithm based on
      * Jaro-Winkler algorithm.
      * <li><code>ngram</code> - String distance algorithm based on character
      * n-grams.
@@ -543,15 +548,15 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 return new LuceneLevenshteinDistance();
             }
         },
-        /** String distance algorithm based on Levenstein edit distance algorithm. */
-        LEVENSTEIN {
+        /** String distance algorithm based on Levenshtein edit distance algorithm. */
+        LEVENSHTEIN {
             @Override
             public StringDistance toLucene() {
                 return new LevensteinDistance();
             }
         },
         /** String distance algorithm based on Jaro-Winkler algorithm. */
-        JAROWINKLER {
+        JARO_WINKLER {
             @Override
             public StringDistance toLucene() {
                 return new JaroWinklerDistance();
@@ -584,11 +589,17 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 case "damerauLevenshtein":
                     return DAMERAU_LEVENSHTEIN;
                 case "levenstein":
-                    return LEVENSTEIN;
+                    DEPRECATION_LOGGER.deprecated("Deprecated distance [levenstein] used, replaced by [levenshtein]");
+                    return LEVENSHTEIN;
+                case "levenshtein":
+                    return LEVENSHTEIN;
                 case "ngram":
                     return NGRAM;
                 case "jarowinkler":
-                    return JAROWINKLER;
+                    DEPRECATION_LOGGER.deprecated("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
+                    return JARO_WINKLER;
+                case "jaro_winkler":
+                    return JARO_WINKLER;
                 default: throw new IllegalArgumentException("Illegal distance option " + str);
             }
         }

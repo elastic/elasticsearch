@@ -32,23 +32,24 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.ArgumentCaptor;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import org.mockito.ArgumentCaptor;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
@@ -59,7 +60,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         long docsInShards = 200;
 
         final Condition condition = createTestCondition();
-        evaluateConditions(Sets.newHashSet(condition), createMetaData(), createIndecesStatResponse(docsInShards, docsInPrimaryShards));
+        evaluateConditions(Sets.newHashSet(condition), createMetaData(), createIndicesStatResponse(docsInShards, docsInPrimaryShards));
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
 
@@ -69,8 +70,11 @@ public class TransportRolloverActionTests extends ESTestCase {
     public void testEvaluateConditions() throws Exception {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
+
         long matchMaxDocs = randomIntBetween(100, 1000);
         long notMatchMaxDocs = randomIntBetween(0, 99);
+        ByteSizeValue notMatchMaxSize = new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB);
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -81,29 +85,55 @@ public class TransportRolloverActionTests extends ESTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
-        final HashSet<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition);
-        Set<Condition.Result> results = evaluateConditions(conditions, new DocsStats(matchMaxDocs, 0L, between(1, 10000)), metaData);
-        assertThat(results.size(), equalTo(2));
+        final Set<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        Set<Condition.Result> results = evaluateConditions(conditions,
+            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), metaData);
+        assertThat(results.size(), equalTo(3));
         for (Condition.Result result : results) {
             assertThat(result.matched, equalTo(true));
         }
-        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, between(1, 10000)), metaData);
-        assertThat(results.size(), equalTo(2));
+
+        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, notMatchMaxSize.getBytes()), metaData);
+        assertThat(results.size(), equalTo(3));
         for (Condition.Result result : results) {
             if (result.condition instanceof MaxAgeCondition) {
                 assertThat(result.matched, equalTo(true));
             } else if (result.condition instanceof MaxDocsCondition) {
                 assertThat(result.matched, equalTo(false));
+            } else if (result.condition instanceof MaxSizeCondition) {
+                assertThat(result.matched, equalTo(false));
             } else {
                 fail("unknown condition result found " + result.condition);
             }
         }
-        results = evaluateConditions(conditions, null, metaData);
-        assertThat(results.size(), equalTo(2));
+    }
+
+    public void testEvaluateWithoutDocStats() throws Exception {
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+
+        Set<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        final Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
+            .build();
+
+        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
+            .settings(settings)
+            .build();
+        Set<Condition.Result> results = evaluateConditions(conditions, null, metaData);
+        assertThat(results.size(), equalTo(3));
+
         for (Condition.Result result : results) {
             if (result.condition instanceof MaxAgeCondition) {
                 assertThat(result.matched, equalTo(true));
             } else if (result.condition instanceof MaxDocsCondition) {
+                assertThat(result.matched, equalTo(false));
+            } else if (result.condition instanceof MaxSizeCondition) {
                 assertThat(result.matched, equalTo(false));
             } else {
                 fail("unknown condition result found " + result.condition);
@@ -211,7 +241,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(createIndexRequest.cause(), equalTo("rollover_index"));
     }
 
-    private IndicesStatsResponse createIndecesStatResponse(long totalDocs, long primaryDocs) {
+    private IndicesStatsResponse createIndicesStatResponse(long totalDocs, long primaryDocs) {
         final CommonStats primaryStats = mock(CommonStats.class);
         when(primaryStats.getDocs()).thenReturn(new DocsStats(primaryDocs, 0, between(1, 10000)));
 

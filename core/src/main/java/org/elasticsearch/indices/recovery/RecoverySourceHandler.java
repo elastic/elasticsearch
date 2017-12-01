@@ -66,6 +66,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -243,7 +244,7 @@ public class RecoverySourceHandler {
 
             logger.trace("all operations up to [{}] completed, checking translog content", endingSeqNo);
 
-            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(shard.indexSettings(), startingSeqNo, startingSeqNo - 1);
+            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
             try (Translog.Snapshot snapshot = shard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {
@@ -567,8 +568,9 @@ public class RecoverySourceHandler {
             cancellableThreads.executeIO(sendBatch);
         }
 
-        assert expectedTotalOps == skippedOps + totalSentOps
-                : "expected total [" + expectedTotalOps + "], skipped [" + skippedOps + "], total sent [" + totalSentOps + "]";
+        assert expectedTotalOps == snapshot.overriddenOperations() + skippedOps + totalSentOps
+                : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
+                                    expectedTotalOps, snapshot.overriddenOperations(), skippedOps, totalSentOps);
 
         logger.trace("sent final batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size), expectedTotalOps);
 

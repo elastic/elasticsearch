@@ -19,11 +19,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.test.ESTestCase;
 
@@ -285,6 +287,8 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             public MappedFieldType clone() {return null;}
             @Override
             public String typeName() { return fieldType.typeName();}
+            @Override
+            public Query existsQuery(QueryShardContext context) { return null; }
         };
         try {
             fieldType.checkCompatibility(bogus, conflicts, random().nextBoolean());
@@ -299,6 +303,8 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             public MappedFieldType clone() {return null;}
             @Override
             public String typeName() { return "othertype";}
+            @Override
+            public Query existsQuery(QueryShardContext context) { return null; }
         };
         try {
             fieldType.checkCompatibility(other, conflicts, random().nextBoolean());

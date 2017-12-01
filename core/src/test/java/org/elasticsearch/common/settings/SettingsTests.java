@@ -87,16 +87,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(implicitEnvSettings.get("setting1"), equalTo(hostname));
     }
 
-    public void testReplacePropertiesPlaceholderIgnoresPrompt() {
-        Settings settings = Settings.builder()
-                .put("setting1", "${prompt.text}")
-                .put("setting2", "${prompt.secret}")
-                .replacePropertyPlaceholders()
-                .build();
-        assertThat(settings.get("setting1"), is("${prompt.text}"));
-        assertThat(settings.get("setting2"), is("${prompt.secret}"));
-    }
-
     public void testGetAsSettings() {
         Settings settings = Settings.builder()
                 .put("bar", "hello world")

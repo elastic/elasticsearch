@@ -72,6 +72,8 @@
 -Dlog4j.shutdownHookEnabled=false
 -Dlog4j2.disable.jmx=true
 
+-Djava.io.tmpdir=${ES_TMPDIR}
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails

@@ -157,6 +157,11 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
             shardKeyMap.add(context.reader());
             return in.bulkScorer(context);
         }
+
+        @Override
+        public boolean isCacheable(LeafReaderContext ctx) {
+            return in.isCacheable(ctx);
+        }
     }
 
     /** Clear all entries that belong to the given index. */

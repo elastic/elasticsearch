@@ -60,69 +60,6 @@ Fields referred in a percolator query may exist in any type of the index contain
 =====================================
 
 [float]
-==== Influencing query extraction
-
-As part of indexing the percolator query, the percolator field mapper extracts the query terms and numeric ranges from the provided
-query and indexes that alongside the query in separate internal fields. The `percolate` query uses these internal fields
-to build a candidate query from the document being percolated in order to reduce the number of document that need to be verified.
-
-In case a percolator query contains a `bool` query with must or filter clauses, then the percolator field mapper only has to
-extract ranges or terms from a single clause. The percolator field mapper will prefer longer terms over shorter terms, because
-longer terms in general match with less documents. For the same reason it prefers smaller ranges over bigger ranges.
-
-In general this behaviour works well. However sometimes there are fields in a bool query that shouldn't be taken into account
-when selecting the best must or filter clause, or fields are known to be more selective than other fields.
-
-For example a status like field may in fact not work well, because each status matches with many percolator queries and
-then the candidate query the `percolate` query generates may not be able to filter out that many percolator queries.
-
-The percolator field mapping allows to configure `boost_fields` in order to indicate to the percolator what fields are
-important or not important when selecting the best must or filter clause in a `bool` query:
-
-[source,js]
---------------------------------------------------
-PUT another_index
-{
-    "mappings": {
-        "doc": {
-            "properties": {
-                "query": {
-                    "type": "percolator",
-                    "boost_fields": {
-                        "status_field": 0, <1>
-                        "price_field": 2 <2>
-                    }
-                },
-                "status_field": {
-                    "type": "keyword"
-                },
-                "price_field": {
-                    "type": "long"
-                },
-                "field": {
-                    "type": "text"
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-<1> A boost of zero hints to the percolator that if there are other clauses in a conjunction query then these should be
-    preferred over this one.
-
-<2> Any boost higher than 1 overrides the default behaviour when it comes to selecting the best clause. The clause
-    that has the field with the highest boost will be selected from a conjunction query for extraction.
-
-The steps the percolator field mapper takes when selecting a clause from a conjunction query:
-
-* If there are clauses that have boosted fields then the clause with highest boost field is selected.
-* If there are range based clauses and term based clauses then term based clauses are picked over range based clauses
-* From all term based clauses the clause with longest term is picked.
-* In the case when there are only range based clauses then the range clause with smallest range is picked over clauses with wider ranges.
-
-[float]
 ==== Reindexing your percolator queries
 
 Reindexing percolator queries is sometimes required to benefit from improvements made to the `percolator` field type in

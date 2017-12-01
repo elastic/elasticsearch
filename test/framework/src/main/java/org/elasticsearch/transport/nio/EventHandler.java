@@ -21,7 +21,6 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.IOException;
@@ -31,7 +30,7 @@ public abstract class EventHandler {
 
     protected final Logger logger;
 
-    EventHandler(Logger logger) {
+    public EventHandler(Logger logger) {
         this.logger = logger;
     }
 
@@ -70,13 +69,12 @@ public abstract class EventHandler {
      * @param channel that should be closed
      */
     void handleClose(NioChannel channel) {
-        channel.closeFromSelector();
-        CloseFuture closeFuture = channel.getCloseFuture();
-        assert closeFuture.isDone() : "Should always be done as we are on the selector thread";
-        IOException closeException = closeFuture.getCloseException();
-        if (closeException != null) {
-            closeException(channel, closeException);
+        try {
+            channel.closeFromSelector();
+        } catch (IOException e) {
+            closeException(channel, e);
         }
+        assert channel.isOpen() == false : "Should always be done as we are on the selector thread";
     }
 
     /**

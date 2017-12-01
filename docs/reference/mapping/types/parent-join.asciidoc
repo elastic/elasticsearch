@@ -374,3 +374,66 @@ PUT my_index
 // CONSOLE
 
 <1> `question` is parent of `answer` and `comment`.
+
+==== Multiple levels of parent join
+
+WARNING: Using multiple levels of relations to replicate a relational model is not recommended.
+Each level of relation adds an overhead at query time in terms of memory and computation.
+You should de-normalize your data if you care about performance.
+
+Multiple levels of parent/child:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "doc": {
+      "properties": {
+        "my_join_field": {
+          "type": "join",
+          "relations": {
+            "question": ["answer", "comment"],  <1>
+            "answer": "vote" <2>
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> `question` is parent of `answer` and `comment`
+<2> `answer` is parent of `vote`
+
+The mapping above represents the following tree:
+
+                         question
+                          /    \
+                         /      \
+                      comment  answer
+                                 |
+                                 |
+                                vote
+
+Indexing a grand child document requires a `routing` value equals
+to the grand-parent (the greater parent of the lineage):
+
+
+[source,js]
+--------------------------------------------------
+PUT my_index/doc/3?routing=1&refresh <1>
+{
+  "text": "This is a vote",
+  "my_join_field": {
+    "name": "vote",
+    "parent": "2" <2>
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> This child document must be on the same shard than its grand-parent and parent
+<2> The parent id of this document (must points to an `answer` document)

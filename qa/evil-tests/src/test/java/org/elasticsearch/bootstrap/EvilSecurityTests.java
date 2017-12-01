@@ -24,6 +24,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.FilePermission;
@@ -54,7 +55,7 @@ public class EvilSecurityTests extends ESTestCase {
         Permissions permissions;
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
-            Environment environment = new Environment(settings);
+            Environment environment = TestEnvironment.newEnvironment(settings);
             permissions = Security.createPermissions(environment);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
@@ -156,7 +157,7 @@ public class EvilSecurityTests extends ESTestCase {
                         .putList(Environment.PATH_DATA_SETTING.getKey(), data.toString(), duplicate.toString())
                         .build();
 
-        final Environment environment = new Environment(settings);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Security.createPermissions(environment));
         assertThat(e, hasToString(containsString("path [" + duplicate.toRealPath() + "] is duplicated by [" + duplicate + "]")));
     }

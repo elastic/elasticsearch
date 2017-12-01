@@ -110,9 +110,10 @@ buildRestTests.setups['host'] = '''
   - set: { master_node: master }
   - do:
       nodes.info:
-        metric: [ http ]
+        metric: [ http, transport ]
   - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
+  - set: {nodes.$master.transport.publish_address: transport_host}
 '''
 
 buildRestTests.setups['node'] = '''
@@ -193,6 +194,13 @@ buildRestTests.setups['sales'] = '''
 
 // Dummy bank account data used by getting-started.asciidoc
 buildRestTests.setups['bank'] = '''
+  - do:
+        indices.create:
+          index: bank
+          body:
+            settings:
+              number_of_shards: 5
+              number_of_routing_shards: 5
   - do:
         bulk:
           index: bank

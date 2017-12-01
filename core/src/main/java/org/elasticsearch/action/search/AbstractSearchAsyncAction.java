@@ -68,7 +68,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final AtomicInteger skippedOps = new AtomicInteger();
     private final TransportSearchAction.SearchTimeProvider timeProvider;
-
+    private final SearchResponse.Clusters clusters;
 
     protected AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                                         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -76,7 +76,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                         TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
-                                        SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentShardRequests) {
+                                        SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentShardRequests,
+                                        SearchResponse.Clusters clusters) {
         super(name, request, shardsIts, logger, maxConcurrentShardRequests, executor);
         this.timeProvider = timeProvider;
         this.logger = logger;
@@ -90,6 +91,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
+        this.clusters = clusters;
     }
 
     /**
@@ -108,7 +110,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             //no search shards to search on, bail with empty response
             //(it happens with search across _all with no indices around and consistent with broadcast operations)
             listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, buildTookInMillis(),
-                ShardSearchFailure.EMPTY_ARRAY));
+                ShardSearchFailure.EMPTY_ARRAY, clusters));
             return;
         }
         executePhase(this);
@@ -264,7 +266,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
-            skippedOps.get(), buildTookInMillis(), buildShardFailures());
+            skippedOps.get(), buildTookInMillis(), buildShardFailures(), clusters);
     }
 
     @Override

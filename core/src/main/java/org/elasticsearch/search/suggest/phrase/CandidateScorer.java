@@ -93,7 +93,7 @@ final class CandidateScorer {
     private void updateTop(CandidateSet[] candidates, Candidate[] path, PriorityQueue<Correction> corrections, double cutoffScore, double score)
             throws IOException {
         score = Math.exp(score);
-        assert Math.abs(score - score(path, candidates)) < 0.00001;
+        assert Math.abs(score - score(path, candidates)) < 0.00001 : "cur_score=" + score + ", path_score=" + score(path,candidates);
         if (score > cutoffScore) {
             if (corrections.size() < maxNumCorrections) {
                 Candidate[] c = new Candidate[candidates.length];

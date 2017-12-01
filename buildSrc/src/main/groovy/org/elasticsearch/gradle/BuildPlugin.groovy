@@ -131,11 +131,6 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
 
-            final GradleVersion maxGradle = GradleVersion.version('4.2')
-            if (currentGradleVersion >= maxGradle) {
-                throw new GradleException("${maxGradle} or above is not compatible with the elasticsearch build")
-            }
-
             // enforce Java version
             if (javaVersionEnum < minimumJava) {
                 throw new GradleException("Java ${minimumJava} or above is required to build Elasticsearch")
@@ -238,7 +233,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Return the configuration name used for finding transitive deps of the given dependency. */
     private static String transitiveDepConfigName(String groupId, String artifactId, String version) {
-        return "_transitive_${groupId}:${artifactId}:${version}"
+        return "_transitive_${groupId}_${artifactId}_${version}"
     }
 
     /**

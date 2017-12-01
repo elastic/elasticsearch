@@ -70,7 +70,7 @@ public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPo
         } else {
             coordinates = new Coordinate[]{new Coordinate(1.0, 1.0)};
         }
-        return mutation.coordinates(coordinates);
+        return MultiPointBuilder.class.cast(mutation.coordinates(coordinates));
     }
 
     static MultiPointBuilder createRandomShape() {

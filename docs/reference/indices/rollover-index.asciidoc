@@ -25,7 +25,8 @@ POST /logs_write/_rollover <2>
 {
   "conditions": {
     "max_age":   "7d",
-    "max_docs":  1000
+    "max_docs":  1000,
+    "max_size":  "5gb"
   }
 }
 --------------------------------------------------
@@ -34,7 +35,7 @@ POST /logs_write/_rollover <2>
 // TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"logs-000001"}}/]
 <1> Creates an index called `logs-0000001` with the alias `logs_write`.
 <2> If the index pointed to by `logs_write` was created 7 or more days ago, or
-    contains 1,000 or more documents, then the `logs-000002` index is created
+    contains 1,000 or more documents, or has an index size at least around 5GB, then the `logs-000002` index is created
     and the `logs_write` alias is updated to point to `logs-000002`.
 
 The above request might return the following response:
@@ -50,7 +51,8 @@ The above request might return the following response:
   "dry_run": false, <2>
   "conditions": { <3>
     "[max_age: 7d]": false,
-    "[max_docs: 1000]": true
+    "[max_docs: 1000]": true,
+    "[max_size: 5gb]": false,
   }
 }
 --------------------------------------------------
@@ -76,7 +78,8 @@ POST /my_alias/_rollover/my_new_index_name
 {
   "conditions": {
     "max_age":   "7d",
-    "max_docs":  1000
+    "max_docs":  1000,
+    "max_size": "5gb"
   }
 }
 --------------------------------------------------
@@ -186,7 +189,8 @@ POST /logs_write/_rollover
 {
   "conditions" : {
     "max_age": "7d",
-    "max_docs": 1000
+    "max_docs": 1000,
+    "max_size": "5gb"
   },
   "settings": {
     "index.number_of_shards": 2
@@ -214,7 +218,8 @@ POST /logs_write/_rollover?dry_run
 {
   "conditions" : {
     "max_age": "7d",
-    "max_docs": 1000
+    "max_docs": 1000,
+    "max_size": "5gb"
   }
 }
 --------------------------------------------------

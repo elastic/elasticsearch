@@ -28,14 +28,13 @@ import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 /**
  * This is a basic selector abstraction used by {@link org.elasticsearch.transport.nio.NioTransport}. This
@@ -56,7 +55,6 @@ public abstract class ESSelector implements Closeable {
     private final CountDownLatch exitedLoop = new CountDownLatch(1);
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final PlainActionFuture<Boolean> isRunningFuture = PlainActionFuture.newFuture();
-    private final Set<NioChannel> registeredChannels = Collections.newSetFromMap(new ConcurrentHashMap<NioChannel, Boolean>());
     private volatile Thread thread;
 
     ESSelector(EventHandler eventHandler) throws IOException {
@@ -134,7 +132,7 @@ public abstract class ESSelector implements Closeable {
 
     void cleanupAndCloseChannels() {
         cleanup();
-        channelsToClose.addAll(registeredChannels);
+        channelsToClose.addAll(selector.keys().stream().map(sk -> (NioChannel) sk.attachment()).collect(Collectors.toList()));
         closePendingChannels();
     }
 
@@ -169,19 +167,6 @@ public abstract class ESSelector implements Closeable {
     void wakeup() {
         // TODO: Do we need the wakeup optimizations that some other libraries use?
         selector.wakeup();
-    }
-
-    public Set<NioChannel> getRegisteredChannels() {
-        return registeredChannels;
-    }
-
-    public void addRegisteredChannel(NioChannel channel) {
-        assert registeredChannels.contains(channel) == false : "Should only register channel once";
-        registeredChannels.add(channel);
-    }
-
-    public void removeRegisteredChannel(NioChannel channel) {
-        registeredChannels.remove(channel);
     }
 
     @Override

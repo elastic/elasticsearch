@@ -230,7 +230,7 @@ GET /_mget?routing=key1
             "_index" : "test",
             "_type" : "type",
             "_id" : "1",
-            "_routing" : "key2"
+            "routing" : "key2"
         },
         {
             "_index" : "test",

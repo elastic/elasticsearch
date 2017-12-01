@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
@@ -176,7 +177,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("path.home", home)
             .build();
-        return Tuple.tuple(home, new Environment(settings));
+        return Tuple.tuple(home, TestEnvironment.newEnvironment(settings));
     }
 
     static Path createPluginDir(Function<String, Path> temp) throws IOException {
@@ -236,7 +237,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     MockTerminal installPlugin(String pluginUrl, Path home, InstallPluginCommand command) throws Exception {
-        Environment env = new Environment(Settings.builder().put("path.home", home).build());
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
         command.execute(terminal, pluginUrl, true, env);
         return terminal;

@@ -22,7 +22,6 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.channel.CloseFuture;
 import org.elasticsearch.transport.nio.channel.DoNotRegisterChannel;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
@@ -44,7 +43,7 @@ import static org.mockito.Mockito.when;
 
 public class SocketEventHandlerTests extends ESTestCase {
 
-    private BiConsumer<NioSocketChannel, Throwable> exceptionHandler;
+    private BiConsumer<NioSocketChannel, Exception> exceptionHandler;
 
     private SocketEventHandler handler;
     private NioSocketChannel channel;
@@ -56,13 +55,13 @@ public class SocketEventHandlerTests extends ESTestCase {
     public void setUpHandler() throws IOException {
         exceptionHandler = mock(BiConsumer.class);
         SocketSelector socketSelector = mock(SocketSelector.class);
-        handler = new SocketEventHandler(logger, exceptionHandler);
+        handler = new SocketEventHandler(logger);
         rawChannel = mock(SocketChannel.class);
-        channel = new DoNotRegisterChannel("", rawChannel, socketSelector);
+        channel = new DoNotRegisterChannel(rawChannel, socketSelector);
         readContext = mock(ReadContext.class);
         when(rawChannel.finishConnect()).thenReturn(true);
 
-        channel.setContexts(readContext, new TcpWriteContext(channel));
+        channel.setContexts(readContext, new TcpWriteContext(channel), exceptionHandler);
         channel.register();
         channel.finishConnect();
 
@@ -102,11 +101,8 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     public void testHandleReadMarksChannelForCloseIfPeerClosed() throws IOException {
         NioSocketChannel nioSocketChannel = mock(NioSocketChannel.class);
-        CloseFuture closeFuture = mock(CloseFuture.class);
         when(nioSocketChannel.getReadContext()).thenReturn(readContext);
         when(readContext.read()).thenReturn(-1);
-        when(nioSocketChannel.getCloseFuture()).thenReturn(closeFuture);
-        when(closeFuture.isDone()).thenReturn(true);
 
         handler.handleRead(nioSocketChannel);
 

@@ -21,7 +21,7 @@ GET /_search
         "test2" : {
             "script" : {
                 "lang": "painless",
-                "source": "doc['my_field_name'].value * factor",
+                "source": "doc['my_field_name'].value * params.factor",
                 "params" : {
                     "factor"  : 2.0
                 }

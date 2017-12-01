@@ -21,17 +21,22 @@ package org.elasticsearch.common.lucene.index;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
- * An {@link IndexDeletionPolicy} that deletes unneeded index commits, and returns index commits are not deleted by this policy.
+ * A variant of {@link IndexDeletionPolicy} that deletes unneeded index commits, but also returns index commits are not deleted
+ * by this policy. Returning a list of kept index commits provides a reliable way to check if an index commit is retained or not
+ * as other deletion policy may suppress the delete request. For example, {@link SnapshotDeletionPolicy} suppresses delete requests
+ * for index commits that are being snapshotted.
  */
 public interface ESIndexDeletionPolicy {
 
     /**
      * Similar to {@link IndexDeletionPolicy#onInit(List)} but returns a list of kept index commits.
+     * This is called once when a writer is first instantiated to give the policy a chance to remove old commit points.
      *
      * @param commits A list of index commits sorted by age (the 0th one is the oldest commit).
      * @return a list of index commits that are not deleted by this policy.
@@ -40,6 +45,7 @@ public interface ESIndexDeletionPolicy {
 
     /**
      * Similar to {@link IndexDeletionPolicy#onCommit(List)} but returns a list of kept index commits.
+     * This is called each time the writer completed a commit. This gives the policy a chance to remove old commit points with each commit.
      *
      * @param commits A list of index commits sorted by age (the 0th one is the oldest commit).
      * @return a list of index commits that are not deleted by this policy.

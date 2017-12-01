@@ -46,7 +46,8 @@ public class SnapshotStatusTests extends ESTestCase {
         SnapshotIndexShardStatus snapshotIndexShardStatus = new SnapshotIndexShardStatus(testShardId, shardStage);
         List<SnapshotIndexShardStatus> snapshotIndexShardStatuses = new ArrayList<>();
         snapshotIndexShardStatuses.add(snapshotIndexShardStatus);
-        SnapshotStatus status = new SnapshotStatus(snapshot, state, snapshotIndexShardStatuses);
+        boolean includeGlobalState = randomBoolean();
+        SnapshotStatus status = new SnapshotStatus(snapshot, state, snapshotIndexShardStatuses, includeGlobalState);
 
         int initializingShards = 0;
         int startedShards = 0;
@@ -80,6 +81,7 @@ public class SnapshotStatusTests extends ESTestCase {
             "  \"repository\" : \"test-repo\",\n" +
             "  \"uuid\" : \"" + uuid + "\",\n" +
             "  \"state\" : \"" + state.toString() + "\",\n" +
+            "  \"include_global_state\" : " + includeGlobalState + ",\n" +
             "  \"shards_stats\" : {\n" +
             "    \"initializing\" : " + initializingShards + ",\n" +
             "    \"started\" : " + startedShards + ",\n" +

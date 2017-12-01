@@ -590,12 +590,20 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-no-global-state").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        SnapshotsStatusResponse snapshotsStatusResponse = client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-no-global-state").get();
+        assertThat(snapshotsStatusResponse.getSnapshots().size(), equalTo(1));
+        SnapshotStatus snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
+        assertThat(snapshotStatus.includeGlobalState(), equalTo(false));
 
         logger.info("--> snapshot with global state");
         createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-with-global-state").setIndices().setIncludeGlobalState(true).setWaitForCompletion(true).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-with-global-state").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        snapshotsStatusResponse = client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-with-global-state").get();
+        assertThat(snapshotsStatusResponse.getSnapshots().size(), equalTo(1));
+        snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
+        assertThat(snapshotStatus.includeGlobalState(), equalTo(true));
 
         if (testTemplate) {
             logger.info("-->  delete test template");
@@ -1635,7 +1643,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
 
         logger.info("--> snapshot");
-        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(false).setIncludeGlobalState(false).setIndices("test-idx").get();
 
         logger.info("--> waiting for block to kick in");
         waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
@@ -1645,6 +1654,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(response.getSnapshots().size(), equalTo(1));
         SnapshotStatus snapshotStatus = response.getSnapshots().get(0);
         assertThat(snapshotStatus.getState(), equalTo(SnapshotsInProgress.State.STARTED));
+        assertThat(snapshotStatus.includeGlobalState(), equalTo(false));
+
         // We blocked the node during data write operation, so at least one shard snapshot should be in STARTED stage
         assertThat(snapshotStatus.getShardsStats().getStartedShards(), greaterThan(0));
         for (SnapshotIndexShardStatus shardStatus : snapshotStatus.getIndices().get("test-idx")) {
@@ -1658,6 +1669,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(response.getSnapshots().size(), equalTo(1));
         snapshotStatus = response.getSnapshots().get(0);
         assertThat(snapshotStatus.getState(), equalTo(SnapshotsInProgress.State.STARTED));
+        assertThat(snapshotStatus.includeGlobalState(), equalTo(false));
+
         // We blocked the node during data write operation, so at least one shard snapshot should be in STARTED stage
         assertThat(snapshotStatus.getShardsStats().getStartedShards(), greaterThan(0));
         for (SnapshotIndexShardStatus shardStatus : snapshotStatus.getIndices().get("test-idx")) {
@@ -1684,6 +1697,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         response = client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap").execute().actionGet();
         snapshotStatus = response.getSnapshots().get(0);
         assertThat(snapshotStatus.getIndices().size(), equalTo(1));
+        assertThat(snapshotStatus.includeGlobalState(), equalTo(false));
+
         SnapshotIndexStatus indexStatus = snapshotStatus.getIndices().get("test-idx");
         assertThat(indexStatus, notNullValue());
         assertThat(indexStatus.getShardsStats().getInitializingShards(), equalTo(0));

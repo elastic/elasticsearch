@@ -125,6 +125,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TypeMissingException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -187,6 +188,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexEventListener indexEventListener;
     private final QueryCachingPolicy cachingPolicy;
     private final Supplier<Sort> indexSortSupplier;
+    // Package visible for testing
+    final CircuitBreakerService circuitBreakerService;
 
     private final SearchOperationListener searchOperationListener;
 
@@ -258,7 +261,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Engine.Warmer warmer,
             List<SearchOperationListener> searchOperationListener,
             List<IndexingOperationListener> listeners,
-            Runnable globalCheckpointSyncer) throws IOException {
+            Runnable globalCheckpointSyncer,
+            CircuitBreakerService circuitBreakerService) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -289,6 +293,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
         this.path = path;
+        this.circuitBreakerService = circuitBreakerService;
         /* create engine config */
         logger.debug("state: [CREATED]");
 
@@ -2181,7 +2186,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort,
-            this::runTranslogRecovery);
+            this::runTranslogRecovery, circuitBreakerService);
     }
 
     /**

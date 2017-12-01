@@ -531,7 +531,8 @@ public class InternalEngine extends Engine {
         try {
             try {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                internalSearcherManager = new SearcherManager(directoryReader, new SearcherFactory());
+                internalSearcherManager = new SearcherManager(directoryReader,
+                        new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
                 lastCommittedSegmentInfos = readLastCommittedSegmentInfos(internalSearcherManager, store);
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
                     externalSearcherFactory);

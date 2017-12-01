@@ -12,13 +12,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
-import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -106,26 +106,26 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         for (XPackFeatureSet.Usage usage : Arrays.asList(monitoringUsage, serializedUsage)) {
             assertThat(usage.name(), is(featureSet.name()));
             assertThat(usage.enabled(), is(featureSet.enabled()));
-            XContentSource source;
+            ObjectPath  source;
             try (XContentBuilder builder = jsonBuilder()) {
                 usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                source = new XContentSource(builder);
+                source = ObjectPath.createFromXContent(builder.contentType().xContent(), builder.bytes());
             }
-            assertThat(source.getValue("enabled_exporters"), is(notNullValue()));
+            assertThat(source.evaluate("enabled_exporters"), is(notNullValue()));
             if (localCount > 0) {
-                assertThat(source.getValue("enabled_exporters.local"), is(localCount));
+                assertThat(source.evaluate("enabled_exporters.local"), is(localCount));
             } else {
-                assertThat(source.getValue("enabled_exporters.local"), is(nullValue()));
+                assertThat(source.evaluate("enabled_exporters.local"), is(nullValue()));
             }
             if (httpCount > 0) {
-                assertThat(source.getValue("enabled_exporters.http"), is(httpCount));
+                assertThat(source.evaluate("enabled_exporters.http"), is(httpCount));
             } else {
-                assertThat(source.getValue("enabled_exporters.http"), is(nullValue()));
+                assertThat(source.evaluate("enabled_exporters.http"), is(nullValue()));
             }
             if (xCount > 0) {
-                assertThat(source.getValue("enabled_exporters." + xType), is(xCount));
+                assertThat(source.evaluate("enabled_exporters." + xType), is(xCount));
             } else {
-                assertThat(source.getValue("enabled_exporters." + xType), is(nullValue()));
+                assertThat(source.evaluate("enabled_exporters." + xType), is(nullValue()));
             }
         }
     }

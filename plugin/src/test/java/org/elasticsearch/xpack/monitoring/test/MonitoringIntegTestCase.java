@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -70,7 +69,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     protected Settings transportClientSettings() {
         return Settings.builder().put(super.transportClientSettings())
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-                .put(XPackSettings.WATCHER_ENABLED.getKey(), enableWatcher())
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .build();
     }
 
@@ -110,24 +109,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @After
     public void tearDown() throws Exception {
-        if (enableWatcher()) {
-            internalCluster().getInstances(WatcherLifeCycleService.class)
-                    .forEach(w -> w.stop("tearing down watcher as part of monitoring test case"));
-        }
         stopMonitoringService();
         super.tearDown();
-    }
-
-    /**
-     * Override and return {@code false} to force running without Watcher.
-     *
-     * Ensure that this method always returns the same value during a test run, do not put randomBoolean() in here
-     * as it is called more than once
-     */
-    protected boolean enableWatcher() {
-        // Once randomDefault() becomes the default again, then this should only be actively disabled when
-        // trying to figure out exactly how many indices are at play
-        return false;
     }
 
     protected void startMonitoringService() {

@@ -28,7 +28,6 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
     protected final String exporterName = "_local";
 
     private static ThreadPool THREADPOOL;
-    private static Boolean ENABLE_WATCHER;
 
     @BeforeClass
     public static void setupThreadPool() {
@@ -37,29 +36,9 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
 
     @AfterClass
     public static void cleanUpStatic() throws Exception {
-        ENABLE_WATCHER = null;
-
         if (THREADPOOL != null) {
             terminate(THREADPOOL);
         }
-    }
-
-    @Override
-    protected boolean enableWatcher() {
-        if (ENABLE_WATCHER == null) {
-            ENABLE_WATCHER = randomBoolean();
-        }
-
-        return ENABLE_WATCHER;
-    }
-
-    /**
-     * Override to disable the creation of Watches because of the setting (regardless of Watcher being enabled).
-     *
-     * @return Always {@code true} by default.
-     */
-    protected boolean useClusterAlerts() {
-        return true;
     }
 
     protected Settings localExporterSettings() {
@@ -67,8 +46,8 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
                        .put(MonitoringService.INTERVAL.getKey(), "-1")
                        .put("xpack.monitoring.exporters." + exporterName + ".type", LocalExporter.TYPE)
                        .put("xpack.monitoring.exporters." + exporterName +  ".enabled", false)
-                       .put("xpack.monitoring.exporters." + exporterName +  "." + CLUSTER_ALERTS_MANAGEMENT_SETTING, useClusterAlerts())
-                       .put(XPackSettings.WATCHER_ENABLED.getKey(), enableWatcher())
+                       .put("xpack.monitoring.exporters." + exporterName +  "." + CLUSTER_ALERTS_MANAGEMENT_SETTING, false)
+                       .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                        .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                        .build();
     }

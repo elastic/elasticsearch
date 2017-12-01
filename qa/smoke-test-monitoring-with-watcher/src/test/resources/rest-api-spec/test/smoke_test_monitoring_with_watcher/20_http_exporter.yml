@@ -1,0 +1,87 @@
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.monitoring.exporters.*: null
+
+  # delete all watcher indices, so we will start clean again
+  - do:
+      indices.delete:
+        index: .watch*
+
+---
+"Watches are installed on startup with http exporter":
+
+  - do:
+      cluster.state: {}
+  - set: { metadata.cluster_uuid : cluster_uuid }
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.http.publish_address: http_host }
+
+  # install a watch that is going to be overwritten
+  - do:
+      xpack.watcher.put_watch:
+        id: ${cluster_uuid}_elasticsearch_cluster_status
+        body: >
+          {
+            "trigger" : {
+              "schedule": {
+                "interval" : "10m"
+              }
+            },
+            "input" : {
+              "simple" : {}
+            },
+            "actions" : {
+              "logme" : {
+                "logging" : {
+                  "text" : "{{ctx}}"
+                }
+              }
+            }
+          }
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.monitoring.exporters.my_http_exporter.type: "http"
+            xpack.monitoring.exporters.my_http_exporter.host: $http_host
+            xpack.monitoring.exporters.my_http_exporter.cluster_alerts.management.enabled: true
+        flat_settings: true
+
+  - match: {transient: {
+                  "xpack.monitoring.exporters.my_http_exporter.type": "http",
+                  "xpack.monitoring.exporters.my_http_exporter.host": "$http_host",
+                  "xpack.monitoring.exporters.my_http_exporter.cluster_alerts.management.enabled": "true"
+           }}
+
+  # sleep
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 10s
+  - match: { "timed_out": true }
+
+  - do:
+      indices.refresh:
+        index: [ ".watches" ]
+
+  - do:
+      search:
+        index: .watches
+
+  - match: { hits.total: 5 }
+
+  - do:
+      xpack.watcher.get_watch:
+        id: ${cluster_uuid}_elasticsearch_cluster_status
+
+  # different interval than above means the watch was correctly replaced
+  - match: { watch.trigger.schedule.interval: "1m" }

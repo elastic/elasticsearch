@@ -116,6 +116,7 @@ import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -174,7 +175,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testSegments() throws Exception {
         try (Store store = createStore();
-             Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
+             InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
             List<Segment> segments = engine.segments(false);
             assertThat(segments.isEmpty(), equalTo(true));
             assertThat(engine.segmentsStats(false).getCount(), equalTo(0L));
@@ -290,6 +291,69 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(2).getNumDocs(), equalTo(1));
             assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
             assertThat(segments.get(2).isCompound(), equalTo(true));
+
+            // internal refresh - lets make sure we see those segments in the stats
+            ParsedDocument doc5 = testParsedDocument("5", null, testDocumentWithTextField(), B_3, null);
+            engine.index(indexForDoc(doc5));
+            engine.refresh("test", Engine.SearcherScope.INTERNAL);
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(4));
+            assertThat(engine.segmentsStats(false).getCount(), equalTo(4L));
+            assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+            assertThat(segments.get(0).isCommitted(), equalTo(true));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(1));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
+            assertThat(segments.get(0).isCompound(), equalTo(true));
+
+            assertThat(segments.get(1).isCommitted(), equalTo(false));
+            assertThat(segments.get(1).isSearch(), equalTo(true));
+            assertThat(segments.get(1).getNumDocs(), equalTo(1));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(1).isCompound(), equalTo(true));
+
+            assertThat(segments.get(2).isCommitted(), equalTo(false));
+            assertThat(segments.get(2).isSearch(), equalTo(true));
+            assertThat(segments.get(2).getNumDocs(), equalTo(1));
+            assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(2).isCompound(), equalTo(true));
+
+            assertThat(segments.get(3).isCommitted(), equalTo(false));
+            assertThat(segments.get(3).isSearch(), equalTo(false));
+            assertThat(segments.get(3).getNumDocs(), equalTo(1));
+            assertThat(segments.get(3).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(3).isCompound(), equalTo(true));
+
+            // now refresh the external searcher and make sure it has the new segment
+            engine.refresh("test");
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(4));
+            assertThat(engine.segmentsStats(false).getCount(), equalTo(4L));
+            assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+            assertThat(segments.get(0).isCommitted(), equalTo(true));
+            assertThat(segments.get(0).isSearch(), equalTo(true));
+            assertThat(segments.get(0).getNumDocs(), equalTo(1));
+            assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
+            assertThat(segments.get(0).isCompound(), equalTo(true));
+
+            assertThat(segments.get(1).isCommitted(), equalTo(false));
+            assertThat(segments.get(1).isSearch(), equalTo(true));
+            assertThat(segments.get(1).getNumDocs(), equalTo(1));
+            assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(1).isCompound(), equalTo(true));
+
+            assertThat(segments.get(2).isCommitted(), equalTo(false));
+            assertThat(segments.get(2).isSearch(), equalTo(true));
+            assertThat(segments.get(2).getNumDocs(), equalTo(1));
+            assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(2).isCompound(), equalTo(true));
+
+            assertThat(segments.get(3).isCommitted(), equalTo(false));
+            assertThat(segments.get(3).isSearch(), equalTo(true));
+            assertThat(segments.get(3).getNumDocs(), equalTo(1));
+            assertThat(segments.get(3).getDeletedDocs(), equalTo(0));
+            assertThat(segments.get(3).isCompound(), equalTo(true));
         }
     }
 
@@ -2483,7 +2547,7 @@ public class InternalEngineTests extends EngineTestCase {
                 threadPool, config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig, TimeValue.timeValueMinutes(5),
-                config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+                config.getRefreshListeners(), null, config.getTranslogRecoveryRunner(), new NoneCircuitBreakerService());
 
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
@@ -2537,7 +2601,7 @@ public class InternalEngineTests extends EngineTestCase {
             threadPool, indexSettings, null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(), false, config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
-            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner(), new NoneCircuitBreakerService());
         engine = new InternalEngine(newConfig);
         if (newConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             engine.recoverFromTranslog();
@@ -2567,7 +2631,7 @@ public class InternalEngineTests extends EngineTestCase {
             threadPool, config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(), true, config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
-            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner(), new NoneCircuitBreakerService());
         engine = new InternalEngine(newConfig);
         if (newConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             engine.recoverFromTranslog();

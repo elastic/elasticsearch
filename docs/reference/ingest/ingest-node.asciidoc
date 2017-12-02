@@ -1580,6 +1580,8 @@ Converts a JSON string into a structured JSON object.
 | `add_to_root`  | no        | false    | Flag that forces the serialized json to be injected into the top level of the document. `target_field` must not be set when this option is chosen.
 |======
 
+All JSON-supported types will be parsed (null, boolean, number, array, object, string).
+
 Suppose you provide this configuration of the `json` processor:
 
 [source,js]

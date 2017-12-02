@@ -145,6 +145,42 @@ In that case the `document` parameter can be substituted with the following para
 `version`:: Optionally, the expected version of the document to be fetched.
 
 [float]
+==== Percolating in a filter context
+
+In case you are not interested in the score, better performance can be expected by wrapping
+the percolator query in a `bool` query's filter clause or in a `constant_score` query:
+
+[source,js]
+--------------------------------------------------
+GET /my-index/_search
+{
+    "query" : {
+        "constant_score": {
+            "filter": {
+                "percolate" : {
+                    "field" : "query",
+                    "document" : {
+                        "message" : "A new bonsai tree in the office"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+At index time terms are extracted from the percolator query and the percolator
+can often determine whether a query matches just by looking at those extracted
+terms. However, computing scores requires to deserialize each matching query
+and run it against the percolated document, which is a much more expensive
+operation. Hence if computing scores is not required the `percolate` query
+should be wrapped in a `constant_score` query or a `bool` query's filter clause.
+
+Note that the `percolate` query never gets cached by the query cache.
+
+[float]
 ==== Percolating multiple documents
 
 The `percolate` query can match multiple documents simultaneously with the indexed percolator queries.
@@ -383,27 +419,6 @@ This will yield the following response.
       {
         "_index": "my-index",
         "_type": "doc",
-        "_id": "4",
-        "_score": 0.5753642,
-        "_source": {
-          "query": {
-            "match": {
-              "message": "lazy dog"
-            }
-          }
-        },
-        "highlight": {
-          "message": [
-            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>" <1>
-          ]
-        },
-        "fields" : {
-          "_percolator_document_slot" : [0]
-        }
-      },
-      {
-        "_index": "my-index",
-        "_type": "doc",
         "_id": "3",
         "_score": 0.5753642,
         "_source": {
@@ -416,6 +431,27 @@ This will yield the following response.
         "highlight": {
           "message": [
             "The quick <em>brown</em> <em>fox</em> jumps over the lazy dog" <1>
+          ]
+        },
+        "fields" : {
+          "_percolator_document_slot" : [0]
+        }
+      },
+      {
+        "_index": "my-index",
+        "_type": "doc",
+        "_id": "4",
+        "_score": 0.5753642,
+        "_source": {
+          "query": {
+            "match": {
+              "message": "lazy dog"
+            }
+          }
+        },
+        "highlight": {
+          "message": [
+            "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>" <1>
           ]
         },
         "fields" : {

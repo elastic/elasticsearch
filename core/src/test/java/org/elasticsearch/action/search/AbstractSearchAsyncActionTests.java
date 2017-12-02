@@ -65,7 +65,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f), null,
                 request, null, new GroupShardsIterator<>(Collections.singletonList(
                 new SearchShardIterator(null, null, Collections.emptyList(), null))), timeProvider, 0, null,
-                new InitialSearchPhase.ArraySearchPhaseResults<>(10), request.getMaxConcurrentShardRequests()) {
+                new InitialSearchPhase.ArraySearchPhaseResults<>(10), request.getMaxConcurrentShardRequests(),
+                SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
                 return null;

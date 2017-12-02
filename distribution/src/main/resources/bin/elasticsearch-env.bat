@@ -49,3 +49,7 @@ set HOSTNAME=%COMPUTERNAME%
 if not defined ES_PATH_CONF (
   set ES_PATH_CONF=!ES_HOME!\config
 )
+
+if not defined ES_TMPDIR (
+  set ES_TMPDIR=!TMP!\elasticsearch
+)

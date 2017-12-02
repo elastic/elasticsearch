@@ -100,7 +100,7 @@ public class StoreRecoveryTests extends ESTestCase {
         Directory target = newFSDirectory(createTempDir());
         final long maxSeqNo = randomNonNegativeLong();
         final long maxUnsafeAutoIdTimestamp = randomNonNegativeLong();
-        storeRecovery.addIndices(indexStats, target, indexSort, dirs, maxSeqNo, maxUnsafeAutoIdTimestamp, null,  0, false);
+        storeRecovery.addIndices(indexStats, target, indexSort, dirs, maxSeqNo, maxUnsafeAutoIdTimestamp, null,  0, false, false);
         int numFiles = 0;
         Predicate<String> filesFilter = (f) -> f.startsWith("segments") == false && f.equals("write.lock") == false
             && f.startsWith("extra") == false;
@@ -174,7 +174,7 @@ public class StoreRecoveryTests extends ESTestCase {
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0).build();
         storeRecovery.addIndices(indexStats, target, indexSort, new Directory[] {dir}, maxSeqNo, maxUnsafeAutoIdTimestamp, metaData,
-            targetShardId, true);
+            targetShardId, true, false);
 
 
         SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(target);

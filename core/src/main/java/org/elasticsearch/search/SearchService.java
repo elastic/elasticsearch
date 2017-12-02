@@ -582,6 +582,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         throws IOException {
         return createSearchContext(request, timeout, true);
     }
+
     private DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout,
                                                      boolean assertAsyncActions)
             throws IOException {
@@ -979,22 +980,31 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * The action listener is guaranteed to be executed on the search thread-pool
      */
     private void rewriteShardRequest(ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
+        ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
+            threadPool.executor(Names.SEARCH).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    listener.onResponse(request);
+                }
+            }), listener::onFailure);
+        IndexShard shardOrNull = indicesService.getShardOrNull(request.shardId());
+        if (shardOrNull != null) {
+            // now we need to check if there is a pending refresh and register
+                ActionListener<Rewriteable> finalListener = actionListener;
+                actionListener = ActionListener.wrap(r ->
+                        shardOrNull.awaitShardSearchActive(b -> finalListener.onResponse(r)), finalListener::onFailure);
+        }
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead
-        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis),
-            ActionListener.wrap(r ->
-                    threadPool.executor(Names.SEARCH).execute(new AbstractRunnable() {
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
+        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);
 
-                        @Override
-                        protected void doRun() throws Exception {
-                            listener.onResponse(request);
-                        }
-                    }), listener::onFailure));
+
     }
 
     /**
@@ -1002,5 +1012,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return indicesService.getRewriteContext(nowInMillis);
+    }
+
+    public IndicesService getIndicesService() {
+        return indicesService;
     }
 }

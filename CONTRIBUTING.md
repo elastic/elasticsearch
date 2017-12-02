@@ -110,17 +110,20 @@ IntelliJ users can automatically configure their IDE: `gradle idea`
 then `File->New Project From Existing Sources`. Point to the root of
 the source directory, select
 `Import project from external model->Gradle`, enable
-`Use auto-import`. Additionally, in order to run tests directly from 
+`Use auto-import`. In order to run tests directly from
 IDEA 2017.2 and above it is required to disable IDEA run launcher to avoid
 finding yourself in "jar hell", which can be achieved by adding the
 `-Didea.no.launcher=true` [JVM
 option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties)
 or by adding `idea.no.launcher=true` to the
-`idea.properties`[https://www.jetbrains.com/help/idea/file-idea-properties.html]
+[`idea.properties`](https://www.jetbrains.com/help/idea/file-idea-properties.html)
 file which can be accessed under Help > Edit Custom Properties within IDEA. You
 may also need to [remove `ant-javafx.jar` from your
-classpath][https://github.com/elastic/elasticsearch/issues/14348] if that is
-reported as a source of jar hell.
+classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
+reported as a source of jar hell. Additionally, in order to run tests directly
+from IDEA 2017.3 and above, go to `Run->Edit Configurations...` and change the
+value for the `Shorten command line` setting from `user-local default: none` to
+`classpath file`.
 
 The Elasticsearch codebase makes heavy use of Java `assert`s and the
 test runner requires that assertions be enabled within the JVM. This
@@ -141,7 +144,7 @@ Please follow these formatting guidelines:
 * Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. Please attempt to tame your IDE so it doesn't make them and please send a PR against this document with instructions for your IDE if it doesn't contain them.
  * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
- * IntelliJ: `Preferences->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
+ * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
 * Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
 
 To create a distribution from the source, simply run:

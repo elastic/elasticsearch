@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
+import java.util.function.LongUnaryOperator;
 
 /**
  * Utility class that allows to return views of {@link ValuesSource}s that
@@ -201,6 +202,13 @@ public enum MissingValues {
                 SortedSetDocValues values = valuesSource.globalOrdinalsValues(context);
                 return replaceMissing(values, missing);
             }
+
+            @Override
+            public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
+                return getGlobalMapping(valuesSource.ordinalsValues(context),
+                        valuesSource.globalOrdinalsValues(context),
+                        valuesSource.globalOrdinalsMapping(context), missing);
+            }
         };
     }
 
@@ -309,6 +317,43 @@ public enum MissingValues {
                 return true;
             }
         };
+    }
+
+    static LongUnaryOperator getGlobalMapping(SortedSetDocValues values, SortedSetDocValues globalValues,
+            LongUnaryOperator segmentToGlobalOrd, BytesRef missing) throws IOException {
+        final long missingGlobalOrd = globalValues.lookupTerm(missing);
+        final long missingSegmentOrd = values.lookupTerm(missing);
+
+        if (missingSegmentOrd >= 0) {
+            // the missing value exists in the segment, nothing to do
+            return segmentToGlobalOrd;
+        } else if (missingGlobalOrd >= 0) {
+            // the missing value exists in another segment, but not the current one
+            final long insertedSegmentOrd = -1L - missingSegmentOrd;
+            final long insertedGlobalOrd = missingGlobalOrd;
+            return segmentOrd -> {
+                if (insertedSegmentOrd == segmentOrd) {
+                    return insertedGlobalOrd;
+                } else if (insertedSegmentOrd > segmentOrd) {
+                    return segmentToGlobalOrd.applyAsLong(segmentOrd);
+                } else {
+                    return segmentToGlobalOrd.applyAsLong(segmentOrd - 1);
+                }
+            };
+        } else {
+            // the missing value exists neither in this segment nor in another segment
+            final long insertedSegmentOrd = -1L - missingSegmentOrd;
+            final long insertedGlobalOrd = -1L - missingGlobalOrd;
+            return segmentOrd -> {
+                if (insertedSegmentOrd == segmentOrd) {
+                    return insertedGlobalOrd;
+                } else if (insertedSegmentOrd > segmentOrd) {
+                    return segmentToGlobalOrd.applyAsLong(segmentOrd);
+                } else {
+                    return 1 + segmentToGlobalOrd.applyAsLong(segmentOrd - 1);
+                }
+            };
+        }
     }
 
     public static ValuesSource.GeoPoint replaceMissing(final ValuesSource.GeoPoint valuesSource, final GeoPoint missing) {

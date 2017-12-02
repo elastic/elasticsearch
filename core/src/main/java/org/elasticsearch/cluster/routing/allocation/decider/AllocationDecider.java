@@ -118,7 +118,7 @@ public abstract class AllocationDecider extends AbstractComponent {
             // On a NO decision, by default, we allow force allocating the primary.
             return allocation.decision(Decision.YES,
                                        decision.label(),
-                                       "primary shard [{}] allowed to force allocate on node [{}]",
+                                       "primary shard [%s] allowed to force allocate on node [%s]",
                                        shardRouting.shardId(), node.nodeId());
         } else {
             // On a THROTTLE/YES decision, we use the same decision instead of forcing allocation

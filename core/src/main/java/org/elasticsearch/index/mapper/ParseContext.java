@@ -305,6 +305,10 @@ public abstract class ParseContext {
 
         private SeqNoFieldMapper.SequenceIDFields seqID;
 
+        private final long maxAllowedNumNestedDocs;
+
+        private long numNestedDocs;
+
 
         private final List<Mapper> dynamicMappers;
 
@@ -321,6 +325,8 @@ public abstract class ParseContext {
             this.version = null;
             this.sourceToParse = source;
             this.dynamicMappers = new ArrayList<>();
+            this.maxAllowedNumNestedDocs = MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.get(indexSettings);
+            this.numNestedDocs = 0L;
         }
 
         @Override
@@ -366,6 +372,13 @@ public abstract class ParseContext {
 
         @Override
         protected void addDoc(Document doc) {
+            numNestedDocs ++;
+            if (numNestedDocs > maxAllowedNumNestedDocs) {
+                throw new MapperParsingException(
+                    "The number of nested documents has exceeded the allowed limit of [" + maxAllowedNumNestedDocs + "]."
+                        + " This limit can be set by changing the [" + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
+                        + "] index level setting.");
+            }
             this.documents.add(doc);
         }
 

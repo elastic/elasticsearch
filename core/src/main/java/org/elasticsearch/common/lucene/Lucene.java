@@ -30,16 +30,19 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -650,6 +653,21 @@ public class Lucene {
         return LenientParser.parse(toParse, defaultValue);
     }
 
+    /**
+     * Tries to extract a segment reader from the given index reader.
+     * If no SegmentReader can be extracted an {@link IllegalStateException} is thrown.
+     */
+    public static SegmentReader segmentReader(LeafReader reader) {
+        if (reader instanceof SegmentReader) {
+            return (SegmentReader) reader;
+        } else if (reader instanceof FilterLeafReader) {
+            final FilterLeafReader fReader = (FilterLeafReader) reader;
+            return segmentReader(FilterLeafReader.unwrap(fReader));
+        }
+        // hard fail - we can't get a SegmentReader
+        throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
+    }
+
     @SuppressForbidden(reason = "Version#parseLeniently() used in a central place")
     private static final class LenientParser {
         public static Version parse(String toParse, Version defaultValue) {
@@ -672,10 +690,6 @@ public class Lucene {
         return new Scorer(null) {
             @Override
             public float score() throws IOException {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public int freq() throws IOException {
                 throw new IllegalStateException(message);
             }
             @Override

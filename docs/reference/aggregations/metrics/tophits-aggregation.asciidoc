@@ -323,6 +323,9 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
                 "max_score": 0.2876821,
                 "hits": [
                   {
+                    "_index": "sales",
+                    "_type" : "product",
+                    "_id": "1",
                     "_nested": {
                       "field": "comments",  <1>
                       "offset": 0 <2>

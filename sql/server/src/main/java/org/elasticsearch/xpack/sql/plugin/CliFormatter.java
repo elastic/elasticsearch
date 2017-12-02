@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -48,7 +49,7 @@ public class CliFormatter implements Writeable {
             }
         }
     }
-    
+
     public CliFormatter(StreamInput in) throws IOException {
         width = in.readIntArray();
     }
@@ -149,5 +150,18 @@ public class CliFormatter implements Writeable {
             rowWidthEstimate += w;
         }
         return rowWidthEstimate * rows;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CliFormatter that = (CliFormatter) o;
+        return Arrays.equals(width, that.width);
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(width);
     }
 }

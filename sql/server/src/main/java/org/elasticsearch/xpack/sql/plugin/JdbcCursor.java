@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The cursor that wraps all necessary information for jdbc
@@ -69,5 +70,19 @@ public class JdbcCursor implements Cursor {
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        JdbcCursor that = (JdbcCursor) o;
+        return Objects.equals(delegate, that.delegate) &&
+                Objects.equals(types, that.types);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(delegate, types);
     }
 }

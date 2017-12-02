@@ -13,6 +13,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursorTests;
+import org.elasticsearch.xpack.sql.plugin.CliFormatter;
+import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
+import org.elasticsearch.xpack.sql.plugin.JdbcCursor;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlResponse.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
@@ -28,7 +31,30 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
     static Cursor randomCursor() {
-        return randomBoolean() ? Cursor.EMPTY : ScrollCursorTests.randomScrollCursor();
+        return randomBoolean() ? Cursor.EMPTY : randomNonEmptyCursor();
+    }
+
+    static Cursor randomNonEmptyCursor() {
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                return ScrollCursorTests.randomScrollCursor();
+            case 1:
+                int typeNum = randomIntBetween(0, 10);
+                List<JDBCType> types = new ArrayList<>();
+                for (int i = 0; i < typeNum; i++) {
+                    types.add(randomFrom(JDBCType.values()));
+                }
+                return new JdbcCursor(ScrollCursorTests.randomScrollCursor(), types);
+            case 2:
+                SqlResponse response = createRandomInstance(Cursor.EMPTY);
+                if (response.columns() != null && response.rows() != null) {
+                    return new CliFormatterCursor(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
+                } else {
+                    return ScrollCursorTests.randomScrollCursor();
+                }
+            default:
+                throw new IllegalArgumentException("Unexpected random value ");
+        }
     }
 
     @Override
@@ -38,6 +64,10 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
 
     @Override
     protected SqlResponse createTestInstance() {
+        return createRandomInstance(randomCursor());
+    }
+
+    private static SqlResponse createRandomInstance(Cursor cursor) {
         int columnCount = between(1, 10);
 
         List<ColumnInfo> columns = null;
@@ -63,7 +93,7 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
             }
         }
 
-        return new SqlResponse(randomCursor(), randomNonNegativeLong(), columnCount, columns, rows);
+        return new SqlResponse(cursor, randomNonNegativeLong(), columnCount, columns, rows);
     }
 
     @Override
@@ -106,7 +136,7 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
     }
 
     public void testVersionHandling() {
-        Cursor cursor = randomCursor();
+        Cursor cursor = randomNonEmptyCursor();
         assertEquals(cursor, Cursor.decodeFromString(Cursor.encodeToString(Version.CURRENT, cursor)));
 
         Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * The cursor that wraps all necessary information for textual representation of the result table
@@ -61,4 +62,17 @@ public class CliFormatterCursor implements Cursor {
         return NAME;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CliFormatterCursor that = (CliFormatterCursor) o;
+        return Objects.equals(delegate, that.delegate) &&
+                Objects.equals(formatter, that.formatter);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(delegate, formatter);
+    }
 }

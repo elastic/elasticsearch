@@ -15,7 +15,7 @@ via the <<all-permission-check, all permission bootstrap check>>.
 
 === Private temporary directory
 
-On Linux, previous version of Elasticsearch defaulted to using `/tmp` as the
+On Linux, previous versions of Elasticsearch defaulted to using `/tmp` as the
 temporary directory for the process. However, `/tmp` is public so we have
 elected to change the packaging so that we use a private temporary directory. If
 you are upgrading from a previous version of Elasticsearch and preserve your

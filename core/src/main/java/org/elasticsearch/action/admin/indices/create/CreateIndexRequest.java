@@ -530,29 +530,22 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (!settings.isEmpty()) {
-            builder.startObject(SETTINGS.getPreferredName());
-            settings.toXContent(builder, params);
-            builder.endObject();
+
+        builder.startObject(SETTINGS.getPreferredName());
+        settings.toXContent(builder, params);
+        builder.endObject();
+
+        builder.startObject(MAPPINGS.getPreferredName());
+        for (Map.Entry<String, String> entry : mappings.entrySet()) {
+            builder.rawField(entry.getKey(), new BytesArray(entry.getValue()), XContentType.JSON);
         }
+        builder.endObject();
 
-        if (!mappings.isEmpty()) {
-            builder.startObject(MAPPINGS.getPreferredName());
-
-            for (Map.Entry<String, String> entry : mappings.entrySet()) {
-                builder.rawField(entry.getKey(), new BytesArray(entry.getValue()), XContentType.JSON);
-            }
-
-            builder.endObject();
+        builder.startObject(ALIASES.getPreferredName());
+        for (Alias alias : aliases) {
+            alias.toXContent(builder, params);
         }
-
-        if (!aliases.isEmpty()) {
-            builder.startObject(ALIASES.getPreferredName());
-            for (Alias alias : aliases) {
-                alias.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
+        builder.endObject();
 
         for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
             builder.field(entry.getKey(), entry.getValue(), params);

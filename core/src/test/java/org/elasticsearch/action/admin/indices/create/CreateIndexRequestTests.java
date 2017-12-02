@@ -20,21 +20,28 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESIndicesTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
-public class CreateIndexRequestTests extends ESIndicesTestCase {
+public class CreateIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
@@ -78,11 +85,26 @@ public class CreateIndexRequestTests extends ESIndicesTestCase {
 
     public void testToXContent() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
+
         String mapping = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().string();
         request.mapping("my_type", mapping, XContentType.JSON);
 
-        String output = Strings.toString(request);
-        assertEquals("{\"mappings\":{\"my_type\":{\"type\":{}}}}", output);
+        Alias alias = new Alias("test_alias");
+        alias.routing("1");
+        alias.filter("{\"term\":{\"year\":2016}}");
+        request.alias(alias);
+
+        Settings.Builder settings = Settings.builder();
+        settings.put(SETTING_NUMBER_OF_SHARDS, 10);
+        request.settings(settings);
+
+        String actualRequestBody = Strings.toString(request);
+
+        String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}}," +
+            "\"mappings\":{\"my_type\":{\"type\":{}}}," +
+            "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\"}}}";
+
+        assertEquals(expectedRequestBody, actualRequestBody);
     }
 
     public void testToAndFromXContent() throws IOException {
@@ -97,7 +119,7 @@ public class CreateIndexRequestTests extends ESIndicesTestCase {
         parsedCreateIndexRequest.source(originalBytes, xContentType);
 
         assertMappingsEqual(createIndexRequest.mappings(), parsedCreateIndexRequest.mappings());
-        assertEquals(createIndexRequest.aliases(), parsedCreateIndexRequest.aliases());
+        assertAliasesEqual(createIndexRequest.aliases(), parsedCreateIndexRequest.aliases());
         assertEquals(createIndexRequest.settings(), parsedCreateIndexRequest.settings());
     }
 
@@ -110,6 +132,18 @@ public class CreateIndexRequestTests extends ESIndicesTestCase {
             XContentParser expectedJson = createParser(XContentType.JSON.xContent(), expectedValue);
             XContentParser actualJson = createParser(XContentType.JSON.xContent(), actualValue);
             assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
+        }
+    }
+
+    private void assertAliasesEqual(Set<Alias> expected, Set<Alias> actual) throws IOException {
+        assertEquals(expected, actual);
+
+        for (Alias expectedAlias : expected) {
+            for (Alias actualAlias : actual) {
+                if (expectedAlias.equals(actualAlias)) {
+                    assertEquals(expectedAlias.filter(), actualAlias.filter());
+                }
+            }
         }
     }
 
@@ -136,5 +170,73 @@ public class CreateIndexRequestTests extends ESIndicesTestCase {
         }
 
         return request;
+    }
+
+    public static Settings randomSettings() {
+        Settings.Builder builder = Settings.builder();
+
+        if (randomBoolean()) {
+            int numberOfShards = randomIntBetween(1, 10);
+            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards);
+        }
+
+        if (randomBoolean()) {
+            int numberOfReplicas = randomIntBetween(1, 10);
+            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas);
+        }
+
+        return builder.build();
+    }
+
+    public static XContentBuilder randomMapping(String type) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject().startObject(type);
+
+        randomMappingFields(builder, true);
+
+        builder.endObject().endObject();
+        return builder;
+    }
+
+    private static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
+        builder.startObject("properties");
+
+        int fieldsNo = randomIntBetween(0, 5);
+        for (int i = 0; i < fieldsNo; i++) {
+            builder.startObject(randomAlphaOfLength(5));
+
+            if (allowObjectField && randomBoolean()) {
+                randomMappingFields(builder, randomBoolean());
+            } else {
+                builder.field("type", "text");
+            }
+
+            builder.endObject();
+        }
+
+        builder.endObject();
+    }
+
+    public static Alias randomAlias() {
+        Alias alias = new Alias(randomAlphaOfLength(5));
+
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                alias.routing(randomAlphaOfLength(5));
+            } else {
+                if (randomBoolean()) {
+                    alias.indexRouting(randomAlphaOfLength(5));
+                }
+                if (randomBoolean()) {
+                    alias.searchRouting(randomAlphaOfLength(5));
+                }
+            }
+        }
+
+        if (randomBoolean()) {
+            alias.filter("{\"term\":{\"year\":2016}}");
+        }
+
+        return alias;
     }
 }

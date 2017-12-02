@@ -34,10 +34,10 @@ import java.util.Collections;
  * <p>
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
  */
-public final class IndicesClient {
+public class IndicesClient {
     private final RestHighLevelClient restHighLevelClient;
 
-    public IndicesClient(RestHighLevelClient restHighLevelClient) {
+    IndicesClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
     }
 
@@ -47,7 +47,7 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">
      * Delete Index API on elastic.co</a>
      */
-    public DeleteIndexResponse deleteIndex(DeleteIndexRequest deleteIndexRequest, Header... headers) throws IOException {
+    public final DeleteIndexResponse deleteIndex(DeleteIndexRequest deleteIndexRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent,
             Collections.emptySet(), headers);
     }
@@ -58,7 +58,8 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-delete-index.html">
      * Delete Index API on elastic.co</a>
      */
-    public void deleteIndexAsync(DeleteIndexRequest deleteIndexRequest, ActionListener<DeleteIndexResponse> listener, Header... headers) {
+    public final void deleteIndexAsync(DeleteIndexRequest deleteIndexRequest, ActionListener<DeleteIndexResponse> listener,
+                                       Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(deleteIndexRequest, Request::deleteIndex, DeleteIndexResponse::fromXContent,
             listener, Collections.emptySet(), headers);
     }
@@ -69,7 +70,7 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
      * Create Index API on elastic.co</a>
      */
-    public CreateIndexResponse createIndex(CreateIndexRequest createIndexRequest, Header... headers) throws IOException {
+    public final CreateIndexResponse createIndex(CreateIndexRequest createIndexRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(createIndexRequest, Request::createIndex, CreateIndexResponse::fromXContent,
             Collections.emptySet(), headers);
     }
@@ -80,7 +81,8 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html">
      * Create Index API on elastic.co</a>
      */
-    public void createIndexAsync(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener, Header... headers) {
+    public final void createIndexAsync(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener,
+                                       Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest, Request::createIndex, CreateIndexResponse::fromXContent,
             listener, Collections.emptySet(), headers);
     }

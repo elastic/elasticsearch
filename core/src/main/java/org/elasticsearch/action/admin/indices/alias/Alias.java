@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -226,7 +227,7 @@ public class Alias implements Streamable, ToXContentObject {
         builder.startObject(name);
 
         if (filter != null) {
-            builder.field(FILTER.getPreferredName(), filter);
+            builder.rawField(FILTER.getPreferredName(), new BytesArray(filter), XContentType.JSON);
         }
 
         if (indexRouting != null && indexRouting.equals(searchRouting)) {

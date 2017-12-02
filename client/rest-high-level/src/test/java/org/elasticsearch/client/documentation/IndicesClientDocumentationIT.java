@@ -72,7 +72,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::delete-index-request-timeout
             // tag::delete-index-request-masterTimeout
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            request.timeout("1m"); // <2>
+            request.masterNodeTimeout("1m"); // <2>
             // end::delete-index-request-masterTimeout
             // tag::delete-index-request-indicesOptions
             request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
@@ -157,7 +157,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::create-index-request-timeout
             // tag::create-index-request-masterTimeout
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            request.timeout("1m"); // <2>
+            request.masterNodeTimeout("1m"); // <2>
             // end::create-index-request-masterTimeout
             // tag::create-index-request-waitForActiveShards
             request.waitForActiveShards(2); // <1>

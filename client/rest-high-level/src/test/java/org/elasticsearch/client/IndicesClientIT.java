@@ -27,10 +27,13 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 
@@ -58,7 +61,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
 
             Alias alias = new Alias("alias_name");
-            alias.filter("\"term\":{\"year\":2016}");
+            alias.filter("{\"term\":{\"year\":2016}}");
             alias.routing("1");
             createIndexRequest.alias(alias);
 
@@ -76,7 +79,24 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 execute(createIndexRequest, highLevelClient().indices()::createIndex, highLevelClient().indices()::createIndexAsync);
             assertTrue(createIndexResponse.isAcknowledged());
 
-            assertTrue(indexExists(indexName));
+            Map<?, ?> indexMetaData = getIndexMetadata(indexName);
+
+            Map<?, ?> settingsData = (Map) indexMetaData.get("settings");
+            Map<?, ?> indexSettings = (Map) settingsData.get("index");
+            assertEquals("2", indexSettings.get("number_of_replicas"));
+
+            Map<?, ?> aliasesData = (Map) indexMetaData.get("aliases");
+            Map<?, ?> aliasData = (Map) aliasesData.get("alias_name");
+            assertEquals("1", aliasData.get("index_routing"));
+            Map<?, ?> filter = (Map) aliasData.get("filter");
+            Map<?, ?> term = (Map) filter.get("term");
+            assertEquals(2016, term.get("year"));
+
+            Map<?, ?> mappingsData = (Map) indexMetaData.get("mappings");
+            Map<?, ?> typeData = (Map) mappingsData.get("type_name");
+            Map<?, ?> properties = (Map) typeData.get("properties");
+            Map<?, ?> field = (Map) properties.get("field");
+            assertEquals("text", field.get("type"));
         }
     }
 
@@ -107,14 +127,27 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     private static void createIndex(String index) throws IOException {
-        CreateIndexResponse response = highLevelClient().indices().createIndex(new CreateIndexRequest(index));
+        Response response = client().performRequest("PUT", index);
 
-        assertTrue(response.isAcknowledged());
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private static boolean indexExists(String index) throws IOException {
         Response response = client().performRequest("HEAD", index);
 
         return response.getStatusLine().getStatusCode() == 200;
+    }
+
+    private Map<?, ?> getIndexMetadata(String index) throws IOException {
+        Response response = client().performRequest("GET", index);
+
+        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(),
+            false);
+
+        Map<?, ?> indexMetaData = (Map<?, ?> ) responseEntity.get(index);
+        assertNotNull(indexMetaData);
+
+        return indexMetaData;
     }
 }

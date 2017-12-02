@@ -18,9 +18,9 @@ class DefaultCursor implements Cursor {
 
     private final Page page;
     private int row = -1;
-    private byte[] cursor;
+    private String cursor;
 
-    DefaultCursor(JdbcHttpClient client, byte[] cursor, Page page, RequestMeta meta) {
+    DefaultCursor(JdbcHttpClient client, String cursor, Page page, RequestMeta meta) {
         this.client = client;
         this.meta = meta;
         this.cursor = cursor;
@@ -39,7 +39,7 @@ class DefaultCursor implements Cursor {
             return true;
         }
         else {
-            if (cursor.length != 0) {
+            if (cursor.isEmpty() == false) {
                 cursor = client.nextPage(cursor, page, meta);
                 row = -1;
                 return next();

@@ -66,13 +66,7 @@ public class RestSqlAction extends BaseRestHandler {
                     data = formatter.formatWithHeader(response);
                 }
 
-                final Cursor responseCursor;
-                if (response.cursor() == Cursor.EMPTY) {
-                    responseCursor = Cursor.EMPTY;
-                } else {
-                    responseCursor = new CliFormatterCursor(response.cursor(), formatter);
-                }
-                return buildTextResponse(responseCursor, System.nanoTime() - startNanos, data);
+                return buildTextResponse(CliFormatterCursor.wrap(response.cursor(), formatter), System.nanoTime() - startNanos, data);
             }
         });
     }

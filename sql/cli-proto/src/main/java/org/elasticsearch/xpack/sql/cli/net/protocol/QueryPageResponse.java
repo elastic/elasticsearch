@@ -13,7 +13,7 @@ import java.io.DataInput;
 import java.io.IOException;
 
 public class QueryPageResponse extends QueryResponse {
-    public QueryPageResponse(long tookNanos, byte[] cursor, String data) {
+    public QueryPageResponse(long tookNanos, String cursor, String data) {
         super(tookNanos, cursor, data);
     }
 

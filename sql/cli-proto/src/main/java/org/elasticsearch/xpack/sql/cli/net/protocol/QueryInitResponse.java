@@ -13,7 +13,7 @@ import java.io.DataInput;
 import java.io.IOException;
 
 public class QueryInitResponse extends QueryResponse {
-    public QueryInitResponse(long tookNanos, byte[] cursor, String data) {
+    public QueryInitResponse(long tookNanos, String cursor, String data) {
         super(tookNanos, cursor, data);
     }
 

@@ -64,7 +64,7 @@ public class JdbcHttpClient {
      * Read the next page of results, updating the {@link Page} and returning
      * the scroll id to use to fetch the next page.
      */
-    public byte[] nextPage(byte[] cursor, Page page, RequestMeta meta) throws SQLException {
+    public String nextPage(String cursor, Page page, RequestMeta meta) throws SQLException {
         QueryPageRequest request = new QueryPageRequest(cursor, timeout(meta), page);
         return ((QueryPageResponse) http.post(request)).cursor();
     }

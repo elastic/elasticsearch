@@ -16,8 +16,7 @@ import static org.elasticsearch.xpack.sql.jdbc.net.protocol.PageTests.randomPage
 
 public class QueryInitResponseTests extends ESTestCase {
     static QueryInitResponse randomQueryInitResponse() {
-        byte[] cursor = new byte[between(0, 5)];
-        random().nextBytes(cursor);
+        String cursor = randomAlphaOfLength(10);
         Page page = randomPage();
         return new QueryInitResponse(randomNonNegativeLong(), cursor, page.columnInfo(), page);
     }
@@ -33,6 +32,6 @@ public class QueryInitResponseTests extends ESTestCase {
         });
         assertEquals("QueryInitResponse<tookNanos=[123] cursor=[0120] columns=[a<type=[VARCHAR]>] data=["
                     + "\ntest\nstring\n]>",
-                new QueryInitResponse(123, new byte[] {0x01, 0x20}, page.columnInfo(), page).toString());
+                new QueryInitResponse(123, "0120", page.columnInfo(), page).toString());
     }
 }

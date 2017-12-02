@@ -5,14 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestChannel;
@@ -83,19 +79,17 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
             CliFormatter formatter = new CliFormatter(response);
             String data = formatter.formatWithHeader(response);
-            return new QueryInitResponse(System.nanoTime() - start, serializeCursor(response.cursor(), formatter), data);
+            return new QueryInitResponse(System.nanoTime() - start,
+                    Cursor.encodeToString(Version.CURRENT, CliFormatterCursor.wrap(response.cursor(), formatter)), data);
         }));
     }
 
     private Consumer<RestChannel> queryPage(Client client, QueryPageRequest request) {
-        Cursor cursor;
-        CliFormatter formatter;
-        try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(request.cursor).streamInput(), CURSOR_REGISTRY)) {
-            cursor = in.readNamedWriteable(Cursor.class);
-            formatter = new CliFormatter(in);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("error reading the cursor");
+        Cursor cursor = Cursor.decodeFromString(request.cursor);
+        if (cursor instanceof CliFormatterCursor == false) {
+            throw new IllegalArgumentException("Unexpected cursor type: [" +  cursor + "]");
         }
+        CliFormatter formatter = ((CliFormatterCursor)cursor).getCliFormatter();
         SqlRequest sqlRequest = new SqlRequest("", null, SqlRequest.DEFAULT_TIME_ZONE, 0,
                                                 TimeValue.timeValueMillis(request.timeout.requestTimeout),
                                                 TimeValue.timeValueMillis(request.timeout.pageTimeout),
@@ -104,20 +98,8 @@ public class RestSqlCliAction extends AbstractSqlProtocolRestAction {
         long start = System.nanoTime();
         return channel -> client.execute(SqlAction.INSTANCE, sqlRequest, toActionListener(channel, response -> {
             String data = formatter.formatWithoutHeader(response);
-            return new QueryPageResponse(System.nanoTime() - start, serializeCursor(response.cursor(), formatter), data);
+            return new QueryPageResponse(System.nanoTime() - start,
+                    Cursor.encodeToString(Version.CURRENT, CliFormatterCursor.wrap(response.cursor(), formatter)), data);
         }));
-    }
-
-    private static byte[] serializeCursor(Cursor cursor, CliFormatter formatter) {
-        if (cursor == Cursor.EMPTY) {
-            return new byte[0];
-        }
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeNamedWriteable(cursor);
-            formatter.writeTo(out);
-            return BytesRef.deepCopyOf(out.bytes().toBytesRef()).bytes;
-        } catch (IOException e) {
-            throw new RuntimeException("unexpected trouble building the cursor", e);
-        }
     }
 }

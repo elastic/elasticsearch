@@ -23,7 +23,7 @@ public class QueryInitResponse extends AbstractQueryResponse {
     public final List<ColumnInfo> columns;
     public final Payload data;
 
-    public QueryInitResponse(long tookNanos, byte[] cursor, List<ColumnInfo> columns, Payload data) {
+    public QueryInitResponse(long tookNanos, String cursor, List<ColumnInfo> columns, Payload data) {
         super(tookNanos, cursor);
         this.columns = columns;
         this.data = data;

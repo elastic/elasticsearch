@@ -18,7 +18,7 @@ import java.util.Objects;
 public class QueryPageResponse extends AbstractQueryResponse {
     private final Payload data;
 
-    public QueryPageResponse(long tookNanos, byte[] cursor, Payload data) {
+    public QueryPageResponse(long tookNanos, String cursor, Payload data) {
         super(tookNanos, cursor);
         this.data = data;
     }

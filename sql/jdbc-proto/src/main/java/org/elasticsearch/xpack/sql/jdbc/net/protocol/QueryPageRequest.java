@@ -16,7 +16,7 @@ import java.io.IOException;
 public class QueryPageRequest extends AbstractQueryPageRequest {
     private final transient Payload data;
 
-    public QueryPageRequest(byte[] cursor, TimeoutInfo timeout, @Nullable Payload data) {
+    public QueryPageRequest(String cursor, TimeoutInfo timeout, @Nullable Payload data) {
         super(cursor, timeout);
         this.data = data;
     }

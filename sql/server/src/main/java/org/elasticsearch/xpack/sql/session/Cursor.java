@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
+import org.elasticsearch.xpack.sql.plugin.JdbcCursor;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -50,6 +51,7 @@ public interface Cursor extends NamedWriteable {
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, EmptyCursor.NAME, in -> EMPTY));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, ScrollCursor.NAME, ScrollCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, CliFormatterCursor.NAME, CliFormatterCursor::new));
+        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, JdbcCursor.NAME, JdbcCursor::new));
         return entries;
     }
 
@@ -57,6 +59,9 @@ public interface Cursor extends NamedWriteable {
      * Write a {@linkplain Cursor} to a string for serialization across xcontent.
      */
     static String encodeToString(Version version, Cursor info) {
+        if(info == EMPTY) {
+            return "";
+        }
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
             try (OutputStream base64 = Base64.getEncoder().wrap(os);
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {
@@ -74,6 +79,9 @@ public interface Cursor extends NamedWriteable {
      * Read a {@linkplain Cursor} from a string.
      */
     static Cursor decodeFromString(String info) {
+        if (info.isEmpty()) {
+            return EMPTY;
+        }
         byte[] bytes = info.getBytes(StandardCharsets.UTF_8);
         try (StreamInput delegate = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)));
              StreamInput in = new NamedWriteableAwareStreamInput(delegate, CURSOR_REGISTRY)) {

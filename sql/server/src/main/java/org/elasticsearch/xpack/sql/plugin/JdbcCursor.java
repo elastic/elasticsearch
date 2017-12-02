@@ -14,41 +14,51 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 
 import java.io.IOException;
+import java.sql.JDBCType;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * The cursor that wraps all necessary information for textual representation of the result table
+ * The cursor that wraps all necessary information for jdbc
  */
-public class CliFormatterCursor implements Cursor {
-    public static final String NAME = "f";
-
+public class JdbcCursor implements Cursor {
+    public static final String NAME = "j";
     private Cursor delegate;
-    private CliFormatter formatter;
+    private List<JDBCType> types;
 
-    public static Cursor wrap(Cursor newCursor, CliFormatter formatter) {
+
+    public static Cursor wrap(Cursor newCursor, List<JDBCType> types) {
         if (newCursor == EMPTY) {
             return EMPTY;
         }
-        return new CliFormatterCursor(newCursor, formatter);
+        return new JdbcCursor(newCursor, types);
     }
 
-    public CliFormatterCursor(Cursor delegate, CliFormatter formatter) {
+    public JdbcCursor(Cursor delegate, List<JDBCType> types) {
         this.delegate = delegate;
-        this.formatter = formatter;
+        this.types = types;
     }
 
-    public CliFormatterCursor(StreamInput in) throws IOException {
+    public JdbcCursor(StreamInput in) throws IOException {
         delegate = in.readNamedWriteable(Cursor.class);
-        formatter = new CliFormatter(in);
+        int size = in.readVInt();
+        types = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            types.add(JDBCType.valueOf(in.readVInt()));
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(delegate);
-        formatter.writeTo(out);
+        out.writeVInt(types.size());
+        for (JDBCType type : types) {
+            out.writeVInt(type.getVendorTypeNumber());
+        }
     }
 
-    public CliFormatter getCliFormatter() {
-        return formatter;
+    public List<JDBCType> getTypes() {
+        return types;
     }
 
     @Override
@@ -60,5 +70,4 @@ public class CliFormatterCursor implements Cursor {
     public String getWriteableName() {
         return NAME;
     }
-
 }

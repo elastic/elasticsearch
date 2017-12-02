@@ -16,13 +16,13 @@ import static org.mockito.Mockito.when;
 
 public class ResponseToStringTests extends ESTestCase {
     public void testQueryInitResponse() {
-        AttributedStringBuilder s = ResponseToString.toAnsi(new QueryInitResponse(123, new byte[0], "some command response"));
+        AttributedStringBuilder s = ResponseToString.toAnsi(new QueryInitResponse(123, "", "some command response"));
         assertEquals("some command response", unstyled(s));
         assertEquals("[37msome command response[0m", fullyStyled(s));
     }
 
     public void testQueryPageResponse() {
-        AttributedStringBuilder s = ResponseToString.toAnsi(new QueryPageResponse(123, new byte[0], "some command response"));
+        AttributedStringBuilder s = ResponseToString.toAnsi(new QueryPageResponse(123, "", "some command response"));
         assertEquals("some command response", unstyled(s));
         assertEquals("[37msome command response[0m", fullyStyled(s));
     }

@@ -309,7 +309,7 @@ public class Cli {
         while (true) {
             term.writer().print(ResponseToString.toAnsi(response).toAnsi(term));
             term.writer().flush();
-            if (response.cursor().length == 0) {
+            if (response.cursor().isEmpty()) {
                 // Successfully finished the entire query!
                 return;
             }

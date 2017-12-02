@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.sql.protocol.shared;
 
 import java.io.DataInput;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -17,9 +15,9 @@ import java.util.Objects;
  */
 public abstract class AbstractQueryResponse extends Response {
     private final long tookNanos;
-    private final byte[] cursor;
+    private final String cursor;
 
-    protected AbstractQueryResponse(long tookNanos, byte[] cursor) {
+    protected AbstractQueryResponse(long tookNanos, String cursor) {
         if (cursor == null) {
             throw new IllegalArgumentException("cursor must not be null");
         }
@@ -29,15 +27,13 @@ public abstract class AbstractQueryResponse extends Response {
 
     protected AbstractQueryResponse(Request request, DataInput in) throws IOException {
         tookNanos = in.readLong();
-        cursor = new byte[ProtoUtil.readArraySize(in)];
-        in.readFully(cursor);
+        cursor = in.readUTF();
     }
 
     @Override
     protected void writeTo(SqlDataOutput out) throws IOException {
         out.writeLong(tookNanos);
-        out.writeInt(cursor.length);
-        out.write(cursor);
+        out.writeUTF(cursor);
     }
 
     /**
@@ -52,7 +48,7 @@ public abstract class AbstractQueryResponse extends Response {
      * Cursor for fetching the next page. If it has {@code length = 0}
      * then there is no next page.
      */
-    public byte[] cursor() {
+    public String cursor() {
         return cursor;
     }
 
@@ -61,9 +57,7 @@ public abstract class AbstractQueryResponse extends Response {
         StringBuilder b = new StringBuilder();
         b.append("tookNanos=[").append(tookNanos);
         b.append("] cursor=[");
-        for (int i = 0; i < cursor.length; i++) {
-            b.append(String.format(Locale.ROOT, "%02x", cursor[i]));
-        }
+        b.append(cursor);
         b.append("]");
         return b.toString();
     }
@@ -75,11 +69,11 @@ public abstract class AbstractQueryResponse extends Response {
         }
         AbstractQueryResponse other = (AbstractQueryResponse) obj;
         return tookNanos == other.tookNanos
-                && Arrays.equals(cursor, other.cursor);
+                && Objects.equals(cursor, other.cursor);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tookNanos, Arrays.hashCode(cursor));
+        return Objects.hash(tookNanos, cursor);
     }
 }

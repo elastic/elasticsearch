@@ -15,8 +15,7 @@ import static org.elasticsearch.xpack.sql.jdbc.net.protocol.JdbcRoundTripTestUti
 
 public class QueryPageRequestTests extends ESTestCase {
     static QueryPageRequest randomQueryPageRequest(Page page) {
-        byte[] cursor = new byte[between(0, 5)];
-        random().nextBytes(cursor);
+        String cursor = randomAlphaOfLength(10);
         return new QueryPageRequest(cursor, randomTimeoutInfo(), page);
     }
 
@@ -25,6 +24,6 @@ public class QueryPageRequestTests extends ESTestCase {
     }
 
     public void testToString() {
-        assertEquals("QueryPageRequest<0320>", new QueryPageRequest(new byte[] {0x03, 0x20}, new TimeoutInfo(1, 1, 1), null).toString());
+        assertEquals("QueryPageRequest<0320>", new QueryPageRequest("0320", new TimeoutInfo(1, 1, 1), null).toString());
     }
 }

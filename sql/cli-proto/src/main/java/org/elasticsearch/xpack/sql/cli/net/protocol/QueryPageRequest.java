@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.protocol.shared.SqlDataInput;
 import java.io.IOException;
 
 public class QueryPageRequest extends AbstractQueryPageRequest {
-    public QueryPageRequest(byte[] cursor, TimeoutInfo timeout) {
+    public QueryPageRequest(String cursor, TimeoutInfo timeout) {
         super(cursor, timeout);
     }
 

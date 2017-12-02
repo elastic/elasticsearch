@@ -6,15 +6,13 @@
 package org.elasticsearch.xpack.sql.protocol.shared;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
 
 public abstract class AbstractQueryPageRequest extends Request {
-    public final byte[] cursor;
+    public final String cursor;
     public final TimeoutInfo timeout;
 
-    protected AbstractQueryPageRequest(byte[] cursor, TimeoutInfo timeout) {
+    protected AbstractQueryPageRequest(String cursor, TimeoutInfo timeout) {
         if (cursor == null) {
             throw new IllegalArgumentException("[cursor] must not be null");
         }
@@ -26,25 +24,19 @@ public abstract class AbstractQueryPageRequest extends Request {
     }
 
     protected AbstractQueryPageRequest(SqlDataInput in) throws IOException {
-        this.cursor = new byte[ProtoUtil.readArraySize(in)];
-        in.readFully(cursor);
+        this.cursor = in.readUTF();
         this.timeout = new TimeoutInfo(in);
     }
 
     @Override
     public void writeTo(SqlDataOutput out) throws IOException {
-        out.writeInt(cursor.length);
-        out.write(cursor);
+        out.writeUTF(cursor);
         timeout.writeTo(out);
     }
 
     @Override
     protected String toStringBody() {
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < cursor.length; i++) {
-            b.append(String.format(Locale.ROOT, "%02x", cursor[i]));
-        }
-        return b.toString();
+        return cursor;
     }
 
     @Override
@@ -53,7 +45,7 @@ public abstract class AbstractQueryPageRequest extends Request {
             return false;
         }
         AbstractQueryPageRequest other = (AbstractQueryPageRequest) obj;
-        return Arrays.equals(cursor, other.cursor)
+        return Objects.equals(cursor, other.cursor)
                 && timeout.equals(other.timeout);
     }
 

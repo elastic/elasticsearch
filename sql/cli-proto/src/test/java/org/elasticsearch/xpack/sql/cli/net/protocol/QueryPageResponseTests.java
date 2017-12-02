@@ -14,8 +14,7 @@ import static org.elasticsearch.xpack.sql.cli.net.protocol.QueryPageRequestTests
 
 public class QueryPageResponseTests extends ESTestCase {
     static QueryPageResponse randomQueryPageResponse() {
-        byte[] cursor = new byte[between(0, 5)];
-        random().nextBytes(cursor);
+        String cursor = randomAlphaOfLength(10);
         return new QueryPageResponse(randomNonNegativeLong(), cursor, randomAlphaOfLength(5));
     }
 
@@ -25,6 +24,6 @@ public class QueryPageResponseTests extends ESTestCase {
 
     public void testToString() {
         assertEquals("QueryPageResponse<tookNanos=[123] cursor=[0103] data=[test]>",
-                new QueryPageResponse(123, new byte[] {0x01, 0x03}, "test").toString());
+                new QueryPageResponse(123, "0103", "test").toString());
     }
 }

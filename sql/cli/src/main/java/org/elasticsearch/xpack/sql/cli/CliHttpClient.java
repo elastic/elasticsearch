@@ -42,7 +42,7 @@ public class CliHttpClient {
         return (QueryResponse) post(request);
     }
 
-    public QueryResponse nextPage(byte[] cursor) throws SQLException {
+    public QueryResponse nextPage(String cursor) throws SQLException {
         QueryPageRequest request = new QueryPageRequest(cursor, timeout());
         return (QueryResponse) post(request);
     }

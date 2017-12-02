@@ -16,7 +16,7 @@ import java.util.Objects;
 public abstract class QueryResponse extends AbstractQueryResponse {
     public final String data;
 
-    protected QueryResponse(long tookNanos, byte[] cursor, String data) {
+    protected QueryResponse(long tookNanos, String cursor, String data) {
         super(tookNanos, cursor);
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");

@@ -182,8 +182,8 @@ public class InternalEngine extends Engine {
                 final SeqNoStats seqNoStats = loadSeqNoStats(openMode);
                 logger.trace("recovered [{}]", seqNoStats);
                 this.seqNoService = seqNoServiceSupplier.apply(engineConfig, seqNoStats);
-                this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(new CombinedDeletionPolicy(
-                    new KeepUntilGlobalCheckpointDeletionPolicy(seqNoService::getGlobalCheckpoint), translogDeletionPolicy, openMode)
+                this.snapshotDeletionPolicy = new SnapshotDeletionPolicy(
+                    new CombinedDeletionPolicy(openMode, translogDeletionPolicy, seqNoService::getGlobalCheckpoint)
                 );
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);

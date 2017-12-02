@@ -229,4 +229,38 @@ public class AllocationDeciders extends AllocationDecider {
         }
         return ret;
     }
+    
+    /**
+     * Aggregates {@link Decision}} from various {@link AllocationDecider} and selects the best {@link Decision}} based
+     * on the below criteria
+     * <ul>
+     * <li>{@link Decision#THROTTLE}} would always be the best {@link Decision}} to skip iteration of the current node 
+     *      and wouldn't need to check on the {@link Decision} returned by other {@link AllocationDeciders}
+     * <li>{@link Decision#NO}} for a particular {@link AllocationDecider}} would still want to wait on the best decision {@link Decision#THROTTLE}}
+     * <li>{@link Decision#YES}} for a particular {@link AllocationDecider}} would need all the other {@link AllocationDeciders}} to return
+     *     {@link Decision#YES}} for a {@link RoutingNode}} to skip iteration for all the {@link ShardRouting}}
+     * </ul>
+     */
+    @Override
+    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation) {
+        Decision bestDecision = Decision.ALWAYS;
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canRemainOnNode(node, allocation);
+            if (decision == Decision.THROTTLE) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Pre-emptively returning decision [{}] from decider [{}] for node [{}]", decision.type(),
+                    decider.getClass().getSimpleName(), node.nodeId());
+                }
+                return decision;
+            } else if (decision == Decision.NO) {
+                bestDecision = decision;
+            }
+        }
+        if (logger.isTraceEnabled()) {
+            logger.trace("Returning decision after iterating all the deciders best decision [{}] for node [{}]", bestDecision.type(),
+            node.nodeId());
+        }
+        return bestDecision;
+
+    }
 }

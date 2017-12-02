@@ -99,6 +99,16 @@ public abstract class AllocationDecider extends AbstractComponent {
     public Decision canRebalance(RoutingAllocation allocation) {
         return Decision.ALWAYS;
     }
+    
+    /**
+     * Returns a {@link Decision} whether all the shards on the given {@link RoutingNode}} can be remain
+     * The default is {@link Decision#ALWAYS}.
+     * All implementations that override this behaviour must take a {@link Decision}} whether or not to skip
+     * iterating over all the shards of this node.
+     */
+    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation){
+        return Decision.ALWAYS;
+    }
 
     /**
      * Returns a {@link Decision} whether the given primary shard can be

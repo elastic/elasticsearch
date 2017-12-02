@@ -76,4 +76,20 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
                 "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
                 clusterConcurrentRebalance, relocatingShards);
     }
+    
+    @Override
+    public Decision canRebalance(RoutingAllocation allocation) {
+        if (clusterConcurrentRebalance == -1) {
+            return allocation.decision(Decision.YES, NAME, "unlimited concurrent rebalances are allowed");
+        }
+        int relocatingShards = allocation.routingNodes().getRelocatingShardCount();
+        if (relocatingShards >= clusterConcurrentRebalance) {
+            return allocation.decision(Decision.NO, NAME,
+                "too many shards are concurrently rebalancing [%d], limit: [%d]",
+                relocatingShards, clusterConcurrentRebalance);
+        }
+        return allocation.decision(Decision.YES, NAME,
+            "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
+            clusterConcurrentRebalance, relocatingShards);
+    }
 }

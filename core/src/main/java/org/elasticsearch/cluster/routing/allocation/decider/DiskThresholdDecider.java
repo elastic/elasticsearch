@@ -250,7 +250,11 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (shardRouting.currentNodeId().equals(node.nodeId()) == false) {
+        return canRemain(shardRouting, node, allocation, false);
+    }
+     
+    private Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean remainOnNode) {
+        if (!remainOnNode && shardRouting.currentNodeId().equals(node.nodeId()) == false) {
             throw new IllegalArgumentException("Shard [" + shardRouting + "] is not allocated on node: [" + node.nodeId() + "]");
         }
         final ClusterInfo clusterInfo = allocation.clusterInfo();
@@ -263,16 +267,17 @@ public class DiskThresholdDecider extends AllocationDecider {
         // subtractLeavingShards is passed as true here, since this is only for shards remaining, we will *eventually* have enough disk
         // since shards are moving away. No new shards will be incoming since in canAllocate we pass false for this check.
         final DiskUsage usage = getDiskUsage(node, allocation, usages, true);
-        final String dataPath = clusterInfo.getDataPath(shardRouting);
         // If this node is already above the high threshold, the shard cannot remain (get it off!)
         final double freeDiskPercentage = usage.getFreeDiskAsPercentage();
         final long freeBytes = usage.getFreeBytes();
         if (logger.isTraceEnabled()) {
             logger.trace("node [{}] has {}% free disk ({} bytes)", node.nodeId(), freeDiskPercentage, freeBytes);
         }
-        if (dataPath == null || usage.getPath().equals(dataPath) == false) {
-            return allocation.decision(Decision.YES, NAME,
-                    "this shard is not allocated on the most utilized disk and can remain");
+        if (!remainOnNode) {
+            final String dataPath = clusterInfo.getDataPath(shardRouting);
+            if (dataPath == null || usage.getPath().equals(dataPath) == false) {
+                return allocation.decision(Decision.YES, NAME, "this shard is not allocated on the most utilized disk and can remain");
+            }
         }
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             if (logger.isDebugEnabled()) {
@@ -303,6 +308,10 @@ public class DiskThresholdDecider extends AllocationDecider {
                 "there is enough disk on this node for the shard to remain, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
+    @Override
+    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation) {
+        return canRemain(null, node, allocation, true);
+    }
     private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation,
                                    ImmutableOpenMap<String, DiskUsage> usages, boolean subtractLeavingShards) {
         DiskUsage usage = usages.get(node.nodeId());

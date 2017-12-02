@@ -12,3 +12,14 @@ and one permission that can be added to this policy is
 `java.security.AllPermission`. However, this effectively disables the security
 manager. As such, granting this permission in production mode is now forbidden
 via the <<all-permission-check, all permission bootstrap check>>.
+
+=== Private temporary directory
+
+On Linux, previous versions of Elasticsearch defaulted to using `/tmp` as the
+temporary directory for the process. However, `/tmp` is public so we have
+elected to change the packaging so that we use a private temporary directory. If
+you are upgrading from a previous version of Elasticsearch and preserve your
+existing <<jvm-options,`jvm.options`>>, you should add the line
+`-Djava.io.tmpdir=${ES_TMPDIR}`. It is safe to do this on all OS as we preserve
+using a private temporary directory on non-Linux systems with the same
+mechanism.

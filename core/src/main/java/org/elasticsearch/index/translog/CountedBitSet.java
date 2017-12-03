@@ -31,7 +31,7 @@ final class CountedBitSet extends BitSet {
     private short onBits; // Number of bits are set.
     private FixedBitSet bitset;
 
-    public CountedBitSet(short numBits) {
+    CountedBitSet(short numBits) {
         assert numBits > 0;
         this.onBits = 0;
         this.bitset = new FixedBitSet(numBits);

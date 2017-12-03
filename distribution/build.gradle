@@ -224,6 +224,11 @@ configure(distributions) {
 configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
   // CopySpec does not make it easy to create an empty director so we create the directory that we want, and then point CopySpec to its
   // parent to copy to the root of the distribution
+  File logs = new File(buildDir, 'logs-hack/logs')
+  task createLogDir(type: EmptyDirTask) {
+    dir "${logs}"
+    dirMode 0755
+  }
   File plugins = new File(buildDir, 'plugins-hack/plugins')
   task createPluginsDir(type: EmptyDirTask) {
     dir "${plugins}"
@@ -245,6 +250,12 @@ configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.n
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
           }
           MavenFilteringHack.filter(it, expansions)
+        }
+      }
+      into('') {
+        from {
+          dirMode 0755
+          logs.getParent()
         }
       }
       into('') {
@@ -497,7 +508,9 @@ task run(type: RunTask) {
 Map<String, String> expansionsForDistribution(distributionType) {
   final String defaultHeapSize = "1g"
   final String packagingPathData = "path.data: /var/lib/elasticsearch"
-  final String packagingPathLogs = "path.logs: /var/log/elasticsearch"
+  final String pathLogs = "/var/log/elasticsearch"
+  final String packagingPathLogs = "path.logs: ${pathLogs}"
+  final String packagingLoggc = "${pathLogs}/gc.log"
 
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
@@ -532,6 +545,11 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'deb': packagingPathLogs,
       'rpm': packagingPathLogs,
       'def': '#path.logs: /path/to/logs'
+    ],
+    'loggc': [
+      'deb': packagingLoggc,
+      'rpm': packagingLoggc,
+      'def': 'logs/gc.log'
     ],
 
     'heap.min': defaultHeapSize,

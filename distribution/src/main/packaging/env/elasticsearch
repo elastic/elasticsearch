@@ -42,7 +42,8 @@ ES_STARTUP_SLEEP_TIME=5
 # Set to "unlimited" if you use the 'bootstrap.memory_lock: true' option
 # in elasticsearch.yml.
 # When using Systemd, the LimitMEMLOCK property must be set
-# in /usr/lib/systemd/system/elasticsearch.service
+# in a unit file such as
+# /etc/systemd/system/elasticsearch.service.d/override.conf.
 #MAX_LOCKED_MEMORY=unlimited
 
 # Maximum number of VMA (Virtual Memory Areas) a process can own

@@ -66,7 +66,8 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
         if ("gregory".equals(Calendar.getInstance().getCalendarType()) == false) {
             logger.info("Non gregorian calendar is detected. Overriding locale.");
             locale = Locale.getDefault();
-            Locale.setDefault(Locale.ROOT);
+            Locale.setDefault(locale.stripExtensions()); // removes the calendar setting
+            assert "gregory".equals(Calendar.getInstance().getCalendarType());
         }
         keepAlive = get();
         keepAlive.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'");

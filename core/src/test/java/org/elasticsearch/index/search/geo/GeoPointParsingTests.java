@@ -31,6 +31,7 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 import java.io.IOException;
 
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class GeoPointParsingTests  extends ESTestCase {
@@ -77,12 +78,10 @@ public class GeoPointParsingTests  extends ESTestCase {
 
         /** hashCode test */
         // symmetry
-        assertTrue(x.hashCode() == y.hashCode());
+        assertThat(x.hashCode(), equalTo(y.hashCode()));
         // transitivity
-        assertTrue(y.hashCode() == z.hashCode());
-        assertTrue(x.hashCode() == z.hashCode());
-        // inequality
-        assertFalse(x.hashCode() == a.hashCode());
+        assertThat(y.hashCode(), equalTo(z.hashCode()));
+        assertThat(x.hashCode(), equalTo(z.hashCode()));
     }
 
     public void testGeoPointParsing() throws IOException {

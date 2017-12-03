@@ -30,7 +30,6 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MultiSnapshotTests extends ESTestCase {
 
@@ -40,14 +39,8 @@ public class MultiSnapshotTests extends ESTestCase {
         Randomness.shuffle(values);
         for (int i = 0; i < 1023; i++) {
             assertThat(bitSet.getAndSet(values.get(i)), equalTo(false));
-            assertThat(bitSet.ongoingSetsSize(), equalTo(1L));
-            assertThat(bitSet.completeSetsSize(), equalTo(0L));
         }
-
         assertThat(bitSet.getAndSet(values.get(1023)), equalTo(false));
-        assertThat(bitSet.ongoingSetsSize(), equalTo(0L));
-        assertThat(bitSet.completeSetsSize(), equalTo(1L));
-
         assertThat(bitSet.getAndSet(between(0, 1023)), equalTo(true));
         assertThat(bitSet.getAndSet(between(1024, Integer.MAX_VALUE)), equalTo(false));
     }
@@ -59,7 +52,6 @@ public class MultiSnapshotTests extends ESTestCase {
             long seq = between(0, 5000);
             boolean existed = normalSet.add(seq) == false;
             assertThat("SeqNoSet != Set" + seq, bitSet.getAndSet(seq), equalTo(existed));
-            assertThat(bitSet.ongoingSetsSize() + bitSet.completeSetsSize(), lessThanOrEqualTo(5L));
         });
     }
 
@@ -78,12 +70,8 @@ public class MultiSnapshotTests extends ESTestCase {
         final LongSet normalSet = new LongHashSet();
         long currentSeq = between(10_000_000, 1_000_000_000);
         final int iterations = scaledRandomIntBetween(100, 2000);
-        assertThat(bitSet.completeSetsSize(), equalTo(0L));
-        assertThat(bitSet.ongoingSetsSize(), equalTo(0L));
-        long totalDocs = 0;
         for (long i = 0; i < iterations; i++) {
             int batchSize = between(1, 1500);
-            totalDocs += batchSize;
             currentSeq -= batchSize;
             List<Long> batch = LongStream.range(currentSeq, currentSeq + batchSize)
                 .boxed()
@@ -92,11 +80,7 @@ public class MultiSnapshotTests extends ESTestCase {
             batch.forEach(seq -> {
                 boolean existed = normalSet.add(seq) == false;
                 assertThat("SeqNoSet != Set", bitSet.getAndSet(seq), equalTo(existed));
-                assertThat(bitSet.ongoingSetsSize(), lessThanOrEqualTo(4L));
             });
-            assertThat(bitSet.ongoingSetsSize(), lessThanOrEqualTo(2L));
         }
-        assertThat(bitSet.completeSetsSize(), lessThanOrEqualTo(totalDocs / 1024));
-        assertThat(bitSet.ongoingSetsSize(), lessThanOrEqualTo(2L));
     }
 }

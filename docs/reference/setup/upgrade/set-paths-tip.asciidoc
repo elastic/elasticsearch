@@ -1,0 +1,18 @@
+[TIP]
+================================================
+
+When you extract the zip or tarball packages, the `elasticsearch-n.n.n`
+directory contains the Elasticsearh `config`, `data`, `logs` and
+`plugins` directories.
+
+We recommend moving these directories out of the Elasticsearch directory
+so that there is no chance of deleting them when you upgrade Elasticsearch.
+To specify the new locations, use the `ES_PATH_CONF` environment
+variable and the `path.data` and `path.logs` settings. For more information,
+see <<important-settings,Important Elasticsearch configuration>>.
+
+The <<deb,Debian>> and <<rpm,RPM>> packages place these directories in the
+appropriate place for each operating system. In production, we recommend
+installing using the deb or rpm package.
+
+================================================

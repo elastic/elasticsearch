@@ -54,7 +54,6 @@ public class SetupSection {
                 throw new IllegalArgumentException("section [" + parser.currentName() + "] not supported within setup section");
             }
 
-            parser.nextToken();
             setupSection.addDoSection(DoSection.parse(parser));
             parser.nextToken();
         }

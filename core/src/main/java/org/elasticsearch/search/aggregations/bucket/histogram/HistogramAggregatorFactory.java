@@ -22,8 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -37,16 +37,16 @@ import java.util.Map;
 public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, HistogramAggregatorFactory> {
 
     private final double interval, offset;
-    private final InternalOrder order;
+    private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
     private final double minBound, maxBound;
 
-    HistogramAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, double interval, double offset,
-            InternalOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
+    HistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double interval, double offset,
+            BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
             SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.interval = interval;
         this.offset = offset;
         this.order = order;

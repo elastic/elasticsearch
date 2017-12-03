@@ -35,7 +35,7 @@ public class NoopGatewayAllocator extends GatewayAllocator {
     public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
 
     protected NoopGatewayAllocator() {
-        super(Settings.EMPTY, null, null);
+        super(Settings.EMPTY);
     }
 
     @Override

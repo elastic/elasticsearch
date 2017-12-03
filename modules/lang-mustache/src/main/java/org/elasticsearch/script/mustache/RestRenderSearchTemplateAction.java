@@ -20,7 +20,6 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -35,14 +34,17 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestRenderSearchTemplateAction extends BaseRestHandler {
-
-    @Inject
     public RestRenderSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_render/template", this);
         controller.registerHandler(POST, "/_render/template", this);
         controller.registerHandler(GET, "/_render/template/{id}", this);
         controller.registerHandler(POST, "/_render/template/{id}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "render_search_template_action";
     }
 
     @Override

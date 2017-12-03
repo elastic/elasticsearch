@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -43,7 +43,7 @@ public class PercentilesBucketPipelineAggregationBuilder
         extends BucketMetricsPipelineAggregationBuilder<PercentilesBucketPipelineAggregationBuilder> {
     public static final String NAME = "percentiles_bucket";
 
-    private static final ParseField PERCENTS_FIELD = new ParseField("percents");
+    public static final ParseField PERCENTS_FIELD = new ParseField("percents");
 
     private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
@@ -95,12 +95,9 @@ public class PercentilesBucketPipelineAggregationBuilder
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] aggFactories,
+    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggFactories,
             List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
-        if (bucketsPaths.length != 1) {
-            throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                    + " must contain a single entry for aggregation [" + name + "]");
-        }
+        super.doValidate(parent, aggFactories, pipelineAggregatorFactories);
 
         for (Double p : percents) {
             if (p == null || p < 0.0 || p > 100.0) {
@@ -136,8 +133,8 @@ public class PercentilesBucketPipelineAggregationBuilder
         }
 
         @Override
-        protected boolean token(XContentParser parser, QueryParseContext context, String field,
-                                XContentParser.Token token, Map<String, Object> params) throws IOException {
+        protected boolean token(XContentParser parser, String field, XContentParser.Token token, Map<String, Object> params)
+                throws IOException {
             if (PERCENTS_FIELD.match(field) && token == XContentParser.Token.START_ARRAY) {
                 DoubleArrayList percents = new DoubleArrayList(10);
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {

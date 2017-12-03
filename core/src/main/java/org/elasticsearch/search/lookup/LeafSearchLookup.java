@@ -35,24 +35,20 @@ public class LeafSearchLookup {
     final LeafDocLookup docMap;
     final SourceLookup sourceLookup;
     final LeafFieldsLookup fieldsLookup;
-    final LeafIndexLookup indexLookup;
     final Map<String, Object> asMap;
 
     public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup,
-            LeafFieldsLookup fieldsLookup, LeafIndexLookup indexLookup, Map<String, Object> topLevelMap) {
+            LeafFieldsLookup fieldsLookup) {
         this.ctx = ctx;
         this.docMap = docMap;
         this.sourceLookup = sourceLookup;
         this.fieldsLookup = fieldsLookup;
-        this.indexLookup = indexLookup;
 
-        Map<String, Object> asMap = new HashMap<>(topLevelMap.size() + 5);
-        asMap.putAll(topLevelMap);
+        Map<String, Object> asMap = new HashMap<>(4);
         asMap.put("doc", docMap);
         asMap.put("_doc", docMap);
         asMap.put("_source", sourceLookup);
         asMap.put("_fields", fieldsLookup);
-        asMap.put("_index", indexLookup);
         this.asMap = unmodifiableMap(asMap);
     }
 
@@ -62,10 +58,6 @@ public class LeafSearchLookup {
 
     public SourceLookup source() {
         return this.sourceLookup;
-    }
-
-    public LeafIndexLookup indexLookup() {
-        return this.indexLookup;
     }
 
     public LeafFieldsLookup fields() {
@@ -80,6 +72,5 @@ public class LeafSearchLookup {
         docMap.setDocument(docId);
         sourceLookup.setSegmentAndDocument(ctx, docId);
         fieldsLookup.setDocument(docId);
-        indexLookup.setDocument(docId);
     }
 }

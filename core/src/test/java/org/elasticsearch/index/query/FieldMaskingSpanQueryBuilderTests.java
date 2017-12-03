@@ -37,7 +37,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
         if (randomBoolean()) {
             fieldName = randomFrom(MAPPED_FIELD_NAMES);
         } else {
-            fieldName = randomAsciiOfLengthBetween(1, 10);
+            fieldName = randomAlphaOfLengthBetween(1, 10);
         }
         SpanTermQueryBuilder innerQuery = new SpanTermQueryBuilderTests().createTestQueryBuilder();
         return new FieldMaskingSpanQueryBuilder(innerQuery, fieldName);

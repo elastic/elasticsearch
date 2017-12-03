@@ -22,7 +22,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
@@ -130,13 +129,13 @@ public class AppendProcessorTests extends ESTestCase {
         List<String> values = new ArrayList<>();
         Processor appendProcessor;
         if (randomBoolean()) {
-            String value = randomAsciiOfLengthBetween(1, 10);
+            String value = randomAlphaOfLengthBetween(1, 10);
             values.add(value);
             appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), value);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
-                values.add(randomAsciiOfLengthBetween(1, 10));
+                values.add(randomAlphaOfLengthBetween(1, 10));
             }
             appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), values);
         }
@@ -157,9 +156,9 @@ public class AppendProcessorTests extends ESTestCase {
     }
 
     private static Processor createAppendProcessor(String fieldName, Object fieldValue) {
-        TemplateService templateService = TestTemplateService.instance();
-        return new AppendProcessor(randomAsciiOfLength(10), templateService.compile(fieldName), ValueSource.wrap(fieldValue,
-                templateService));
+        return new AppendProcessor(randomAlphaOfLength(10),
+            new TestTemplateService.MockTemplateScript.Factory(fieldName),
+            ValueSource.wrap(fieldValue, TestTemplateService.instance()));
     }
 
     private enum Scalar {
@@ -186,7 +185,7 @@ public class AppendProcessorTests extends ESTestCase {
         }, STRING {
             @Override
             Object randomValue() {
-                return randomAsciiOfLengthBetween(1, 10);
+                return randomAlphaOfLengthBetween(1, 10);
             }
         }, MAP {
             @Override
@@ -194,7 +193,7 @@ public class AppendProcessorTests extends ESTestCase {
                 int numItems = randomIntBetween(1, 10);
                 Map<String, Object> map = new HashMap<>(numItems);
                 for (int i = 0; i < numItems; i++) {
-                    map.put(randomAsciiOfLengthBetween(1, 10), randomFrom(Scalar.values()).randomValue());
+                    map.put(randomAlphaOfLengthBetween(1, 10), randomFrom(Scalar.values()).randomValue());
                 }
                 return map;
             }

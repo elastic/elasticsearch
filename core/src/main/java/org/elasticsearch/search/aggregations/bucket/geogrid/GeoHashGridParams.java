@@ -24,17 +24,14 @@ import org.elasticsearch.common.ParseField;
  * Encapsulates relevant parameter defaults and validations for the geo hash grid aggregation.
  */
 final class GeoHashGridParams {
-    /* default values */
-    public static final int DEFAULT_PRECISION = 5;
-    public static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
     /* recognized field names in JSON */
-    public static final ParseField FIELD_PRECISION = new ParseField("precision");
-    public static final ParseField FIELD_SIZE = new ParseField("size");
-    public static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");
+    static final ParseField FIELD_PRECISION = new ParseField("precision");
+    static final ParseField FIELD_SIZE = new ParseField("size");
+    static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");
 
 
-    public static int checkPrecision(int precision) {
+    static int checkPrecision(int precision) {
         if ((precision < 1) || (precision > 12)) {
             throw new IllegalArgumentException("Invalid geohash aggregation precision of " + precision
                     + ". Must be between 1 and 12.");

@@ -168,7 +168,9 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         }
 
         MatchQuery matchQuery = new MatchQuery(context);
-        matchQuery.setAnalyzer(analyzer);
+        if (analyzer != null) {
+            matchQuery.setAnalyzer(analyzer);
+        }
         matchQuery.setPhraseSlop(slop);
         matchQuery.setMaxExpansions(maxExpansions);
 
@@ -189,8 +191,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         return Objects.hash(fieldName, value, analyzer, slop, maxExpansions);
     }
 
-    public static MatchPhrasePrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static MatchPhrasePrefixQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -203,8 +204,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;

@@ -22,9 +22,9 @@ package org.elasticsearch.monitor.jvm;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 
 import java.util.AbstractMap;
 import java.util.HashSet;
@@ -55,7 +55,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
     }
 
     public void testNegativeSetting() throws InterruptedException {
-        String collector = randomAsciiOfLength(5);
+        String collector = randomAlphaOfLength(5);
         Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", "-" + randomTimeValue()).build();
         execute(settings, (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -64,7 +64,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
     }
 
     public void testMissingSetting() throws InterruptedException {
-        String collector = randomAsciiOfLength(5);
+        String collector = randomAlphaOfLength(5);
         Set<AbstractMap.SimpleEntry<String, String>> entries = new HashSet<>();
         entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".warn", randomPositiveTimeValue()));
         entries.add(new AbstractMap.SimpleEntry<>("monitor.jvm.gc.collector." + collector + ".info", randomPositiveTimeValue()));

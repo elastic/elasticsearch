@@ -34,7 +34,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         if (randomBoolean()) {
-            multiGetRequest.preference(randomAsciiOfLength(randomIntBetween(1, 10)));
+            multiGetRequest.preference(randomAlphaOfLength(randomIntBetween(1, 10)));
         }
         if (randomBoolean()) {
             multiGetRequest.realtime(false);
@@ -45,12 +45,12 @@ public class MultiGetShardRequestTests extends ESTestCase {
         MultiGetShardRequest multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, "index", 0);
         int numItems = iterations(10, 30);
         for (int i = 0; i < numItems; i++) {
-            MultiGetRequest.Item item = new MultiGetRequest.Item("alias-" + randomAsciiOfLength(randomIntBetween(1, 10)), "type", "id-" + i);
+            MultiGetRequest.Item item = new MultiGetRequest.Item("alias-" + randomAlphaOfLength(randomIntBetween(1, 10)), "type", "id-" + i);
             if (randomBoolean()) {
                 int numFields = randomIntBetween(1, 5);
                 String[] fields = new String[numFields];
                 for (int j = 0; j < fields.length; j++) {
-                    fields[j] = randomAsciiOfLength(randomIntBetween(1, 10));
+                    fields[j] = randomAlphaOfLength(randomIntBetween(1, 10));
                 }
                 item.storedFields(fields);
             }

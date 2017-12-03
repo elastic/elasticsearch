@@ -28,6 +28,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
@@ -244,9 +245,9 @@ public class CardinalityIT extends ESIntegTestCase {
         assertThat(cardinality.getName(), equalTo("cardinality"));
         long expectedValue = numDocs;
         assertCount(cardinality, expectedValue);
-        assertThat((Cardinality) global.getProperty("cardinality"), equalTo(cardinality));
-        assertThat((double) global.getProperty("cardinality.value"), equalTo((double) cardinality.getValue()));
-        assertThat((double) cardinality.getProperty("value"), equalTo((double) cardinality.getValue()));
+        assertThat(((InternalAggregation)global).getProperty("cardinality"), equalTo(cardinality));
+        assertThat(((InternalAggregation)global).getProperty("cardinality.value"), equalTo((double) cardinality.getValue()));
+        assertThat((double) ((InternalAggregation)cardinality).getProperty("value"), equalTo((double) cardinality.getValue()));
     }
 
     public void testSingleValuedNumericHashed() throws Exception {

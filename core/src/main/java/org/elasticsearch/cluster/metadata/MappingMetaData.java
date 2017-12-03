@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
@@ -34,7 +35,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Mapping configuration for a type.
@@ -95,10 +96,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         initMappers((Map<String, Object>) mappingMap.get(this.type));
     }
 
-    public MappingMetaData(Map<String, Object> mapping) throws IOException {
-        this(mapping.keySet().iterator().next(), mapping);
-    }
-
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
         XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
@@ -127,7 +124,12 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
-                    required = lenientNodeBooleanValue(fieldNode);
+                    try {
+                        required = nodeBooleanValue(fieldNode);
+                    } catch (IllegalArgumentException ex) {
+                        throw new IllegalArgumentException("Failed to create mapping for type [" + this.type() + "]. " +
+                            "Illegal value in field [_routing.required].", ex);
+                    }
                 }
             }
             this.routing = new Routing(required);
@@ -169,7 +171,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     /**
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
-    public Map<String, Object> sourceAsMap() throws IOException {
+    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {
             // the type name is the root value, reduce it
@@ -181,7 +183,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     /**
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
-    public Map<String, Object> getSourceAsMap() throws IOException {
+    public Map<String, Object> getSourceAsMap() throws ElasticsearchParseException {
         return sourceAsMap();
     }
 
@@ -195,7 +197,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routing().required());
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             // timestamp
             out.writeBoolean(false); // enabled
             out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format());
@@ -232,7 +234,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         source = CompressedXContent.readCompressedString(in);
         // routing
         routing = new Routing(in.readBoolean());
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             // timestamp
             boolean enabled = in.readBoolean();
             if (enabled) {

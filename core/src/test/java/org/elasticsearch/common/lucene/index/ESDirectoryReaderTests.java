@@ -29,7 +29,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -66,7 +65,7 @@ public class ESDirectoryReaderTests extends ESTestCase {
         // we should have the same cache key as before
         assertEquals(1, ir2.numDocs());
         assertEquals(1, ir2.leaves().size());
-        assertSame(ir.leaves().get(0).reader().getCoreCacheKey(), ir2.leaves().get(0).reader().getCoreCacheKey());
+        assertSame(ir.leaves().get(0).reader().getCoreCacheHelper().getKey(), ir2.leaves().get(0).reader().getCoreCacheHelper().getKey());
         IOUtils.close(ir, ir2, iw, dir);
     }
 }

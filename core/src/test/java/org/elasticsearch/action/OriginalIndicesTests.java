@@ -57,7 +57,7 @@ public class OriginalIndicesTests extends ESTestCase {
         int numIndices = randomInt(10);
         String[] indices = new String[numIndices];
         for (int j = 0; j < indices.length; j++) {
-            indices[j] = randomAsciiOfLength(randomIntBetween(1, 10));
+            indices[j] = randomAlphaOfLength(randomIntBetween(1, 10));
         }
         IndicesOptions indicesOptions = randomFrom(indicesOptionsValues);
         return new OriginalIndices(indices, indicesOptions);

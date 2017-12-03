@@ -170,7 +170,7 @@ public enum Recyclers {
                 }
             }
 
-            final int slot() {
+            int slot() {
                 final long id = Thread.currentThread().getId();
                 // don't trust Thread.hashCode to have equiprobable low bits
                 int slot = (int) BitMixer.mix64(id);

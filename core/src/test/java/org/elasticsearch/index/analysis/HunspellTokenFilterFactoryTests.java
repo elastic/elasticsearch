@@ -31,12 +31,12 @@ public class HunspellTokenFilterFactoryTests extends ESTestCase {
     public void testDedup() throws IOException {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.locale", "en_US")
                 .build();
 
-        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        TestAnalysis analysis =
+                AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"));
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("en_US");
         assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
         HunspellTokenFilterFactory hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
@@ -44,13 +44,12 @@ public class HunspellTokenFilterFactoryTests extends ESTestCase {
 
         settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), getDataPath("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.dedup", false)
                 .put("index.analysis.filter.en_US.locale", "en_US")
                 .build();
 
-        analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"));
         tokenFilter = analysis.tokenFilter.get("en_US");
         assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
         hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;

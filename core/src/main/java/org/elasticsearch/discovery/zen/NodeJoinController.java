@@ -24,15 +24,16 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -49,13 +50,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+
 /**
  * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
  * are directly added to the cluster state or are accumulated during master election.
  */
 public class NodeJoinController extends AbstractComponent {
 
-    private final ClusterService clusterService;
+    private final MasterService masterService;
     private final AllocationService allocationService;
     private final ElectMasterService electMaster;
     private final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor();
@@ -65,10 +68,10 @@ public class NodeJoinController extends AbstractComponent {
     private ElectionContext electionContext = null;
 
 
-    public NodeJoinController(ClusterService clusterService, AllocationService allocationService, ElectMasterService electMaster,
+    public NodeJoinController(MasterService masterService, AllocationService allocationService, ElectMasterService electMaster,
                               Settings settings) {
         super(settings);
-        this.clusterService = clusterService;
+        this.masterService = masterService;
         this.allocationService = allocationService;
         this.electMaster = electMaster;
     }
@@ -176,7 +179,7 @@ public class NodeJoinController extends AbstractComponent {
             electionContext.addIncomingJoin(node, callback);
             checkPendingJoinsAndElectIfNeeded();
         } else {
-            clusterService.submitStateUpdateTask("zen-disco-node-join",
+            masterService.submitStateUpdateTask("zen-disco-node-join",
                 node, ClusterStateTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(callback, logger));
         }
@@ -279,7 +282,7 @@ public class NodeJoinController extends AbstractComponent {
 
             tasks.put(BECOME_MASTER_TASK, (source1, e) -> {}); // noop listener, the election finished listener determines result
             tasks.put(FINISH_ELECTION_TASK, electionFinishedListener);
-            clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+            masterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
         public synchronized void closeAndProcessPending(String reason) {
@@ -287,7 +290,7 @@ public class NodeJoinController extends AbstractComponent {
             Map<DiscoveryNode, ClusterStateTaskListener> tasks = getPendingAsTasks();
             final String source = "zen-disco-election-stop [" + reason + "]";
             tasks.put(FINISH_ELECTION_TASK, electionFinishedListener);
-            clusterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+            masterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
         private void innerClose() {
@@ -307,7 +310,7 @@ public class NodeJoinController extends AbstractComponent {
         }
 
         private void onElectedAsMaster(ClusterState state) {
-            ClusterService.assertClusterStateThread();
+            assert MasterService.assertMasterUpdateThread();
             assert state.nodes().isLocalNodeElectedMaster() : "onElectedAsMaster called but local node is not master";
             ElectionCallback callback = getCallback(); // get under lock
             if (callback != null) {
@@ -316,7 +319,7 @@ public class NodeJoinController extends AbstractComponent {
         }
 
         private void onFailure(Throwable t) {
-            ClusterService.assertClusterStateThread();
+            assert MasterService.assertMasterUpdateThread();
             ElectionCallback callback = getCallback(); // get under lock
             if (callback != null) {
                 callback.onFailure(t);
@@ -432,28 +435,36 @@ public class NodeJoinController extends AbstractComponent {
 
             assert nodesBuilder.isLocalNodeElectedMaster();
 
-            Version minNodeVersion = Version.CURRENT;
+            Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
+            Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
+            // we only enforce major version transitions on a fully formed clusters
+            final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
             // processing any joins
             for (final DiscoveryNode node : joiningNodes) {
-                minNodeVersion = Version.min(minNodeVersion, node.getVersion());
                 if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_TASK)) {
                     // noop
                 } else if (currentNodes.nodeExists(node)) {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
+                        if (enforceMajorVersion) {
+                            MembershipAction.ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);
+                        }
+                        MembershipAction.ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
+                        // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
+                        // we have to reject nodes that don't support all indices we have in this cluster
+                        MembershipAction.ensureIndexCompatibility(node.getVersion(), currentState.getMetaData());
                         nodesBuilder.add(node);
                         nodesChanged = true;
-                    } catch (IllegalArgumentException e) {
+                        minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
+                        maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
+                    } catch (IllegalArgumentException | IllegalStateException e) {
                         results.failure(node, e);
                         continue;
                     }
                 }
                 results.success(node);
             }
-            // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
-            // we have to reject nodes that don't support all indices we have in this cluster
-            MembershipAction.ensureIndexCompatibility(minNodeVersion.minimumIndexCompatibilityVersion(), currentState.getMetaData());
             if (nodesChanged) {
                 newState.nodes(nodesBuilder);
                 return results.build(allocationService.reroute(newState.build(), "node_join"));
@@ -469,6 +480,7 @@ public class NodeJoinController extends AbstractComponent {
             DiscoveryNodes currentNodes = currentState.nodes();
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
             nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
+
             for (final DiscoveryNode joiningNode : joiningNodes) {
                 final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
                 if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
@@ -486,7 +498,9 @@ public class NodeJoinController extends AbstractComponent {
 
             // now trim any left over dead nodes - either left there when the previous master stepped down
             // or removed by us above
-            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
+            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(ClusterBlocks.builder()
+                .blocks(currentState.blocks())
+                .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
             return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
                 "removed dead nodes on election"));
         }

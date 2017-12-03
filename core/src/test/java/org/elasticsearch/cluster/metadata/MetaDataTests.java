@@ -26,7 +26,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,9 +35,14 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MetaDataTests extends ESTestCase {
 
@@ -52,7 +56,42 @@ public class MetaDataTests extends ESTestCase {
             MetaData.builder().put(builder).build();
             fail("exception should have been thrown");
         } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), equalTo("index and alias names need to be unique, but alias [index] and index [index] have the same name"));
+            assertThat(e.getMessage(), equalTo("index and alias names need to be unique, but the following duplicates were found [index (alias of [index])]"));
+        }
+    }
+
+    public void testAliasCollidingWithAnExistingIndex() {
+        int indexCount = randomIntBetween(10, 100);
+        Set<String> indices = new HashSet<>(indexCount);
+        for (int i = 0; i < indexCount; i++) {
+            indices.add(randomAlphaOfLength(10));
+        }
+        Map<String, Set<String>> aliasToIndices = new HashMap<>();
+        for (String alias: randomSubsetOf(randomIntBetween(1, 10), indices)) {
+            aliasToIndices.put(alias, new HashSet<>(randomSubsetOf(randomIntBetween(1, 3), indices)));
+        }
+        int properAliases = randomIntBetween(0, 3);
+        for (int i = 0; i < properAliases; i++) {
+            aliasToIndices.put(randomAlphaOfLength(5), new HashSet<>(randomSubsetOf(randomIntBetween(1, 3), indices)));
+        }
+        MetaData.Builder metaDataBuilder = MetaData.builder();
+        for (String index : indices) {
+            IndexMetaData.Builder indexBuilder = IndexMetaData.builder(index)
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            aliasToIndices.forEach((key, value) -> {
+                if (value.contains(index)) {
+                    indexBuilder.putAlias(AliasMetaData.builder(key).build());
+                }
+            });
+            metaDataBuilder.put(indexBuilder);
+        }
+        try {
+            metaDataBuilder.build();
+            fail("exception should have been thrown");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), startsWith("index and alias names need to be unique"));
         }
     }
 

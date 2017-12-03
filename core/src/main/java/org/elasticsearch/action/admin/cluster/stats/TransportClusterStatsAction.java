@@ -39,7 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -92,7 +92,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
         NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false);
-        NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE, true, true, true, false, true, false, false, false, false, false, false);
+        NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE,
+                true, true, true, false, true, false, false, false, false, false, false, false);
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
@@ -116,11 +117,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
         return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[shardsStats.size()]));
 
-    }
-
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
     }
 
     public static class ClusterStatsNodeRequest extends BaseNodeRequest {

@@ -26,15 +26,9 @@ import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
-import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
-import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
-import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.Comparator;
@@ -56,7 +50,7 @@ public final class FragmentBuilderHelper {
     public static WeightedFragInfo fixWeightedFragInfo(FieldMapper mapper, Field[] values, WeightedFragInfo fragInfo) {
         assert fragInfo != null : "FragInfo must not be null";
         assert mapper.fieldType().name().equals(values[0].name()) : "Expected FieldMapper for field " + values[0].name();
-        if (!fragInfo.getSubInfos().isEmpty() && (containsBrokenAnalysis(mapper.fieldType().indexAnalyzer()))) {
+        if (!fragInfo.getSubInfos().isEmpty() && containsBrokenAnalysis(mapper.fieldType().indexAnalyzer())) {
             /* This is a special case where broken analysis like WDF is used for term-vector creation at index-time
              * which can potentially mess up the offsets. To prevent a SAIIOBException we need to resort
              * the fragments based on their offsets rather than using soley the positions as it is done in
@@ -91,8 +85,7 @@ public final class FragmentBuilderHelper {
             final CustomAnalyzer a = (CustomAnalyzer) analyzer;
             TokenFilterFactory[] tokenFilters = a.tokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
-                if (tokenFilterFactory instanceof WordDelimiterTokenFilterFactory
-                        || tokenFilterFactory instanceof EdgeNGramTokenFilterFactory) {
+                if (tokenFilterFactory.breaksFastVectorHighlighter()) {
                     return true;
                 }
             }

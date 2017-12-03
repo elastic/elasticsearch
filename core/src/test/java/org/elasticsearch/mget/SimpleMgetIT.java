@@ -27,6 +27,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -105,6 +106,23 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), containsString("more than one indices"));
     }
 
+    public void testThatMgetShouldWorkWithAliasRouting() throws IOException {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias1").routing("abc"))
+            .addMapping("test", jsonBuilder()
+                .startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
+
+        client().prepareIndex("alias1", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+            .setRefreshPolicy(IMMEDIATE).get();
+
+        MultiGetResponse mgetResponse = client().prepareMultiGet()
+            .add(new MultiGetRequest.Item("alias1", "test", "1"))
+            .get();
+        assertEquals(1, mgetResponse.getResponses().length);
+
+        assertEquals("test", mgetResponse.getResponses()[0].getIndex());
+        assertFalse(mgetResponse.getResponses()[0].isFailed());
+    }
+
     public void testThatParentPerDocumentIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("test", jsonBuilder()
@@ -143,7 +161,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 .field("excluded", "should not be seen")
                 .endObject().bytes();
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource(sourceBytesRef).get();
+            client().prepareIndex("test", "type", Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
         }
 
         MultiGetRequestBuilder request = client().prepareMultiGet();

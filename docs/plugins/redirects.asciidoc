@@ -13,11 +13,12 @@ one of the <<discovery,cloud discovery plugins>>.
 [role="exclude",id="cloud-aws"]
 === AWS Cloud Plugin
 
-The `cloud-aws` plugin has been split into two separate plugins:
+Looking for a hosted solution for Elasticsearch on AWS? Check out http://www.elastic.co/cloud.
+
+The Elasticsearch `cloud-aws` plugin has been split into two separate plugins:
 
 *  <<discovery-ec2>> (`discovery-ec2`)
 *  <<repository-s3>> (`repository-s3`)
-
 
 [role="exclude",id="cloud-azure"]
 === Azure Cloud Plugin

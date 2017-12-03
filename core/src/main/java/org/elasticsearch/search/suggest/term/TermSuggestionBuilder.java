@@ -26,14 +26,14 @@ import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SortBy;
@@ -68,6 +68,9 @@ import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBu
  * global options, but are only applicable for this suggestion.
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TermSuggestionBuilder.class));
+
     private static final String SUGGESTION_NAME = "term";
 
     private SuggestMode suggestMode = SuggestMode.MISSING;
@@ -105,7 +108,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * Read from a stream.
      */
-    TermSuggestionBuilder(StreamInput in) throws IOException {
+    public TermSuggestionBuilder(StreamInput in) throws IOException {
         super(in);
         suggestMode = SuggestMode.readFromStream(in);
         accuracy = in.readFloat();
@@ -216,9 +219,9 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * string distance for terms inside the index.
      * <li><code>damerau_levenshtein</code> - String distance algorithm based on
      * Damerau-Levenshtein algorithm.
-     * <li><code>levenstein</code> - String distance algorithm based on
-     * Levenstein edit distance algorithm.
-     * <li><code>jarowinkler</code> - String distance algorithm based on
+     * <li><code>levenshtein</code> - String distance algorithm based on
+     * Levenshtein edit distance algorithm.
+     * <li><code>jaro_winkler</code> - String distance algorithm based on
      * Jaro-Winkler algorithm.
      * <li><code>ngram</code> - String distance algorithm based on character
      * n-grams.
@@ -388,10 +391,8 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         return builder;
     }
 
-    static TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static TermSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         TermSuggestionBuilder tmpSuggestion = new TermSuggestionBuilder("_na_");
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String fieldname = null;
@@ -515,15 +516,11 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
 
         public static SuggestMode readFromStream(final StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown SuggestMode ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(SuggestMode.class);
         }
 
         public static SuggestMode resolve(final String str) {
@@ -551,15 +548,15 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 return new LuceneLevenshteinDistance();
             }
         },
-        /** String distance algorithm based on Levenstein edit distance algorithm. */
-        LEVENSTEIN {
+        /** String distance algorithm based on Levenshtein edit distance algorithm. */
+        LEVENSHTEIN {
             @Override
             public StringDistance toLucene() {
                 return new LevensteinDistance();
             }
         },
         /** String distance algorithm based on Jaro-Winkler algorithm. */
-        JAROWINKLER {
+        JARO_WINKLER {
             @Override
             public StringDistance toLucene() {
                 return new JaroWinklerDistance();
@@ -575,15 +572,11 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
 
         public static StringDistanceImpl readFromStream(final StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown StringDistanceImpl ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(StringDistanceImpl.class);
         }
 
         public static StringDistanceImpl resolve(final String str) {
@@ -596,11 +589,17 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 case "damerauLevenshtein":
                     return DAMERAU_LEVENSHTEIN;
                 case "levenstein":
-                    return LEVENSTEIN;
+                    DEPRECATION_LOGGER.deprecated("Deprecated distance [levenstein] used, replaced by [levenshtein]");
+                    return LEVENSHTEIN;
+                case "levenshtein":
+                    return LEVENSHTEIN;
                 case "ngram":
                     return NGRAM;
                 case "jarowinkler":
-                    return JAROWINKLER;
+                    DEPRECATION_LOGGER.deprecated("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
+                    return JARO_WINKLER;
+                case "jaro_winkler":
+                    return JARO_WINKLER;
                 default: throw new IllegalArgumentException("Illegal distance option " + str);
             }
         }

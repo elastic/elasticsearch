@@ -40,7 +40,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 
 public interface ZenPing extends Releasable {
 
-    void start(PingContextProvider contextProvider);
+    void start();
 
     void ping(Consumer<PingCollection> resultsConsumer, TimeValue timeout);
 
@@ -72,7 +72,7 @@ public interface ZenPing extends Releasable {
          * @param clusterStateVersion the current cluster state version of that node
          *                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
          */
-        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
+        PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
             this.id = idGenerator.incrementAndGet();
             this.node = node;
             this.master = master;

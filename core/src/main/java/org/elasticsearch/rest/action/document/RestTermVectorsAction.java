@@ -22,9 +22,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -45,8 +43,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
-
-    @Inject
     public RestTermVectorsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
@@ -59,6 +55,11 @@ public class RestTermVectorsAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}/_termvector", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_termvector", this);
+    }
+
+    @Override
+    public String getName() {
+        return "document_term_vectors_action";
     }
 
     @Override

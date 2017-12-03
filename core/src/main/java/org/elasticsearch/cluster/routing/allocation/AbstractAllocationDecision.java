@@ -25,7 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 /**
  * An abstract class for representing various types of allocation decisions.
  */
-public abstract class AbstractAllocationDecision implements ToXContent, Writeable {
+public abstract class AbstractAllocationDecision implements ToXContentFragment, Writeable {
 
     @Nullable
     protected final DiscoveryNode targetNode;

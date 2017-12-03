@@ -1,0 +1,209 @@
+[[java-rest-high-document-bulk]]
+=== Bulk API
+
+NOTE: The Java High Level REST Client provides the <<java-rest-high-document-bulk-processor>> to assist with bulk requests
+
+[[java-rest-high-document-bulk-request]]
+==== Bulk Request
+
+A `BulkRequest` can be used to execute multiple index, update and/or delete
+operations using a single request.
+
+It requires at least one operation to be added to the Bulk request:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request]
+--------------------------------------------------
+<1> Creates the `BulkRequest`
+<2> Adds a first `IndexRequest` to the Bulk request. See <<java-rest-high-document-index>>
+for more information on how to build `IndexRequest`.
+<3> Adds a second `IndexRequest`
+<4> Adds a third `IndexRequest`
+
+WARNING: The Bulk API supports only documents encoded in JSON or SMILE. Providing documents
+ in any other format will result in an error.
+
+And different operation types can be added to the same `BulkRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-with-mixed-operations]
+--------------------------------------------------
+<1> Adds a `DeleteRequest` to the `BulkRequest`. See <<java-rest-high-document-delete>>
+for more information on how to build `DeleteRequest`.
+<2> Adds an `UpdateRequest` to the `BulkRequest`. See <<java-rest-high-document-update>>
+for more information on how to build `UpdateRequest`.
+<3> Adds an `IndexRequest` using the SMILE format
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the bulk request to be performed as a `TimeValue`
+<2> Timeout to wait for the bulk request to be performed as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-refresh]
+--------------------------------------------------
+<1> Refresh policy as a `WriteRequest.RefreshPolicy` instance
+<2> Refresh policy as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-active-shards]
+--------------------------------------------------
+<1> Sets the number of shard copies that must be active before proceeding with
+the index/update/delete operations.
+<2> Number of shard copies provided as a `ActiveShardCount`: can be `ActiveShardCount.ALL`,
+`ActiveShardCount.ONE` or `ActiveShardCount.DEFAULT` (default)
+
+
+[[java-rest-high-document-bulk-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-execute]
+--------------------------------------------------
+
+[[java-rest-high-document-bulk-async]]
+==== Asynchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-execute-async]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument and contains a list of individual results for each
+operation that was executed. Note that one or more operations might have
+failed while the others have been successfully executed.
+<2> Called when the whole `BulkRequest` fails. In this case the raised
+exception is provided as an argument and no operation has been executed.
+
+[[java-rest-high-document-bulk-response]]
+==== Bulk Response
+
+The returned `BulkResponse` contains information about the executed operations and
+ allows to iterate over each result as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-response]
+--------------------------------------------------
+<1> Iterate over the results of all operations
+<2> Retrieve the response of the operation (successful or not), can be `IndexResponse`,
+`UpdateResponse` or `DeleteResponse` which can all be seen as `DocWriteResponse` instances
+<3> Handle the response of an index operation
+<4> Handle the response of a update operation
+<5> Handle the response of a delete operation
+
+The Bulk response provides a method to quickly check if one or more operation has failed:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-has-failures]
+--------------------------------------------------
+<1> This method returns `true` if at least one operation failed
+
+In such situation it is necessary to iterate over all operation results in order to check
+ if the operation failed, and if so, retrieve the corresponding failure:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-errors]
+--------------------------------------------------
+<1> Indicate if a given operation failed
+<2> Retrieve the failure of the failed operation
+
+[[java-rest-high-document-bulk-processor]]
+==== Bulk Processor
+
+The `BulkProcessor` simplifies the usage of the Bulk API by providing
+a utility class that allows index/update/delete operations to be
+transparently executed as they are added to the processor.
+
+In order to execute the requests, the `BulkProcessor` requires the following
+components:
+
+`RestHighLevelClient`:: This client is used to execute the `BulkRequest`
+and to retrieve the `BulkResponse`
+`BulkProcessor.Listener`:: This listener is called before and after
+every `BulkRequest` execution or when a `BulkRequest` failed
+
+Then the `BulkProcessor.builder` method can be used to build a new `BulkProcessor`:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-init]
+--------------------------------------------------
+<1> Create the `BulkProcessor.Listener`
+<2> This method is called before each execution of a `BulkRequest`
+<3> This method is called after each execution of a `BulkRequest`
+<4> This method is called when a `BulkRequest` failed
+<5> Create the `BulkProcessor` by calling the `build()` method from
+the `BulkProcessor.Builder`. The `RestHighLevelClient.bulkAsync()`
+method will be used to execute the `BulkRequest` under the hood.
+
+The `BulkProcessor.Builder` provides methods to configure how the `BulkProcessor`
+should handle requests execution:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-options]
+--------------------------------------------------
+<1> Set when to flush a new bulk request based on the number of
+actions currently added (defaults to 1000, use -1 to disable it)
+<2> Set when to flush a new bulk request based on the size of
+actions currently added (defaults to 5Mb, use -1 to disable it)
+<3> Set the number of concurrent requests allowed to be executed
+(default to 1, use 0 to only allow the execution of a single request)
+<4> Set a flush interval flushing any `BulkRequest` pending if the
+interval passes (defaults to not set)
+<5> Set a constant back off policy that initially waits for 1 second
+and retries up to 3 times. See `BackoffPolicy.noBackoff()`,
+`BackoffPolicy.constantBackoff()` and `BackoffPolicy.exponentialBackoff()`
+for more options.
+
+Once the `BulkProcessor` is created requests can be added to it:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-add]
+--------------------------------------------------
+
+The requests will be executed by the `BulkProcessor`, which takes care of
+calling the `BulkProcessor.Listener` for every bulk request.
+
+The listener provides methods to access to the `BulkRequest` and the `BulkResponse`:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-listener]
+--------------------------------------------------
+<1> Called before each execution of a `BulkRequest`, this method allows
+to know the number of operations that are going to be executed within the `BulkRequest`
+<2> Called after each execution of a `BulkRequest`, this method allows
+to know if the `BulkResponse` contains errors
+<3> Called if the `BulkRequest` failed, this method allows to know
+the failure
+
+Once all requests have been added to the `BulkProcessor`, its instance needs to
+be closed using one of the two available closing methods.
+
+The `awaitClose()` method can be used to wait until all requests have been processed
+ or the specified waiting time elapses:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-await]
+--------------------------------------------------
+<1> The method returns `true` if all bulk requests completed and `false` if the
+waiting time elapsed before all the bulk requests completed
+
+The `close()` method can be used to immediately close the `BulkProcessor`:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-close]
+--------------------------------------------------
+
+Both methods flush the requests added to the processor before closing the processor
+and also forbid any new request to be added to it.
+

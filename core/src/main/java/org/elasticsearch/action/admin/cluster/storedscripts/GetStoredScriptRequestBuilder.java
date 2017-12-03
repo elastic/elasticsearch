@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
 
 public class GetStoredScriptRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetStoredScriptRequest,
         GetStoredScriptResponse, GetStoredScriptRequestBuilder> {
@@ -29,11 +28,6 @@ public class GetStoredScriptRequestBuilder extends MasterNodeReadOperationReques
 
     public GetStoredScriptRequestBuilder(ElasticsearchClient client, GetStoredScriptAction action) {
         super(client, action, new GetStoredScriptRequest());
-    }
-
-    public GetStoredScriptRequestBuilder setLang(@Nullable String lang) {
-        request.lang(lang);
-        return this;
     }
 
     public GetStoredScriptRequestBuilder setId(String id) {

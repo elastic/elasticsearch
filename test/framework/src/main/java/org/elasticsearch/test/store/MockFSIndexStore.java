@@ -103,7 +103,7 @@ public class MockFSIndexStore extends IndexStore {
 
         @Override
         public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
-            if (currentState == IndexShardState.CLOSED && validCheckIndexStates.contains(previousState) && indexShard.indexSettings().isOnSharedFilesystem() == false) {
+            if (currentState == IndexShardState.CLOSED && validCheckIndexStates.contains(previousState)) {
                shardSet.put(indexShard, Boolean.TRUE);
             }
 

@@ -19,7 +19,11 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.apache.lucene.search.spell.DirectSpellChecker;
+import org.apache.lucene.search.spell.JaroWinklerDistance;
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
+import org.apache.lucene.search.spell.NGramDistance;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,6 +43,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class DirectCandidateGeneratorTests extends ESTestCase {
     private static final int NUMBER_OF_RUNS = 20;
@@ -67,6 +72,27 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         }
     }
 
+    public void testFromString() {
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("internal"), equalTo(DirectSpellChecker.INTERNAL_LEVENSHTEIN));
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("damerau_levenshtein"), instanceOf(LuceneLevenshteinDistance.class));
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("levenshtein"), instanceOf(LevensteinDistance.class));
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("jaro_winkler"), instanceOf(JaroWinklerDistance.class));
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("ngram"), instanceOf(NGramDistance.class));
+
+        expectThrows(IllegalArgumentException.class, () -> DirectCandidateGeneratorBuilder.resolveDistance("doesnt_exist"));
+        expectThrows(NullPointerException.class, () -> DirectCandidateGeneratorBuilder.resolveDistance(null));
+    }
+
+    public void testLevensteinDeprecation() {
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("levenstein"), instanceOf(LevensteinDistance.class));
+        assertWarnings("Deprecated distance [levenstein] used, replaced by [levenshtein]");
+    }
+
+    public void testJaroWinklerDeprecation() {
+        assertThat(DirectCandidateGeneratorBuilder.resolveDistance("jaroWinkler"), instanceOf(JaroWinklerDistance.class));
+        assertWarnings("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
+    }
+
     private static DirectCandidateGeneratorBuilder mutate(DirectCandidateGeneratorBuilder original) throws IOException {
         DirectCandidateGeneratorBuilder mutation = copy(original);
         List<Supplier<DirectCandidateGeneratorBuilder>> mutators = new ArrayList<>();
@@ -91,7 +117,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         mutators.add(() -> mutation.preFilter(original.preFilter() == null ? "preFilter" : original.preFilter() + "_other"));
         mutators.add(() -> mutation.sort(original.sort() == null ? "score" : original.sort() + "_other"));
         mutators.add(
-                () -> mutation.stringDistance(original.stringDistance() == null ? "levenstein" : original.stringDistance() + "_other"));
+                () -> mutation.stringDistance(original.stringDistance() == null ? "levenshtein" : original.stringDistance() + "_other"));
         mutators.add(() -> mutation.suggestMode(original.suggestMode() == null ? "missing" : original.suggestMode() + "_other"));
         return randomFrom(mutators).get();
     }
@@ -108,9 +134,8 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = createParser(shuffleXContent(builder));
-            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
-            DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.fromXContent(context);
+            DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.PARSER.apply(parser, null);
             assertNotSame(generator, secondGenerator);
             assertEquals(generator, secondGenerator);
             assertEquals(generator.hashCode(), secondGenerator.hashCode());
@@ -149,7 +174,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
             logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
         } else {
             directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
-            assertIllegalXContent(directGenerator, ParsingException.class,
+            assertIllegalXContent(directGenerator, IllegalArgumentException.class,
                 "[direct_generator] failed to parse field [field]");
         }
 
@@ -165,15 +190,14 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
 
         // test unexpected token
         directGenerator = "{ \"size\" : [ \"xxl\" ] }";
-        assertIllegalXContent(directGenerator, IllegalArgumentException.class,
+        assertIllegalXContent(directGenerator, ParsingException.class,
                 "[direct_generator] size doesn't support values of type: START_ARRAY");
     }
 
     private void assertIllegalXContent(String directGenerator, Class<? extends Exception> exceptionClass, String exceptionMsg)
             throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, directGenerator);
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
-        Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
+        Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
         assertEquals(exceptionMsg, e.getMessage());
     }
 
@@ -181,7 +205,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
      * create random {@link DirectCandidateGeneratorBuilder}
      */
     public static DirectCandidateGeneratorBuilder randomCandidateGenerator() {
-        DirectCandidateGeneratorBuilder generator = new DirectCandidateGeneratorBuilder(randomAsciiOfLength(10));
+        DirectCandidateGeneratorBuilder generator = new DirectCandidateGeneratorBuilder(randomAlphaOfLength(10));
         maybeSet(generator::accuracy, randomFloat());
         maybeSet(generator::maxEdits, randomIntBetween(1, 2));
         maybeSet(generator::maxInspections, randomIntBetween(1, 20));
@@ -189,11 +213,12 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         maybeSet(generator::minDocFreq, randomFloat());
         maybeSet(generator::minWordLength, randomIntBetween(1, 20));
         maybeSet(generator::prefixLength, randomIntBetween(1, 20));
-        maybeSet(generator::preFilter, randomAsciiOfLengthBetween(1, 20));
-        maybeSet(generator::postFilter, randomAsciiOfLengthBetween(1, 20));
+        maybeSet(generator::preFilter, randomAlphaOfLengthBetween(1, 20));
+        maybeSet(generator::postFilter, randomAlphaOfLengthBetween(1, 20));
         maybeSet(generator::size, randomIntBetween(1, 20));
         maybeSet(generator::sort, randomFrom("score", "frequency"));
-        maybeSet(generator::stringDistance, randomFrom("internal", "damerau_levenshtein", "levenstein", "jarowinkler", "ngram"));
+        maybeSet(generator::stringDistance,
+                randomFrom("internal", "damerau_levenshtein", "levenshtein", "jaro_winkler", "ngram"));
         maybeSet(generator::suggestMode, randomFrom("missing", "popular", "always"));
         return generator;
     }

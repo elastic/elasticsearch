@@ -1,0 +1,35 @@
+"Synonym filter with char_filter":
+  # Tests analyze with synonym and char_filter. This is in the analysis-common module
+  # because there are no char filters in core.
+    - skip:
+        version: " - 5.99.99"
+        reason: to support synonym same analysis chain were added in 6.0.0
+    - do:
+        indices.create:
+          index: test_synonym_with_charfilter
+          body:
+            settings:
+              index:
+                analysis:
+                  analyzer:
+                    synonymAnalyzerWithCharfilter:
+                      tokenizer: whitespace
+                      char_filter: ["html_strip"]
+                      filter: ["synonym"]
+                  filter:
+                    synonym:
+                      type: synonym
+                      synonyms: ["<p>kimchy</p> => shay", "dude => <html>elasticsearch</html>", "<font>abides</font> => man!"]
+
+    - do:
+        indices.analyze:
+          index: test_synonym_with_charfilter
+          body:
+            analyzer: "synonymAnalyzerWithCharfilter"
+            text: "kimchy is the dude <html>abides</html>"
+    - length: { tokens: 5 }
+    - match:  { tokens.0.token: shay }
+    - match:  { tokens.1.token: is }
+    - match:  { tokens.2.token: the }
+    - match:  { tokens.3.token: elasticsearch }
+    - match:  { tokens.4.token: man! }

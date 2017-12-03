@@ -34,7 +34,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             int numIndices = randomIntBetween(1, 5);
             String[] indices = new String[numIndices];
             for (int i = 0; i < numIndices; i++) {
-                indices[i] = randomAsciiOfLengthBetween(3, 10);
+                indices[i] = randomAlphaOfLengthBetween(3, 10);
             }
             request.indices(indices);
         }
@@ -43,13 +43,13 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
                     IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         if (randomBoolean()) {
-            request.preference(randomAsciiOfLengthBetween(3, 10));
+            request.preference(randomAlphaOfLengthBetween(3, 10));
         }
         if (randomBoolean()) {
             int numRoutings = randomIntBetween(1, 3);
             String[] routings = new String[numRoutings];
             for (int i = 0; i < numRoutings; i++) {
-                routings[i] = randomAsciiOfLengthBetween(3, 10);
+                routings[i] = randomAlphaOfLengthBetween(3, 10);
             }
             request.routing(routings);
         }
@@ -60,8 +60,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setVersion(version);
-                ClusterSearchShardsRequest deserialized = new ClusterSearchShardsRequest();
-                deserialized.readFrom(in);
+                ClusterSearchShardsRequest deserialized = new ClusterSearchShardsRequest(in);
                 assertArrayEquals(request.indices(), deserialized.indices());
                 assertSame(request.indicesOptions(), deserialized.indicesOptions());
                 assertEquals(request.routing(), deserialized.routing());

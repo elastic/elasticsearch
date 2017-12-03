@@ -23,6 +23,7 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
@@ -30,7 +31,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
@@ -80,7 +81,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public Query searchFilter(String[] types) {
+    public Query buildFilteredQuery(Query query) {
         throw new UnsupportedOperationException("this context should be read only");
     }
 
@@ -110,7 +111,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void addRescore(RescoreSearchContext rescore) {
+    public void addRescore(RescoreContext rescore) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -314,6 +315,11 @@ public class SubSearchContext extends FilteredSearchContext {
         this.docsIdsToLoadFrom = docsIdsToLoadFrom;
         this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
+    }
+
+    @Override
+    public CollapseContext collapse() {
+        return null;
     }
 
     @Override

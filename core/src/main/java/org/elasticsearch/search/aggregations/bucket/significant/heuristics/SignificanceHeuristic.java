@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.internal.SearchContext;
@@ -28,7 +28,7 @@ import org.elasticsearch.search.internal.SearchContext;
 /**
  * Heuristic for that {@link SignificantTerms} uses to pick out significant terms.
  */
-public abstract class SignificanceHeuristic implements NamedWriteable, ToXContent {
+public abstract class SignificanceHeuristic implements NamedWriteable, ToXContentFragment {
     /**
      * @param subsetFreq   The frequency of the term in the selected sample
      * @param subsetSize   The size of the selected sample (typically number of docs)

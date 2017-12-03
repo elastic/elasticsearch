@@ -24,7 +24,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -80,11 +79,6 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         } catch (Exception e) {
             throw new ElasticsearchException("failed to detect hot threads", e);
         }
-    }
-
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
     }
 
     public static class NodeRequest extends BaseNodeRequest {

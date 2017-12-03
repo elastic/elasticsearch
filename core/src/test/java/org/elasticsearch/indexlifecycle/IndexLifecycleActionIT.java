@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -204,8 +205,8 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
     }
 
     private String getLocalNodeId(String name) {
-        Discovery discovery = internalCluster().getInstance(Discovery.class, name);
-        String nodeId = discovery.localNode().getId();
+        TransportService transportService = internalCluster().getInstance(TransportService.class, name);
+        String nodeId = transportService.getLocalNode().getId();
         assertThat(nodeId, not(nullValue()));
         return nodeId;
     }

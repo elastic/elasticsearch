@@ -52,8 +52,8 @@ public class DummyQueryParserPlugin extends Plugin implements SearchPlugin {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-            return matchAllDocsQuery.createWeight(searcher, needsScores);
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+            return matchAllDocsQuery.createWeight(searcher, needsScores, boost);
         }
 
         @Override

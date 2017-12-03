@@ -19,9 +19,9 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -36,6 +36,7 @@ public final class FakeRestChannel extends AbstractRestChannel {
     private final CountDownLatch latch;
     private final AtomicInteger responses = new AtomicInteger();
     private final AtomicInteger errors = new AtomicInteger();
+    private RestResponse capturedRestResponse;
 
     public FakeRestChannel(RestRequest request, boolean detailedErrorsEnabled, int responseCount) {
         super(request, detailedErrorsEnabled);
@@ -53,8 +54,8 @@ public final class FakeRestChannel extends AbstractRestChannel {
     }
 
     @Override
-    public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
-        return super.newBuilder(autoDetectSource, useFiltering);
+    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, boolean useFiltering) throws IOException {
+        return super.newBuilder(requestContentType, useFiltering);
     }
 
     @Override
@@ -69,12 +70,17 @@ public final class FakeRestChannel extends AbstractRestChannel {
 
     @Override
     public void sendResponse(RestResponse response) {
+        this.capturedRestResponse = response;
         if (response.status() == RestStatus.OK) {
             responses.incrementAndGet();
         } else {
             errors.incrementAndGet();
         }
         latch.countDown();
+    }
+    
+    public RestResponse capturedResponse() {
+        return capturedRestResponse;
     }
 
     public boolean await() throws InterruptedException {

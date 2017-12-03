@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -31,8 +32,7 @@ import java.util.Map;
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
  */
-public abstract class PipelineAggregationBuilder extends ToXContentToBytes
-        implements NamedWriteable {
+public abstract class PipelineAggregationBuilder implements NamedWriteable, BaseAggregationBuilder, ToXContentFragment {
 
     protected final String name;
     protected final String[] bucketsPaths;
@@ -68,7 +68,7 @@ public abstract class PipelineAggregationBuilder extends ToXContentToBytes
      * Internal: Validates the state of this factory (makes sure the factory is properly
      * configured)
      */
-    protected abstract void validate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
+    protected abstract void validate(AggregatorFactory<?> parent, List<AggregationBuilder> factories,
             List<PipelineAggregationBuilder> pipelineAggregatorFactories);
 
     /**
@@ -79,6 +79,16 @@ public abstract class PipelineAggregationBuilder extends ToXContentToBytes
     protected abstract PipelineAggregator create() throws IOException;
 
     /** Associate metadata with this {@link PipelineAggregationBuilder}. */
+    @Override
     public abstract PipelineAggregationBuilder setMetaData(Map<String, Object> metaData);
 
+    @Override
+    public PipelineAggregationBuilder subAggregations(Builder subFactories) {
+        throw new IllegalArgumentException("Aggregation [" + name + "] cannot define sub-aggregations");
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
 }

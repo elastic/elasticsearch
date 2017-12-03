@@ -37,16 +37,21 @@ public final class ESLoggerFactory {
 
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING =
         new Setting<>("logger.level", Level.INFO.name(), Level::valueOf, Property.NodeScope);
-    public static final Setting<Level> LOG_LEVEL_SETTING =
-        Setting.prefixKeySetting("logger.", Level.INFO.name(), Level::valueOf,
-            Property.Dynamic, Property.NodeScope);
+    public static final Setting.AffixSetting<Level> LOG_LEVEL_SETTING =
+        Setting.prefixKeySetting("logger.", (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Property.Dynamic,
+            Property.NodeScope));
 
     public static Logger getLogger(String prefix, String name) {
         return getLogger(prefix, LogManager.getLogger(name));
     }
 
     public static Logger getLogger(String prefix, Class<?> clazz) {
-        return getLogger(prefix, LogManager.getLogger(clazz));
+        /*
+         * Do not use LogManager#getLogger(Class) as this now uses Class#getCanonicalName under the hood; as this returns null for local and
+         * anonymous classes, any place we create, for example, an abstract component defined as an anonymous class (e.g., in tests) will
+         * result in a logger with a null name which will blow up in a lookup inside of Log4j.
+         */
+        return getLogger(prefix, LogManager.getLogger(clazz.getName()));
     }
 
     public static Logger getLogger(String prefix, Logger logger) {

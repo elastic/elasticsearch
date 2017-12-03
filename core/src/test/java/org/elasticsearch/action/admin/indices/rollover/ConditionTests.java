@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -30,12 +32,12 @@ public class ConditionTests extends ESTestCase {
         final MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(1));
 
         long indexCreatedMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(61).getMillis();
-        Condition.Result evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedMatch));
+        Condition.Result evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedMatch, randomByteSize()));
         assertThat(evaluate.condition, equalTo(maxAgeCondition));
         assertThat(evaluate.matched, equalTo(true));
 
         long indexCreatedNotMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(59).getMillis();
-        evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedNotMatch));
+        evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedNotMatch, randomByteSize()));
         assertThat(evaluate.condition, equalTo(maxAgeCondition));
         assertThat(evaluate.matched, equalTo(false));
     }
@@ -44,13 +46,33 @@ public class ConditionTests extends ESTestCase {
         final MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
 
         long maxDocsMatch = randomIntBetween(100, 1000);
-        Condition.Result evaluate = maxDocsCondition.evaluate(new Condition.Stats(maxDocsMatch, 0));
+        Condition.Result evaluate = maxDocsCondition.evaluate(new Condition.Stats(maxDocsMatch, 0, randomByteSize()));
         assertThat(evaluate.condition, equalTo(maxDocsCondition));
         assertThat(evaluate.matched, equalTo(true));
 
         long maxDocsNotMatch = randomIntBetween(0, 99);
-        evaluate = maxDocsCondition.evaluate(new Condition.Stats(0, maxDocsNotMatch));
+        evaluate = maxDocsCondition.evaluate(new Condition.Stats(0, maxDocsNotMatch, randomByteSize()));
         assertThat(evaluate.condition, equalTo(maxDocsCondition));
         assertThat(evaluate.matched, equalTo(false));
+    }
+
+    public void testMaxSize() throws Exception {
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 20), ByteSizeUnit.MB));
+
+        Condition.Result result = maxSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
+            new ByteSizeValue(0, ByteSizeUnit.MB)));
+        assertThat(result.matched, equalTo(false));
+
+        result = maxSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
+            new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB)));
+        assertThat(result.matched, equalTo(false));
+
+        result = maxSizeCondition.evaluate(new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(),
+            new ByteSizeValue(randomIntBetween(20, 1000), ByteSizeUnit.MB)));
+        assertThat(result.matched, equalTo(true));
+    }
+
+    private ByteSizeValue randomByteSize() {
+        return new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
     }
 }

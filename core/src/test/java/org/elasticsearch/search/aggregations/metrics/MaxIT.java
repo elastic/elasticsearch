@@ -24,12 +24,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -138,9 +139,9 @@ public class MaxIT extends AbstractNumericTestCase {
         assertThat(max.getName(), equalTo("max"));
         double expectedMaxValue = 10.0;
         assertThat(max.getValue(), equalTo(expectedMaxValue));
-        assertThat((Max) global.getProperty("max"), equalTo(max));
-        assertThat((double) global.getProperty("max.value"), equalTo(expectedMaxValue));
-        assertThat((double) max.getProperty("value"), equalTo(expectedMaxValue));
+        assertThat((Max) ((InternalAggregation)global).getProperty("max"), equalTo(max));
+        assertThat((double) ((InternalAggregation)global).getProperty("max.value"), equalTo(expectedMaxValue));
+        assertThat((double) ((InternalAggregation)max).getProperty("value"), equalTo(expectedMaxValue));
     }
 
     @Override
@@ -327,7 +328,7 @@ public class MaxIT extends AbstractNumericTestCase {
     @Override
     public void testOrderByEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(terms("terms").field("value").order(Order.compound(Order.aggregation("filter>max", true)))
+                .addAggregation(terms("terms").field("value").order(BucketOrder.compound(BucketOrder.aggregation("filter>max", true)))
                         .subAggregation(filter("filter", termQuery("value", 100)).subAggregation(max("max").field("value"))))
                 .get();
 
@@ -335,7 +336,7 @@ public class MaxIT extends AbstractNumericTestCase {
 
         Terms terms = searchResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets, notNullValue());
         assertThat(buckets.size(), equalTo(10));
 

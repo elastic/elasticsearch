@@ -24,7 +24,7 @@
 
 #### Classes
 
-class DateTimeFormatter -> java.time.format.DateTimeFormatter extends Object {
+class DateTimeFormatter -> java.time.format.DateTimeFormatter {
   DateTimeFormatter BASIC_ISO_DATE
   DateTimeFormatter ISO_DATE
   DateTimeFormatter ISO_DATE_TIME
@@ -70,8 +70,8 @@ class DateTimeFormatter -> java.time.format.DateTimeFormatter extends Object {
   DateTimeFormatter withZone(ZoneId)
 }
 
-class DateTimeFormatterBuilder -> java.time.format.DateTimeFormatterBuilder extends Object {
-  DateTimeFormatterBuilder <init>()
+class DateTimeFormatterBuilder -> java.time.format.DateTimeFormatterBuilder {
+  ()
   DateTimeFormatterBuilder append(DateTimeFormatter)
   DateTimeFormatterBuilder appendChronologyId()
   DateTimeFormatterBuilder appendChronologyText(TextStyle)
@@ -110,7 +110,7 @@ class DateTimeFormatterBuilder -> java.time.format.DateTimeFormatterBuilder exte
   DateTimeFormatter toFormatter(Locale)
 }
 
-class DecimalStyle -> java.time.format.DecimalStyle extends Object {
+class DecimalStyle -> java.time.format.DecimalStyle {
   DecimalStyle STANDARD
   Set getAvailableLocales()
   char getDecimalSeparator()
@@ -127,7 +127,7 @@ class DecimalStyle -> java.time.format.DecimalStyle extends Object {
 
 #### Enums
 
-class FormatStyle -> java.time.format.FormatStyle extends Enum,Comparable,Object {
+class FormatStyle -> java.time.format.FormatStyle {
   FormatStyle FULL
   FormatStyle LONG
   FormatStyle MEDIUM
@@ -136,7 +136,7 @@ class FormatStyle -> java.time.format.FormatStyle extends Enum,Comparable,Object
   FormatStyle[] values()
 }
 
-class ResolverStyle -> java.time.format.ResolverStyle extends Enum,Comparable,Object {
+class ResolverStyle -> java.time.format.ResolverStyle {
   ResolverStyle LENIENT
   ResolverStyle SMART
   ResolverStyle STRICT
@@ -144,7 +144,7 @@ class ResolverStyle -> java.time.format.ResolverStyle extends Enum,Comparable,Ob
   ResolverStyle[] values()
 }
 
-class SignStyle -> java.time.format.SignStyle extends Enum,Comparable,Object {
+class SignStyle -> java.time.format.SignStyle {
   SignStyle ALWAYS
   SignStyle EXCEEDS_PAD
   SignStyle NEVER
@@ -154,7 +154,7 @@ class SignStyle -> java.time.format.SignStyle extends Enum,Comparable,Object {
   SignStyle[] values()
 }
 
-class TextStyle -> java.time.format.TextStyle extends Enum,Comparable,Object {
+class TextStyle -> java.time.format.TextStyle {
   TextStyle FULL
   TextStyle FULL_STANDALONE
   TextStyle NARROW
@@ -170,8 +170,8 @@ class TextStyle -> java.time.format.TextStyle extends Enum,Comparable,Object {
 
 #### Exceptions
 
-class DateTimeParseException -> java.time.format.DateTimeParseException extends DateTimeException,RuntimeException,Exception,Object {
-  DateTimeParseException <init>(String,CharSequence,int)
+class DateTimeParseException -> java.time.format.DateTimeParseException {
+  (String,CharSequence,int)
   int getErrorIndex()
   String getParsedString()
 }

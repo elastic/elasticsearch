@@ -19,48 +19,34 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.geo.GeoPoint;
+
+import java.io.IOException;
 
 final class SingletonMultiGeoPointValues extends MultiGeoPointValues {
 
     private final GeoPointValues in;
-    private final Bits docsWithField;
-    private GeoPoint value;
-    private int count;
 
-    SingletonMultiGeoPointValues(GeoPointValues in, Bits docsWithField) {
+    SingletonMultiGeoPointValues(GeoPointValues in) {
         this.in = in;
-        this.docsWithField = docsWithField;
     }
 
     @Override
-    public void setDocument(int docID) {
-        value = in.get(docID);
-        if (value.lat() == Double.NaN && value.lon() == Double.NaN || (docsWithField != null && !docsWithField.get(docID))) {
-            count = 0;
-        } else {
-            count = 1;
-        }
+    public boolean advanceExact(int doc) throws IOException {
+        return in.advanceExact(doc);
     }
 
     @Override
-    public int count() {
-        return count;
+    public int docValueCount() {
+        return 1;
     }
 
     @Override
-    public GeoPoint valueAt(int index) {
-        assert index == 0;
-        return value;
+    public GeoPoint nextValue() {
+        return in.geoPointValue();
     }
 
-    public GeoPointValues getGeoPointValues() {
+    GeoPointValues getGeoPointValues() {
         return in;
     }
-
-    public Bits getDocsWithField() {
-        return docsWithField;
-    }
-
 }

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.cache.clear;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -29,10 +31,9 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
 
     private boolean queryCache = false;
     private boolean fieldDataCache = false;
-    private boolean recycler = false;
     private boolean requestCache = false;
-    private String[] fields = null;
-    
+    private String[] fields = Strings.EMPTY_ARRAY;
+
 
     public ClearIndicesCacheRequest() {
     }
@@ -69,7 +70,7 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
     }
 
     public ClearIndicesCacheRequest fields(String... fields) {
-        this.fields = fields;
+        this.fields = fields == null ? Strings.EMPTY_ARRAY : fields;
         return this;
     }
 
@@ -77,21 +78,14 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
         return this.fields;
     }
 
-    public ClearIndicesCacheRequest recycler(boolean recycler) {
-        this.recycler = recycler;
-        return this;
-    }
-    
-    public boolean recycler() {
-        return this.recycler;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         queryCache = in.readBoolean();
         fieldDataCache = in.readBoolean();
-        recycler = in.readBoolean();
+        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
+            in.readBoolean(); // recycler
+        }
         fields = in.readStringArray();
         requestCache = in.readBoolean();
     }
@@ -101,7 +95,9 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
         super.writeTo(out);
         out.writeBoolean(queryCache);
         out.writeBoolean(fieldDataCache);
-        out.writeBoolean(recycler);
+        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
+            out.writeBoolean(false); // recycler
+        }
         out.writeStringArrayNullable(fields);
         out.writeBoolean(requestCache);
     }

@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.set.Sets;
@@ -51,7 +50,6 @@ public class RestNodesInfoAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    @Inject
     public RestNodesInfoAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
         super(settings);
         controller.registerHandler(GET, "/_nodes", this);
@@ -62,6 +60,11 @@ public class RestNodesInfoAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_nodes/{nodeId}/info/{metrics}", this);
 
         this.settingsFilter = settingsFilter;
+    }
+
+    @Override
+    public String getName() {
+        return "nodes_info_action";
     }
 
     @Override

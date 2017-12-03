@@ -24,8 +24,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import java.io.IOException;
-
 /** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
 public class ZipClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public ZipClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
@@ -33,7 +31,7 @@ public class ZipClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException {
+    public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }
 }

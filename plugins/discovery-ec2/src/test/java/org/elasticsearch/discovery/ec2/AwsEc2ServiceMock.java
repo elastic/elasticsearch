@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.Tag;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 

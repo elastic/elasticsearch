@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Circle;
 import com.vividsolutions.jts.geom.Coordinate;
 
@@ -31,9 +34,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CircleBuilder extends ShapeBuilder {
+public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
 
-    public static final String FIELD_RADIUS = "radius";
+    public static final ParseField FIELD_RADIUS = new ParseField("radius");
     public static final GeoShapeType TYPE = GeoShapeType.CIRCLE;
 
     private DistanceUnit unit = DistanceUnit.DEFAULT;
@@ -148,9 +151,9 @@ public class CircleBuilder extends ShapeBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapeName());
-        builder.field(FIELD_RADIUS, unit.toString(radius));
-        builder.field(FIELD_COORDINATES);
+        builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());
+        builder.field(FIELD_RADIUS.getPreferredName(), unit.toString(radius));
+        builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
         toXContent(builder, center);
         return builder.endObject();
     }

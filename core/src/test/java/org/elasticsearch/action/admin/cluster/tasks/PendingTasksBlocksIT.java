@@ -28,6 +28,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class PendingTasksBlocksIT extends ESIntegTestCase {
@@ -36,7 +37,8 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         ensureGreen("test");
 
         // This test checks that the Pending Cluster Tasks operation is never blocked, even if an index is read only or whatever.
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_BLOCKS_METADATA,
+            SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("test", blockSetting);
                 PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().execute().actionGet();

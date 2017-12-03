@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.plugin
 
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
@@ -62,15 +63,16 @@ public class PluginBuildPlugin extends BuildPlugin {
                 project.ext.set("nebulaPublish.maven.jar", false)
             }
 
-            project.integTest.dependsOn(project.bundlePlugin)
+            project.integTestCluster.dependsOn(project.bundlePlugin)
             project.tasks.run.dependsOn(project.bundlePlugin)
             if (isModule) {
-                project.integTest.clusterConfig.module(project)
+                project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
             } else {
-                project.integTest.clusterConfig.plugin(project.path)
+                project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
                 addZipPomGeneration(project)
+                addNoticeGeneration(project)
             }
 
             project.namingConventions {
@@ -94,7 +96,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             provided "com.vividsolutions:jts:${project.versions.jts}"
             provided "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
             provided "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
-            provided "net.java.dev.jna:jna:${project.versions.jna}"
+            provided "org.elasticsearch:jna:${project.versions.jna}"
         }
     }
 
@@ -118,12 +120,15 @@ public class PluginBuildPlugin extends BuildPlugin {
         // add the plugin properties and metadata to test resources, so unit tests can
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)
         SourceSet testSourceSet = project.sourceSets.test
-        testSourceSet.output.dir(buildProperties.generatedResourcesDir, builtBy: 'pluginProperties')
+        testSourceSet.output.dir(buildProperties.descriptorOutput.parentFile, builtBy: 'pluginProperties')
         testSourceSet.resources.srcDir(pluginMetadata)
 
         // create the actual bundle task, which zips up all the files for the plugin
         Zip bundle = project.tasks.create(name: 'bundlePlugin', type: Zip, dependsOn: [project.jar, buildProperties]) {
-            from buildProperties // plugin properties file
+            from(buildProperties.descriptorOutput.parentFile) {
+                // plugin properties file
+                include(buildProperties.descriptorOutput.name)
+            }
             from pluginMetadata // metadata (eg custom security policy)
             from project.jar // this plugin's jar
             from project.configurations.runtime - project.configurations.provided // the dep jars
@@ -242,6 +247,21 @@ public class PluginBuildPlugin extends BuildPlugin {
                     }
                 }
             }
+        }
+    }
+
+    protected void addNoticeGeneration(Project project) {
+        File licenseFile = project.pluginProperties.extension.licenseFile
+        if (licenseFile != null) {
+            project.bundlePlugin.from(licenseFile.parentFile) {
+                include(licenseFile.name)
+            }
+        }
+        File noticeFile = project.pluginProperties.extension.noticeFile
+        if (noticeFile != null) {
+            NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
+            generateNotice.inputFile = noticeFile
+            project.bundlePlugin.from(generateNotice)
         }
     }
 }

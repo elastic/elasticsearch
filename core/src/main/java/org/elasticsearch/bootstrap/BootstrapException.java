@@ -26,7 +26,7 @@ import java.nio.file.Path;
  * during bootstrap should explicitly declare the checked exceptions that they can throw, rather
  * than declaring the top-level checked exception {@link Exception}. This exception exists to wrap
  * these checked exceptions so that
- * {@link Bootstrap#init(boolean, Path, boolean, org.elasticsearch.common.settings.Settings)}
+ * {@link Bootstrap#init(boolean, Path, boolean, org.elasticsearch.env.Environment)}
  * does not have to declare all of these checked exceptions.
  */
 class BootstrapException extends Exception {

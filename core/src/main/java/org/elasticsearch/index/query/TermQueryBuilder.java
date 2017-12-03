@@ -82,9 +82,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         super(in);
     }
 
-    public static TermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static TermQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String queryName = null;
         String fieldName = null;
         Object value = null;
@@ -94,8 +92,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;

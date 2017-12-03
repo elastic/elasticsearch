@@ -32,6 +32,7 @@ Dynamic templates are specified as an array of named objects:
     ...
   ]
 --------------------------------------------------
+// NOTCONSOLE
 <1> The template name can be any string value.
 <2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `path_match`, `path_unmatch`.
 <3> The mapping that the matched field should use.
@@ -94,7 +95,6 @@ PUT my_index/my_type/1
   "my_integer": 5, <1>
   "my_string": "Some string" <2>
 }
-
 --------------------------------------------------
 // CONSOLE
 <1> The `my_integer` field is mapped as an `integer`.
@@ -156,6 +156,7 @@ instead of simple wildcards, for instance:
   "match_pattern": "regex",
   "match": "^profit_\d+$"
 --------------------------------------------------
+// NOTCONSOLE
 
 [[path-match-unmatch]]
 ==== `path_match` and `path_unmatch`
@@ -256,9 +257,9 @@ Here are some examples of potentially useful dynamic templates:
 
 ===== Structured search
 
-By default elasticsearch will map string fields as a `text` field with a sub
+By default Elasticsearch will map string fields as a `text` field with a sub
 `keyword` field. However if you are only indexing structured content and not
-interested in full text search, you can make elasticsearch map your fields
+interested in full text search, you can make Elasticsearch map your fields
 only as `keyword`s. Note that this means that in order to search those fields,
 you will have to search on the exact same value that was indexed.
 
@@ -282,13 +283,14 @@ PUT my_index
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 ===== `text`-only mappings for strings
 
 On the contrary to the previous example, if the only thing that you care about
 on your string fields is full-text search, and if you don't plan on running
 aggregations, sorting or exact search on your string fields, you could tell
-elasticsearch to map it only as a text field (which was the default behaviour
+Elasticsearch to map it only as a text field (which was the default behaviour
 before 5.0):
 
 [source,js]
@@ -311,6 +313,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 ===== Disabled norms
 
@@ -345,6 +348,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 The sub `keyword` field appears in this template to be consistent with the
 default rules of dynamic mappings. Of course if you do not need them because
@@ -353,7 +357,7 @@ remove it as described in the previous section.
 
 ===== Time-series
 
-When doing time series analysis with elasticsearch, it is common to have many
+When doing time series analysis with Elasticsearch, it is common to have many
 numeric fields that you will often aggregate on but never filter on. In such a
 case, you could disable indexing on those fields to save disk space and also
 maybe gain some indexing speed:
@@ -388,37 +392,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
+// CONSOLE
 <1> Like the default dynamic mapping rules, doubles are mapped as floats, which
     are usually accurate enough, yet require half the disk space.
 
-
-[[override-default-template]]
-=== Override default template
-
-You can override the default mappings for all indices and all types
-by specifying a `_default_` type mapping in an index template
-which matches all indices.
-
-For example, to disable the `_all` field by default for all types in all
-new indices, you could create the following index template:
-
-[source,js]
---------------------------------------------------
-PUT _template/disable_all_field
-{
-  "order": 0,
-  "index_patterns": ["*"], <1>
-  "mappings": {
-    "_default_": { <2>
-      "_all": { <3>
-        "enabled": false
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-<1> Applies the mappings to an `index` which matches the pattern `*`, in other
-    words, all new indices.
-<2> Defines the `_default_` type mapping types within the index.
-<3> Disables the `_all` field by default.

@@ -235,6 +235,9 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
             fail("should never reach this");
         } catch (CircuitBreakingException cbe) {
             assertThat("breaker was tripped exactly twice", breaker.getTrippedCount(), equalTo(2L));
+
+            long newUsed = (long)(breaker.getUsed() * breaker.getOverhead());
+            assertThat(cbe.getMessage().contains("would be [" + newUsed + "/"), equalTo(true));
             assertThat(cbe.getMessage().contains("field [" + field + "]"), equalTo(true));
         }
     }

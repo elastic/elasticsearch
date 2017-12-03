@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -134,15 +133,13 @@ public class QueryProfilerIT extends ESIntegTestCase {
             SearchRequestBuilder vanilla = client().prepareSearch("test")
                     .setQuery(q)
                     .setProfile(false)
-                    .addSort("_uid", SortOrder.ASC)
-                    .setPreference("_primary")
+                    .addSort("_id", SortOrder.ASC)
                     .setSearchType(SearchType.QUERY_THEN_FETCH);
 
             SearchRequestBuilder profile = client().prepareSearch("test")
                     .setQuery(q)
                     .setProfile(true)
-                    .addSort("_uid", SortOrder.ASC)
-                    .setPreference("_primary")
+                    .addSort("_id", SortOrder.ASC)
                     .setSearchType(SearchType.QUERY_THEN_FETCH);
 
             MultiSearchResponse.Item[] responses = client().prepareMultiSearch()
@@ -164,8 +161,8 @@ public class QueryProfilerIT extends ESIntegTestCase {
             }
 
             assertThat(
-                    "Profile totalHits of [" + profileResponse.getHits().totalHits() + "] is not close to Vanilla totalHits ["
-                            + vanillaResponse.getHits().totalHits() + "]",
+                    "Profile totalHits of [" + profileResponse.getHits().getTotalHits() + "] is not close to Vanilla totalHits ["
+                            + vanillaResponse.getHits().getTotalHits() + "]",
                     vanillaResponse.getHits().getTotalHits(), equalTo(profileResponse.getHits().getTotalHits()));
 
             SearchHit[] vanillaHits = vanillaResponse.getHits().getHits();

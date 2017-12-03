@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.Diff;
@@ -43,8 +44,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -59,23 +60,24 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
-public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
+public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragment {
 
     /**
      * This class will be removed in v7.0
@@ -130,12 +132,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         return proto;
     }
 
-    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
-    public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.READ));
-    public static final ClusterBlock INDEX_WRITE_BLOCK = new ClusterBlock(8, "index write (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE));
-    public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
+    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.READ));
+    public static final ClusterBlock INDEX_WRITE_BLOCK = new ClusterBlock(8, "index write (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE));
+    public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
+    public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(12, "index read-only / allow delete (api)", false, false, true, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE));
 
-    public static enum State {
+    public enum State {
         OPEN((byte) 0),
         CLOSE((byte) 1);
 
@@ -179,7 +182,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             throw new IllegalArgumentException("es.index.max_number_of_shards must be > 0");
         }
         return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, Math.min(5, maxNumShards), 1, maxNumShards,
-            Property.IndexScope);
+            Property.IndexScope, Property.Final);
     }
 
     public static final String INDEX_SETTING_PREFIX = "index.";
@@ -188,13 +191,28 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
     public static final Setting<Integer> INDEX_NUMBER_OF_REPLICAS_SETTING =
         Setting.intSetting(SETTING_NUMBER_OF_REPLICAS, 1, 0, Property.Dynamic, Property.IndexScope);
-    public static final String SETTING_SHADOW_REPLICAS = "index.shadow_replicas";
-    public static final Setting<Boolean> INDEX_SHADOW_REPLICAS_SETTING =
-        Setting.boolSetting(SETTING_SHADOW_REPLICAS, false, Property.IndexScope);
 
-    public static final String SETTING_SHARED_FILESYSTEM = "index.shared_filesystem";
-    public static final Setting<Boolean> INDEX_SHARED_FILESYSTEM_SETTING =
-        Setting.boolSetting(SETTING_SHARED_FILESYSTEM, false, Property.IndexScope);
+    public static final String SETTING_ROUTING_PARTITION_SIZE = "index.routing_partition_size";
+    public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
+            Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
+
+    public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING =
+        Setting.intSetting("index.number_of_routing_shards", INDEX_NUMBER_OF_SHARDS_SETTING, 1, new Setting.Validator<Integer>() {
+            @Override
+            public void validate(Integer numRoutingShards, Map<Setting<Integer>, Integer> settings) {
+                Integer numShards = settings.get(INDEX_NUMBER_OF_SHARDS_SETTING);
+                if (numRoutingShards < numShards) {
+                    throw new IllegalArgumentException("index.number_of_routing_shards [" + numRoutingShards
+                        + "] must be >= index.number_of_shards [" + numShards + "]");
+                }
+                getRoutingFactor(numShards, numRoutingShards);
+            }
+
+            @Override
+            public Iterator<Setting<Integer>> settings() {
+                return Collections.singleton(INDEX_NUMBER_OF_SHARDS_SETTING).iterator();
+            }
+        }, Property.IndexScope);
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
@@ -214,11 +232,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public static final Setting<Boolean> INDEX_BLOCKS_METADATA_SETTING =
         Setting.boolSetting(SETTING_BLOCKS_METADATA, false, Property.Dynamic, Property.IndexScope);
 
+    public static final String SETTING_READ_ONLY_ALLOW_DELETE = "index.blocks.read_only_allow_delete";
+    public static final Setting<Boolean> INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING =
+        Setting.boolSetting(SETTING_READ_ONLY_ALLOW_DELETE, false, Property.Dynamic, Property.IndexScope);
+
     public static final String SETTING_VERSION_CREATED = "index.version.created";
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
-    public static final String SETTING_VERSION_MINIMUM_COMPATIBLE = "index.version.minimum_compatible";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     /**
      * The user provided name for an index. This is the plain string provided by the user when the index was created.
@@ -233,22 +254,23 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final Setting<String> INDEX_DATA_PATH_SETTING =
         new Setting<>(SETTING_DATA_PATH, "", Function.identity(), Property.IndexScope);
-    public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";
-    public static final Setting<Boolean> INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING =
-        Setting.boolSetting(SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false, Property.Dynamic, Property.IndexScope);
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 
     public static final String INDEX_ROUTING_REQUIRE_GROUP_PREFIX = "index.routing.allocation.require";
     public static final String INDEX_ROUTING_INCLUDE_GROUP_PREFIX = "index.routing.allocation.include";
     public static final String INDEX_ROUTING_EXCLUDE_GROUP_PREFIX = "index.routing.allocation.exclude";
-    public static final Setting<Settings> INDEX_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".", Property.Dynamic, Property.IndexScope);
-    public static final Setting<Settings> INDEX_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".", Property.Dynamic, Property.IndexScope);
-    public static final Setting<Settings> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".", Property.Dynamic, Property.IndexScope);
-    public static final Setting<Settings> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
-        Setting.groupSetting("index.routing.allocation.initial_recovery."); // this is only setable internally not a registered setting!!
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_REQUIRE_GROUP_SETTING =
+        Setting.prefixKeySetting(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_INCLUDE_GROUP_SETTING =
+        Setting.prefixKeySetting(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
+        Setting.prefixKeySetting(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".", (key) ->
+            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+    public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
+        Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
+        // this is only setable internally not a registered setting!!
 
     /**
      * The number of active shard copies to check for before proceeding with a write operation.
@@ -259,6 +281,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                       ActiveShardCount::parseString,
                       Setting.Property.Dynamic,
                       Setting.Property.IndexScope);
+
+    /**
+     * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
+     */
+    private static final String INDEX_FORMAT = "index.format";
+    public static final Setting<Integer> INDEX_FORMAT_SETTING =
+            Setting.intSetting(INDEX_FORMAT, 0, Setting.Property.IndexScope, Setting.Property.Final);
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
@@ -272,6 +301,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
     private final int routingNumShards;
     private final int routingFactor;
+    private final int routingPartitionSize;
 
     private final int numberOfShards;
     private final int numberOfReplicas;
@@ -301,7 +331,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
 
     private final Version indexCreatedVersion;
     private final Version indexUpgradedVersion;
-    private final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
 
     private final ActiveShardCount waitForActiveShards;
 
@@ -309,8 +338,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                           ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases,
                           ImmutableOpenMap<String, Custom> customs, ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
                           DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters initialRecoveryFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
-                          Version indexCreatedVersion, Version indexUpgradedVersion, org.apache.lucene.util.Version minimumCompatibleLuceneVersion,
-                          int routingNumShards, ActiveShardCount waitForActiveShards) {
+                          Version indexCreatedVersion, Version indexUpgradedVersion,
+                          int routingNumShards, int routingPartitionSize, ActiveShardCount waitForActiveShards) {
 
         this.index = index;
         this.version = version;
@@ -331,9 +360,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         this.initialRecoveryFilters = initialRecoveryFilters;
         this.indexCreatedVersion = indexCreatedVersion;
         this.indexUpgradedVersion = indexUpgradedVersion;
-        this.minimumCompatibleLuceneVersion = minimumCompatibleLuceneVersion;
         this.routingNumShards = routingNumShards;
         this.routingFactor = routingNumShards / numberOfShards;
+        this.routingPartitionSize = routingPartitionSize;
         this.waitForActiveShards = waitForActiveShards;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
@@ -390,13 +419,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         return indexUpgradedVersion;
     }
 
-    /**
-     * Return the {@link org.apache.lucene.util.Version} of the oldest lucene segment in the index
-     */
-    public org.apache.lucene.util.Version getMinimumCompatibleVersion() {
-        return minimumCompatibleLuceneVersion;
-    }
-
     public long getCreationDate() {
         return settings.getAsLong(SETTING_CREATION_DATE, -1L);
     }
@@ -411,6 +433,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
 
     public int getNumberOfReplicas() {
         return numberOfReplicas;
+    }
+
+    public int getRoutingPartitionSize() {
+        return routingPartitionSize;
+    }
+
+    public boolean isRoutingPartitionedIndex() {
+        return routingPartitionSize != 1;
     }
 
     public int getTotalNumberOfShards() {
@@ -442,12 +472,22 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         return mappings.get(mappingType);
     }
 
-    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString("index.shrink.source.uuid");
-    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString("index.shrink.source.name");
+    // we keep the shrink settings for BWC - this can be removed in 8.0
+    // we can't remove in 7 since this setting might be baked into an index coming in via a full cluster restart from 6.0
+    public static final String INDEX_SHRINK_SOURCE_UUID_KEY = "index.shrink.source.uuid";
+    public static final String INDEX_SHRINK_SOURCE_NAME_KEY = "index.shrink.source.name";
+    public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
+    public static final String INDEX_RESIZE_SOURCE_NAME_KEY = "index.resize.source.name";
+    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString(INDEX_SHRINK_SOURCE_UUID_KEY);
+    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString(INDEX_SHRINK_SOURCE_NAME_KEY);
+    public static final Setting<String> INDEX_RESIZE_SOURCE_UUID = Setting.simpleString(INDEX_RESIZE_SOURCE_UUID_KEY,
+        INDEX_SHRINK_SOURCE_UUID);
+    public static final Setting<String> INDEX_RESIZE_SOURCE_NAME = Setting.simpleString(INDEX_RESIZE_SOURCE_NAME_KEY,
+        INDEX_SHRINK_SOURCE_NAME);
 
-
-    public Index getMergeSourceIndex() {
-        return INDEX_SHRINK_SOURCE_UUID.exists(settings) ? new Index(INDEX_SHRINK_SOURCE_NAME.get(settings),  INDEX_SHRINK_SOURCE_UUID.get(settings)) : null;
+    public Index getResizeSourceIndex() {
+        return INDEX_RESIZE_SOURCE_UUID.exists(settings) || INDEX_SHRINK_SOURCE_UUID.exists(settings)
+            ? new Index(INDEX_RESIZE_SOURCE_NAME.get(settings), INDEX_RESIZE_SOURCE_UUID.get(settings)) : null;
     }
 
     /**
@@ -601,7 +641,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
         private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
 
-        public IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
+        IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
             index = after.index.getName();
             version = after.version;
             routingNumShards = after.routingNumShards;
@@ -615,7 +655,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
         }
 
-        public IndexMetaDataDiff(StreamInput in) throws IOException {
+        IndexMetaDataDiff(StreamInput in) throws IOException {
             index = in.readString();
             routingNumShards = in.readInt();
             version = in.readLong();
@@ -809,6 +849,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             return routingNumShards == null ? numberOfShards() : routingNumShards;
         }
 
+        /**
+         * Returns the number of shards.
+         *
+         * @return the provided value or -1 if it has not been set.
+         */
         public int numberOfShards() {
             return settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1);
         }
@@ -818,8 +863,27 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             return this;
         }
 
+        /**
+         * Returns the number of replicas.
+         *
+         * @return the provided value or -1 if it has not been set.
+         */
         public int numberOfReplicas() {
             return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
+        }
+
+        public Builder routingPartitionSize(int routingPartitionSize) {
+            settings = Settings.builder().put(settings).put(SETTING_ROUTING_PARTITION_SIZE, routingPartitionSize).build();
+            return this;
+        }
+
+        /**
+         * Returns the routing partition size.
+         *
+         * @return the provided value or -1 if it has not been set.
+         */
+        public int routingPartitionSize() {
+            return settings.getAsInt(SETTING_ROUTING_PARTITION_SIZE, -1);
         }
 
         public Builder creationDate(long creationDate) {
@@ -885,7 +949,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         }
 
         public Builder putInSyncAllocationIds(int shardId, Set<String> allocationIds) {
-            inSyncAllocationIds.put(shardId, new HashSet(allocationIds));
+            inSyncAllocationIds.put(shardId, new HashSet<>(allocationIds));
             return this;
         }
 
@@ -964,6 +1028,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                 throw new IllegalArgumentException("must specify non-negative number of shards for index [" + index + "]");
             }
 
+            int routingPartitionSize = INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
+            if (routingPartitionSize != 1 && routingPartitionSize >= getRoutingNumShards()) {
+                throw new IllegalArgumentException("routing partition size [" + routingPartitionSize + "] should be a positive number"
+                        + " less than the number of shards [" + getRoutingNumShards() + "] for [" + index + "]");
+            }
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
             ImmutableOpenIntMap.Builder<Set<String>> filledInSyncAllocationIds = ImmutableOpenIntMap.builder();
             for (int i = 0; i < numberOfShards; i++) {
@@ -973,28 +1042,28 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                     filledInSyncAllocationIds.put(i, Collections.emptySet());
                 }
             }
-            final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(settings).getAsMap();
+            final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters requireFilters;
             if (requireMap.isEmpty()) {
                 requireFilters = null;
             } else {
                 requireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
             }
-            Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.get(settings).getAsMap();
+            Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters includeFilters;
             if (includeMap.isEmpty()) {
                 includeFilters = null;
             } else {
                 includeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
             }
-            Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.get(settings).getAsMap();
+            Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters excludeFilters;
             if (excludeMap.isEmpty()) {
                 excludeFilters = null;
             } else {
                 excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
             }
-            Map<String, String> initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.get(settings).getAsMap();
+            Map<String, String> initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters initialRecoveryFilters;
             if (initialRecoveryMap.isEmpty()) {
                 initialRecoveryFilters = null;
@@ -1003,17 +1072,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             }
             Version indexCreatedVersion = Version.indexCreated(settings);
             Version indexUpgradedVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_UPGRADED, indexCreatedVersion);
-            String stringLuceneVersion = settings.get(SETTING_VERSION_MINIMUM_COMPATIBLE);
-            final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
-            if (stringLuceneVersion != null) {
-                try {
-                    minimumCompatibleLuceneVersion = org.apache.lucene.util.Version.parse(stringLuceneVersion);
-                } catch (ParseException ex) {
-                    throw new IllegalStateException("Cannot parse lucene version [" + stringLuceneVersion + "] in the [" + SETTING_VERSION_MINIMUM_COMPATIBLE + "] setting", ex);
-                }
-            } else {
-                minimumCompatibleLuceneVersion = null;
-            }
 
             if (primaryTerms == null) {
                 initializePrimaryTerms();
@@ -1030,9 +1088,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             }
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
+
             return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
                 tmpAliases.build(), customs.build(), filledInSyncAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
-                indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion, getRoutingNumShards(), waitForActiveShards);
+                indexCreatedVersion, indexUpgradedVersion, getRoutingNumShards(), routingPartitionSize, waitForActiveShards);
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -1045,9 +1104,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             boolean binary = params.paramAsBoolean("binary", false);
 
             builder.startObject(KEY_SETTINGS);
-            for (Map.Entry<String, String> entry : indexMetaData.getSettings().getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            indexMetaData.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();
 
             builder.startArray(KEY_MAPPINGS);
@@ -1113,7 +1170,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (KEY_SETTINGS.equals(currentFieldName)) {
-                        builder.settings(Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
+                        builder.settings(Settings.fromXContent(parser));
                     } else if (KEY_MAPPINGS.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
@@ -1210,26 +1267,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     }
 
     /**
-     * Returns <code>true</code> iff the given settings indicate that the index
-     * associated with these settings allocates it's shards on a shared
-     * filesystem. Otherwise <code>false</code>. The default setting for this
-     * is the returned value from
-     * {@link #isIndexUsingShadowReplicas(org.elasticsearch.common.settings.Settings)}.
-     */
-    public static boolean isOnSharedFilesystem(Settings settings) {
-        return settings.getAsBoolean(SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
-    }
-
-    /**
-     * Returns <code>true</code> iff the given settings indicate that the index associated
-     * with these settings uses shadow replicas. Otherwise <code>false</code>. The default
-     * setting for this is <code>false</code>.
-     */
-    public static boolean isIndexUsingShadowReplicas(Settings settings) {
-        return settings.getAsBoolean(SETTING_SHADOW_REPLICAS, false);
-    }
-
-    /**
      * Adds human readable version and creation date settings.
      * This method is used to display the settings in a human readable format in REST API
      */
@@ -1282,10 +1319,62 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     /**
      * Returns the routing factor for this index. The default is <tt>1</tt>.
      *
-     * @see #getRoutingFactor(IndexMetaData, int) for details
+     * @see #getRoutingFactor(int, int) for details
      */
     public int getRoutingFactor() {
         return routingFactor;
+    }
+
+    /**
+     * Returns the source shard ID to split the given target shard off
+     * @param shardId the id of the target shard to split into
+     * @param sourceIndexMetadata the source index metadata
+     * @param numTargetShards the total number of shards in the target index
+     * @return a the source shard ID to split off from
+     */
+    public static ShardId selectSplitShard(int shardId, IndexMetaData sourceIndexMetadata, int numTargetShards) {
+        int numSourceShards = sourceIndexMetadata.getNumberOfShards();
+        if (shardId >= numTargetShards) {
+            throw new IllegalArgumentException("the number of target shards (" + numTargetShards + ") must be greater than the shard id: "
+                + shardId);
+        }
+        final int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
+        assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
+        return new ShardId(sourceIndexMetadata.getIndex(), shardId/routingFactor);
+    }
+
+    private static void assertSplitMetadata(int numSourceShards, int numTargetShards, IndexMetaData sourceIndexMetadata) {
+        if (numSourceShards > numTargetShards) {
+            throw new IllegalArgumentException("the number of source shards [" + numSourceShards
+                + "] must be less that the number of target shards [" + numTargetShards + "]");
+        }
+        // now we verify that the numRoutingShards is valid in the source index
+        // note: if the number of shards is 1 in the source index we can just assume it's correct since from 1 we can split into anything
+        // this is important to special case here since we use this to validate this in various places in the code but allow to split form
+        // 1 to N but we never modify the sourceIndexMetadata to accommodate for that
+        int routingNumShards = numSourceShards == 1 ? numTargetShards : sourceIndexMetadata.getRoutingNumShards();
+        if (routingNumShards % numTargetShards != 0) {
+            throw new IllegalStateException("the number of routing shards ["
+                + routingNumShards + "] must be a multiple of the target shards [" + numTargetShards + "]");
+        }
+        // this is just an additional assertion that ensures we are a factor of the routing num shards.
+        assert sourceIndexMetadata.getNumberOfShards() == 1 // special case - we can split into anything from 1 shard
+            || getRoutingFactor(numTargetShards, routingNumShards) >= 0;
+    }
+
+    /**
+     * Selects the source shards for a local shard recovery. This might either be a split or a shrink operation.
+     * @param shardId the target shard ID to select the source shards for
+     * @param sourceIndexMetadata the source metadata
+     * @param numTargetShards the number of target shards
+     */
+    public static Set<ShardId> selectRecoverFromShards(int shardId, IndexMetaData sourceIndexMetadata, int numTargetShards) {
+        if (sourceIndexMetadata.getNumberOfShards() > numTargetShards) {
+            return selectShrinkShards(shardId, sourceIndexMetadata, numTargetShards);
+        } else if (sourceIndexMetadata.getNumberOfShards() < numTargetShards) {
+            return Collections.singleton(selectSplitShard(shardId, sourceIndexMetadata, numTargetShards));
+        }
+        throw new IllegalArgumentException("can't select recover from shards if both indices have the same number of shards");
     }
 
     /**
@@ -1300,7 +1389,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             throw new IllegalArgumentException("the number of target shards (" + numTargetShards + ") must be greater than the shard id: "
                 + shardId);
         }
-        int routingFactor = getRoutingFactor(sourceIndexMetadata, numTargetShards);
+        if (sourceIndexMetadata.getNumberOfShards() < numTargetShards) {
+            throw new IllegalArgumentException("the number of target shards [" + numTargetShards
+                +"] must be less that the number of source shards [" + sourceIndexMetadata.getNumberOfShards() + "]");
+        }
+        int routingFactor = getRoutingFactor(sourceIndexMetadata.getNumberOfShards(), numTargetShards);
         Set<ShardId> shards = new HashSet<>(routingFactor);
         for (int i = shardId * routingFactor; i < routingFactor*shardId + routingFactor; i++) {
             shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
@@ -1314,21 +1407,30 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
      * {@link org.elasticsearch.cluster.routing.OperationRouting#generateShardId(IndexMetaData, String, String)} to guarantee consistent
      * hashing / routing of documents even if the number of shards changed (ie. a shrunk index).
      *
-     * @param sourceIndexMetadata the metadata of the source index
+     * @param sourceNumberOfShards the total number of shards in the source index
      * @param targetNumberOfShards the total number of shards in the target index
      * @return the routing factor for and shrunk index with the given number of target shards.
-     * @throws IllegalArgumentException if the number of source shards is greater than the number of target shards or if the source shards
+     * @throws IllegalArgumentException if the number of source shards is less than the number of target shards or if the source shards
      * are not divisible by the number of target shards.
      */
-    public static int getRoutingFactor(IndexMetaData sourceIndexMetadata, int targetNumberOfShards) {
-        int sourceNumberOfShards = sourceIndexMetadata.getNumberOfShards();
-        if (sourceNumberOfShards < targetNumberOfShards) {
-            throw new IllegalArgumentException("the number of target shards must be less that the number of source shards");
-        }
-        int factor = sourceNumberOfShards / targetNumberOfShards;
-        if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
-            throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a multiple of ["
-                + targetNumberOfShards + "]");
+    public static int getRoutingFactor(int sourceNumberOfShards, int targetNumberOfShards) {
+        final int factor;
+        if (sourceNumberOfShards < targetNumberOfShards) { // split
+            factor = targetNumberOfShards / sourceNumberOfShards;
+            if (factor * sourceNumberOfShards != targetNumberOfShards || factor <= 1) {
+                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
+                    "factor of ["
+                    + targetNumberOfShards + "]");
+            }
+        } else if (sourceNumberOfShards > targetNumberOfShards) { // shrink
+            factor = sourceNumberOfShards / targetNumberOfShards;
+            if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
+                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
+                    "multiple of ["
+                    + targetNumberOfShards + "]");
+            }
+        } else {
+            factor = 1;
         }
         return factor;
     }

@@ -66,7 +66,7 @@ public class TransportClusterAllocationExplainAction
                                                    ClusterInfoService clusterInfoService, AllocationDeciders allocationDeciders,
                                                    ShardsAllocator shardAllocator, GatewayAllocator gatewayAllocator) {
         super(settings, ClusterAllocationExplainAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, ClusterAllocationExplainRequest::new);
+            ClusterAllocationExplainRequest::new, indexNameExpressionResolver);
         this.clusterInfoService = clusterInfoService;
         this.allocationDeciders = allocationDeciders;
         this.shardAllocator = shardAllocator;
@@ -94,7 +94,7 @@ public class TransportClusterAllocationExplainAction
         final RoutingNodes routingNodes = state.getRoutingNodes();
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
-                clusterInfo, System.nanoTime(), false);
+                clusterInfo, System.nanoTime());
 
         ShardRouting shardRouting = findShardToExplain(request, allocation);
         logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);
@@ -139,7 +139,7 @@ public class TransportClusterAllocationExplainAction
                 foundShard = ui.next();
             }
             if (foundShard == null) {
-                throw new IllegalStateException("unable to find any unassigned shards to explain [" + request + "]");
+                throw new IllegalArgumentException("unable to find any unassigned shards to explain [" + request + "]");
             }
         } else {
             String index = request.getIndex();
@@ -151,7 +151,8 @@ public class TransportClusterAllocationExplainAction
                     DiscoveryNode primaryNode = allocation.nodes().resolveNode(request.getCurrentNode());
                     // the primary is assigned to a node other than the node specified in the request
                     if (primaryNode.getId().equals(foundShard.currentNodeId()) == false) {
-                        throw new IllegalStateException("unable to find primary shard assigned to node [" + request.getCurrentNode() + "]");
+                        throw new IllegalArgumentException(
+                                "unable to find primary shard assigned to node [" + request.getCurrentNode() + "]");
                     }
                 }
             } else {
@@ -168,7 +169,7 @@ public class TransportClusterAllocationExplainAction
                         }
                     }
                     if (foundShard == null) {
-                        throw new IllegalStateException("unable to find a replica shard assigned to node [" +
+                        throw new IllegalArgumentException("unable to find a replica shard assigned to node [" +
                                                             request.getCurrentNode() + "]");
                     }
                 } else {
@@ -193,7 +194,7 @@ public class TransportClusterAllocationExplainAction
         }
 
         if (foundShard == null) {
-            throw new IllegalStateException("unable to find any shards to explain [" + request + "] in the routing table");
+            throw new IllegalArgumentException("unable to find any shards to explain [" + request + "] in the routing table");
         }
         return foundShard;
     }

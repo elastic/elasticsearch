@@ -58,7 +58,8 @@ public class ShardRoutingTests extends ESTestCase {
 
     private ShardRouting randomShardRouting(String index, int shard) {
         ShardRoutingState state = randomFrom(ShardRoutingState.values());
-        return TestShardRouting.newShardRouting(index, shard, state == ShardRoutingState.UNASSIGNED ? null : "1", state != ShardRoutingState.UNASSIGNED && randomBoolean(), state);
+        return TestShardRouting.newShardRouting(index, shard, state == ShardRoutingState.UNASSIGNED ? null : "1",
+            state == ShardRoutingState.RELOCATING ? "2" : null, state != ShardRoutingState.UNASSIGNED && randomBoolean(), state);
     }
 
     public void testIsSourceTargetRelocation() {
@@ -118,7 +119,7 @@ public class ShardRoutingTests extends ESTestCase {
             switch (changeId) {
                 case 0:
                     // change index
-                    ShardId shardId = new ShardId(new Index("blubb", randomAsciiOfLength(10)), otherRouting.id());
+                    ShardId shardId = new ShardId(new Index("blubb", randomAlphaOfLength(10)), otherRouting.id());
                     otherRouting = new ShardRouting(shardId, otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
                             otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
                             otherRouting.allocationId(), otherRouting.getExpectedShardSize());
@@ -131,16 +132,23 @@ public class ShardRoutingTests extends ESTestCase {
                     break;
                 case 2:
                     // change current node
-                    otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId() == null ? "1" : otherRouting.currentNodeId() + "_1", otherRouting.relocatingNodeId(),
+                    if (otherRouting.assignedToNode() == false) {
+                        unchanged = true;
+                    } else {
+                        otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId() + "_1", otherRouting.relocatingNodeId(),
                             otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
                             otherRouting.allocationId(), otherRouting.getExpectedShardSize());
+                    }
                     break;
                 case 3:
                     // change relocating node
-                    otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId(),
-                            otherRouting.relocatingNodeId() == null ? "1" : otherRouting.relocatingNodeId() + "_1",
+                    if (otherRouting.relocating() == false) {
+                        unchanged = true;
+                    } else {
+                        otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId() + "_1",
                             otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
                             otherRouting.allocationId(), otherRouting.getExpectedShardSize());
+                    }
                     break;
                 case 4:
                     // change recovery source (only works for inactive primaries)
@@ -170,7 +178,9 @@ public class ShardRoutingTests extends ESTestCase {
                         unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test");
                     }
 
-                    otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
+                    otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(),
+                        newState == ShardRoutingState.UNASSIGNED ? null : (otherRouting.currentNodeId() == null ? "1" : otherRouting.currentNodeId()),
+                        newState == ShardRoutingState.RELOCATING ? "2" : null,
                             otherRouting.primary(), newState, unassignedInfo);
                     break;
             }

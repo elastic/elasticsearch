@@ -69,6 +69,12 @@ public interface RoutingChangesObserver {
      */
     void replicaPromoted(ShardRouting replicaShard);
 
+    /**
+     * Called when an initializing replica is reinitialized. This happens when a primary relocation completes, which
+     * reinitializes all currently initializing replicas as their recovery source node changes
+     */
+    void initializedReplicaReinitialized(ShardRouting oldReplica, ShardRouting reinitializedReplica);
+
 
     /**
      * Abstract implementation of {@link RoutingChangesObserver} that does not take any action. Useful for subclasses that only override
@@ -118,6 +124,11 @@ public interface RoutingChangesObserver {
 
         @Override
         public void replicaPromoted(ShardRouting replicaShard) {
+
+        }
+
+        @Override
+        public void initializedReplicaReinitialized(ShardRouting oldReplica, ShardRouting reinitializedReplica) {
 
         }
     }
@@ -190,6 +201,13 @@ public interface RoutingChangesObserver {
         public void replicaPromoted(ShardRouting replicaShard) {
             for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
                 routingChangesObserver.replicaPromoted(replicaShard);
+            }
+        }
+
+        @Override
+        public void initializedReplicaReinitialized(ShardRouting oldReplica, ShardRouting reinitializedReplica) {
+            for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
+                routingChangesObserver.initializedReplicaReinitialized(oldReplica, reinitializedReplica);
             }
         }
     }

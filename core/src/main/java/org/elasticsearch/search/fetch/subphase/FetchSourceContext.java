@@ -21,13 +21,12 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -43,7 +42,7 @@ import java.util.function.Function;
 /**
  * Context used to fetch the {@code _source}.
  */
-public class FetchSourceContext implements Writeable, ToXContent {
+public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
@@ -54,10 +53,6 @@ public class FetchSourceContext implements Writeable, ToXContent {
     private final String[] includes;
     private final String[] excludes;
     private Function<Map<String, ?>, Map<String, Object>> filter;
-
-    public static FetchSourceContext parse(XContentParser parser) throws IOException {
-        return fromXContent(parser, ParseFieldMatcher.STRICT);
-    }
 
     public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
         this.fetchSource = fetchSource;
@@ -101,9 +96,9 @@ public class FetchSourceContext implements Writeable, ToXContent {
 
         String source = request.param("_source");
         if (source != null) {
-            if (Booleans.isExplicitTrue(source)) {
+            if (Booleans.isTrue(source)) {
                 fetchSource = true;
-            } else if (Booleans.isExplicitFalse(source)) {
+            } else if (Booleans.isFalse(source)) {
                 fetchSource = false;
             } else {
                 source_includes = Strings.splitStringByCommaToArray(source);
@@ -127,7 +122,7 @@ public class FetchSourceContext implements Writeable, ToXContent {
         return null;
     }
 
-    public static FetchSourceContext fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static FetchSourceContext fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;

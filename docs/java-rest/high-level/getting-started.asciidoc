@@ -1,0 +1,143 @@
+[[java-rest-high-getting-started]]
+== Getting started
+
+This section describes how to get started with the high-level REST client from
+getting the artifact to using it in an application.
+
+[[java-rest-high-compatibility]]
+=== Compatibility
+The Java High Level REST Client requires Java 1.8 and depends on the Elasticsearch
+core project. The client version is the same as the Elasticsearch version that the
+client was developed for. It accepts the same request arguments as the `TransportClient`
+and returns the same response objects. See the <<java-rest-high-level-migration>>
+if you need to migrate an application from `TransportClient` to the new REST client.
+
+The High Level Client is guaranteed to be able to communicate with any Elasticsearch
+node running on the same major version and greater or equal minor version. It
+doesn't need to be in the same minor version as the Elasticsearch nodes it
+communicates with, as it is forward compatible meaning that it supports
+communicating with later versions of Elasticsearch than the one it was developed for.
+
+The 6.0 client is able to communicate with any 6.x Elasticsearch node, while the 6.1
+client is for sure able to communicate with 6.1, 6.2 and any later 6.x version, but
+there may be incompatibility issues when communicating with a previous Elasticsearch
+node version, for instance between 6.1 and 6.0, in case the 6.1 client supports new
+request body fields for some APIs that are not known by the 6.0 node(s).
+
+It is recommended to upgrade the High Level Client when upgrading the Elasticsearch
+cluster to a new major version, as REST API breaking changes may cause unexpected
+results depending on the node that is hit by the request, and newly added APIs will
+only be supported by the newer version of the client. The client should always be
+updated last, once all of the nodes in the cluster have been upgraded to the new
+major version.
+
+[[java-rest-high-javadoc]]
+=== Javadoc
+
+The javadoc for the REST high level client can be found at {rest-high-level-client-javadoc}/index.html.
+
+[[java-rest-high-getting-started-maven]]
+=== Maven Repository
+
+The high-level Java REST client is hosted on
+http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
+Central]. The minimum Java version required is `1.8`.
+
+The High Level REST Client is subject to the same release cycle as
+Elasticsearch. Replace the version with the desired client version.
+
+[[java-rest-high-getting-started-maven-maven]]
+==== Maven configuration
+
+Here is how you can configure the dependency using maven as a dependency manager.
+Add the following to your `pom.xml` file:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<dependency>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>elasticsearch-rest-high-level-client</artifactId>
+    <version>{version}</version>
+</dependency>
+--------------------------------------------------
+
+[[java-rest-high-getting-started-maven-gradle]]
+==== Gradle configuration
+
+Here is how you can configure the dependency using gradle as a dependency manager.
+Add the following to your `build.gradle` file:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+dependencies {
+    compile 'org.elasticsearch.client:elasticsearch-rest-high-level-client:{version}'
+}
+--------------------------------------------------
+
+[[java-rest-high-getting-started-maven-lucene]]
+==== Lucene Snapshot repository
+
+The very first releases of any major version (like a beta), might have been built on top of a Lucene Snapshot version.
+In such a case you will be unable to resolve the Lucene dependencies of the client.
+
+For example, if you want to use the `6.0.0-beta1` version which depends on Lucene `7.0.0-snapshot-00142c9`, you must
+define the following repository.
+
+For Maven:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<repository>
+    <id>elastic-lucene-snapshots</id>
+    <name>Elastic Lucene Snapshots</name>
+    <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9</url>
+    <releases><enabled>true</enabled></releases>
+    <snapshots><enabled>false</enabled></snapshots>
+</repository>
+--------------------------------------------------
+
+For Gradle:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+maven {
+    url 'http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9'
+}
+--------------------------------------------------
+
+[[java-rest-high-getting-started-dependencies]]
+=== Dependencies
+
+The High Level Java REST Client depends on the following artifacts and their
+transitive dependencies:
+
+- org.elasticsearch.client:elasticsearch-rest-client
+- org.elasticsearch:elasticsearch
+
+
+[[java-rest-high-getting-started-initialization]]
+=== Initialization
+
+A `RestHighLevelClient` instance needs a <<java-rest-low-usage-initialization,REST low-level client builder>>
+to be built as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init]
+--------------------------------------------------
+
+The high-level client will internally create the low-level client used to
+perform requests based on the provided builder, and manage its lifecycle.
+
+The high-level client instance needs to be closed when no longer needed so that
+all the resources used by it get properly released, as well as the underlying
+http client instance and its threads. This can be done through the `close`
+method, which will close the internal `RestClient` instance.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-close]
+--------------------------------------------------
+
+In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance
+will be referenced as `client`.

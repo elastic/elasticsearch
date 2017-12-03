@@ -37,7 +37,13 @@ import java.util.Arrays;
 
 public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
 
+    @Override
     protected BytesReference newBytesReference(int length) throws IOException {
+        return newBytesReferenceWithOffsetOfZero(length);
+    }
+
+    @Override
+    protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
         // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
         ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, bigarrays);
         for (int i = 0; i < length; i++) {

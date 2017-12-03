@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Query that allows wraping a {@link MultiTermQueryBuilder} (one of wildcard, fuzzy, prefix, term, range or regexp query)
+ * Query that allows wrapping a {@link MultiTermQueryBuilder} (one of wildcard, fuzzy, prefix, term, range or regexp query)
  * as a {@link SpanQueryBuilder} so it can be nested.
  */
 public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTermQueryBuilder>
@@ -81,8 +81,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         builder.endObject();
     }
 
-    public static SpanMultiTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static SpanMultiTermQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         MultiTermQueryBuilder subQuery = null;
         String queryName = null;
@@ -93,7 +92,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (MATCH_FIELD.match(currentFieldName)) {
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof MultiTermQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(),
                                 "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");

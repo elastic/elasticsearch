@@ -50,6 +50,7 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -57,6 +58,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
@@ -620,6 +622,13 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 22);
             o.writeGeoPoint((GeoPoint) v);
         });
+        writers.put(ZonedDateTime.class, (o, v) -> {
+            o.writeByte((byte) 23);
+            final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
+            zonedDateTime.getZone().getId();
+            o.writeString(zonedDateTime.getZone().getId());
+            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+        });
         WRITERS = Collections.unmodifiableMap(writers);
     }
 
@@ -695,6 +704,23 @@ public abstract class StreamOutput extends OutputStream {
         writeVInt(values.length);
         for (double value : values) {
             writeDouble(value);
+        }
+    }
+
+    /**
+     * Writes the specified array to the stream using the specified {@link Writer} for each element in the array. This method can be seen as
+     * writer version of {@link StreamInput#readArray(Writeable.Reader, IntFunction)}. The length of array encoded as a variable-length
+     * integer is first written to the stream, and then the elements of the array are written to the stream.
+     *
+     * @param writer the writer used to write individual elements
+     * @param array  the array
+     * @param <T>    the type of the elements of the array
+     * @throws IOException if an I/O exception occurs while writing the array
+     */
+    public <T> void writeArray(final Writer<T> writer, final T[] array) throws IOException {
+        writeVInt(array.length);
+        for (T value : array) {
+            writer.write(this, value);
         }
     }
 
@@ -934,6 +960,13 @@ public abstract class StreamOutput extends OutputStream {
         for (NamedWriteable obj: list) {
             writeNamedWriteable(obj);
         }
+    }
+
+    /**
+     * Writes an enum with type E that by serialized it based on it's ordinal value
+     */
+    public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
+        writeVInt(enumValue.ordinal());
     }
 
 }

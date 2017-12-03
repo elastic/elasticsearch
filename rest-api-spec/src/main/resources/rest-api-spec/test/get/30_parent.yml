@@ -1,0 +1,42 @@
+---
+setup:
+ - do:
+      indices.create:
+          index: test_1
+          body:
+            mappings:
+              test:
+                _parent: { type: "foo" }
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  中文
+          body:    { foo: bar }
+
+---
+"Parent":
+
+ - do:
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  中文
+          stored_fields:  [_parent, _routing]
+
+ - match:   { _id:      "1"}
+ - match:   { _parent: 中文 }
+ - match:   { _routing: 中文}
+
+---
+"Parent omitted":
+ - do:
+      catch: bad_request
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+

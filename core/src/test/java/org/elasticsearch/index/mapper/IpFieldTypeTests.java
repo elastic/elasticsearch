@@ -19,10 +19,14 @@
 package org.elasticsearch.index.mapper;
 
 import java.net.InetAddress;
+import java.util.Arrays;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 
@@ -78,6 +82,22 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
+    public void testTermsQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+
+        assertEquals(InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
+                ft.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), null));
+        assertEquals(InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
+                ft.termsQuery(Arrays.asList("::2", "::5"), null));
+
+        // if the list includes a prefix query we fallback to a bool query
+        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
+                .add(ft.termQuery("::42", null), Occur.SHOULD)
+                .add(ft.termQuery("::2/16", null), Occur.SHOULD).build()),
+                ft.termsQuery(Arrays.asList("::42", "::2/16"), null));
+    }
+
     public void testRangeQuery() {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
@@ -86,83 +106,84 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("::"),
                         InetAddressPoint.MAX_VALUE),
-                ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null));
+                ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null));
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("::"),
                         InetAddresses.forString("192.168.2.0")),
-                ft.rangeQuery(null, "192.168.2.0", randomBoolean(), true, null));
+                ft.rangeQuery(null, "192.168.2.0", randomBoolean(), true, null, null, null, null));
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("::"),
                         InetAddresses.forString("192.168.1.255")),
-                ft.rangeQuery(null, "192.168.2.0", randomBoolean(), false, null));
+                ft.rangeQuery(null, "192.168.2.0", randomBoolean(), false, null, null, null, null));
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("2001:db8::"),
                         InetAddressPoint.MAX_VALUE),
-                ft.rangeQuery("2001:db8::", null, true, randomBoolean(), null));
+                ft.rangeQuery("2001:db8::", null, true, randomBoolean(), null, null, null, null));
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("2001:db8::1"),
                         InetAddressPoint.MAX_VALUE),
-                ft.rangeQuery("2001:db8::", null, false, randomBoolean(), null));
+                ft.rangeQuery("2001:db8::", null, false, randomBoolean(), null, null, null, null));
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("2001:db8::"),
                         InetAddresses.forString("2001:db8::ffff")),
-                ft.rangeQuery("2001:db8::", "2001:db8::ffff", true, true, null));
+                ft.rangeQuery("2001:db8::", "2001:db8::ffff", true, true, null, null, null, null));
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("2001:db8::1"),
                         InetAddresses.forString("2001:db8::fffe")),
-                ft.rangeQuery("2001:db8::", "2001:db8::ffff", false, false, null));
+                ft.rangeQuery("2001:db8::", "2001:db8::ffff", false, false, null, null, null, null));
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("2001:db8::2"),
                         InetAddresses.forString("2001:db8::")),
                 // same lo/hi values but inclusive=false so this won't match anything
-                ft.rangeQuery("2001:db8::1", "2001:db8::1", false, false, null));
+                ft.rangeQuery("2001:db8::1", "2001:db8::1", false, false, null, null, null, null));
 
         // Upper bound is the min IP and is not inclusive
         assertEquals(new MatchNoDocsQuery(),
-                ft.rangeQuery("::", "::", true, false, null));
+                ft.rangeQuery("::", "::", true, false, null, null, null, null));
 
         // Lower bound is the max IP and is not inclusive
         assertEquals(new MatchNoDocsQuery(),
-                ft.rangeQuery("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null));
+                ft.rangeQuery("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+                        false, true, null, null, null, null));
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("::"),
                         InetAddresses.forString("::fffe:ffff:ffff")),
                 // same lo/hi values but inclusive=false so this won't match anything
-                ft.rangeQuery("::", "0.0.0.0", true, false, null));
+                ft.rangeQuery("::", "0.0.0.0", true, false, null, null, null, null));
 
         assertEquals(
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("::1:0:0:0"),
                         InetAddressPoint.MAX_VALUE),
                 // same lo/hi values but inclusive=false so this won't match anything
-                ft.rangeQuery("255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null));
+                ft.rangeQuery("255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null, null, null, null));
 
         assertEquals(
                 // lower bound is ipv4, upper bound is ipv6
                 InetAddressPoint.newRangeQuery("field",
                         InetAddresses.forString("192.168.1.7"),
                         InetAddresses.forString("2001:db8::")),
-                ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null));
+                ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, null));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.rangeQuery("::1", "2001::", true, true, null));
+                () -> ft.rangeQuery("::1", "2001::", true, true, null, null, null, null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

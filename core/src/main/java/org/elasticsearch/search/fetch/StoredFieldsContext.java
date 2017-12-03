@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -164,8 +163,7 @@ public class StoredFieldsContext implements Writeable {
         return new StoredFieldsContext(fieldNames);
     }
 
-    public static StoredFieldsContext fromXContent(String fieldName, QueryParseContext context) throws IOException {
-        XContentParser parser = context.parser();
+    public static StoredFieldsContext fromXContent(String fieldName, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
 
         if (token == XContentParser.Token.VALUE_STRING) {

@@ -38,6 +38,5 @@ public interface GeoHashGrid extends MultiBucketsAggregation {
      * @return  The buckets of this aggregation (each bucket representing a geohash grid cell)
      */
     @Override
-    List<Bucket> getBuckets();
-
+    List<? extends Bucket> getBuckets();
 }

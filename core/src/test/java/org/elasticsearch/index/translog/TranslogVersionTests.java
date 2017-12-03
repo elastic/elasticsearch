@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -84,14 +84,13 @@ public class TranslogVersionTests extends ESTestCase {
         checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1-truncated.binary", "pre-2.0 translog");
     }
 
-    public TranslogReader openReader(Path path, long id) throws IOException {
-        FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
-        try {
-            TranslogReader reader = TranslogReader.open(channel, path, new Checkpoint(Files.size(path), 1, id, 0), null);
-            channel = null;
-            return reader;
-        } finally {
-            IOUtils.close(channel);
+    public TranslogReader openReader(final Path path, final long id) throws IOException {
+        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
+            final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+            final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+            final Checkpoint checkpoint =
+                new Checkpoint(Files.size(path), 1, id, minSeqNo, maxSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO, id);
+            return TranslogReader.open(channel, path, checkpoint, null);
         }
     }
 }

@@ -20,6 +20,20 @@
         "master_timeout": {
           "type" : "time",
           "description" : "Specify timeout for connection to master"
+        },
+        "ignore_unavailable": {
+          "type": "boolean",
+          "description": "Ignore unavailable indexes (default: false)"
+        },
+        "allow_no_indices": {
+          "type": "boolean",
+          "description": "Ignore if a wildcard expression resolves to no concrete indices (default: false)"
+        },
+        "expand_wildcards": {
+          "type": "enum",
+          "options": [ "open", "closed", "none", "all" ],
+          "default": "open",
+          "description": "Whether wildcard expressions should get expanded to open or closed indices (default: open)"
         }
       }
     },

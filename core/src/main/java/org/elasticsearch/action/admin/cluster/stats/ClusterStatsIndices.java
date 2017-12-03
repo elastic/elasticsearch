@@ -21,8 +21,9 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -34,7 +35,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import java.io.IOException;
 import java.util.List;
 
-public class ClusterStatsIndices implements ToXContent {
+public class ClusterStatsIndices implements ToXContentFragment {
 
     private int indexCount;
     private ShardStats shards;
@@ -135,7 +136,7 @@ public class ClusterStatsIndices implements ToXContent {
         return builder;
     }
 
-    public static class ShardStats implements ToXContent {
+    public static class ShardStats implements ToXContentFragment {
 
         int indices;
         int total;

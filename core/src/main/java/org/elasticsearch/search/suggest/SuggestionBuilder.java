@@ -22,18 +22,17 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -43,7 +42,7 @@ import java.util.Objects;
 /**
  * Base class for the different suggestion implementations.
  */
-public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implements NamedWriteable, ToXContent {
+public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implements NamedWriteable, ToXContentFragment {
 
     protected final String field;
     protected String text;
@@ -254,10 +253,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
 
     protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
 
-    static SuggestionBuilder<?> fromXContent(QueryParseContext parseContext, Suggesters suggesters)
-            throws IOException {
-        XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parsefieldMatcher = parseContext.getParseFieldMatcher();
+    static SuggestionBuilder<?> fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String suggestText = null;
@@ -279,7 +275,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
                     throw new ParsingException(parser.getTokenLocation(), "suggestion does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                suggestionBuilder = suggesters.getSuggester(currentFieldName).innerFromXContent(parseContext);
+                suggestionBuilder = parser.namedObject(SuggestionBuilder.class, currentFieldName, null);
             }
         }
         if (suggestionBuilder == null) {
@@ -303,8 +299,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
      * Transfers the text, prefix, regex, analyzer, field, size and shard size settings from the
      * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
      */
-    protected void populateCommonFields(MapperService mapperService,
-            SuggestionSearchContext.SuggestionContext suggestionContext) throws IOException {
+    protected void populateCommonFields(MapperService mapperService, SuggestionSearchContext.SuggestionContext suggestionContext) {
 
         Objects.requireNonNull(field, "field must not be null");
 
@@ -319,7 +314,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
                 suggestionContext.setAnalyzer(fieldType.searchAnalyzer());
             }
         } else {
-            Analyzer luceneAnalyzer = mapperService.getIndexAnalyzers().get(analyzer);
+            Analyzer luceneAnalyzer = mapperService.getNamedAnalyzer(analyzer);
             if (luceneAnalyzer == null) {
                 throw new IllegalArgumentException("analyzer [" + analyzer + "] doesn't exists");
             }

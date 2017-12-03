@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -82,15 +82,19 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     @Override
     protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        if (concreteIndices == null || concreteIndices.length == 0) {
+            listener.onResponse(new OpenIndexResponse(true, true));
+            return;
+        }
         OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(concreteIndices);
+                .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
 
-        indexStateService.openIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+        indexStateService.openIndex(updateRequest, new ActionListener<OpenIndexClusterStateUpdateResponse>() {
 
             @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new OpenIndexResponse(response.isAcknowledged()));
+            public void onResponse(OpenIndexClusterStateUpdateResponse response) {
+                listener.onResponse(new OpenIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()));
             }
 
             @Override

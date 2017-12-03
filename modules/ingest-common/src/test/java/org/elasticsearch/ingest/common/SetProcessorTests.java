@@ -22,7 +22,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
@@ -109,8 +108,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled) {
-        TemplateService templateService = TestTemplateService.instance();
-        return new SetProcessor(randomAsciiOfLength(10), templateService.compile(fieldName),
-                ValueSource.wrap(fieldValue, templateService), overrideEnabled);
+        return new SetProcessor(randomAlphaOfLength(10), new TestTemplateService.MockTemplateScript.Factory(fieldName),
+                ValueSource.wrap(fieldValue, TestTemplateService.instance()), overrideEnabled);
     }
 }

@@ -390,8 +390,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
     private class NoopGatewayAllocator extends GatewayAllocator {
 
-        public NoopGatewayAllocator() {
-            super(Settings.EMPTY, null, null);
+        NoopGatewayAllocator() {
+            super(Settings.EMPTY);
         }
 
         @Override

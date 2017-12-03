@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -39,7 +40,7 @@ public interface Transport extends LifecycleComponent {
 
     Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, Property.NodeScope);
 
-    void transportServiceAdapter(TransportServiceAdapter service);
+    void setTransportService(TransportService service);
 
     /**
      * The address the transport is bound on.
@@ -63,19 +64,16 @@ public interface Transport extends LifecycleComponent {
     boolean nodeConnected(DiscoveryNode node);
 
     /**
-     * Connects to a node with the given connection profile. If the node is already connected this method has no effect
+     * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
+     * Once a successful is established, it can be validated before being exposed.
      */
-    void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException;
+    void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                       CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException;
 
     /**
      * Disconnected from the given node, if not connected, will do nothing.
      */
     void disconnectFromNode(DiscoveryNode node);
-
-    /**
-     * Returns count of currently open connections
-     */
-    long serverOpen();
 
     List<String> getLocalAddresses();
 
@@ -90,21 +88,24 @@ public interface Transport extends LifecycleComponent {
     long newRequestId();
     /**
      * Returns a connection for the given node if the node is connected.
-     * Connections returned from this method must not be closed. The lifecylce of this connection is maintained by the Transport
+     * Connections returned from this method must not be closed. The lifecycle of this connection is maintained by the Transport
      * implementation.
      *
      * @throws NodeNotConnectedException if the node is not connected
-     * @see #connectToNode(DiscoveryNode, ConnectionProfile)
+     * @see #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)
      */
     Connection getConnection(DiscoveryNode node);
 
     /**
-     * Opens a new connection to the given node and returns it. In contrast to {@link #connectToNode(DiscoveryNode, ConnectionProfile)}
-     * the returned connection is not managed by the transport implementation. This connection must be closed once it's not needed anymore.
+     * Opens a new connection to the given node and returns it. In contrast to
+     * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)} the returned connection is not managed by
+     * the transport implementation. This connection must be closed once it's not needed anymore.
      * This connection type can be used to execute a handshake between two nodes before the node will be published via
-     * {@link #connectToNode(DiscoveryNode, ConnectionProfile)}.
+     * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)}.
      */
     Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException;
+
+    TransportStats getStats();
 
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
@@ -127,6 +128,14 @@ public interface Transport extends LifecycleComponent {
          */
         default Version getVersion() {
             return getNode().getVersion();
+        }
+
+        /**
+         * Returns a key that this connection can be cached on. Delegating subclasses must delegate method call to
+         * the original connection.
+         */
+        default Object getCacheKey() {
+            return this;
         }
     }
 }

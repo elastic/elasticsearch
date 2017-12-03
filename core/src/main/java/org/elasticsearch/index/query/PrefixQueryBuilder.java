@@ -43,7 +43,7 @@ import java.util.Objects;
 public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "prefix";
 
-    private static final ParseField PREFIX_FIELD = new ParseField("value", "prefix");
+    private static final ParseField PREFIX_FIELD = new ParseField("value");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
 
     private final String fieldName;
@@ -116,9 +116,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         builder.endObject();
     }
 
-    public static PrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static PrefixQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         String value = null;
         String rewrite = null;
@@ -130,8 +128,6 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;

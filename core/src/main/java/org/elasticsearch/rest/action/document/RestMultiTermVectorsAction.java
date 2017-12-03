@@ -24,7 +24,6 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -37,8 +36,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiTermVectorsAction extends BaseRestHandler {
-
-    @Inject
     public RestMultiTermVectorsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_mtermvectors", this);
@@ -47,6 +44,11 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_mtermvectors", this);
         controller.registerHandler(GET, "/{index}/{type}/_mtermvectors", this);
         controller.registerHandler(POST, "/{index}/{type}/_mtermvectors", this);
+    }
+
+    @Override
+    public String getName() {
+        return "document_multi_term_vectors_action";
     }
 
     @Override

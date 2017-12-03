@@ -13,6 +13,8 @@ include::tokenfilters/standard-tokenfilter.asciidoc[]
 
 include::tokenfilters/asciifolding-tokenfilter.asciidoc[]
 
+include::tokenfilters/flatten-graph-tokenfilter.asciidoc[]
+
 include::tokenfilters/length-tokenfilter.asciidoc[]
 
 include::tokenfilters/lowercase-tokenfilter.asciidoc[]
@@ -30,6 +32,8 @@ include::tokenfilters/shingle-tokenfilter.asciidoc[]
 include::tokenfilters/stop-tokenfilter.asciidoc[]
 
 include::tokenfilters/word-delimiter-tokenfilter.asciidoc[]
+
+include::tokenfilters/word-delimiter-graph-tokenfilter.asciidoc[]
 
 include::tokenfilters/stemmer-tokenfilter.asciidoc[]
 

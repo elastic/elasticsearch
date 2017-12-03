@@ -22,13 +22,12 @@ package org.elasticsearch.search.suggest.phrase;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -37,12 +36,10 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
@@ -56,7 +53,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
@@ -126,7 +122,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     /**
      * Read from a stream.
      */
-    PhraseSuggestionBuilder(StreamInput in) throws IOException {
+    public PhraseSuggestionBuilder(StreamInput in) throws IOException {
         super(in);
         maxErrors = in.readFloat();
         realWordErrorLikelihood = in.readFloat();
@@ -316,6 +312,13 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     }
 
     /**
+     * get the candidate generators.
+     */
+    Map<String, List<CandidateGenerator>> getCandidateGenerators() {
+        return this.generators;
+    }
+
+    /**
      * If set to <code>true</code> the phrase suggester will fail if the analyzer only
      * produces ngrams. the default it <code>true</code>.
      */
@@ -488,10 +491,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         return builder;
     }
 
-    static PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static PhraseSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         PhraseSuggestionBuilder tmpSuggestion = new PhraseSuggestionBuilder("_na_");
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String fieldname = null;
@@ -529,7 +530,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                 if (DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD.match(currentFieldName)) {
                     // for now we only have a single type of generators
                     while ((token = parser.nextToken()) == Token.START_OBJECT) {
-                        tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.fromXContent(parseContext));
+                        tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -538,7 +539,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
             } else if (token == Token.START_OBJECT) {
                 if (PhraseSuggestionBuilder.SMOOTHING_MODEL_FIELD.match(currentFieldName)) {
                     ensureNoSmoothing(tmpSuggestion);
-                    tmpSuggestion.smoothingModel(SmoothingModel.fromXContent(parseContext));
+                    tmpSuggestion.smoothingModel(SmoothingModel.fromXContent(parser));
                 } else if (PhraseSuggestionBuilder.HIGHLIGHT_FIELD.match(currentFieldName)) {
                     String preTag = null;
                     String postTag = null;
@@ -567,7 +568,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                                         "suggester[phrase][collate] query already set, doesn't support additional ["
                                         + currentFieldName + "]");
                             }
-                            Script template = Script.parse(parser, parseFieldMatcher, "mustache");
+                            Script template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
                             tmpSuggestion.collateQuery(template);
                         } else if (PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS.match(currentFieldName)) {
                             tmpSuggestion.collateParams(parser.map());
@@ -613,7 +614,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         suggestionContext.setRealWordErrorLikelihood(this.realWordErrorLikelihood);
         suggestionContext.setConfidence(this.confidence);
         suggestionContext.setMaxErrors(this.maxErrors);
-        suggestionContext.setSeparator(BytesRefs.toBytesRef(this.separator));
         suggestionContext.setRequireUnigram(this.forceUnigrams);
         suggestionContext.setTokenLimit(this.tokenLimit);
         suggestionContext.setPreTag(BytesRefs.toBytesRef(this.preTag));
@@ -634,9 +634,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
 
         if (this.collateQuery != null) {
-            Function<Map<String, Object>, ExecutableScript> compiledScript = context.getLazyExecutableScript(this.collateQuery,
-                ScriptContext.Standard.SEARCH);
-            suggestionContext.setCollateQueryScript(compiledScript);
+            TemplateScript.Factory scriptFactory = context.getScriptService().compile(this.collateQuery, TemplateScript.CONTEXT);
+            suggestionContext.setCollateQueryScript(scriptFactory);
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);
             }
@@ -729,7 +728,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     /**
      * {@link CandidateGenerator} interface.
      */
-    public interface CandidateGenerator extends Writeable, ToXContent {
+    public interface CandidateGenerator extends Writeable, ToXContentObject {
         String getType();
 
         PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException;

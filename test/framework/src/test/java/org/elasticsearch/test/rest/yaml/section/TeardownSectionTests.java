@@ -56,7 +56,7 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
     public void testParseWithSkip() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
             "  - skip:\n" +
-                "      version:  \"2.0.0 - 2.3.0\"\n" +
+                        "      version:  \"5.0.0 - 5.3.0\"\n" +
                 "      reason:   \"there is a reason\"\n" +
                 "  - do:\n" +
                 "      delete:\n" +
@@ -75,8 +75,8 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
         assertThat(section.getSkipSection().isEmpty(), equalTo(false));
-        assertThat(section.getSkipSection().getLowerVersion(), equalTo(Version.V_2_0_0));
-        assertThat(section.getSkipSection().getUpperVersion(), equalTo(Version.V_2_3_0));
+        assertThat(section.getSkipSection().getLowerVersion(), equalTo(Version.V_5_0_0));
+        assertThat(section.getSkipSection().getUpperVersion(), equalTo(Version.V_5_3_0));
         assertThat(section.getSkipSection().getReason(), equalTo("there is a reason"));
         assertThat(section.getDoSections().size(), equalTo(2));
         assertThat(section.getDoSections().get(0).getApiCallSection().getApi(), equalTo("delete"));

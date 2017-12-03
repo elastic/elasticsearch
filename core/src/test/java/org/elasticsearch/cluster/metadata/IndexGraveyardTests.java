@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -49,7 +51,7 @@ public class IndexGraveyardTests extends ESTestCase {
         final IndexGraveyard graveyard = createRandom();
         assertThat(graveyard, equalTo(IndexGraveyard.builder(graveyard).build()));
         final IndexGraveyard.Builder newGraveyard = IndexGraveyard.builder(graveyard);
-        newGraveyard.addTombstone(new Index(randomAsciiOfLengthBetween(4, 15), UUIDs.randomBase64UUID()));
+        newGraveyard.addTombstone(new Index(randomAlphaOfLengthBetween(4, 15), UUIDs.randomBase64UUID()));
         assertThat(newGraveyard.build(), not(graveyard));
     }
 
@@ -66,6 +68,11 @@ public class IndexGraveyardTests extends ESTestCase {
         builder.startObject();
         graveyard.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
+        if (graveyard.getTombstones().size() > 0) {
+            // check that date properly printed
+            assertThat(Strings.toString(graveyard, false, true),
+                containsString(XContentBuilder.DEFAULT_DATE_PRINTER.print(graveyard.getTombstones().get(0).getDeleteDateInMillis())));
+        }
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         parser.nextToken(); // the beginning of the parser
         assertThat(IndexGraveyard.fromXContent(parser), equalTo(graveyard));
@@ -140,7 +147,7 @@ public class IndexGraveyardTests extends ESTestCase {
         for (final Index index : indices) {
             assertTrue(indexGraveyard.containsIndex(index));
         }
-        assertFalse(indexGraveyard.containsIndex(new Index(randomAsciiOfLength(6), UUIDs.randomBase64UUID())));
+        assertFalse(indexGraveyard.containsIndex(new Index(randomAlphaOfLength(6), UUIDs.randomBase64UUID())));
     }
 
     public static IndexGraveyard createRandom() {

@@ -26,11 +26,6 @@
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
-        "human": {
-            "type": "boolean",
-            "description": "Whether to return time and byte values in human-readable format.",
-            "default": false
-        },
         "operation_threading": {
           "description" : "TODO: ?"
         },

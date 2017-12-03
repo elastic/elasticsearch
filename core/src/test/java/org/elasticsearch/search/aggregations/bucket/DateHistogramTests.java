@@ -20,10 +20,13 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBoundsTests;
+import org.elasticsearch.search.aggregations.BucketOrder;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAggregationBuilder> {
 
@@ -80,29 +83,41 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
             factory.offset(randomIntBetween(0, 100000));
         }
         if (randomBoolean()) {
-            int branch = randomInt(5);
-            switch (branch) {
-            case 0:
-                factory.order(Order.COUNT_ASC);
-                break;
-            case 1:
-                factory.order(Order.COUNT_DESC);
-                break;
-            case 2:
-                factory.order(Order.KEY_ASC);
-                break;
-            case 3:
-                factory.order(Order.KEY_DESC);
-                break;
-            case 4:
-                factory.order(Order.aggregation("foo", true));
-                break;
-            case 5:
-                factory.order(Order.aggregation("foo", false));
-                break;
+            List<BucketOrder> order = randomOrder();
+            if(order.size() == 1 && randomBoolean()) {
+                factory.order(order.get(0));
+            } else {
+                factory.order(order);
             }
         }
         return factory;
+    }
+
+    private List<BucketOrder> randomOrder() {
+        List<BucketOrder> orders = new ArrayList<>();
+        switch (randomInt(4)) {
+            case 0:
+                orders.add(BucketOrder.key(randomBoolean()));
+                break;
+            case 1:
+                orders.add(BucketOrder.count(randomBoolean()));
+                break;
+            case 2:
+                orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
+                break;
+            case 3:
+                orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean()));
+                break;
+            case 4:
+                int numOrders = randomIntBetween(1, 3);
+                for (int i = 0; i < numOrders; i++) {
+                    orders.addAll(randomOrder());
+                }
+                break;
+            default:
+                fail();
+        }
+        return orders;
     }
 
 }

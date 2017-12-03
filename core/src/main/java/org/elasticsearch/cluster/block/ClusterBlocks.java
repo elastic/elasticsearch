@@ -70,11 +70,11 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     public Set<ClusterBlock> global(ClusterBlockLevel level) {
-        return levelHolders[level.id()].global();
+        return levelHolders[level.ordinal()].global();
     }
 
     public ImmutableOpenMap<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
-        return levelHolders[level.id()].indices();
+        return levelHolders[level.ordinal()].indices();
     }
 
     private Set<ClusterBlock> blocksForIndex(ClusterBlockLevel level, String index) {
@@ -97,7 +97,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                     .collect(toSet())));
             }
 
-            levelHolders[level.id()] = new ImmutableLevelHolder(newGlobal, indicesBuilder.build());
+            levelHolders[level.ordinal()] = new ImmutableLevelHolder(newGlobal, indicesBuilder.build());
         }
         return levelHolders;
     }
@@ -203,6 +203,26 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return new ClusterBlockException(unmodifiableSet(blocks.collect(toSet())));
     }
 
+    /**
+     * Returns <code>true</code> iff non of the given have a {@link ClusterBlockLevel#METADATA_WRITE} in place where the
+     * {@link ClusterBlock#isAllowReleaseResources()} returns <code>false</code>. This is used in places where resources will be released
+     * like the deletion of an index to free up resources on nodes.
+     * @param indices the indices to check
+     */
+    public ClusterBlockException indicesAllowReleaseResources(String[] indices) {
+        final Function<String, Stream<ClusterBlock>> blocksForIndexAtLevel = index ->
+            blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index).stream();
+        Stream<ClusterBlock> blocks = concat(
+            global(ClusterBlockLevel.METADATA_WRITE).stream(),
+            Stream.of(indices).flatMap(blocksForIndexAtLevel)).filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false);
+        Set<ClusterBlock> clusterBlocks = unmodifiableSet(blocks.collect(toSet()));
+        if (clusterBlocks.isEmpty()) {
+            return null;
+        }
+        return new ClusterBlockException(clusterBlocks);
+    }
+
+
     @Override
     public String toString() {
         if (global.isEmpty() && indices().isEmpty()) {
@@ -270,8 +290,6 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     static class ImmutableLevelHolder {
 
-        static final ImmutableLevelHolder EMPTY = new ImmutableLevelHolder(emptySet(), ImmutableOpenMap.of());
-
         private final Set<ClusterBlock> global;
         private final ImmutableOpenMap<String, Set<ClusterBlock>> indices;
 
@@ -314,30 +332,31 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
 
         public Builder addBlocks(IndexMetaData indexMetaData) {
+            String indexName = indexMetaData.getIndex().getName();
             if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                addIndexBlock(indexMetaData.getIndex().getName(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+                addIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
             }
             if (IndexMetaData.INDEX_READ_ONLY_SETTING.get(indexMetaData.getSettings())) {
-                addIndexBlock(indexMetaData.getIndex().getName(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
+                addIndexBlock(indexName, IndexMetaData.INDEX_READ_ONLY_BLOCK);
             }
             if (IndexMetaData.INDEX_BLOCKS_READ_SETTING.get(indexMetaData.getSettings())) {
-                addIndexBlock(indexMetaData.getIndex().getName(), IndexMetaData.INDEX_READ_BLOCK);
+                addIndexBlock(indexName, IndexMetaData.INDEX_READ_BLOCK);
             }
             if (IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(indexMetaData.getSettings())) {
-                addIndexBlock(indexMetaData.getIndex().getName(), IndexMetaData.INDEX_WRITE_BLOCK);
+                addIndexBlock(indexName, IndexMetaData.INDEX_WRITE_BLOCK);
             }
             if (IndexMetaData.INDEX_BLOCKS_METADATA_SETTING.get(indexMetaData.getSettings())) {
-                addIndexBlock(indexMetaData.getIndex().getName(), IndexMetaData.INDEX_METADATA_BLOCK);
+                addIndexBlock(indexName, IndexMetaData.INDEX_METADATA_BLOCK);
+            }
+            if (IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.get(indexMetaData.getSettings())) {
+                addIndexBlock(indexName, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             }
             return this;
         }
 
         public Builder updateBlocks(IndexMetaData indexMetaData) {
-            removeIndexBlock(indexMetaData.getIndex().getName(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
-            removeIndexBlock(indexMetaData.getIndex().getName(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
-            removeIndexBlock(indexMetaData.getIndex().getName(), IndexMetaData.INDEX_READ_BLOCK);
-            removeIndexBlock(indexMetaData.getIndex().getName(), IndexMetaData.INDEX_WRITE_BLOCK);
-            removeIndexBlock(indexMetaData.getIndex().getName(), IndexMetaData.INDEX_METADATA_BLOCK);
+            // let's remove all blocks for this index and add them back -- no need to remove all individual blocks....
+            indices.remove(indexMetaData.getIndex().getName());
             return addBlocks(indexMetaData);
         }
 

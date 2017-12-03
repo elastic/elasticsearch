@@ -57,6 +57,9 @@ import java.security.BasicPermission;
  * </code></pre>
  */
 public final class SpecialPermission extends BasicPermission {
+
+    public static final SpecialPermission INSTANCE = new SpecialPermission();
+
     /**
      * Creates a new SpecialPermision object.
      */
@@ -75,5 +78,15 @@ public final class SpecialPermission extends BasicPermission {
      */
     public SpecialPermission(String name, String actions) {
         this();
+    }
+
+    /**
+     * Check that the current stack has {@link SpecialPermission} access according to the {@link SecurityManager}.
+     */
+    public static void check() {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(INSTANCE);
+        }
     }
 }

@@ -93,10 +93,10 @@ public class BroadcastReplicationTests extends ESTestCase {
         super.setUp();
         MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY,
             threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService, new NamedWriteableRegistry(Collections.emptyList()),
-            new NetworkService(Settings.EMPTY, Collections.emptyList()));
+            new NetworkService(Collections.emptyList()));
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, threadPool, clusterService, transportService,
@@ -202,7 +202,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<DummyBroadcastRequest, BroadcastResponse, BasicReplicationRequest, ReplicationResponse> {
         protected final Set<Tuple<ShardId, ActionListener<ReplicationResponse>>> capturedShardRequests = ConcurrentCollections.newConcurrentSet();
 
-        public TestBroadcastReplicationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+        TestBroadcastReplicationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                               TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                               TransportReplicationAction replicatedBroadcastShardAction) {
             super("test-broadcast-replication-action", DummyBroadcastRequest::new, settings, threadPool, clusterService, transportService,

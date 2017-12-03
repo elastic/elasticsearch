@@ -22,7 +22,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -33,16 +32,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class MatrixStatsAggregatorFactory
+final class MatrixStatsAggregatorFactory
     extends MultiValuesSourceAggregatorFactory<ValuesSource.Numeric, MatrixStatsAggregatorFactory> {
 
     private final MultiValueMode multiValueMode;
 
-    public MatrixStatsAggregatorFactory(String name, InternalAggregation.Type type,
+    MatrixStatsAggregatorFactory(String name,
             Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, MultiValueMode multiValueMode,
             SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
-        super(name, type, configs, context, parent, subFactoriesBuilder, metaData);
+        super(name, configs, context, parent, subFactoriesBuilder, metaData);
         this.multiValueMode = multiValueMode;
     }
 

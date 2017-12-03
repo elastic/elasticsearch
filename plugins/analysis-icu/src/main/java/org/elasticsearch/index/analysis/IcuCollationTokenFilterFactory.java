@@ -84,7 +84,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
                 }
                 collator = Collator.getInstance(locale);
             } else {
-                collator = Collator.getInstance();
+                collator = Collator.getInstance(ULocale.ROOT);
             }
         }
 

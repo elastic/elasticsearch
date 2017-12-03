@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -33,12 +32,15 @@ import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import java.io.IOException;
 
 public class RestCloseIndexAction extends BaseRestHandler {
-
-    @Inject
     public RestCloseIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/_close", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_close", this);
+    }
+
+    @Override
+    public String getName() {
+        return "close_index_action";
     }
 
     @Override

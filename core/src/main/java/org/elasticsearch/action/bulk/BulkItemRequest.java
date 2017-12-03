@@ -20,23 +20,25 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class BulkItemRequest implements Streamable {
 
     private int id;
     private DocWriteRequest request;
     private volatile BulkItemResponse primaryResponse;
-    private volatile boolean ignoreOnReplica;
 
     BulkItemRequest() {
 
     }
 
+    // NOTE: public for testing only
     public BulkItemRequest(int id, DocWriteRequest request) {
         this.id = id;
         this.request = request;
@@ -64,14 +66,27 @@ public class BulkItemRequest implements Streamable {
     }
 
     /**
-     * Marks this request to be ignored and *not* execute on a replica.
+     * Abort this request, and store a {@link org.elasticsearch.action.bulk.BulkItemResponse.Failure} response.
+     *
+     * @param index The concrete index that was resolved for this request
+     * @param cause The cause of the rejection (may not be null)
+     * @throws IllegalStateException If a response already exists for this request
      */
-    void setIgnoreOnReplica() {
-        this.ignoreOnReplica = true;
-    }
-
-    boolean isIgnoreOnReplica() {
-        return ignoreOnReplica;
+    public void abort(String index, Exception cause) {
+        if (primaryResponse == null) {
+            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),
+                    Objects.requireNonNull(cause), true);
+            setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
+        } else {
+            assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()
+                    : "response [" + Strings.toString(primaryResponse) + "]; cause [" + cause + "]";
+            if (primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()) {
+                primaryResponse.getFailure().getCause().addSuppressed(cause);
+            } else {
+                throw new IllegalStateException(
+                        "aborting item that with response [" + primaryResponse + "] that was previously processed", cause);
+            }
+        }
     }
 
     public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {
@@ -87,7 +102,6 @@ public class BulkItemRequest implements Streamable {
         if (in.readBoolean()) {
             primaryResponse = BulkItemResponse.readBulkItem(in);
         }
-        ignoreOnReplica = in.readBoolean();
     }
 
     @Override
@@ -95,6 +109,5 @@ public class BulkItemRequest implements Streamable {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequest(out, request);
         out.writeOptionalStreamable(primaryResponse);
-        out.writeBoolean(ignoreOnReplica);
     }
 }

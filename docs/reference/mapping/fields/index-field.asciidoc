@@ -52,7 +52,7 @@ GET index_1,index_2/_search
     "index_name": {
       "script": {
         "lang": "painless",
-        "inline": "doc['_index']" <4>
+        "source": "doc['_index']" <4>
       }
     }
   }

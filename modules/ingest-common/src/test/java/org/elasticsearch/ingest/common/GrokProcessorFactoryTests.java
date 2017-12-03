@@ -38,7 +38,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("patterns", Collections.singletonList("(?<foo>\\w+)"));
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         GrokProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getMatchField(), equalTo("_field"));
@@ -53,7 +53,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("patterns", Collections.singletonList("(?<foo>\\w+)"));
         config.put("ignore_missing", true);
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         GrokProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getMatchField(), equalTo("_field"));

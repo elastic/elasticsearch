@@ -24,15 +24,25 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 
 public class BytesArrayTests extends AbstractBytesReferenceTestCase {
+
     @Override
     protected BytesReference newBytesReference(int length) throws IOException {
+        return newBytesReference(length, randomInt(length));
+    }
+
+    @Override
+    protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
+        return newBytesReference(length, 0);
+    }
+
+    private BytesReference newBytesReference(int length, int offset) throws IOException {
         // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
-        final BytesStreamOutput out = new BytesStreamOutput(length);
-        for (int i = 0; i < length; i++) {
+        final BytesStreamOutput out = new BytesStreamOutput(length + offset);
+        for (int i = 0; i < length + offset; i++) {
             out.writeByte((byte) random().nextInt(1 << 8));
         }
-        assertEquals(length, out.size());
-        BytesArray ref = new BytesArray(out.bytes().toBytesRef());
+        assertEquals(length + offset, out.size());
+        BytesArray ref = new BytesArray(out.bytes().toBytesRef().bytes, offset, length);
         assertEquals(length, ref.length());
         assertTrue(ref instanceof BytesArray);
         assertThat(ref.length(), Matchers.equalTo(length));
@@ -46,14 +56,14 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
             BytesArray pbr = (BytesArray) newBytesReference(sizes[i]);
             byte[] array = pbr.array();
             assertNotNull(array);
-            assertEquals(sizes[i], array.length);
+            assertEquals(sizes[i], array.length - pbr.offset());
             assertSame(array, pbr.array());
         }
     }
 
     public void testArrayOffset() throws IOException {
         int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
-        BytesArray pbr = (BytesArray) newBytesReference(length);
+        BytesArray pbr = (BytesArray) newBytesReferenceWithOffsetOfZero(length);
         assertEquals(0, pbr.offset());
     }
 }

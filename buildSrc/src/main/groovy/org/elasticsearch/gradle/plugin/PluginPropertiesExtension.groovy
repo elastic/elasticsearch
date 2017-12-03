@@ -39,9 +39,27 @@ class PluginPropertiesExtension {
     @Input
     String classname
 
+    @Input
+    boolean hasNativeController = false
+
     /** Indicates whether the plugin jar should be made available for the transport client. */
     @Input
     boolean hasClientJar = false
+
+    /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
+    @Input
+    boolean requiresKeystore = false
+
+    /** A license file that should be included in the built plugin zip. */
+    @Input
+    File licenseFile = null
+
+    /**
+     * A notice file that should be included in the built plugin zip. This will be
+     * extended with notices from the {@code licenses/} directory.
+     */
+    @Input
+    File noticeFile = null
 
     PluginPropertiesExtension(Project project) {
         name = project.name

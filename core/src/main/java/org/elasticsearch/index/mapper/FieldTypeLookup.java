@@ -43,7 +43,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     final CopyOnWriteHashMap<String, Set<String>> fullNameToTypes;
 
     /** Create a new empty instance. */
-    public FieldTypeLookup() {
+    FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
         fullNameToTypes = new CopyOnWriteHashMap<>();
     }

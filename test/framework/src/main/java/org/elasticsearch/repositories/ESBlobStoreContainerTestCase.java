@@ -46,7 +46,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
 
     public void testWriteRead() throws IOException {
-        try(final BlobStore store = newBlobStore()) {
+        try(BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             writeBlob(container, "foobar", new BytesArray(data));
@@ -65,7 +65,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
     }
 
     public void testMoveAndList() throws IOException {
-        try(final BlobStore store = newBlobStore()) {
+        try(BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             assertThat(container.listBlobs().size(), equalTo(0));
             int numberOfFooBlobs = randomIntBetween(0, 10);
@@ -113,7 +113,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
     }
 
     public void testDeleteBlob() throws IOException {
-        try (final BlobStore store = newBlobStore()) {
+        try (BlobStore store = newBlobStore()) {
             final String blobName = "foobar";
             final BlobContainer container = store.blobContainer(new BlobPath());
             expectThrows(IOException.class, () -> container.deleteBlob(blobName));
@@ -129,7 +129,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
     }
 
     public void testVerifyOverwriteFails() throws IOException {
-        try (final BlobStore store = newBlobStore()) {
+        try (BlobStore store = newBlobStore()) {
             final String blobName = "foobar";
             final BlobContainer container = store.blobContainer(new BlobPath());
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
@@ -142,7 +142,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
-    private void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray) throws IOException {
+    protected void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray) throws IOException {
         try (InputStream stream = bytesArray.streamInput()) {
             container.writeBlob(blobName, stream, bytesArray.length());
         }

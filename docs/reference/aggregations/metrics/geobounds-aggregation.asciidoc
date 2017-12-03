@@ -8,9 +8,37 @@ Example:
 
 [source,js]
 --------------------------------------------------
+PUT /museums
+{
+    "mappings": {
+        "doc": {
+            "properties": {
+                "location": {
+                    "type": "geo_point"
+                }
+            }
+        }
+    }
+}
+
+POST /museums/doc/_bulk?refresh
+{"index":{"_id":1}}
+{"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
+{"index":{"_id":2}}
+{"location": "52.369219,4.901618", "name": "Museum Het Rembrandthuis"}
+{"index":{"_id":3}}
+{"location": "52.371667,4.914722", "name": "Nederlands Scheepvaartmuseum"}
+{"index":{"_id":4}}
+{"location": "51.222900,4.405200", "name": "Letterenhuis"}
+{"index":{"_id":5}}
+{"location": "48.861111,2.336389", "name": "Musée du Louvre"}
+{"index":{"_id":6}}
+{"location": "48.860000,2.327000", "name": "Musée d'Orsay"}
+
+POST /museums/_search?size=0
 {
     "query" : {
-        "match" : { "business_type" : "shop" }
+        "match" : { "name" : "musée" }
     },
     "aggs" : {
         "viewport" : {
@@ -22,6 +50,7 @@ Example:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> The `geo_bounds` aggregation specifies the field to use to obtain the bounds
 <2> `wrap_longitude` is an optional parameter which specifies whether the bounding box should be allowed to overlap the international date line. The default value is `true`
@@ -34,20 +63,20 @@ The response for the above aggregation:
 --------------------------------------------------
 {
     ...
-
     "aggregations": {
         "viewport": {
             "bounds": {
                 "top_left": {
-                    "lat": 80.45,
-                    "lon": -160.22
+                    "lat": 48.86111099738628,
+                    "lon": 2.3269999679178
                 },
                 "bottom_right": {
-                    "lat": 40.65,
-                    "lon": 42.57
+                    "lat": 48.85999997612089,
+                    "lon": 2.3363889567553997
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]

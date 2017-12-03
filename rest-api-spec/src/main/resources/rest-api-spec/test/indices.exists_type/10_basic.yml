@@ -1,0 +1,45 @@
+---
+"Exists type":
+ - skip:
+    # this will only run in a mixed cluster environment with at least 1 5.x node
+    version: "5.99.99 - "
+    reason:  multiple types are not supported on 6.x indices onwards
+
+ - do:
+     indices.create:
+       index: test_1
+       body:
+         mappings:
+           type_1: {}
+           type_2: {}
+
+ - do:
+     indices.exists_type:
+       index: test_2
+       type: type_1
+
+ - is_false: ''
+
+ - do:
+     indices.exists_type:
+       index: test_1
+       type: type_3
+
+ - is_false: ''
+
+ - do:
+     indices.exists_type:
+       index: test_1
+       type: type_1
+
+ - is_true: ''
+---
+"Exists type with local flag":
+
+ - do:
+     indices.exists_type:
+       index: test_1
+       type: type_1
+       local: true
+
+ - is_false: ''

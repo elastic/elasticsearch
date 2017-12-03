@@ -24,11 +24,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercentilesAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentilesAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -44,10 +43,10 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric, PercentilesAggregationBuilder> {
     public static final String NAME = Percentiles.TYPE_NAME;
-    public static final Type TYPE = new Type(NAME);
 
     public static final double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
     public static final ParseField PERCENTS_FIELD = new ParseField("percents");
@@ -60,7 +59,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
         Double compression;
     }
 
-    private static final ObjectParser<TDigestOptions, QueryParseContext> TDIGEST_OPTIONS_PARSER =
+    private static final ObjectParser<TDigestOptions, Void> TDIGEST_OPTIONS_PARSER =
             new ObjectParser<>(PercentilesMethod.TDIGEST.getParseField().getPreferredName(), TDigestOptions::new);
     static {
         TDIGEST_OPTIONS_PARSER.declareDouble((opts, compression) -> opts.compression = compression, COMPRESSION_FIELD);
@@ -70,7 +69,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
         Integer numberOfSigDigits;
     }
 
-    private static final ObjectParser<HDROptions, QueryParseContext> HDR_OPTIONS_PARSER =
+    private static final ObjectParser<HDROptions, Void> HDR_OPTIONS_PARSER =
             new ObjectParser<>(PercentilesMethod.HDR.getParseField().getPreferredName(), HDROptions::new);
     static {
         HDR_OPTIONS_PARSER.declareInt(
@@ -78,7 +77,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
                 NUMBER_SIGNIFICANT_DIGITS_FIELD);
     }
 
-    private static final ObjectParser<PercentilesAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<InternalBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(PercentilesAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
@@ -104,8 +103,27 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
         }, HDR_OPTIONS_PARSER::parse, PercentilesMethod.HDR.getParseField(), ObjectParser.ValueType.OBJECT);
     }
 
-    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new PercentilesAggregationBuilder(aggregationName), context);
+    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        InternalBuilder internal = PARSER.parse(parser, new InternalBuilder(aggregationName), null);
+        // we need to return a PercentilesAggregationBuilder for equality checks to work
+        PercentilesAggregationBuilder returnedAgg = new PercentilesAggregationBuilder(internal.name);
+        setIfNotNull(returnedAgg::valueType, internal.valueType());
+        setIfNotNull(returnedAgg::format, internal.format());
+        setIfNotNull(returnedAgg::missing, internal.missing());
+        setIfNotNull(returnedAgg::field, internal.field());
+        setIfNotNull(returnedAgg::script, internal.script());
+        setIfNotNull(returnedAgg::method, internal.method());
+        setIfNotNull(returnedAgg::percentiles, internal.percentiles());
+        returnedAgg.keyed(internal.keyed());
+        returnedAgg.compression(internal.compression());
+        returnedAgg.numberOfSignificantValueDigits(internal.numberOfSignificantValueDigits());
+        return returnedAgg;
+    }
+
+    private static <T> void setIfNotNull(Consumer<T> consumer, T value) {
+        if (value != null) {
+            consumer.accept(value);
+        }
     }
 
     private double[] percents = DEFAULT_PERCENTS;
@@ -115,14 +133,14 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     private boolean keyed = true;
 
     public PercentilesAggregationBuilder(String name) {
-        super(name, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     /**
      * Read from a stream.
      */
     public PercentilesAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         percents = in.readDoubleArray();
         keyed = in.readBoolean();
         numberOfSignificantValueDigits = in.readVInt();
@@ -145,6 +163,9 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     public PercentilesAggregationBuilder percentiles(double... percents) {
         if (percents == null) {
             throw new IllegalArgumentException("[percents] must not be null: [" + name + "]");
+        }
+        if (percents.length == 0) {
+            throw new IllegalArgumentException("[percents] must not be empty: [" + name + "]");
         }
         double[] sortedPercents = Arrays.copyOf(percents, percents.length);
         Arrays.sort(sortedPercents);
@@ -232,10 +253,10 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         switch (method) {
         case TDIGEST:
-            return new TDigestPercentilesAggregatorFactory(name, type, config, percents, compression, keyed, context, parent,
+            return new TDigestPercentilesAggregatorFactory(name, config, percents, compression, keyed, context, parent,
                     subFactoriesBuilder, metaData);
         case HDR:
-            return new HDRPercentilesAggregatorFactory(name, type, config, percents, numberOfSignificantValueDigits, keyed, context, parent,
+            return new HDRPercentilesAggregatorFactory(name, config, percents, numberOfSignificantValueDigits, keyed, context, parent,
                     subFactoriesBuilder, metaData);
         default:
             throw new IllegalStateException("Illegal method [" + method + "]");
@@ -292,7 +313,32 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
+    }
+
+    /**
+     * Private specialization of this builder that should only be used by the parser, this enables us to
+     * overwrite {@link #method()} to check that it is not defined twice in xContent and throw
+     * an error, while the Java API should allow to overwrite the method
+     */
+    private static class InternalBuilder extends PercentilesAggregationBuilder {
+
+        private boolean setOnce = false;
+
+        private InternalBuilder(String name) {
+            super(name);
+        }
+
+        @Override
+        public InternalBuilder method(PercentilesMethod method) {
+            if (setOnce == false) {
+                super.method(method);
+                setOnce = true;
+                return this;
+            } else {
+                throw new IllegalStateException("Only one percentiles method should be declared.");
+            }
+        }
     }
 }

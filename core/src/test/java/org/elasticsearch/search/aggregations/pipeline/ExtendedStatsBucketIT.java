@@ -23,11 +23,11 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats.Bounds;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -200,7 +200,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
@@ -211,7 +211,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -262,7 +262,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(interval));
 
         double bucketSum = 0;
@@ -300,7 +300,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
@@ -312,7 +312,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -362,7 +362,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
@@ -375,7 +375,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         for (int i = 0; i < interval; ++i) {
@@ -429,7 +429,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(0));
 
         ExtendedStatsBucket extendedStatsBucketValue = response.getAggregations().get("extended_stats_bucket");
@@ -445,7 +445,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                     .addAggregation(
                             terms("terms")
                                     .field("tag")
-                                    .order(Order.term(true))
+                                    .order(BucketOrder.key(true))
                                     .subAggregation(
                                             histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                     .extendedBounds(minRandomValue, maxRandomValue)
@@ -475,7 +475,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                 .addAggregation(
                         terms("terms")
                                 .field("tag")
-                                .order(Order.term(true))
+                                .order(BucketOrder.key(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue))
@@ -487,7 +487,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
         assertThat(termsBuckets.size(), equalTo(interval));
 
         double aggTermsSum = 0;

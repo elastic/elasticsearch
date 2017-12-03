@@ -38,6 +38,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
         try {
             return get();
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
@@ -66,6 +67,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
         } catch (TimeoutException e) {
             throw new ElasticsearchTimeoutException(e);
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
@@ -100,4 +102,5 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
     }
 
     protected abstract T convert(L listenerResponse);
+
 }

@@ -22,20 +22,16 @@ package org.elasticsearch.search.aggregations.pipeline.bucketselector;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,12 +80,11 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
-        List<? extends Bucket> buckets = originalAgg.getBuckets();
+        List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS,
-                Collections.emptyMap());
-        List newBuckets = new ArrayList<>();
-        for (Bucket bucket : buckets) {
+        ExecutableScript.Factory factory = reduceContext.scriptService().compile(script, ExecutableScript.AGGS_CONTEXT);
+        List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
+        for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
             if (script.getParams() != null) {
                 vars.putAll(script.getParams());
@@ -100,7 +95,8 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
                 vars.put(varName, value);
             }
-            ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
+            // TODO: can we use one instance of the script for all buckets? it should be stateless?
+            ExecutableScript executableScript = factory.newInstance(vars);
             Object scriptReturnValue = executableScript.run();
             final boolean keepBucket;
             // TODO: WTF!!!!!

@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.CommitStats;
@@ -47,12 +46,15 @@ import java.util.Locale;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
-
-    @Inject
     public RestShardsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/shards", this);
         controller.registerHandler(GET, "/_cat/shards/{index}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "cat_shards_action";
     }
 
     @Override
@@ -144,6 +146,7 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
+        table.addCell("refresh.listeners", "alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners");
 
         table.addCell("search.fetch_current", "alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
         table.addCell("search.fetch_time", "alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
@@ -192,18 +195,10 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shard.id());
 
             IndexMetaData indexMeta = state.getState().getMetaData().getIndexSafe(shard.index());
-            boolean usesShadowReplicas = false;
-            if (indexMeta != null) {
-                usesShadowReplicas = IndexMetaData.isIndexUsingShadowReplicas(indexMeta.getSettings());
-            }
             if (shard.primary()) {
                 table.addCell("p");
             } else {
-                if (usesShadowReplicas) {
-                    table.addCell("s");
-                } else {
-                    table.addCell("r");
-                }
+                table.addCell("r");
             }
             table.addCell(shard.state());
             table.addCell(commonStats == null ? null : commonStats.getDocs().getCount());
@@ -290,6 +285,7 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotal());
             table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotalTime());
+            table.addCell(commonStats == null ? null : commonStats.getRefresh().getListeners());
 
             table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchCurrent());
             table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchTime());

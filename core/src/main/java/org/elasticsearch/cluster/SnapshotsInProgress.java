@@ -51,7 +51,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     // a snapshot in progress from a pre 5.2.x node
     public static final long UNDEFINED_REPOSITORY_STATE_ID = -2L;
     // the version where repository state ids were introduced
-    private static final Version REPOSITORY_ID_INTRODUCED_VERSION = Version.V_5_2_0_UNRELEASED;
+    private static final Version REPOSITORY_ID_INTRODUCED_VERSION = Version.V_5_2_0;
 
     @Override
     public boolean equals(Object o) {
@@ -68,6 +68,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     @Override
     public int hashCode() {
         return entries.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("SnapshotsInProgress[");
+        for (int i = 0; i < entries.size(); i++) {
+            builder.append(entries.get(i).snapshot().getSnapshotId().getName());
+            if (i + 1 < entries.size()) {
+                builder.append(",");
+            }
+        }
+        return builder.append("]").toString();
     }
 
     public static class Entry {
@@ -183,14 +195,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return snapshot.toString();
         }
 
-        private ImmutableOpenMap<String, List<ShardId>> findWaitingIndices(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+        // package private for testing
+        ImmutableOpenMap<String, List<ShardId>> findWaitingIndices(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             Map<String, List<ShardId>> waitingIndicesMap = new HashMap<>();
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> entry : shards) {
                 if (entry.value.state() == State.WAITING) {
-                    List<ShardId> waitingShards = waitingIndicesMap.get(entry.key.getIndex());
+                    final String indexName = entry.key.getIndexName();
+                    List<ShardId> waitingShards = waitingIndicesMap.get(indexName);
                     if (waitingShards == null) {
                         waitingShards = new ArrayList<>();
-                        waitingIndicesMap.put(entry.key.getIndexName(), waitingShards);
+                        waitingIndicesMap.put(indexName, waitingShards);
                     }
                     waitingShards.add(entry.key);
                 }
@@ -204,7 +218,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             return waitingIndicesBuilder.build();
         }
-
     }
 
     /**
@@ -240,6 +253,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.nodeId = nodeId;
             this.state = state;
             this.reason = reason;
+            // If the state is failed we have to have a reason for this failure
+            assert state.failed() == false || reason != null;
         }
 
         public ShardSnapshotStatus(StreamInput in) throws IOException {
@@ -400,9 +415,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             int shards = in.readVInt();
             for (int j = 0; j < shards; j++) {
                 ShardId shardId = ShardId.readShardId(in);
-                String nodeId = in.readOptionalString();
-                State shardState = State.fromValue(in.readByte());
-                builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState));
+                if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+                    builder.put(shardId, new ShardSnapshotStatus(in));
+                } else {
+                    String nodeId = in.readOptionalString();
+                    State shardState = State.fromValue(in.readByte());
+                    // Workaround for https://github.com/elastic/elasticsearch/issues/25878
+                    // Some old snapshot might still have null in shard failure reasons
+                    String reason = shardState.failed() ? "" : null;
+                    builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState, reason));
+                }
             }
             long repositoryStateId = UNDEFINED_REPOSITORY_STATE_ID;
             if (in.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
@@ -436,8 +458,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeVInt(entry.shards().size());
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : entry.shards()) {
                 shardEntry.key.writeTo(out);
-                out.writeOptionalString(shardEntry.value.nodeId());
-                out.writeByte(shardEntry.value.state().value());
+                if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+                    shardEntry.value.writeTo(out);
+                } else {
+                    out.writeOptionalString(shardEntry.value.nodeId());
+                    out.writeByte(shardEntry.value.state().value());
+                }
             }
             if (out.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
                 out.writeLong(entry.repositoryStateId);

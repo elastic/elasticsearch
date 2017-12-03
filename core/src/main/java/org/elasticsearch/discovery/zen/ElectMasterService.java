@@ -111,14 +111,14 @@ public class ElectMasterService extends AbstractComponent {
         return minimumMasterNodes;
     }
 
-    public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
+    public int countMasterNodes(Iterable<DiscoveryNode> nodes) {
         int count = 0;
         for (DiscoveryNode node : nodes) {
             if (node.isMasterNode()) {
                 count++;
             }
         }
-        return count > 0 && (minimumMasterNodes < 0 || count >= minimumMasterNodes);
+        return count;
     }
 
     public boolean hasEnoughCandidates(Collection<MasterCandidate> candidates) {
@@ -149,13 +149,13 @@ public class ElectMasterService extends AbstractComponent {
         return activeMasters.stream().min(ElectMasterService::compareNodes).get();
     }
 
+    public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
+        final int count = countMasterNodes(nodes);
+        return count > 0 && (minimumMasterNodes < 0 || count >= minimumMasterNodes);
+    }
+
     public boolean hasTooManyMasterNodes(Iterable<DiscoveryNode> nodes) {
-        int count = 0;
-        for (DiscoveryNode node : nodes) {
-            if (node.isMasterNode()) {
-                count++;
-            }
-        }
+        final int count = countMasterNodes(nodes);
         return count > 1 && minimumMasterNodes <= count / 2;
     }
 

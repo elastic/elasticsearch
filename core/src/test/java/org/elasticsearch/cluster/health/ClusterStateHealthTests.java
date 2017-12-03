@@ -29,8 +29,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -96,7 +94,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         super.setUp();
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(clusterService.getSettings(), new CapturingTransport(), threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
     }
@@ -131,18 +129,11 @@ public class ClusterStateHealthTests extends ESTestCase {
         });
 
         logger.info("--> submit task to restore master");
-        clusterService.submitStateUpdateTask("restore master", new LocalClusterUpdateTask() {
-            @Override
-            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
-                return newState(ClusterState.builder(currentState).nodes(
-                    DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId())).build());
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.warn("unexpected failure", e);
-            }
-        });
+        ClusterState currentState = clusterService.getClusterApplierService().state();
+        clusterService.getClusterApplierService().onNewClusterState("restore master",
+            () -> ClusterState.builder(currentState)
+                .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId())).build(),
+            (source, e) -> {});
 
         logger.info("--> waiting for listener to be called and cluster state being blocked");
         listenerCalled.await();
@@ -366,7 +357,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         final Set<String> nodeIds = new HashSet<>();
         final int numNodes = randomIntBetween(numberOfReplicas + 1, 10);
         for (int i = 0; i < numNodes; i++) {
-            nodeIds.add(randomAsciiOfLength(8));
+            nodeIds.add(randomAlphaOfLength(8));
         }
 
         final List<ClusterState> clusterStates = new ArrayList<>();

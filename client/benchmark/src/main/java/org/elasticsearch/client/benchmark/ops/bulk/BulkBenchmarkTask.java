@@ -95,7 +95,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
         private final BlockingQueue<List<String>> bulkQueue;
         private final int bulkSize;
 
-        public LoadGenerator(Path bulkDataFile, BlockingQueue<List<String>> bulkQueue, int bulkSize) {
+        LoadGenerator(Path bulkDataFile, BlockingQueue<List<String>> bulkQueue, int bulkSize) {
             this.bulkDataFile = bulkDataFile;
             this.bulkQueue = bulkQueue;
             this.bulkSize = bulkSize;
@@ -143,7 +143,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
         private final BulkRequestExecutor bulkRequestExecutor;
         private final SampleRecorder sampleRecorder;
 
-        public BulkIndexer(BlockingQueue<List<String>> bulkData, int warmupIterations, int measurementIterations,
+        BulkIndexer(BlockingQueue<List<String>> bulkData, int warmupIterations, int measurementIterations,
                            SampleRecorder sampleRecorder, BulkRequestExecutor bulkRequestExecutor) {
             this.bulkData = bulkData;
             this.warmupIterations = warmupIterations;

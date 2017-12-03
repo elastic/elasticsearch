@@ -23,11 +23,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -40,7 +40,7 @@ import java.util.List;
 /**
  * Shard snapshot metadata
  */
-public class BlobStoreIndexShardSnapshot implements ToXContent {
+public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
     /**
      * Information about snapshotted file
@@ -66,7 +66,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent {
             this.metadata = metaData;
 
             long partBytes = Long.MAX_VALUE;
-            if (partSize != null) {
+            if (partSize != null && partSize.getBytes() > 0) {
                 partBytes = partSize.getBytes();
             }
 
@@ -332,14 +332,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent {
             } else if (writtenBy == null) {
                 throw new ElasticsearchParseException("missing or invalid written_by [" + writtenByStr + "]");
             } else if (checksum == null) {
-                if (physicalName.startsWith("segments_")
-                        && writtenBy.onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION) == false) {
-                    // its possible the checksum is null for segments_N files that belong to a shard with no data,
-                    // so we will assign it _na_ for now and try to get the checksum from the file itself later
-                    checksum = UNKNOWN_CHECKSUM;
-                } else {
-                    throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
-                }
+                throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
             }
             return new FileInfo(name, new StoreFileMetaData(physicalName, length, checksum, writtenBy, metaHash), partSize);
         }
@@ -475,7 +468,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContent {
     private static final ParseField PARSE_NUMBER_OF_FILES = new ParseField("number_of_files");
     private static final ParseField PARSE_TOTAL_SIZE = new ParseField("total_size");
     private static final ParseField PARSE_FILES = new ParseField("files");
-    private static final ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
 
     /**
      * Serializes shard snapshot metadata info into JSON
@@ -559,5 +551,4 @@ public class BlobStoreIndexShardSnapshot implements ToXContent {
         return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, Collections.unmodifiableList(indexFiles),
                                                startTime, time, numberOfFiles, totalSize);
     }
-
 }

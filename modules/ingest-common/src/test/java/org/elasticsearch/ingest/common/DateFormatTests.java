@@ -50,6 +50,10 @@ public class DateFormatTests extends ESTestCase {
         assertThat(DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null).apply("1000.5").getMillis(), equalTo(1000500L));
     }
 
+    public void testParseUnixWithMsPrecision() {
+        assertThat(DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null).apply("1495718015").getMillis(), equalTo(1495718015000L));
+    }
+
     public void testParseISO8601() {
         assertThat(DateFormat.Iso8601.getFunction(null, DateTimeZone.UTC, null).apply("2001-01-01T00:00:00-0800").getMillis(),
                 equalTo(978336000000L));
@@ -81,6 +85,6 @@ public class DateFormatTests extends ESTestCase {
         assertThat(DateFormat.fromString("iso8601"), equalTo(DateFormat.Joda));
         assertThat(DateFormat.fromString("TAI64N"), equalTo(DateFormat.Tai64n));
         assertThat(DateFormat.fromString("tai64n"), equalTo(DateFormat.Joda));
-        assertThat(DateFormat.fromString("prefix-" + randomAsciiOfLengthBetween(1, 10)), equalTo(DateFormat.Joda));
+        assertThat(DateFormat.fromString("prefix-" + randomAlphaOfLengthBetween(1, 10)), equalTo(DateFormat.Joda));
     }
 }

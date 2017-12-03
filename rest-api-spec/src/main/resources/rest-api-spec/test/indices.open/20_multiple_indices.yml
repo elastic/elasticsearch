@@ -1,0 +1,104 @@
+setup:
+  - do:
+      indices.create:
+        index: test_index1
+        body:
+          settings:
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: test_index2
+        body:
+          settings:
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: test_index3
+        body:
+          settings:
+            number_of_replicas: 0
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"All indices":
+  - skip:
+      version: " - 5.99.99"
+      reason:  status code  on closed indices changed in 6.0.0 from 403 to 400
+
+  - do:
+      indices.close:
+        index: _all
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_index2
+
+  - do:
+      indices.open:
+        index: _all
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      search:
+        index: test_index2
+
+---
+"Trailing wildcard":
+  - skip:
+      version: " - 5.99.99"
+      reason:  status code  on closed indices changed in 6.0.0 from 403 to 400
+
+  - do:
+      indices.close:
+        index: test_*
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_index2
+
+  - do:
+      indices.open:
+        index: test_*
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      search:
+        index: test_index2
+
+---
+"Only wildcard":
+  - skip:
+      version: " - 5.99.99"
+      reason:  status code  on closed indices changed in 6.0.0 from 403 to 400
+
+  - do:
+      indices.close:
+        index: '*'
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_index3
+
+  - do:
+      indices.open:
+        index: '*'
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      search:
+        index: test_index3
+

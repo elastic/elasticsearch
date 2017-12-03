@@ -20,10 +20,10 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.common.io.stream.AbstractWriteableEnumTestCase;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -38,8 +38,8 @@ public class StringDistanceImplTests extends AbstractWriteableEnumTestCase {
     public void testValidOrdinals() {
         assertThat(StringDistanceImpl.INTERNAL.ordinal(), equalTo(0));
         assertThat(StringDistanceImpl.DAMERAU_LEVENSHTEIN.ordinal(), equalTo(1));
-        assertThat(StringDistanceImpl.LEVENSTEIN.ordinal(), equalTo(2));
-        assertThat(StringDistanceImpl.JAROWINKLER.ordinal(), equalTo(3));
+        assertThat(StringDistanceImpl.LEVENSHTEIN.ordinal(), equalTo(2));
+        assertThat(StringDistanceImpl.JARO_WINKLER.ordinal(), equalTo(3));
         assertThat(StringDistanceImpl.NGRAM.ordinal(), equalTo(4));
     }
 
@@ -47,29 +47,33 @@ public class StringDistanceImplTests extends AbstractWriteableEnumTestCase {
     public void testFromString() {
         assertThat(StringDistanceImpl.resolve("internal"), equalTo(StringDistanceImpl.INTERNAL));
         assertThat(StringDistanceImpl.resolve("damerau_levenshtein"), equalTo(StringDistanceImpl.DAMERAU_LEVENSHTEIN));
-        assertThat(StringDistanceImpl.resolve("levenstein"), equalTo(StringDistanceImpl.LEVENSTEIN));
-        assertThat(StringDistanceImpl.resolve("jarowinkler"), equalTo(StringDistanceImpl.JAROWINKLER));
+        assertThat(StringDistanceImpl.resolve("levenshtein"), equalTo(StringDistanceImpl.LEVENSHTEIN));
+        assertThat(StringDistanceImpl.resolve("jaro_winkler"), equalTo(StringDistanceImpl.JARO_WINKLER));
         assertThat(StringDistanceImpl.resolve("ngram"), equalTo(StringDistanceImpl.NGRAM));
+
         final String doesntExist = "doesnt_exist";
-        try {
-            StringDistanceImpl.resolve(doesntExist);
-            fail("StringDistanceImpl should not have an element " + doesntExist);
-        } catch (IllegalArgumentException e) {
-        }
-        try {
-            StringDistanceImpl.resolve(null);
-            fail("StringDistanceImpl.resolve on a null value should throw an exception.");
-        } catch (NullPointerException e) {
-            assertThat(e.getMessage(), equalTo("Input string is null"));
-        }
+        expectThrows(IllegalArgumentException.class, () -> StringDistanceImpl.resolve(doesntExist)); 
+        
+        NullPointerException e = expectThrows(NullPointerException.class, () -> StringDistanceImpl.resolve(null));
+        assertThat(e.getMessage(), equalTo("Input string is null"));
+    }
+
+    public void testLevensteinDeprecation() {
+        assertThat(StringDistanceImpl.resolve("levenstein"), equalTo(StringDistanceImpl.LEVENSHTEIN));
+        assertWarnings("Deprecated distance [levenstein] used, replaced by [levenshtein]");
+    }
+
+    public void testJaroWinklerDeprecation() {
+        assertThat(StringDistanceImpl.resolve("jaroWinkler"), equalTo(StringDistanceImpl.JARO_WINKLER));
+        assertWarnings("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
     }
 
     @Override
     public void testWriteTo() throws IOException {
         assertWriteToStream(StringDistanceImpl.INTERNAL, 0);
         assertWriteToStream(StringDistanceImpl.DAMERAU_LEVENSHTEIN, 1);
-        assertWriteToStream(StringDistanceImpl.LEVENSTEIN, 2);
-        assertWriteToStream(StringDistanceImpl.JAROWINKLER, 3);
+        assertWriteToStream(StringDistanceImpl.LEVENSHTEIN, 2);
+        assertWriteToStream(StringDistanceImpl.JARO_WINKLER, 3);
         assertWriteToStream(StringDistanceImpl.NGRAM, 4);
     }
 
@@ -77,8 +81,8 @@ public class StringDistanceImplTests extends AbstractWriteableEnumTestCase {
     public void testReadFrom() throws IOException {
         assertReadFromStream(0, StringDistanceImpl.INTERNAL);
         assertReadFromStream(1, StringDistanceImpl.DAMERAU_LEVENSHTEIN);
-        assertReadFromStream(2, StringDistanceImpl.LEVENSTEIN);
-        assertReadFromStream(3, StringDistanceImpl.JAROWINKLER);
+        assertReadFromStream(2, StringDistanceImpl.LEVENSHTEIN);
+        assertReadFromStream(3, StringDistanceImpl.JARO_WINKLER);
         assertReadFromStream(4, StringDistanceImpl.NGRAM);
     }
 

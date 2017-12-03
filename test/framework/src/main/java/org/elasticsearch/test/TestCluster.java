@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -34,6 +35,7 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
@@ -233,5 +235,9 @@ public abstract class TestCluster implements Closeable {
      */
     public abstract Iterable<Client> getClients();
 
-
+    /**
+     * Returns this clusters {@link NamedWriteableRegistry} this is needed to
+     * deserialize binary content from this cluster that might include custom named writeables
+     */
+    public abstract NamedWriteableRegistry getNamedWriteableRegistry();
 }

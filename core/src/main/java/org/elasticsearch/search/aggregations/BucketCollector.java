@@ -70,7 +70,7 @@ public abstract class BucketCollector implements Collector {
 
                     @Override
                     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-                        List<LeafBucketCollector> leafCollectors = new ArrayList<>();
+                        List<LeafBucketCollector> leafCollectors = new ArrayList<>(collectors.length);
                         for (BucketCollector c : collectors) {
                             leafCollectors.add(c.getLeafCollector(ctx));
                         }

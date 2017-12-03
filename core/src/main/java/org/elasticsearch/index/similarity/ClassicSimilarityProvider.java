@@ -35,7 +35,7 @@ public class ClassicSimilarityProvider extends AbstractSimilarityProvider {
 
     private final ClassicSimilarity similarity = new ClassicSimilarity();
 
-    public ClassicSimilarityProvider(String name, Settings settings) {
+    public ClassicSimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
         boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
         this.similarity.setDiscountOverlaps(discountOverlaps);
@@ -48,4 +48,5 @@ public class ClassicSimilarityProvider extends AbstractSimilarityProvider {
     public ClassicSimilarity get() {
         return similarity;
     }
+
 }

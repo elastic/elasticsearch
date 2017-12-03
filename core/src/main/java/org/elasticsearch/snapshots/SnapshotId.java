@@ -22,7 +22,8 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -32,7 +33,7 @@ import java.util.Objects;
 /**
  * SnapshotId - snapshot name + snapshot UUID
  */
-public final class SnapshotId implements Writeable, ToXContent {
+public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXContentObject {
 
     private static final String NAME = "name";
     private static final String UUID = "uuid";
@@ -104,6 +105,11 @@ public final class SnapshotId implements Writeable, ToXContent {
     @Override
     public int hashCode() {
         return hashCode;
+    }
+
+    @Override
+    public int compareTo(final SnapshotId other) {
+        return this.name.compareTo(other.name);
     }
 
     private int computeHashCode() {

@@ -7,7 +7,7 @@
       "paths": ["/_tasks"],
       "parts": {},
       "params": {
-        "node_id": {
+        "nodes": {
           "type": "list",
           "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
         },
@@ -23,7 +23,7 @@
           "type": "string",
           "description": "Return tasks with specified parent node."
         },
-        "parent_task": {
+        "parent_task_id": {
           "type" : "string",
           "description" : "Return tasks with specified parent task id (node_id:task_number). Set to -1 to return all."
         },

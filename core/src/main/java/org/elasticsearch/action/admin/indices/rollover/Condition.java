@@ -19,9 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 
@@ -32,14 +33,16 @@ import java.util.Set;
  */
 public abstract class Condition<T> implements NamedWriteable {
 
-    public static ObjectParser<Set<Condition>, ParseFieldMatcherSupplier> PARSER =
-        new ObjectParser<>("conditions", null);
+    public static ObjectParser<Set<Condition>, Void> PARSER = new ObjectParser<>("conditions", null);
     static {
         PARSER.declareString((conditions, s) ->
             conditions.add(new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
             new ParseField(MaxAgeCondition.NAME));
         PARSER.declareLong((conditions, value) ->
             conditions.add(new MaxDocsCondition(value)), new ParseField(MaxDocsCondition.NAME));
+        PARSER.declareString((conditions, s) ->
+                conditions.add(new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
+            new ParseField(MaxSizeCondition.NAME));
     }
 
     protected T value;
@@ -49,7 +52,15 @@ public abstract class Condition<T> implements NamedWriteable {
         this.name = name;
     }
 
-    public abstract Result evaluate(final Stats stats);
+    public abstract Result evaluate(Stats stats);
+
+    /**
+     * Checks if this condition is available in a specific version.
+     * This makes sure BWC when introducing a new condition which is not recognized by older versions.
+     */
+    boolean includedInVersion(Version version) {
+        return true;
+    }
 
     @Override
     public final String toString() {
@@ -62,10 +73,12 @@ public abstract class Condition<T> implements NamedWriteable {
     public static class Stats {
         public final long numDocs;
         public final long indexCreated;
+        public final ByteSizeValue indexSize;
 
-        public Stats(long numDocs, long indexCreated) {
+        public Stats(long numDocs, long indexCreated, ByteSizeValue indexSize) {
             this.numDocs = numDocs;
             this.indexCreated = indexCreated;
+            this.indexSize = indexSize;
         }
     }
 

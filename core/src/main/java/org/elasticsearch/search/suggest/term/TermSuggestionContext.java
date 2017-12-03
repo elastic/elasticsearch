@@ -26,7 +26,7 @@ final class TermSuggestionContext extends SuggestionContext {
 
     private final DirectSpellcheckerSettings settings = new DirectSpellcheckerSettings();
 
-    public TermSuggestionContext(QueryShardContext shardContext) {
+    TermSuggestionContext(QueryShardContext shardContext) {
         super(TermSuggester.INSTANCE, shardContext);
     }
 

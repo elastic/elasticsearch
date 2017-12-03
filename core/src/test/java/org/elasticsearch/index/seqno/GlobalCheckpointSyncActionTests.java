@@ -57,7 +57,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,  boundAddress -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
@@ -83,6 +83,9 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexService.getShard(id)).thenReturn(indexShard);
 
+        final ShardId shardId = new ShardId(index, id);
+        when(indexShard.shardId()).thenReturn(shardId);
+
         final Translog translog = mock(Translog.class);
         when(indexShard.getTranslog()).thenReturn(translog);
 
@@ -95,13 +98,11 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexNameExpressionResolver(Settings.EMPTY));
-        final ShardId shardId = new ShardId(index, id);
-        final GlobalCheckpointSyncAction.PrimaryRequest primaryRequest = new GlobalCheckpointSyncAction.PrimaryRequest(shardId);
+        final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {
             action.shardOperationOnPrimary(primaryRequest, indexShard);
         } else {
-            action.shardOperationOnReplica(
-                new GlobalCheckpointSyncAction.ReplicaRequest(primaryRequest, randomNonNegativeLong()), indexShard);
+            action.shardOperationOnReplica(new GlobalCheckpointSyncAction.Request(indexShard.shardId()), indexShard);
         }
 
         verify(translog).sync();

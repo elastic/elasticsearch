@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Processor that converts the content of string fields to uppercase.
@@ -29,8 +30,8 @@ public final class UppercaseProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "uppercase";
 
-    UppercaseProcessor(String processorTag, String field, boolean ignoreMissing) {
-        super(processorTag, field, ignoreMissing);
+    UppercaseProcessor(String processorTag, String field, boolean ignoreMissing, String targetField) {
+        super(processorTag, field, ignoreMissing, targetField);
     }
 
     @Override
@@ -50,9 +51,9 @@ public final class UppercaseProcessor extends AbstractStringProcessor {
         }
 
         @Override
-        protected UppercaseProcessor newProcessor(String tag, String field, boolean ignoreMissing) {
-            return new UppercaseProcessor(tag, field, ignoreMissing);
+        protected UppercaseProcessor newProcessor(String tag, Map<String, Object> config, String field,
+                                                  boolean ignoreMissing, String targetField) {
+            return new UppercaseProcessor(tag, field, ignoreMissing, targetField);
         }
     }
 }
-

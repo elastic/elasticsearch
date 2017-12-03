@@ -33,7 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A path that can be used to sort/order buckets (in some multi-bucket aggregations, eg terms &amp; histogram) based on
+ * A path that can be used to sort/order buckets (in some multi-bucket aggregations, e.g. terms &amp; histogram) based on
  * sub-aggregations. The path may point to either a single-bucket aggregation or a metrics aggregation. If the path
  * points to a single-bucket aggregation, the sort will be applied based on the {@code doc_count} of the bucket. If this
  * path points to a metrics aggregation, if it's a single-value metrics (eg. avg, max, min, etc..) the sort will be
@@ -281,14 +281,15 @@ public class AggregationPath {
     /**
      * Validates this path over the given aggregator as a point of reference.
      *
-     * @param root  The point of reference of this path
+     * @param root The point of reference of this path
+     * @throws AggregationExecutionException on validation error
      */
-    public void validate(Aggregator root) {
+    public void validate(Aggregator root) throws AggregationExecutionException {
         Aggregator aggregator = root;
         for (int i = 0; i < pathElements.size(); i++) {
             aggregator = aggregator.subAggregator(pathElements.get(i).name);
             if (aggregator == null) {
-                throw new AggregationExecutionException("Invalid term-aggregator order path [" + this + "]. Unknown aggregation ["
+                throw new AggregationExecutionException("Invalid aggregator order path [" + this + "]. Unknown aggregation ["
                         + pathElements.get(i).name + "]");
             }
             if (i < pathElements.size() - 1) {
@@ -296,16 +297,16 @@ public class AggregationPath {
                 // we're in the middle of the path, so the aggregator can only be a single-bucket aggregator
 
                 if (!(aggregator instanceof SingleBucketAggregator)) {
-                    throw new AggregationExecutionException("Invalid terms aggregation order path [" + this +
-                            "]. Terms buckets can only be sorted on a sub-aggregator path " +
+                    throw new AggregationExecutionException("Invalid aggregation order path [" + this +
+                            "]. Buckets can only be sorted on a sub-aggregator path " +
                             "that is built out of zero or more single-bucket aggregations within the path and a final " +
                             "single-bucket or a metrics aggregation at the path end. Sub-path [" +
                             subPath(0, i + 1) + "] points to non single-bucket aggregation");
                 }
 
                 if (pathElements.get(i).key != null) {
-                    throw new AggregationExecutionException("Invalid terms aggregation order path [" + this +
-                            "]. Terms buckets can only be sorted on a sub-aggregator path " +
+                    throw new AggregationExecutionException("Invalid aggregation order path [" + this +
+                            "]. Buckets can only be sorted on a sub-aggregator path " +
                             "that is built out of zero or more single-bucket aggregations within the path and a " +
                             "final single-bucket or a metrics aggregation at the path end. Sub-path [" +
                             subPath(0, i + 1) + "] points to non single-bucket aggregation");
@@ -314,8 +315,8 @@ public class AggregationPath {
         }
         boolean singleBucket = aggregator instanceof SingleBucketAggregator;
         if (!singleBucket && !(aggregator instanceof NumericMetricsAggregator)) {
-            throw new AggregationExecutionException("Invalid terms aggregation order path [" + this +
-                    "]. Terms buckets can only be sorted on a sub-aggregator path " +
+            throw new AggregationExecutionException("Invalid aggregation order path [" + this +
+                    "]. Buckets can only be sorted on a sub-aggregator path " +
                     "that is built out of zero or more single-bucket aggregations within the path and a final " +
                     "single-bucket or a metrics aggregation at the path end.");
         }
@@ -324,7 +325,7 @@ public class AggregationPath {
 
         if (singleBucket) {
             if (lastToken.key != null && !"doc_count".equals(lastToken.key)) {
-                throw new AggregationExecutionException("Invalid terms aggregation order path [" + this +
+                throw new AggregationExecutionException("Invalid aggregation order path [" + this +
                         "]. Ordering on a single-bucket aggregation can only be done on its doc_count. " +
                         "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"doc_count\" (a la \"" + lastToken.name + ".doc_count\")");
             }
@@ -333,7 +334,7 @@ public class AggregationPath {
 
         if (aggregator instanceof NumericMetricsAggregator.SingleValue) {
             if (lastToken.key != null && !"value".equals(lastToken.key)) {
-                throw new AggregationExecutionException("Invalid terms aggregation order path [" + this +
+                throw new AggregationExecutionException("Invalid aggregation order path [" + this +
                         "]. Ordering on a single-value metrics aggregation can only be done on its value. " +
                         "Either drop the key (a la \"" + lastToken.name + "\") or change it to \"value\" (a la \"" + lastToken.name + ".value\")");
             }
@@ -342,12 +343,12 @@ public class AggregationPath {
 
         // the aggregator must be of a multi-value metrics type
         if (lastToken.key == null) {
-            throw new AggregationExecutionException("Invalid terms aggregation order path [" + this +
+            throw new AggregationExecutionException("Invalid aggregation order path [" + this +
                     "]. When ordering on a multi-value metrics aggregation a metric name must be specified");
         }
 
         if (!((NumericMetricsAggregator.MultiValue) aggregator).hasMetric(lastToken.key)) {
-            throw new AggregationExecutionException("Invalid terms aggregation order path [" + this +
+            throw new AggregationExecutionException("Invalid aggregation order path [" + this +
                     "]. Unknown metric name [" + lastToken.key + "] on multi-value metrics aggregation [" + lastToken.name + "]");
         }
     }

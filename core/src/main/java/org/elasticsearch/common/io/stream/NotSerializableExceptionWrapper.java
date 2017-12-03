@@ -38,8 +38,7 @@ public final class NotSerializableExceptionWrapper extends ElasticsearchExceptio
     private final RestStatus status;
 
     public NotSerializableExceptionWrapper(Throwable other) {
-        super(ElasticsearchException.getExceptionName(other) +
-                        ": " + other.getMessage(), other.getCause());
+        super(ElasticsearchException.getExceptionName(other) + ": " + other.getMessage(), other.getCause());
         this.name = ElasticsearchException.getExceptionName(other);
         this.status = ExceptionsHelper.status(other);
         setStackTrace(other.getStackTrace());
@@ -50,6 +49,9 @@ public final class NotSerializableExceptionWrapper extends ElasticsearchExceptio
             ElasticsearchException ex = (ElasticsearchException) other;
             for (String key : ex.getHeaderKeys()) {
                 this.addHeader(key, ex.getHeader(key));
+            }
+            for (String key : ex.getMetadataKeys()) {
+                this.addMetadata(key, ex.getMetadata(key));
             }
         }
     }

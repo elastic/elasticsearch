@@ -131,7 +131,7 @@ public class SizeBlockingQueue<E> extends AbstractQueue<E> implements BlockingQu
     @Override
     public boolean offer(E e) {
         int count = size.incrementAndGet();
-        if (count > capacity) {
+        if (count > capacity()) {
             size.decrementAndGet();
             return false;
         }
@@ -168,7 +168,7 @@ public class SizeBlockingQueue<E> extends AbstractQueue<E> implements BlockingQu
 
     @Override
     public int remainingCapacity() {
-        return capacity - size.get();
+        return capacity() - size.get();
     }
 
     @Override

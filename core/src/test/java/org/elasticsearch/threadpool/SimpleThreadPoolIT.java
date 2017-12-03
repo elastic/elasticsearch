@@ -21,32 +21,22 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
-import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.containsString;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SimpleThreadPoolIT extends ESIntegTestCase {
@@ -109,36 +99,6 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                     Pattern.quote("node_tribe2") + ")";
             assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
         }
-    }
-
-    public void testThreadPoolLeakingThreadsWithTribeNode() {
-        Settings settings = Settings.builder()
-                .put("node.name", "thread_pool_leaking_threads_tribe_node")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put("tribe.t1.cluster.name", "non_existing_cluster")
-                        //trigger initialization failure of one of the tribes (doesn't require starting the node)
-                .put("tribe.t1.plugin.mandatory", "non_existing").build();
-
-        try {
-            new Node(settings);
-            fail("The node startup is supposed to fail");
-        } catch(Exception e) {
-            //all good
-            assertThat(e.getMessage(), containsString("mandatory plugins [non_existing]"));
-        }
-    }
-
-    private Map<String, Object> getPoolSettingsThroughJson(ThreadPoolInfo info, String poolName) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        info.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        builder.close();
-        Map<String, Object> poolsMap;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
-            poolsMap = parser.map();
-        }
-        return (Map<String, Object>) ((Map<String, Object>) poolsMap.get("thread_pool")).get(poolName);
     }
 
 }

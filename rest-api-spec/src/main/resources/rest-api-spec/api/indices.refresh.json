@@ -25,14 +25,6 @@
             "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
-        },
-        "force": {
-            "type" : "boolean",
-            "description" : "Force a refresh even if not required",
-            "default": false
-        },
-        "operation_threading": {
-          "description" : "TODO: ?"
         }
       }
     },

@@ -28,10 +28,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -40,6 +43,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
@@ -68,6 +73,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
+                public AliasFilter getAliasFilter() {
+                    return new AliasFilter(QueryBuilders.matchAllQuery(), "foo");
+                }
+
+                @Override
+                public void setAliasFilter(AliasFilter filter) {
+
+                }
+
+                @Override
                 public void source(SearchSourceBuilder source) {
                     searchSourceBuilder = source;
                 }
@@ -79,11 +94,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
                 @Override
                 public SearchType searchType() {
-                    return null;
-                }
-
-                @Override
-                public QueryBuilder filteringAliases() {
                     return null;
                 }
 
@@ -123,7 +133,13 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public void rewrite(QueryShardContext context) throws IOException {
+                public Rewriteable getRewriteable() {
+                    return null;
+                }
+
+                @Override
+                public String getClusterAlias() {
+                    return null;
                 }
             };
             @Override
@@ -176,7 +192,12 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), "NOT A LEVEL").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL");
+            final String expected = "illegal value can't update [index.search.slowlog.level] from [TRACE] to [NOT A LEVEL]";
+            assertThat(ex, hasToString(containsString(expected)));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
     }
@@ -227,28 +248,28 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.search.slowlog.threshold.query.trace] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertTimeValueException(ex, "index.search.slowlog.threshold.query.trace");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.search.slowlog.threshold.query.debug] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertTimeValueException(ex, "index.search.slowlog.threshold.query.debug");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.search.slowlog.threshold.query.info] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertTimeValueException(ex, "index.search.slowlog.threshold.query.info");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.search.slowlog.threshold.query.warn] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertTimeValueException(ex, "index.search.slowlog.threshold.query.warn");
         }
     }
 
@@ -298,31 +319,41 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.search.slowlog.threshold.fetch.trace] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.trace");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.search.slowlog.threshold.fetch.debug] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.debug");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.search.slowlog.threshold.fetch.info] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.info");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.search.slowlog.threshold.fetch.warn] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.warn");
         }
     }
 
+    private void assertTimeValueException(final IllegalArgumentException e, final String key) {
+        final String expected = "illegal value can't update [" + key + "] from [-1] to [NOT A TIME VALUE]";
+        assertThat(e, hasToString(containsString(expected)));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+        final String causeExpected =
+                "failed to parse setting [" + key + "] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized";
+        assertThat(cause, hasToString(containsString(causeExpected)));
+    }
 
     private IndexMetaData newIndexMeta(String name, Settings indexSettings) {
         Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

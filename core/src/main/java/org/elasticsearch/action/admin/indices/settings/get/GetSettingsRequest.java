@@ -48,6 +48,26 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
+    public GetSettingsRequest() {
+    }
+
+    public GetSettingsRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        names = in.readStringArray();
+        humanReadable = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeStringArray(names);
+        out.writeBoolean(humanReadable);
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -87,19 +107,6 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        names = in.readStringArray();
-        humanReadable = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeStringArray(names);
-        out.writeBoolean(humanReadable);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

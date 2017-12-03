@@ -26,7 +26,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
@@ -34,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContent {
+public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContentFragment {
 
     public NodesInfoResponse() {
     }

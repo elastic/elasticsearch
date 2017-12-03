@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 public class DiscoveryNodeFilters {
 
@@ -36,14 +38,27 @@ public class DiscoveryNodeFilters {
         OR
     }
 
-    public static DiscoveryNodeFilters buildFromSettings(OpType opType, String prefix, Settings settings) {
-        return buildFromKeyValue(opType, settings.getByPrefix(prefix).getAsMap());
-    }
+    /**
+     * Validates the IP addresses in a group of {@link Settings} by looking for the keys
+     * "_ip", "_host_ip", and "_publish_ip" and ensuring each of their comma separated values
+     * that has no wildcards is a valid IP address.
+     */
+    public static final BiConsumer<String, String> IP_VALIDATOR = (propertyKey, rawValue) -> {
+        if (rawValue != null) {
+            if (propertyKey.endsWith("._ip") || propertyKey.endsWith("._host_ip") || propertyKey.endsWith("_publish_ip")) {
+                for (String value : Strings.tokenizeToStringArray(rawValue, ",")) {
+                    if (Regex.isSimpleMatchPattern(value) == false && InetAddresses.isInetAddress(value) == false) {
+                        throw new IllegalArgumentException("invalid IP address [" + value + "] for [" + propertyKey + "]");
+                    }
+                }
+            }
+        }
+    };
 
     public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
         Map<String, String[]> bFilters = new HashMap<>();
         for (Map.Entry<String, String> entry : filters.entrySet()) {
-            String[] values = Strings.splitStringByCommaToArray(entry.getValue());
+            String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
             if (values.length > 0) {
                 bFilters.put(entry.getKey(), values);
             }

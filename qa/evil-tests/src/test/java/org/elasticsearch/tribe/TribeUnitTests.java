@@ -19,11 +19,6 @@
 
 package org.elasticsearch.tribe;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,9 +35,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -55,62 +55,88 @@ import static org.hamcrest.CoreMatchers.equalTo;
 @SuppressForbidden(reason = "modifies system properties intentionally")
 public class TribeUnitTests extends ESTestCase {
 
+    private static List<Class<? extends Plugin>> classpathPlugins;
     private static Node tribe1;
     private static Node tribe2;
-
 
     @BeforeClass
     public static void createTribes() throws NodeValidationException {
         Settings baseSettings = Settings.builder()
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+            .put("transport.type", getTestTransportType())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .build();
 
-        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class);
+        classpathPlugins = Arrays.asList(TribeAwareTestZenDiscoveryPlugin.class, MockTribePlugin.class, getTestTransportPlugin());
+
         tribe1 = new MockNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build(), mockPlugins).start();
+                .build(), classpathPlugins).start();
         tribe2 = new MockNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("node.name", "tribe2_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build(), mockPlugins).start();
+                .build(), classpathPlugins).start();
     }
 
     @AfterClass
     public static void closeTribes() throws IOException {
         IOUtils.close(tribe1, tribe2);
+        classpathPlugins = null;
         tribe1 = null;
         tribe2 = null;
     }
 
-    public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
-        Path pathConf = getDataPath("elasticsearch.yml").getParent();
-        Settings settings = Settings
-            .builder()
-            .put(Environment.PATH_CONF_SETTING.getKey(), pathConf)
-            .build();
-        assertTribeNodeSuccessfullyCreated(settings);
+    public static class TribeAwareTestZenDiscoveryPlugin extends TestZenDiscovery.TestPlugin {
+
+        public TribeAwareTestZenDiscoveryPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            if (settings.getGroups("tribe", true).isEmpty()) {
+                return super.additionalSettings();
+            } else {
+                return Settings.EMPTY;
+            }
+        }
     }
 
-    private static void assertTribeNodeSuccessfullyCreated(Settings extraSettings) throws Exception {
-        //The tribe clients do need it to make sure they can find their corresponding tribes using the proper transport
-        Settings settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put("node.name", "tribe_node")
-                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).put("discovery.type", "local")
-                .put("tribe.t1.transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                .put("tribe.t2.transport.type",MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(extraSettings).build();
+    public static class MockTribePlugin extends TribePlugin {
 
-        try (Node node = new MockNode(settings, Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class)).start()) {
+        public MockTribePlugin(Settings settings) {
+            super(settings);
+        }
+
+        protected Function<Settings, Node> nodeBuilder(Path configPath) {
+            return settings -> new MockNode(new Environment(settings, configPath), classpathPlugins);
+        }
+
+    }
+
+    public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
+        assertTribeNodeSuccessfullyCreated(getDataPath("elasticsearch.yml").getParent());
+        assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
+    }
+
+    private static void assertTribeNodeSuccessfullyCreated(Path configPath) throws Exception {
+        // the tribe clients do need it to make sure they can find their corresponding tribes using the proper transport
+        Settings settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put("node.name", "tribe_node")
+                .put("transport.type", getTestTransportType())
+                .put("tribe.t1.transport.type", getTestTransportType())
+                .put("tribe.t2.transport.type", getTestTransportType())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .build();
+
+        try (Node node = new MockNode(settings, classpathPlugins, configPath).start()) {
             try (Client client = node.client()) {
                 assertBusy(() -> {
                     ClusterState state = client.admin().cluster().prepareState().clear().setNodes(true).get().getState();
@@ -124,4 +150,5 @@ public class TribeUnitTests extends ESTestCase {
             }
         }
     }
+
 }

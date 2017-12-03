@@ -109,20 +109,6 @@ public class AllocationIdTests extends ESTestCase {
         assertThat(shard.allocationId(), nullValue());
     }
 
-    public void testReinitializing() {
-        logger.info("-- build started shard");
-        ShardRouting shard = ShardRouting.newUnassigned(new ShardId("test","_na_", 0), true, StoreRecoverySource.EXISTING_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
-        shard = shard.initialize("node1", null, -1);
-        shard = shard.moveToStarted();
-        AllocationId allocationId = shard.allocationId();
-
-        logger.info("-- reinitializing shard");
-        shard = shard.reinitializePrimaryShard();
-        assertThat(shard.allocationId().getId(), notNullValue());
-        assertThat(shard.allocationId().getRelocationId(), nullValue());
-        assertThat(shard.allocationId().getId(), equalTo(allocationId.getId()));
-    }
-
     public void testSerialization() throws IOException {
         AllocationId allocationId = AllocationId.newInitializing();
         if (randomBoolean()) {

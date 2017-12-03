@@ -24,14 +24,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
@@ -55,13 +58,14 @@ import org.elasticsearch.search.fetch.subphase.highlight.CustomHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.PostingsHighlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.suggest.CustomSuggester;
-import org.elasticsearch.search.suggest.Suggester;
-import org.elasticsearch.search.suggest.completion.CompletionSuggester;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
-import org.elasticsearch.search.suggest.term.TermSuggester;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.suggest.CustomSuggesterSearchIT.CustomSuggestionBuilder;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,8 +78,10 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasSize;
 
 public class SearchModuleTests extends ModuleTestCase {
 
@@ -86,17 +92,15 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonMap("plain", new PlainHighlighter());
             }
         };
-        expectThrows(IllegalArgumentException.class,
-                () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeHighlighter)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeHighlighter));
 
         SearchPlugin registersDupeSuggester = new SearchPlugin() {
             @Override
-            public Map<String,org.elasticsearch.search.suggest.Suggester<?>> getSuggesters() {
-                return singletonMap("term", TermSuggester.INSTANCE);
+            public List<SearchPlugin.SuggesterSpec<?>> getSuggesters() {
+                return singletonList(new SuggesterSpec<>("term", TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent));
             }
         };
-        expectThrows(IllegalArgumentException.class,
-                () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeSuggester)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSuggester));
 
         SearchPlugin registersDupeScoreFunction = new SearchPlugin() {
             @Override
@@ -105,8 +109,7 @@ public class SearchModuleTests extends ModuleTestCase {
                         GaussDecayFunctionBuilder.PARSER));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(
-                new SearchModule(Settings.EMPTY, false, singletonList(registersDupeScoreFunction)).getNamedXContents()));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeScoreFunction));
 
         SearchPlugin registersDupeSignificanceHeuristic = new SearchPlugin() {
             @Override
@@ -114,8 +117,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonList(new SearchExtensionSpec<>(ChiSquare.NAME, ChiSquare::new, ChiSquare.PARSER));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeSignificanceHeuristic)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSignificanceHeuristic));
 
         SearchPlugin registersDupeMovAvgModel = new SearchPlugin() {
             @Override
@@ -123,8 +125,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonList(new SearchExtensionSpec<>(SimpleModel.NAME, SimpleModel::new, SimpleModel.PARSER));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeMovAvgModel)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeMovAvgModel));
 
         SearchPlugin registersDupeFetchSubPhase = new SearchPlugin() {
             @Override
@@ -132,27 +133,27 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonList(new ExplainFetchSubPhase());
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeFetchSubPhase)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeFetchSubPhase));
 
         SearchPlugin registersDupeQuery = new SearchPlugin() {
+            @Override
             public List<SearchPlugin.QuerySpec<?>> getQueries() {
                 return singletonList(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(
-                new SearchModule(Settings.EMPTY, false, singletonList(registersDupeQuery)).getNamedXContents()));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeQuery));
 
         SearchPlugin registersDupeAggregation = new SearchPlugin() {
+            @Override
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
                         TermsAggregationBuilder::parse));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeAggregation)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeAggregation));
 
         SearchPlugin registersDupePipelineAggregation = new SearchPlugin() {
+            @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(new PipelineAggregationSpec(
                         DerivativePipelineAggregationBuilder.NAME,
@@ -162,21 +163,45 @@ public class SearchModuleTests extends ModuleTestCase {
                             .addResultReader(InternalDerivative::new));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupePipelineAggregation)));
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupePipelineAggregation));
+
+        SearchPlugin registersDupeRescorer = new SearchPlugin() {
+            public List<RescorerSpec<?>> getRescorers() {
+                return singletonList(
+                        new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
+            }
+        };
+        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeRescorer));
+    }
+
+    private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
+        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, singletonList(plugin)).getNamedXContents());
     }
 
     public void testRegisterSuggester() {
         SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
             @Override
-            public Map<String, Suggester<?>> getSuggesters() {
-                return singletonMap("custom", CustomSuggester.INSTANCE);
+            public List<SuggesterSpec<?>> getSuggesters() {
+                return singletonList(new SuggesterSpec<>("custom", CustomSuggestionBuilder::new, CustomSuggestionBuilder::fromXContent));
             }
         }));
-        assertSame(TermSuggester.INSTANCE, module.getSuggesters().getSuggester("term"));
-        assertSame(PhraseSuggester.INSTANCE, module.getSuggesters().getSuggester("phrase"));
-        assertSame(CompletionSuggester.INSTANCE, module.getSuggesters().getSuggester("completion"));
-        assertSame(CustomSuggester.INSTANCE, module.getSuggesters().getSuggester("custom"));
+        assertEquals(1, module.getNamedXContents().stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("term")).count());
+        assertEquals(1, module.getNamedXContents().stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("phrase")).count());
+        assertEquals(1, module.getNamedXContents().stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("completion")).count());
+        assertEquals(1, module.getNamedXContents().stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("custom")).count());
+
+        assertEquals(1, module.getNamedWriteables().stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("term")).count());
+        assertEquals(1, module.getNamedWriteables().stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("phrase")).count());
+        assertEquals(1, module.getNamedWriteables().stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("completion")).count());
+        assertEquals(1, module.getNamedWriteables().stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("custom")).count());
     }
 
     public void testRegisterHighlighter() {
@@ -191,7 +216,7 @@ public class SearchModuleTests extends ModuleTestCase {
         Map<String, Highlighter> highlighters = module.getHighlighters();
         assertEquals(FastVectorHighlighter.class, highlighters.get("fvh").getClass());
         assertEquals(PlainHighlighter.class, highlighters.get("plain").getClass());
-        assertEquals(PostingsHighlighter.class, highlighters.get("postings").getClass());
+        assertEquals(UnifiedHighlighter.class, highlighters.get("unified").getClass());
         assertSame(highlighters.get("custom"), customHighlighter);
     }
 
@@ -216,23 +241,47 @@ public class SearchModuleTests extends ModuleTestCase {
 
     public void testRegisterAggregation() {
         SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+            @Override
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec("test", TestAggregationBuilder::new, TestAggregationBuilder::fromXContent));
             }
         }));
 
-        assertNotNull(module.getAggregatorParsers().parser("test"));
+        assertThat(
+                module.getNamedXContents().stream()
+                    .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) && entry.name.match("test"))
+                    .collect(toList()),
+                hasSize(1));
     }
 
     public void testRegisterPipelineAggregation() {
         SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+            @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(new PipelineAggregationSpec("test",
                         TestPipelineAggregationBuilder::new, TestPipelineAggregator::new, TestPipelineAggregationBuilder::fromXContent));
             }
         }));
 
-        assertNotNull(module.getAggregatorParsers().pipelineParser("test"));
+        assertThat(
+                module.getNamedXContents().stream()
+                    .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) && entry.name.match("test"))
+                    .collect(toList()),
+                hasSize(1));
+    }
+
+    public void testRegisterRescorer() {
+        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+            @Override
+            public List<RescorerSpec<?>> getRescorers() {
+                return singletonList(new RescorerSpec<>("test", TestRescorerBuilder::new, TestRescorerBuilder::fromXContent));
+            }
+        }));
+        assertThat(
+                module.getNamedXContents().stream()
+                    .filter(entry -> entry.categoryClass.equals(RescorerBuilder.class) && entry.name.match("test"))
+                    .collect(toList()),
+                hasSize(1));
     }
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
@@ -249,8 +298,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "geo_distance",
             "geo_polygon",
             "geo_shape",
-            "has_child",
-            "has_parent",
             "ids",
             "match",
             "match_all",
@@ -260,7 +307,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "more_like_this",
             "multi_match",
             "nested",
-            "parent_id",
             "prefix",
             "query_string",
             "range",
@@ -277,6 +323,7 @@ public class SearchModuleTests extends ModuleTestCase {
             "span_within",
             "term",
             "terms",
+            "terms_set",
             "type",
             "wildcard",
             "wrapper"
@@ -297,7 +344,7 @@ public class SearchModuleTests extends ModuleTestCase {
         }
 
         @Override
-        public String getWriteableName() {
+        public String getType() {
             return "test";
         }
 
@@ -326,7 +373,7 @@ public class SearchModuleTests extends ModuleTestCase {
             return false;
         }
 
-        private static TestAggregationBuilder fromXContent(String name, QueryParseContext c) {
+        private static TestAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }
     }
@@ -338,7 +385,7 @@ public class SearchModuleTests extends ModuleTestCase {
         /**
          * Read from a stream.
          */
-        public TestPipelineAggregationBuilder(StreamInput in) throws IOException {
+        TestPipelineAggregationBuilder(StreamInput in) throws IOException {
             super(in, "test");
         }
 
@@ -371,7 +418,7 @@ public class SearchModuleTests extends ModuleTestCase {
             return false;
         }
 
-        private static TestPipelineAggregationBuilder fromXContent(String name, QueryParseContext c) {
+        private static TestPipelineAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }
     }
@@ -383,7 +430,7 @@ public class SearchModuleTests extends ModuleTestCase {
         /**
          * Read from a stream.
          */
-        public TestPipelineAggregator(StreamInput in) throws IOException {
+        TestPipelineAggregator(StreamInput in) throws IOException {
             super(in);
         }
         @Override
@@ -397,6 +444,39 @@ public class SearchModuleTests extends ModuleTestCase {
 
         @Override
         public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+            return null;
+        }
+    }
+
+    private static class TestRescorerBuilder extends RescorerBuilder<TestRescorerBuilder> {
+        public static TestRescorerBuilder fromXContent(XContentParser parser) {
+            return null;
+        }
+
+        TestRescorerBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "test";
+        }
+
+        @Override
+        public RescorerBuilder<TestRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
+            return this;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        }
+
+        @Override
+        public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
             return null;
         }
     }

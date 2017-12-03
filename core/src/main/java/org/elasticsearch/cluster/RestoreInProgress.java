@@ -50,15 +50,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      *
      * @param entries list of currently running restore processes
      */
-    public RestoreInProgress(List<Entry> entries) {
-        this.entries = entries;
-    }
-
-    /**
-     * Constructs new restore metadata
-     *
-     * @param entries list of currently running restore processes
-     */
     public RestoreInProgress(Entry... entries) {
         this.entries = Arrays.asList(entries);
     }
@@ -87,6 +78,18 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public int hashCode() {
         return entries.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("RestoreInProgress[");
+        for (int i = 0; i < entries.size(); i++) {
+            builder.append(entries.get(i).snapshot().getSnapshotId().getName());
+            if (i + 1 < entries.size()) {
+                builder.append(",");
+            }
+        }
+        return builder.append("]").toString();
     }
 
     /**

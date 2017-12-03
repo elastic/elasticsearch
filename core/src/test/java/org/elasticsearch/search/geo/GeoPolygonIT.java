@@ -55,7 +55,8 @@ public class GeoPolygonIT extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+                Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point");
@@ -111,9 +112,9 @@ public class GeoPolygonIT extends ESIntegTestCase {
                 .setQuery(boolQuery().must(geoPolygonQuery("location", points)))
                 .execute().actionGet();
         assertHitCount(searchResponse, 4);
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+            assertThat(hit.getId(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
     }
 
@@ -126,9 +127,9 @@ public class GeoPolygonIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
                 .setQuery(boolQuery().must(geoPolygonQuery("location", points))).execute().actionGet();
         assertHitCount(searchResponse, 4);
-        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+            assertThat(hit.getId(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
     }
 }

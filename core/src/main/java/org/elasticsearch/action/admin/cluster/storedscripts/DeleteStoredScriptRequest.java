@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,39 +32,28 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredScriptRequest> {
 
     private String id;
-    private String scriptLang;
 
     DeleteStoredScriptRequest() {
+        super();
     }
 
-    public DeleteStoredScriptRequest(String scriptLang, String id) {
-        this.scriptLang = scriptLang;
+    public DeleteStoredScriptRequest(String id) {
+        super();
+
         this.id = id;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (id == null) {
-            validationException = addValidationError("id is missing", validationException);
+
+        if (id == null || id.isEmpty()) {
+            validationException = addValidationError("must specify id for stored script", validationException);
         } else if (id.contains("#")) {
-            validationException = addValidationError("id can't contain: '#'", validationException);
+            validationException = addValidationError("id cannot contain '#' for stored script", validationException);
         }
-        if (scriptLang == null) {
-            validationException = addValidationError("lang is missing", validationException);
-        } else if (scriptLang.contains("#")) {
-            validationException = addValidationError("lang can't contain: '#'", validationException);
-        }
+
         return validationException;
-    }
-
-    public String scriptLang() {
-        return scriptLang;
-    }
-
-    public DeleteStoredScriptRequest scriptLang(String type) {
-        this.scriptLang = type;
-        return this;
     }
 
     public String id() {
@@ -72,25 +62,34 @@ public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredS
 
     public DeleteStoredScriptRequest id(String id) {
         this.id = id;
+
         return this;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        scriptLang = in.readString();
+
+        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
+            in.readString(); // read lang from previous versions
+        }
+
         id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(scriptLang);
+
+        if (out.getVersion().before(Version.V_6_0_0_alpha2)) {
+            out.writeString(""); // write an empty lang to previous versions
+        }
+
         out.writeString(id);
     }
 
     @Override
     public String toString() {
-        return "delete script {[" + scriptLang + "][" + id + "]}";
+        return "delete stored script {id [" + id + "]}";
     }
 }

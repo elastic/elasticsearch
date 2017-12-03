@@ -19,10 +19,11 @@
 
 package org.elasticsearch.cluster.block;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
@@ -31,7 +32,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Locale;
 
-public class ClusterBlock implements Streamable, ToXContent {
+public class ClusterBlock implements Streamable, ToXContentFragment {
 
     private int id;
 
@@ -43,18 +44,22 @@ public class ClusterBlock implements Streamable, ToXContent {
 
     private boolean disableStatePersistence = false;
 
+    private boolean allowReleaseResources;
+
     private RestStatus status;
 
     ClusterBlock() {
     }
 
-    public ClusterBlock(int id, String description, boolean retryable, boolean disableStatePersistence, RestStatus status, EnumSet<ClusterBlockLevel> levels) {
+    public ClusterBlock(int id, String description, boolean retryable, boolean disableStatePersistence, boolean allowReleaseResources, RestStatus status,
+                        EnumSet<ClusterBlockLevel> levels) {
         this.id = id;
         this.description = description;
         this.retryable = retryable;
         this.disableStatePersistence = disableStatePersistence;
         this.status = status;
         this.levels = levels;
+        this.allowReleaseResources = allowReleaseResources;
     }
 
     public int id() {
@@ -125,14 +130,19 @@ public class ClusterBlock implements Streamable, ToXContent {
         id = in.readVInt();
         description = in.readString();
         final int len = in.readVInt();
-        ArrayList<ClusterBlockLevel> levels = new ArrayList<>();
+        ArrayList<ClusterBlockLevel> levels = new ArrayList<>(len);
         for (int i = 0; i < len; i++) {
-            levels.add(ClusterBlockLevel.fromId(in.readVInt()));
+            levels.add(in.readEnum(ClusterBlockLevel.class));
         }
         this.levels = EnumSet.copyOf(levels);
         retryable = in.readBoolean();
         disableStatePersistence = in.readBoolean();
         status = RestStatus.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
+            allowReleaseResources = in.readBoolean();
+        } else {
+            allowReleaseResources = false;
+        }
     }
 
     @Override
@@ -141,11 +151,14 @@ public class ClusterBlock implements Streamable, ToXContent {
         out.writeString(description);
         out.writeVInt(levels.size());
         for (ClusterBlockLevel level : levels) {
-            out.writeVInt(level.id());
+            out.writeEnum(level);
         }
         out.writeBoolean(retryable);
         out.writeBoolean(disableStatePersistence);
         RestStatus.writeTo(out, status);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
+            out.writeBoolean(allowReleaseResources);
+        }
     }
 
     @Override
@@ -175,5 +188,9 @@ public class ClusterBlock implements Streamable, ToXContent {
     @Override
     public int hashCode() {
         return id;
+    }
+
+    public boolean isAllowReleaseResources() {
+        return allowReleaseResources;
     }
 }

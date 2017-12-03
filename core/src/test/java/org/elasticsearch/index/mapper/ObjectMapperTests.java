@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -48,7 +49,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            defaultMapper.parse("test", "type", "1", new BytesArray(" {\n" +
+            defaultMapper.parse(SourceToParse.source("test", "type", "1", new BytesArray(" {\n" +
                 "      \"object\": {\n" +
                 "        \"array\":[\n" +
                 "        {\n" +
@@ -60,7 +61,8 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                 "        ]\n" +
                 "      },\n" +
                 "      \"value\":\"value\"\n" +
-                "    }"));
+                "    }"),
+                    XContentType.JSON));
         });
         assertTrue(e.getMessage(), e.getMessage().contains("different type"));
     }
@@ -180,15 +182,12 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
-        assertNull(mapper.root().includeInAll());
         assertNull(mapper.root().dynamic());
         String update = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
-                    .field("include_in_all", false)
                     .field("dynamic", "strict")
                 .endObject().endObject().string();
         mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.MAPPING_UPDATE, false);
-        assertFalse(mapper.root().includeInAll());
         assertEquals(Dynamic.STRICT, mapper.root().dynamic());
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.Assertions;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.EngineException;
 
@@ -35,9 +36,7 @@ public class ReleasableLock implements Releasable {
 
     public ReleasableLock(Lock lock) {
         this.lock = lock;
-        boolean useHoldingThreads = false;
-        assert (useHoldingThreads = true);
-        if (useHoldingThreads) {
+        if (Assertions.ENABLED) {
             holdingThreads = new ThreadLocal<>();
         } else {
             holdingThreads = null;

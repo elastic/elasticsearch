@@ -32,7 +32,7 @@ public class DeleteIndexTemplateResponse extends AcknowledgedResponse {
     DeleteIndexTemplateResponse() {
     }
 
-    DeleteIndexTemplateResponse(boolean acknowledged) {
+    protected DeleteIndexTemplateResponse(boolean acknowledged) {
         super(acknowledged);
     }
 

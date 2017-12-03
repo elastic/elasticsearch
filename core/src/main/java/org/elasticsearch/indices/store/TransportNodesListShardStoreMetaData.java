@@ -159,11 +159,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         }
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
-
     public static class StoreFilesMetaData implements Iterable<StoreFileMetaData>, Streamable {
         private ShardId shardId;
         Store.MetadataSnapshot metadataSnapshot;

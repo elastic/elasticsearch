@@ -1,0 +1,396 @@
+[[java-rest-low-usage]]
+== Getting started
+
+This section describes how to get started with the low-level REST client from
+getting the artifact to using it in an application.
+
+[[java-rest-low-javadoc]]
+=== Javadoc
+
+The javadoc for the low level REST client can be found at {rest-client-javadoc}/index.html.
+
+[[java-rest-low-usage-maven]]
+=== Maven Repository
+
+The low-level Java REST client is hosted on
+http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
+Central]. The minimum Java version required is `1.7`.
+
+The low-level REST client is subject to the same release cycle as
+Elasticsearch. Replace the version with the desired client version, first
+released with `5.0.0-alpha4`. There is no relation between the client version
+and the Elasticsearch version that the client can communicate with. The
+low-level REST client is compatible with all Elasticsearch versions.
+
+[[java-rest-low-usage-maven-maven]]
+==== Maven configuration
+
+Here is how you can configure the dependency using maven as a dependency manager.
+Add the following to your `pom.xml` file:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<dependency>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>elasticsearch-rest-client</artifactId>
+    <version>{version}</version>
+</dependency>
+--------------------------------------------------
+
+[[java-rest-low-usage-maven-gradle]]
+==== Gradle configuration
+
+Here is how you can configure the dependency using gradle as a dependency manager.
+Add the following to your `build.gradle` file:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+dependencies {
+    compile 'org.elasticsearch.client:elasticsearch-rest-client:{version}'
+}
+--------------------------------------------------
+
+[[java-rest-low-usage-dependencies]]
+=== Dependencies
+
+The low-level Java REST client internally uses the
+http://hc.apache.org/httpcomponents-asyncclient-dev/[Apache Http Async Client]
+ to send http requests. It depends on the following artifacts, namely the async
+ http client and its own transitive dependencies:
+
+- org.apache.httpcomponents:httpasyncclient
+- org.apache.httpcomponents:httpcore-nio
+- org.apache.httpcomponents:httpclient
+- org.apache.httpcomponents:httpcore
+- commons-codec:commons-codec
+- commons-logging:commons-logging
+
+[[java-rest-low-usage-shading]]
+=== Shading
+
+In order to avoid version conflicts, the dependencies can be shaded and packaged
+within the client in a single JAR file (sometimes called an "uber JAR" or "fat
+JAR"). Shading a dependency consists of taking its content (resources files and
+Java class files) and renaming some of its packages before putting them in the
+same JAR file as the low-level Java REST client. Shading a JAR can be
+accomplished by 3rd-party plugins for Gradle and Maven.
+
+Be advised that shading a JAR also has implications. Shading the Commons Logging
+layer, for instance, means that 3rd-party logging backends need to be shaded as
+well.
+
+[[java-rest-low-usage-shading-maven]]
+==== Maven configuration
+
+Here is a configuration using the Maven
+https://maven.apache.org/plugins/maven-shade-plugin/index.html[Shade]
+plugin. Add the following to your `pom.xml` file:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <version>3.1.0</version>
+            <executions>
+                <execution>
+                    <phase>package</phase>
+                    <goals><goal>shade</goal></goals>
+                    <configuration>
+                        <relocations>
+                            <relocation>
+                                <pattern>org.apache.http</pattern>
+                                <shadedPattern>hidden.org.apache.http</shadedPattern>
+                            </relocation>
+                            <relocation>
+                                <pattern>org.apache.logging</pattern>
+                                <shadedPattern>hidden.org.apache.logging</shadedPattern>
+                            </relocation>
+                            <relocation>
+                                <pattern>org.apache.commons.codec</pattern>
+                                <shadedPattern>hidden.org.apache.commons.codec</shadedPattern>
+                            </relocation>
+                            <relocation>
+                                <pattern>org.apache.commons.logging</pattern>
+                                <shadedPattern>hidden.org.apache.commons.logging</shadedPattern>
+                            </relocation>
+                        </relocations>
+                    </configuration>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
+--------------------------------------------------
+
+[[java-rest-low-usage-shading-gradle]]
+==== Gradle configuration
+
+Here is a configuration using the Gradle
+https://github.com/johnrengelman/shadow[ShadowJar] plugin. Add the following to
+your `build.gradle` file:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+shadowJar {
+    relocate 'org.apache.http', 'hidden.org.apache.http'
+    relocate 'org.apache.logging', 'hidden.org.apache.logging'
+    relocate 'org.apache.commons.codec', 'hidden.org.apache.commons.codec'
+    relocate 'org.apache.commons.logging', 'hidden.org.apache.commons.logging'
+}
+--------------------------------------------------
+
+[[java-rest-low-usage-initialization]]
+=== Initialization
+
+A `RestClient` instance can be built through the corresponding
+`RestClientBuilder` class, created via `RestClient#builder(HttpHost...)`
+static method. The only required argument is one or more hosts that the
+client will communicate with, provided as instances of
+https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpHost.html[HttpHost]
+ as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init]
+--------------------------------------------------
+
+The `RestClient` class is thread-safe and ideally has the same lifecycle as
+the application that uses it. It is important that it gets closed when no
+longer needed so that all the resources used by it get properly released,
+as well as the underlying http client instance and its threads:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-close]
+--------------------------------------------------
+
+`RestClientBuilder` also allows to optionally set the following configuration
+parameters while building the `RestClient` instance:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-default-headers]
+--------------------------------------------------
+<1> Set the default headers that need to be sent with each request, to
+prevent having to specify them with each single request
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-max-retry-timeout]
+--------------------------------------------------
+<1> Set the timeout that should be honoured in case multiple attempts are made
+for the same request. The default value is 30 seconds, same as the default
+socket timeout. In case the socket timeout is customized, the maximum retry
+timeout should be adjusted accordingly
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-failure-listener]
+--------------------------------------------------
+<1> Set a listener that gets notified every time a node fails,  in case actions
+need to be taken. Used internally when sniffing on failure is enabled.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-request-config-callback]
+--------------------------------------------------
+<1> Set a callback that allows to modify the default request configuration
+(e.g. request timeouts, authentication, or anything that the
+https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
+ allows to set)
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client-config-callback]
+--------------------------------------------------
+<1> Set a callback that allows to modify the http client configuration
+(e.g. encrypted communication over ssl, or anything that the
+http://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+ allows to set)
+
+
+[[java-rest-low-usage-requests]]
+=== Performing requests
+
+Once the `RestClient` has been created, requests can be sent by calling one of
+the available `performRequest` or `performRequestAsync` method variants.
+The `performRequest` methods are synchronous and return the `Response` directly,
+meaning that the client will block and wait for a response to be returned.
+The `performRequestAsync` variants return `void` and accept an extra
+`ResponseListener` as an argument instead, meaning that they are executed
+asynchronously. The provided listener will be notified upon request completion
+or failure.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint]
+--------------------------------------------------
+<1> Send a request by providing only the verb and the endpoint, minimum set
+of required arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint-params]
+--------------------------------------------------
+<1> Send a request by providing the verb, the endpoint, and some querystring
+parameter
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint-params-body]
+--------------------------------------------------
+<1> Send a request by providing the verb, the endpoint, optional querystring
+parameters and the request body enclosed in an `org.apache.http.HttpEntity`
+object
+
+IMPORTANT: The `ContentType` specified for the `HttpEntity` is important
+because it will be used to set the `Content-Type` header so that Elasticsearch
+can properly parse the content.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-response-consumer]
+--------------------------------------------------
+<1> Send a request by providing the verb, the endpoint, optional querystring
+parameters, optional request body and the optional factory that is used to
+create an http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
+callback instance per request attempt. Controls how the response body gets
+streamed from a non-blocking HTTP connection on the client side. When not
+provided, the default implementation is used which buffers the whole response
+body in heap memory, up to 100 MB.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint-async]
+--------------------------------------------------
+<1> Define what needs to happen when the request is successfully performed
+<2> Define what needs to happen when the request fails, meaning whenever
+there's a connection error or a response with error status code is returned.
+<3> Send an async request by providing only the verb, the endpoint, and the
+response listener to be notified once the request is completed, minimum set
+of required arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint-params-async]
+--------------------------------------------------
+<1> Send an async request by providing the verb, the endpoint, some querystring
+parameter and the response listener to be notified once the request is completed
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint-params-body-async]
+--------------------------------------------------
+<1> Send an async request by providing the verb, the endpoint, optional
+querystring parameters, the request body enclosed in an
+`org.apache.http.HttpEntity` object and the response listener to be
+notified once the request is completed
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-response-consumer-async]
+--------------------------------------------------
+<1> Send an async request by providing the verb, the endpoint, optional
+querystring parameters, optional request body and the optional factory that is
+used to create an http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
+callback instance per request attempt. Controls how the response body gets
+streamed from a non-blocking HTTP connection on the client side. When not
+provided, the default implementation is used which buffers the whole response
+body in heap memory, up to 100 MB.
+
+The following is a basic example of how async requests can be sent:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-async-example]
+--------------------------------------------------
+<1> Process the returned response
+<2> Handle the returned exception, due to communication error or a response
+with status code that indicates an error
+
+Each of the above listed method supports sending headers along with the
+request through a `Header` varargs argument as in the following examples:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-headers]
+--------------------------------------------------
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-headers-async]
+--------------------------------------------------
+
+[[java-rest-low-usage-responses]]
+=== Reading responses
+
+The `Response` object, either returned by the synchronous `performRequest` methods or
+received as an argument in `ResponseListener#onSuccess(Response)`, wraps the
+response object returned by the http client and exposes some additional information.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-response2]
+--------------------------------------------------
+<1> Information about the performed request
+<2> The host that returned the response
+<3> The response status line, from which you can for instance retrieve the status code
+<4> The response headers, which can also be retrieved by name though `getHeader(String)`
+<5> The response body enclosed in an https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
+ object
+
+When performing a request, an exception is thrown (or received as an argument
+ in `ResponseListener#onFailure(Exception)` in the following scenarios:
+
+`IOException`:: communication problem (e.g. SocketTimeoutException)
+`ResponseException`:: a response was returned, but its status code indicated
+an error (not `2xx`). A `ResponseException` originates from a valid
+http response, hence it exposes its corresponding `Response` object which gives
+access to the returned response.
+
+NOTE: A `ResponseException` is **not** thrown for `HEAD` requests that return
+a `404` status code because it is an expected `HEAD` response that simply
+denotes that the resource is not found. All other HTTP methods (e.g., `GET`)
+throw a `ResponseException` for `404` responses unless the `ignore` parameter
+contains `404`. `ignore` is a special client parameter that doesn't get sent
+to Elasticsearch and contains a comma separated list of error status codes.
+It allows to control whether some error status code should be treated as an
+expected response rather than as an exception. This is useful for instance
+with the get api as it can return `404` when the document is missing, in which
+case the response body will not contain an error but rather the usual get api
+response, just without the document as it was not found.
+
+Note that the low-level client doesn't expose any helper for json marshalling
+and un-marshalling. Users are free to use the library that they prefer for that
+purpose.
+
+The underlying Apache Async Http Client ships with different
+https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
+ implementations that allow to provide the request body in different formats
+(stream, byte array, string etc.). As for reading the response body, the
+`HttpEntity#getContent` method comes handy which returns an `InputStream`
+reading from the previously buffered response body. As an alternative, it is
+possible to provide a custom
+http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
+ that controls how bytes are read and buffered.
+
+[[java-rest-low-usage-logging]]
+=== Logging
+
+The Java REST client uses the same logging library that the Apache Async Http
+Client uses: https://commons.apache.org/proper/commons-logging/[Apache Commons Logging],
+ which comes with support for a number of popular logging implementations. The
+java packages to enable logging for are `org.elasticsearch.client` for the
+client itself and `org.elasticsearch.client.sniffer` for the sniffer.
+
+The request tracer logging can also be enabled to log every request and
+corresponding response in curl format. That comes handy when debugging, for
+instance in case a request needs to be manually executed to check whether it
+still yields the same response as it did. Enable trace logging for the `tracer`
+package to have such log lines printed out. Do note that this type of logging is
+expensive and should not be enabled at all times in production environments,
+but rather temporarily used only when needed.
+

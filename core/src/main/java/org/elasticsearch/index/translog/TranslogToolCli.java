@@ -19,17 +19,14 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 /**
  * Class encapsulating and dispatching commands from the {@code elasticsearch-translog} command line tool
  */
-public class TranslogToolCli extends MultiCommand {
+public class TranslogToolCli extends LoggingAwareMultiCommand {
 
     private TranslogToolCli() {
         super("A CLI tool for various Elasticsearch translog actions");

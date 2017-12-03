@@ -25,8 +25,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
@@ -34,29 +35,21 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
+public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> {
     public static final String NAME = "query";
 
-    public static final float DEFAULT_RESCORE_QUERYWEIGHT = 1.0f;
-    public static final float DEFAULT_QUERYWEIGHT = 1.0f;
-    public static final QueryRescoreMode DEFAULT_SCORE_MODE = QueryRescoreMode.Total;
-    private final QueryBuilder queryBuilder;
-    private float rescoreQueryWeight = DEFAULT_RESCORE_QUERYWEIGHT;
-    private float queryWeight = DEFAULT_QUERYWEIGHT;
-    private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
+    private static final ParseField RESCORE_QUERY_FIELD = new ParseField("rescore_query");
+    private static final ParseField QUERY_WEIGHT_FIELD = new ParseField("query_weight");
+    private static final ParseField RESCORE_QUERY_WEIGHT_FIELD = new ParseField("rescore_query_weight");
+    private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
 
-    private static ParseField RESCORE_QUERY_FIELD = new ParseField("rescore_query");
-    private static ParseField QUERY_WEIGHT_FIELD = new ParseField("query_weight");
-    private static ParseField RESCORE_QUERY_WEIGHT_FIELD = new ParseField("rescore_query_weight");
-    private static ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
-
-    private static final ObjectParser<InnerBuilder, QueryParseContext> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME, null);
-
+    private static final ObjectParser<InnerBuilder, Void> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME, null);
     static {
         QUERY_RESCORE_PARSER.declareObject(InnerBuilder::setQueryBuilder, (p, c) -> {
             try {
-                return c.parseInnerQueryBuilder();
+                return parseInnerQueryBuilder(p);
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner query", e);
             }
@@ -65,6 +58,14 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         QUERY_RESCORE_PARSER.declareFloat(InnerBuilder::setRescoreQueryWeight, RESCORE_QUERY_WEIGHT_FIELD);
         QUERY_RESCORE_PARSER.declareString((struct, value) ->  struct.setScoreMode(QueryRescoreMode.fromString(value)), SCORE_MODE_FIELD);
     }
+
+    public static final float DEFAULT_RESCORE_QUERYWEIGHT = 1.0f;
+    public static final float DEFAULT_QUERYWEIGHT = 1.0f;
+    public static final QueryRescoreMode DEFAULT_SCORE_MODE = QueryRescoreMode.Total;
+    private final QueryBuilder queryBuilder;
+    private float rescoreQueryWeight = DEFAULT_RESCORE_QUERYWEIGHT;
+    private float queryWeight = DEFAULT_QUERYWEIGHT;
+    private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
 
     /**
      * Creates a new {@link QueryRescorerBuilder} instance
@@ -94,6 +95,11 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         scoreMode.writeTo(out);
         out.writeFloat(rescoreQueryWeight);
         out.writeFloat(queryWeight);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     /**
@@ -159,22 +165,19 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         builder.endObject();
     }
 
-    public static QueryRescorerBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        InnerBuilder innerBuilder = QUERY_RESCORE_PARSER.parse(parseContext.parser(), new InnerBuilder(), parseContext);
+    public static QueryRescorerBuilder fromXContent(XContentParser parser) throws IOException {
+        InnerBuilder innerBuilder = QUERY_RESCORE_PARSER.parse(parser, new InnerBuilder(), null);
         return innerBuilder.build();
     }
 
     @Override
-    public QueryRescoreContext build(QueryShardContext context) throws IOException {
-        org.elasticsearch.search.rescore.QueryRescorer rescorer = new org.elasticsearch.search.rescore.QueryRescorer();
-        QueryRescoreContext queryRescoreContext = new QueryRescoreContext(rescorer);
-        queryRescoreContext.setQuery(QueryBuilder.rewriteQuery(this.queryBuilder, context).toQuery(context));
+    public QueryRescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
+        QueryRescoreContext queryRescoreContext = new QueryRescoreContext(windowSize);
+        // query is rewritten at this point already
+        queryRescoreContext.setQuery(queryBuilder.toQuery(context));
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
         queryRescoreContext.setScoreMode(this.scoreMode);
-        if (this.windowSize != null) {
-            queryRescoreContext.setWindowSize(this.windowSize);
-        }
         return queryRescoreContext;
     }
 
@@ -198,11 +201,6 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
                Objects.equals(queryWeight, other.queryWeight) &&
                Objects.equals(rescoreQueryWeight, other.rescoreQueryWeight) &&
                Objects.equals(queryBuilder, other.queryBuilder);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 
     /**
@@ -240,5 +238,14 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         void setScoreMode(QueryRescoreMode scoreMode) {
             this.scoreMode = scoreMode;
         }
+    }
+
+    @Override
+    public QueryRescorerBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        QueryBuilder rewrite = queryBuilder.rewrite(ctx);
+        if (rewrite == queryBuilder) {
+            return this;
+        }
+        return new QueryRescorerBuilder(rewrite);
     }
 }

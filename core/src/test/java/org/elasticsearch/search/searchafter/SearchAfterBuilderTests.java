@@ -19,7 +19,11 @@
 
 package org.elasticsearch.search.searchafter;
 
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
@@ -28,14 +32,16 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.search.searchafter.SearchAfterBuilder.extractSortType;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAfterBuilderTests extends ESTestCase {
     private static final int NUMBER_OF_TESTBUILDERS = 20;
@@ -60,7 +66,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     values[i] = randomDouble();
                     break;
                 case 4:
-                    values[i] = randomAsciiOfLengthBetween(5, 20);
+                    values[i] = randomAlphaOfLengthBetween(5, 20);
                     break;
                 case 5:
                     values[i] = randomBoolean();
@@ -72,7 +78,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     values[i] = randomShort();
                     break;
                 case 8:
-                    values[i] = new Text(randomAsciiOfLengthBetween(5, 20));
+                    values[i] = new Text(randomAlphaOfLengthBetween(5, 20));
                     break;
                 case 9:
                     values[i] = null;
@@ -108,7 +114,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     jsonBuilder.value(randomDouble());
                     break;
                 case 4:
-                    jsonBuilder.value(randomAsciiOfLengthBetween(5, 20));
+                    jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
                     break;
                 case 5:
                     jsonBuilder.value(randomBoolean());
@@ -120,7 +126,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     jsonBuilder.value(randomShort());
                     break;
                 case 8:
-                    jsonBuilder.value(new Text(randomAsciiOfLengthBetween(5, 20)));
+                    jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
                     break;
                 case 9:
                     jsonBuilder.nullValue();
@@ -133,7 +139,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
-        return SearchAfterBuilder.fromXContent(parser, null);
+        return SearchAfterBuilder.fromXContent(parser);
     }
 
     private static SearchAfterBuilder serializedCopy(SearchAfterBuilder original) throws IOException {
@@ -168,11 +174,10 @@ public class SearchAfterBuilderTests extends ESTestCase {
             searchAfterBuilder.innerToXContent(builder);
             builder.endObject();
             XContentParser parser = createParser(shuffleXContent(builder));
-            new QueryParseContext(parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();
-            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser, null);
+            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
             assertNotSame(searchAfterBuilder, secondSearchAfterBuilder);
             assertEquals(searchAfterBuilder, secondSearchAfterBuilder);
             assertEquals(searchAfterBuilder.hashCode(), secondSearchAfterBuilder.hashCode());
@@ -185,7 +190,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             builder.setSortValues(null);
             fail("Should fail on null array.");
         } catch (NullPointerException e) {
-            assertThat(e.getMessage(), Matchers.equalTo("Values cannot be null."));
+            assertThat(e.getMessage(), equalTo("Values cannot be null."));
         }
     }
 
@@ -195,7 +200,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             builder.setSortValues(new Object[0]);
             fail("Should fail on empty array.");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), Matchers.equalTo("Values must contains at least one value."));
+            assertThat(e.getMessage(), equalTo("Values must contains at least one value."));
         }
     }
 
@@ -217,5 +222,30 @@ public class SearchAfterBuilderTests extends ESTestCase {
         values[between(0, values.length - 1)] = containing;
         Exception e = expectThrows(IllegalArgumentException.class, () -> builder.setSortValues(values));
         assertEquals(e.getMessage(), "Can't handle search_after field value of type [" + containing.getClass() + "]");
+    }
+
+    public void testExtractSortType() throws Exception {
+        SortField.Type type = extractSortType(LatLonDocValuesField.newDistanceSort("field", 0.0, 180.0));
+        assertThat(type, equalTo(SortField.Type.DOUBLE));
+        IndexFieldData.XFieldComparatorSource source = new IndexFieldData.XFieldComparatorSource(null, MultiValueMode.MIN, null) {
+            @Override
+            public SortField.Type reducedType() {
+                return SortField.Type.STRING;
+            }
+
+            @Override
+            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+                return null;
+            }
+        };
+
+        type = extractSortType(new SortField("field", source));
+        assertThat(type, equalTo(SortField.Type.STRING));
+
+        type = extractSortType(new SortedNumericSortField("field", SortField.Type.DOUBLE));
+        assertThat(type, equalTo(SortField.Type.DOUBLE));
+
+        type = extractSortType(new SortedSetSortField("field", false));
+        assertThat(type, equalTo(SortField.Type.STRING));
     }
 }

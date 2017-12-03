@@ -25,14 +25,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -40,19 +38,18 @@ import java.util.Objects;
 
 public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<ReverseNestedAggregationBuilder> {
     public static final String NAME = "reverse_nested";
-    private static final Type TYPE = new Type(NAME);
 
     private String path;
 
     public ReverseNestedAggregationBuilder(String name) {
-        super(name, TYPE);
+        super(name);
     }
 
     /**
      * Read from a stream.
      */
     public ReverseNestedAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE);
+        super(in);
         path = in.readOptionalString();
     }
 
@@ -93,7 +90,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         if (path != null) {
             parentObjectMapper = context.getObjectMapper(path);
             if (parentObjectMapper == null) {
-                return new ReverseNestedAggregatorFactory(name, type, true, null, context, parent, subFactoriesBuilder, metaData);
+                return new ReverseNestedAggregatorFactory(name, true, null, context, parent, subFactoriesBuilder, metaData);
             }
             if (parentObjectMapper.nested().isNested() == false) {
                 throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
@@ -103,7 +100,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         NestedScope nestedScope = context.getQueryShardContext().nestedScope();
         try {
             nestedScope.nextLevel(parentObjectMapper);
-            return new ReverseNestedAggregatorFactory(name, type, false, parentObjectMapper, context, parent, subFactoriesBuilder,
+            return new ReverseNestedAggregatorFactory(name, false, parentObjectMapper, context, parent, subFactoriesBuilder,
                     metaData);
         } finally {
             nestedScope.previousLevel();
@@ -130,12 +127,11 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         return builder;
     }
 
-    public static ReverseNestedAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+    public static ReverseNestedAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         String path = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
-        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -172,7 +168,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

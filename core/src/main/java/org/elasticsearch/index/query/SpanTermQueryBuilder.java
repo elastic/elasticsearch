@@ -91,8 +91,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
         return new SpanTermQuery(term);
     }
 
-    public static SpanTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
-        XContentParser parser = parseContext.parser();
+    public static SpanTermQueryBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         String fieldName = null;
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

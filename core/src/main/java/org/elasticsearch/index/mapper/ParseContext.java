@@ -22,14 +22,11 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -255,18 +252,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public SeqNoFieldMapper.SequenceID seqID() {
+        public SeqNoFieldMapper.SequenceIDFields seqID() {
             return in.seqID();
         }
 
         @Override
-        public void seqID(SeqNoFieldMapper.SequenceID seqID) {
+        public void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
             in.seqID(seqID);
-        }
-
-        @Override
-        public AllEntries allEntries() {
-            return in.allEntries();
         }
 
         @Override
@@ -311,9 +303,12 @@ public abstract class ParseContext {
 
         private Field version;
 
-        private SeqNoFieldMapper.SequenceID seqID;
+        private SeqNoFieldMapper.SequenceIDFields seqID;
 
-        private final AllEntries allEntries;
+        private final long maxAllowedNumNestedDocs;
+
+        private long numNestedDocs;
+
 
         private final List<Mapper> dynamicMappers;
 
@@ -329,8 +324,9 @@ public abstract class ParseContext {
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
-            this.allEntries = new AllEntries();
             this.dynamicMappers = new ArrayList<>();
+            this.maxAllowedNumNestedDocs = MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.get(indexSettings);
+            this.numNestedDocs = 0L;
         }
 
         @Override
@@ -376,6 +372,13 @@ public abstract class ParseContext {
 
         @Override
         protected void addDoc(Document doc) {
+            numNestedDocs ++;
+            if (numNestedDocs > maxAllowedNumNestedDocs) {
+                throw new MapperParsingException(
+                    "The number of nested documents has exceeded the allowed limit of [" + maxAllowedNumNestedDocs + "]."
+                        + " This limit can be set by changing the [" + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
+                        + "] index level setting.");
+            }
             this.documents.add(doc);
         }
 
@@ -405,18 +408,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public SeqNoFieldMapper.SequenceID seqID() {
+        public SeqNoFieldMapper.SequenceIDFields seqID() {
             return this.seqID;
         }
 
         @Override
-        public void seqID(SeqNoFieldMapper.SequenceID seqID) {
+        public void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
             this.seqID = seqID;
-        }
-
-        @Override
-        public AllEntries allEntries() {
-            return this.allEntries;
         }
 
         @Override
@@ -431,22 +429,6 @@ public abstract class ParseContext {
     }
 
     public abstract DocumentMapperParser docMapperParser();
-
-    /** Return a view of this {@link ParseContext} that changes the return
-     *  value of {@link #getIncludeInAllDefault()}. */
-    public final ParseContext setIncludeInAllDefault(boolean includeInAll) {
-        return new FilterParseContext(this) {
-            @Override
-            public Boolean getIncludeInAllDefault() {
-                return includeInAll;
-            }
-        };
-    }
-
-    /** Whether field values should be added to the _all field by default. */
-    public Boolean getIncludeInAllDefault() {
-        return null;
-    }
 
     /**
      * Return a new context that will be within a copy-to operation.
@@ -540,40 +522,9 @@ public abstract class ParseContext {
 
     public abstract void version(Field version);
 
-    public abstract SeqNoFieldMapper.SequenceID seqID();
+    public abstract SeqNoFieldMapper.SequenceIDFields seqID();
 
-    public abstract void seqID(SeqNoFieldMapper.SequenceID seqID);
-
-    public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);
-    }
-
-    /**
-     * Is all included or not. Will always disable it if {@link org.elasticsearch.index.mapper.AllFieldMapper#enabled()}
-     * is <tt>false</tt>. If its enabled, then will return <tt>true</tt> only if the specific flag is <tt>null</tt> or
-     * its actual value (so, if not set, defaults to "true") and the field is indexed.
-     */
-    private boolean includeInAll(Boolean includeInAll, boolean indexed) {
-        if (isWithinCopyTo()) {
-            return false;
-        }
-        if (isWithinMultiFields()) {
-            return false;
-        }
-        if (!docMapper().allFieldMapper().enabled()) {
-            return false;
-        }
-        if (includeInAll == null) {
-            includeInAll = getIncludeInAllDefault();
-        }
-        // not explicitly set
-        if (includeInAll == null) {
-            return indexed;
-        }
-        return includeInAll;
-    }
-
-    public abstract AllEntries allEntries();
+    public abstract void seqID(SeqNoFieldMapper.SequenceIDFields seqID);
 
     /**
      * Return a new context that will have the external value set.

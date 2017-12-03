@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -54,7 +54,7 @@ public class LaplaceModelTests extends SmoothingModelTestCase {
     }
 
     @Override
-    protected SmoothingModel fromXContent(QueryParseContext context) throws IOException {
-        return Laplace.innerFromXContent(context);
+    protected SmoothingModel fromXContent(XContentParser parser) throws IOException {
+        return Laplace.fromXContent(parser);
     }
 }

@@ -142,30 +142,6 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         } catch (RepositoryException ex) {
             assertThat(ex.toString(), containsString("location [" + location + "] doesn't match any of the locations specified by path.repo"));
         }
-
-        String repoUrl = invalidRepoPath.toAbsolutePath().toUri().toURL().toString();
-        String unsupportedUrl = repoUrl.replace("file:/", "netdoc:/");
-        logger.info("--> trying creating url repository with unsupported url protocol");
-        try {
-            client().admin().cluster().preparePutRepository("test-repo")
-                    .setType("url").setSettings(Settings.builder().put("url", unsupportedUrl))
-                    .get();
-            fail("Shouldn't be here");
-        } catch (RepositoryException ex) {
-            assertThat(ex.toString(),
-                either(containsString("unsupported url protocol [netdoc]"))
-                    .or(containsString("unknown protocol: netdoc"))); // newer versions of JDK 9
-        }
-
-        logger.info("--> trying creating url repository with location that is not registered in path.repo setting");
-        try {
-            client().admin().cluster().preparePutRepository("test-repo")
-                    .setType("url").setSettings(Settings.builder().put("url", invalidRepoPath.toUri().toURL()))
-                    .get();
-            fail("Shouldn't be here");
-        } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("doesn't match any of the locations specified by path.repo"));
-        }
     }
 
     public void testRepositoryAckTimeout() throws Exception {
@@ -231,39 +207,4 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             assertThat(ex.getMessage(), containsString("is not shared"));
         }
     }
-
-    public void testRepositoryVerificationTimeout() throws Exception {
-        Client client = client();
-
-        Settings settings = Settings.builder()
-                .put("location", randomRepoPath())
-                .put("random_control_io_exception_rate", 1.0).build();
-        logger.info("-->  creating repository that cannot write any files - should fail");
-        assertThrows(client.admin().cluster().preparePutRepository("test-repo-1")
-                        .setType("mock").setSettings(settings),
-                RepositoryVerificationException.class);
-
-        logger.info("-->  creating repository that cannot write any files, but suppress verification - should be acked");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo-1")
-                .setType("mock").setSettings(settings).setVerify(false));
-
-        logger.info("-->  verifying repository");
-        assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
-
-        Path location = randomRepoPath();
-
-        logger.info("-->  creating repository");
-        try {
-            client.admin().cluster().preparePutRepository("test-repo-1")
-                    .setType("mock")
-                    .setSettings(Settings.builder()
-                                    .put("location", location)
-                                    .put("localize_location", true)
-                    ).get();
-            fail("RepositoryVerificationException wasn't generated");
-        } catch (RepositoryVerificationException ex) {
-            assertThat(ex.getMessage(), containsString("is not shared"));
-        }
-    }
-
 }

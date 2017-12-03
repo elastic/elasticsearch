@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -480,9 +481,9 @@ public class BucketScriptIT extends ESIntegTestCase {
     public void testStoredScript() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my_script")
-                .setScriptLang(CustomScriptPlugin.NAME)
                 // Script source is not interpreted but it references a pre-defined script from CustomScriptPlugin
-                .setSource(new BytesArray("{ \"script\": \"my_script\" }")));
+                .setContent(new BytesArray("{ \"script\": {\"lang\": \"" + CustomScriptPlugin.NAME + "\"," +
+                    " \"source\": \"my_script\" } }"), XContentType.JSON));
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -495,7 +496,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic",
-                                                new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "my_script", Collections.emptyMap()),
+                                                new Script(ScriptType.STORED, null, "my_script", Collections.emptyMap()),
                                                 "field2Sum", "field3Sum", "field4Sum"))).execute().actionGet();
 
         assertSearchResponse(response);

@@ -18,25 +18,38 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.TypeMissingException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
 
     public void testConflictingDynamicMappings() {
         // we don't use indexRandom because the order of requests is important here
@@ -71,7 +84,22 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testMappingsPropagatedToMasterNodeImmediately() throws IOException {
-        createIndex("index");
+        assertAcked(prepareCreate("index"));
+
+        // works when the type has been dynamically created
+        client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
+        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
+        assertMappingsHaveField(mappings, "index", "type", "foo");
+
+        // works if the type already existed
+        client().prepareIndex("index", "type", "1").setSource("bar", "baz").get();
+        mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
+        assertMappingsHaveField(mappings, "index", "type", "bar");
+    }
+
+    public void testMappingsPropagatedToMasterNodeImmediatelyMultiType() throws IOException {
+        assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
+        // allows for multiple types
 
         // works when the type has been dynamically created
         client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
@@ -126,27 +154,4 @@ public class DynamicMappingIT extends ESIntegTestCase {
             assertTrue(client().prepareGet("index", "type", Integer.toString(i)).get().isExists());
         }
     }
-
-    public void testAutoCreateWithDisabledDynamicMappings() throws Exception {
-        assertAcked(client().admin().indices().preparePutTemplate("my_template")
-            .setCreate(true)
-            .setPatterns(Collections.singletonList("index_*"))
-            .addMapping("foo", "field", "type=keyword")
-            .setSettings(Settings.builder().put("index.mapper.dynamic", false).build())
-            .get());
-
-        // succeeds since 'foo' has an explicit mapping in the template
-        indexRandom(true, false, client().prepareIndex("index_1", "foo", "1").setSource("field", "abc"));
-
-        // fails since 'bar' does not have an explicit mapping in the template and dynamic template creation is disabled
-        TypeMissingException e1 = expectThrows(TypeMissingException.class,
-                () -> client().prepareIndex("index_2", "bar", "1").setSource("field", "abc").get());
-        assertEquals("type[bar] missing", e1.getMessage());
-        assertEquals("trying to auto create mapping, but dynamic mapping is disabled", e1.getCause().getMessage());
-
-        // make sure no mappings were created for bar
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("index_2").get();
-        assertFalse(getIndexResponse.mappings().containsKey("bar"));
-    }
-
 }

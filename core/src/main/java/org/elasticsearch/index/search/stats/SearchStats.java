@@ -19,23 +19,23 @@
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SearchStats extends ToXContentToBytes implements Streamable {
+public class SearchStats implements Streamable, ToXContentFragment {
 
-    public static class Stats implements Streamable, ToXContent {
+    public static class Stats implements Streamable, ToXContentFragment {
 
         private long queryCount;
         private long queryTimeInMillis;
@@ -315,6 +315,11 @@ public class SearchStats extends ToXContentToBytes implements Streamable {
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 
     static final class Fields {

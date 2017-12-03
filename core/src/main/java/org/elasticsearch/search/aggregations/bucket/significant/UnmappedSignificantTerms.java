@@ -31,19 +31,22 @@ import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
 
 /**
  * Result of the running the significant terms aggregation on an unmapped field.
  */
 public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedSignificantTerms, UnmappedSignificantTerms.Bucket> {
+
     public static final String NAME = "umsigterms";
 
     /**
-     * Concrete type that can't be built because Java needs a concrent type so {@link InternalTerms.Bucket} can have a self type but
+     * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
      */
     protected abstract static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
@@ -76,6 +79,11 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
+    public String getType() {
+        return SignificantStringTerms.NAME;
+    }
+
+    @Override
     public UnmappedSignificantTerms create(List<Bucket> buckets) {
         return new UnmappedSignificantTerms(name, requiredSize, minDocCount, pipelineAggregators(), metaData);
     }
@@ -102,7 +110,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(CommonFields.BUCKETS).endArray();
+        builder.startArray(CommonFields.BUCKETS.getPreferredName()).endArray();
         return builder;
     }
 
@@ -112,7 +120,12 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    protected List<Bucket> getBucketsInternal() {
+    public Iterator<SignificantTerms.Bucket> iterator() {
+        return emptyIterator();
+    }
+
+    @Override
+    public List<Bucket> getBuckets() {
         return emptyList();
     }
 

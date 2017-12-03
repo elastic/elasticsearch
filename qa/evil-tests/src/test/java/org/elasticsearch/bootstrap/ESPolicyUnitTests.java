@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.FilePermission;
@@ -44,6 +45,7 @@ public class ESPolicyUnitTests extends ESTestCase {
      * even though ProtectionDomain's ctor javadocs might make you think
      * that the policy won't be consulted.
      */
+    @SuppressForbidden(reason = "to create FilePermission object")
     public void testNullCodeSource() throws Exception {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         // create a policy with AllPermission
@@ -61,6 +63,7 @@ public class ESPolicyUnitTests extends ESTestCase {
      * <p>
      * its unclear when/if this happens, see https://bugs.openjdk.java.net/browse/JDK-8129972
      */
+    @SuppressForbidden(reason = "to create FilePermission object")
     public void testNullLocation() throws Exception {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();

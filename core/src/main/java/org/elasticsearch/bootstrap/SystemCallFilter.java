@@ -154,7 +154,7 @@ final class SystemCallFilter {
         public short   len;           // number of filters
         public Pointer filter;        // filters
 
-        public SockFProg(SockFilter filters[]) {
+        SockFProg(SockFilter filters[]) {
             len = (short) filters.length;
             // serialize struct sock_filter * explicitly, its less confusing than the JNA magic we would need
             Memory filter = new Memory(len * 8);
@@ -199,7 +199,6 @@ final class SystemCallFilter {
     static final int SECCOMP_RET_ALLOW = 0x7FFF0000;
 
     // some errno constants for error checking/handling
-    static final int EPERM  = 0x01;
     static final int EACCES = 0x0D;
     static final int EFAULT = 0x0E;
     static final int EINVAL = 0x16;
@@ -242,7 +241,7 @@ final class SystemCallFilter {
     static {
         Map<String,Arch> m = new HashMap<>();
         m.put("amd64", new Arch(0xC000003E, 0x3FFFFFFF, 57, 58, 59, 322, 317));
-        m.put("i386",  new Arch(0x40000003, 0xFFFFFFFF, 2, 190, 11, 358, 354));
+        m.put("aarch64",  new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277));
         ARCHITECTURES = Collections.unmodifiableMap(m);
     }
 
@@ -270,27 +269,6 @@ final class SystemCallFilter {
         if (linux_libc == null) {
             throw new UnsupportedOperationException("seccomp unavailable: could not link methods. requires kernel 3.5+ " +
                 "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
-        }
-
-        // pure paranoia:
-
-        // check that unimplemented syscalls actually return ENOSYS
-        // you never know (e.g. https://code.google.com/p/chromium/issues/detail?id=439795)
-        if (linux_syscall(999) >= 0) {
-            throw new UnsupportedOperationException("seccomp unavailable: your kernel is buggy and you should upgrade");
-        }
-
-        switch (Native.getLastError()) {
-            case ENOSYS:
-                break; // ok
-            case EPERM:
-                // NOT ok, but likely a docker container
-                if (logger.isDebugEnabled()) {
-                    logger.debug("syscall(BOGUS) bogusly gets EPERM instead of ENOSYS");
-                }
-                break;
-            default:
-                throw new UnsupportedOperationException("seccomp unavailable: your kernel is buggy and you should upgrade");
         }
 
         // try to check system calls really are who they claim

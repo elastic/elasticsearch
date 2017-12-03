@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -44,9 +43,8 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public final BucketMetricsPipelineAggregationBuilder<?> parse(String pipelineAggregatorName, QueryParseContext context)
+    public final BucketMetricsPipelineAggregationBuilder<?> parse(String pipelineAggregatorName, XContentParser parser)
             throws IOException {
-        XContentParser parser = context.parser();
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -63,9 +61,9 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                 } else if (BUCKETS_PATH.match(currentFieldName)) {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY.match(currentFieldName)) {
-                    gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
+                    gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
                 } else {
-                    parseToken(pipelineAggregatorName, parser, context, currentFieldName, token, params);
+                    parseToken(pipelineAggregatorName, parser, currentFieldName, token, params);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (BUCKETS_PATH.match(currentFieldName)) {
@@ -76,10 +74,10 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                     }
                     bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
-                    parseToken(pipelineAggregatorName, parser, context, currentFieldName, token, params);
+                    parseToken(pipelineAggregatorName, parser, currentFieldName, token, params);
                 }
             } else {
-                parseToken(pipelineAggregatorName, parser, context, currentFieldName, token, params);
+                parseToken(pipelineAggregatorName, parser, currentFieldName, token, params);
             }
         }
 
@@ -104,14 +102,14 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
     protected abstract BucketMetricsPipelineAggregationBuilder<?> buildFactory(String pipelineAggregatorName, String bucketsPaths,
                                                                               Map<String, Object> params);
 
-    protected boolean token(XContentParser parser, QueryParseContext context, String field,
+    protected boolean token(XContentParser parser, String field,
                             XContentParser.Token token, Map<String, Object> params) throws IOException {
         return false;
     }
 
-    private void parseToken(String aggregationName, XContentParser parser, QueryParseContext context, String currentFieldName,
+    private void parseToken(String aggregationName, XContentParser parser, String currentFieldName,
                        XContentParser.Token currentToken, Map<String, Object> params) throws IOException {
-        if (token(parser, context, currentFieldName, currentToken, params) == false) {
+        if (token(parser, currentFieldName, currentToken, params) == false) {
             throw new ParsingException(parser.getTokenLocation(),
                 "Unexpected token " + currentToken + " [" + currentFieldName + "] in [" + aggregationName + "]");
         }

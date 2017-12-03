@@ -66,13 +66,13 @@ public final class Location {
         return exception;
     }
 
-    // This maximum length is theoretically 65535 bytes, but as it's CESU-8 encoded we dont know how large it is in bytes, so be safe
+    // This maximum length is theoretically 65535 bytes, but as it's CESU-8 encoded we don't know how large it is in bytes, so be safe
     private static final int MAX_NAME_LENGTH = 256;
     
     /** Computes the file name (mostly important for stacktraces) */
     public static String computeSourceName(String scriptName, String source) {
         StringBuilder fileName = new StringBuilder();
-        if (scriptName.equals(PainlessScriptEngineService.INLINE_NAME)) {
+        if (scriptName.equals(PainlessScriptEngine.INLINE_NAME)) {
             // its an anonymous script, include at least a portion of the source to help identify which one it is
             // but don't create stacktraces with filenames that contain newlines or huge names.
 

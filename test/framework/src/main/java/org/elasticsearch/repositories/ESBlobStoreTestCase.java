@@ -36,7 +36,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public abstract class ESBlobStoreTestCase extends ESTestCase {
 
     public void testContainerCreationAndDeletion() throws IOException {
-        try(final BlobStore store = newBlobStore()) {
+        try(BlobStore store = newBlobStore()) {
             final BlobContainer containerFoo = store.blobContainer(new BlobPath().add("foo"));
             final BlobContainer containerBar = store.blobContainer(new BlobPath().add("bar"));
             byte[] data1 = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
@@ -78,7 +78,7 @@ public abstract class ESBlobStoreTestCase extends ESTestCase {
         return data;
     }
 
-    private static void writeBlob(BlobContainer container, String blobName, BytesArray bytesArray) throws IOException {
+    protected static void writeBlob(BlobContainer container, String blobName, BytesArray bytesArray) throws IOException {
         try (InputStream stream = bytesArray.streamInput()) {
             container.writeBlob(blobName, stream, bytesArray.length());
         }

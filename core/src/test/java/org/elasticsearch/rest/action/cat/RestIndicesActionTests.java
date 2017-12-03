@@ -58,6 +58,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -74,14 +75,15 @@ public class RestIndicesActionTests extends ESTestCase {
 
     public void testBuildTable() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings, Collections.emptySet(), null);
+        UsageService usageService = new UsageService(settings);
+        final RestController restController = new RestController(settings, Collections.emptySet(), null, null, null, usageService);
         final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver(settings));
 
         // build a (semi-)random table
         final int numIndices = randomIntBetween(0, 5);
         Index[] indices = new Index[numIndices];
         for (int i = 0; i < numIndices; i++) {
-            indices[i] = new Index(randomAsciiOfLength(5), UUIDs.randomBase64UUID());
+            indices[i] = new Index(randomAlphaOfLength(5), UUIDs.randomBase64UUID());
         }
 
         final MetaData.Builder metaDataBuilder = MetaData.builder();
@@ -134,11 +136,14 @@ public class RestIndicesActionTests extends ESTestCase {
     private IndicesStatsResponse randomIndicesStatsResponse(final Index[] indices) {
         List<ShardStats> shardStats = new ArrayList<>();
         for (final Index index : indices) {
-            for (int i = 0; i < 2; i++) {
+            int numShards = randomInt(5);
+            int primaryIdx = randomIntBetween(-1, numShards - 1); // -1 means there is no primary shard.
+            for (int i = 0; i < numShards; i++) {
                 ShardId shardId = new ShardId(index, i);
+                boolean primary = (i == primaryIdx);
                 Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(i));
-                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, i == 0,
-                    i == 0 ? StoreRecoverySource.EMPTY_STORE_INSTANCE : PeerRecoverySource.INSTANCE,
+                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,
+                    primary ? StoreRecoverySource.EMPTY_STORE_INSTANCE : PeerRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
                     );
                 shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

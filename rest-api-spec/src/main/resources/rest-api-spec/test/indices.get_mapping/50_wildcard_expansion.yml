@@ -1,0 +1,117 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test-xxx
+          body:
+            settings:
+              index:
+                number_of_replicas: 0
+            mappings:
+              type_1: {}
+  - do:
+        indices.create:
+          index: test-xxy
+          body:
+            settings:
+              index:
+                number_of_replicas: 0
+            mappings:
+              type_2: {}
+  - do:
+        indices.create:
+          index: test-xyy
+          body:
+            settings:
+              index:
+                number_of_replicas: 0
+            mappings:
+              type_3: {}
+  - do:
+        indices.create:
+          index: test-yyy
+          body:
+            settings:
+              index:
+                number_of_replicas: 0
+            mappings:
+              type_4: {}
+
+  - do:
+        cluster.health:
+            wait_for_status: green
+
+  - do:
+      indices.close:
+        index: test-xyy
+
+  - do:
+        cluster.health:
+            wait_for_status: green
+
+---
+"Get test-* with defaults":
+
+ - do:
+    indices.get_mapping:
+        index: test-x*
+
+ - is_true: test-xxx.mappings.type_1
+ - is_true: test-xxy.mappings.type_2
+
+---
+"Get test-* with wildcard_expansion=all":
+
+ - do:
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: all
+
+ - is_true: test-xxx.mappings.type_1
+ - is_true: test-xxy.mappings.type_2
+ - is_true: test-xyy.mappings.type_3
+
+---
+"Get test-* with wildcard_expansion=open":
+
+ - do:
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: open
+
+ - is_true: test-xxx.mappings.type_1
+ - is_true: test-xxy.mappings.type_2
+
+---
+"Get test-* with wildcard_expansion=closed":
+
+ - do:
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: closed
+
+ - is_true: test-xyy.mappings.type_3
+
+---
+"Get test-* with wildcard_expansion=none":
+ - skip:
+    version: " - 5.99.99"
+    reason:  this was a breaking change in 6.0
+
+ - do:
+    catch: missing
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: none
+
+---
+"Get test-* with wildcard_expansion=open,closed":
+
+ - do:
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: open,closed
+
+ - is_true: test-xxx.mappings.type_1
+ - is_true: test-xxy.mappings.type_2
+ - is_true: test-xyy.mappings.type_3

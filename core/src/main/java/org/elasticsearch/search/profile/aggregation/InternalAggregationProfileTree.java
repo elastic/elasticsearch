@@ -32,10 +32,16 @@ public class InternalAggregationProfileTree extends AbstractInternalProfileTree<
 
     @Override
     protected String getTypeFromElement(Aggregator element) {
-        if (element instanceof MultiBucketAggregatorWrapper) {
-            return ((MultiBucketAggregatorWrapper) element).getWrappedClass().getName();
+
+        // Anonymous classes (such as NonCollectingAggregator in TermsAgg) won't have a name,
+        // we need to get the super class
+        if (element.getClass().getSimpleName().isEmpty() == true) {
+            return element.getClass().getSuperclass().getSimpleName();
         }
-        return element.getClass().getName();
+        if (element instanceof MultiBucketAggregatorWrapper) {
+            return ((MultiBucketAggregatorWrapper) element).getWrappedClass().getSimpleName();
+        }
+        return element.getClass().getSimpleName();
     }
 
     @Override

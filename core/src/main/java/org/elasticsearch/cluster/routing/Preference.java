@@ -40,26 +40,6 @@ public enum  Preference {
     LOCAL("_local"),
 
     /**
-     * Route to primary shards
-     */
-    PRIMARY("_primary"),
-
-    /**
-     * Route to replica shards
-     */
-    REPLICA("_replica"),
-
-    /**
-     * Route to primary shards first
-     */
-    PRIMARY_FIRST("_primary_first"),
-
-    /**
-     * Route to replica shards first
-     */
-    REPLICA_FIRST("_replica_first"),
-
-    /**
      * Route to the local shard only
      */
     ONLY_LOCAL("_only_local"),
@@ -97,16 +77,6 @@ public enum  Preference {
                 return PREFER_NODES;
             case "_local":
                 return LOCAL;
-            case "_primary":
-                return PRIMARY;
-            case "_replica":
-                return REPLICA;
-            case "_primary_first":
-            case "_primaryFirst":
-                return PRIMARY_FIRST;
-            case "_replica_first":
-            case "_replicaFirst":
-                return REPLICA_FIRST;
             case "_only_local":
             case "_onlyLocal":
                 return ONLY_LOCAL;

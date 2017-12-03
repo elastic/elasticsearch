@@ -20,15 +20,14 @@
 package org.elasticsearch.common.io;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import java.io.InputStream;
 import java.net.URL;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -65,6 +64,16 @@ public final class FileSystemUtils {
             return false;
         }
         return fileName.toString().startsWith(".");
+    }
+
+    /**
+     * Check whether the file denoted by the given path is a desktop services store created by Finder on macOS.
+     *
+     * @param path the path
+     * @return true if the current system is macOS and the specified file appears to be a desktop services store file
+     */
+    public static boolean isDesktopServicesStore(final Path path) {
+        return Constants.MAC_OS_X && Files.isRegularFile(path) && ".DS_Store".equals(path.getFileName().toString());
     }
 
     /**
@@ -120,14 +129,21 @@ public final class FileSystemUtils {
     }
 
     /**
-     * Opens the given url for reading returning a {@code BufferedReader} that may be
-     * used to read text from the URL in an efficient manner. Bytes from the
-     * file are decoded into characters using the specified charset.
+     * Returns an InputStream the given url if the url has a protocol of 'file' or 'jar', no host, and no port.
      */
-    public static BufferedReader newBufferedReader(URL url, Charset cs) throws IOException {
-        CharsetDecoder decoder = cs.newDecoder();
-        Reader reader = new InputStreamReader(url.openStream(), decoder);
-        return new BufferedReader(reader);
+    @SuppressForbidden(reason = "Will only open url streams for local files")
+    public static InputStream openFileURLStream(URL url) throws IOException {
+        String protocol = url.getProtocol();
+        if ("file".equals(protocol) == false && "jar".equals(protocol) == false) {
+            throw new IllegalArgumentException("Invalid protocol [" + protocol + "], must be [file] or [jar]");
+        }
+        if (Strings.isEmpty(url.getHost()) == false) {
+            throw new IllegalArgumentException("URL cannot have host. Found: [" + url.getHost() + ']');
+        }
+        if (url.getPort() != -1) {
+            throw new IllegalArgumentException("URL cannot have port. Found: [" + url.getPort() + ']');
+        }
+        return url.openStream();
     }
 
     /**

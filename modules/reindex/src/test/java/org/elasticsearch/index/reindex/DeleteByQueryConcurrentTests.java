@@ -96,7 +96,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
                 try {
                     start.await();
 
-                    BulkIndexByScrollResponse response = deleteByQuery().source("test").filter(query).refresh(true).get();
+                    BulkByScrollResponse response = deleteByQuery().source("test").filter(query).refresh(true).get();
                     // Some deletions might fail due to version conflict, but
                     // what matters here is the total of successful deletions
                     deleted.addAndGet(response.getDeleted());

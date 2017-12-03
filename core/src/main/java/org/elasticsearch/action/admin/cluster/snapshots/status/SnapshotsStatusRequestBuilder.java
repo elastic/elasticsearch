@@ -29,7 +29,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<SnapshotsStatusRequest, SnapshotsStatusResponse, SnapshotsStatusRequestBuilder> {
 
     /**
-     * Constructs the new snapshotstatus request
+     * Constructs the new snapshot status request
      */
     public SnapshotsStatusRequestBuilder(ElasticsearchClient client, SnapshotsStatusAction action) {
         super(client, action, new SnapshotsStatusRequest());

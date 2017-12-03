@@ -22,7 +22,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
-public class IngestInfo implements Writeable, ToXContent {
+public class IngestInfo implements Writeable, ToXContentFragment {
 
     private final Set<ProcessorInfo> processors;
 

@@ -64,7 +64,7 @@ public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implemen
         /**
          * Creates simple diff with changes
          */
-        public CompleteNamedDiff(T part) {
+        CompleteNamedDiff(T part) {
             this.part = part;
             this.name = part.getWriteableName();
             this.minimalSupportedVersion = part.getMinimalSupportedVersion();
@@ -73,7 +73,7 @@ public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implemen
         /**
          * Creates simple diff without changes
          */
-        public CompleteNamedDiff(String name, Version minimalSupportedVersion) {
+        CompleteNamedDiff(String name, Version minimalSupportedVersion) {
             this.part = null;
             this.name = name;
             this.minimalSupportedVersion = minimalSupportedVersion;
@@ -82,7 +82,7 @@ public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implemen
         /**
          * Read simple diff from the stream
          */
-        public CompleteNamedDiff(Class<? extends T> tClass, String name, StreamInput in) throws IOException {
+        CompleteNamedDiff(Class<? extends T> tClass, String name, StreamInput in) throws IOException {
             if (in.readBoolean()) {
                 this.part = in.readNamedWriteable(tClass, name);
                 this.minimalSupportedVersion = part.getMinimalSupportedVersion();

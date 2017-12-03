@@ -36,9 +36,16 @@ import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
+import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -81,7 +88,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endArray()
             .endObject().bytes();
-        client().admin().cluster().preparePutPipeline("_id", pipelineSource)
+        client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON)
                 .get();
         GetPipelineResponse getResponse = client().admin().cluster().prepareGetPipeline("_id")
                 .get();
@@ -104,10 +111,10 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject().bytes();
         SimulatePipelineResponse response;
         if (randomBoolean()) {
-            response = client().admin().cluster().prepareSimulatePipeline(bytes)
+            response = client().admin().cluster().prepareSimulatePipeline(bytes, XContentType.JSON)
                 .setId("_id").get();
         } else {
-            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes);
+            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes, XContentType.JSON);
             request.setId("_id");
             response = client().admin().cluster().simulatePipeline(request).get();
         }
@@ -137,14 +144,14 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endArray()
             .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
             IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i)).setPipeline("_id");
-            indexRequest.source("field", "value", "fail", i % 2 == 0);
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", i % 2 == 0);
             bulkRequest.add(indexRequest);
         }
 
@@ -167,6 +174,43 @@ public class IngestClientIT extends ESIntegTestCase {
         }
     }
 
+    public void testBulkWithUpsert() throws Exception {
+        createIndex("index");
+
+        BytesReference source = jsonBuilder().startObject()
+            .field("description", "my_pipeline")
+            .startArray("processors")
+            .startObject()
+            .startObject("test")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject().bytes();
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest = new IndexRequest("index", "type", "1").setPipeline("_id");
+        indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "val1");
+        bulkRequest.add(indexRequest);
+        UpdateRequest updateRequest = new UpdateRequest("index", "type", "2");
+        updateRequest.doc("{}", Requests.INDEX_CONTENT_TYPE);
+        updateRequest.upsert("{\"field1\":\"upserted_val\"}", XContentType.JSON).upsertRequest().setPipeline("_id");
+        bulkRequest.add(updateRequest);
+
+        BulkResponse response = client().bulk(bulkRequest).actionGet();
+
+        assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
+        Map<String, Object> inserted = client().prepareGet("index", "type", "1")
+            .get().getSourceAsMap();
+        assertThat(inserted.get("field1"), equalTo("val1"));
+        assertThat(inserted.get("processed"), equalTo(true));
+        Map<String, Object> upserted = client().prepareGet("index", "type", "2")
+            .get().getSourceAsMap();
+        assertThat(upserted.get("field1"), equalTo("upserted_val"));
+        assertThat(upserted.get("processed"), equalTo(true));
+    }
+
     public void test() throws Exception {
         BytesReference source = jsonBuilder().startObject()
             .field("description", "my_pipeline")
@@ -177,7 +221,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endArray()
             .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         GetPipelineRequest getPipelineRequest = new GetPipelineRequest("_id");
@@ -219,7 +263,7 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         try {
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         } catch (ExecutionException e) {

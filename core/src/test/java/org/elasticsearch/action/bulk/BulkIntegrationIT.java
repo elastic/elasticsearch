@@ -21,6 +21,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -31,15 +32,12 @@ public class BulkIntegrationIT extends ESIntegTestCase {
     public void testBulkIndexCreatesMapping() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         bulkBuilder.get();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
-                assertTrue(mappingsResponse.getMappings().containsKey("logstash-2014.03.30"));
-                assertTrue(mappingsResponse.getMappings().get("logstash-2014.03.30").containsKey("logs"));
-            }
+        assertBusy(() -> {
+            GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
+            assertTrue(mappingsResponse.getMappings().containsKey("logstash-2014.03.30"));
+            assertTrue(mappingsResponse.getMappings().get("logstash-2014.03.30").containsKey("logs"));
         });
     }
 }

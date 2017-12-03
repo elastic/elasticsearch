@@ -7,23 +7,27 @@ survive a full cluster restart). Here is an example:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_cluster/settings -d '{
+PUT /_cluster/settings
+{
     "persistent" : {
-        "discovery.zen.minimum_master_nodes" : 2
+        "indices.recovery.max_bytes_per_sec" : "50mb"
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 Or:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_cluster/settings -d '{
+PUT /_cluster/settings?flat_settings=true
+{
     "transient" : {
-        "discovery.zen.minimum_master_nodes" : 2
+        "indices.recovery.max_bytes_per_sec" : "20mb"
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 The cluster responds with the settings updated. So the response for the
 last example will be:
@@ -31,12 +35,14 @@ last example will be:
 [source,js]
 --------------------------------------------------
 {
-    "persistent" : {},
+    ...
+    "persistent" : { },
     "transient" : {
-        "discovery.zen.minimum_master_nodes" : "2"
+        "indices.recovery.max_bytes_per_sec" : "20mb"
     }
-}'
+}
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"acknowledged": true,/]
 
 Resetting persistent or transient settings can be done by assigning a
 `null` value. If a transient setting is reset, the persistent setting
@@ -46,12 +52,14 @@ value. Here is an example:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_cluster/settings -d '{
+PUT /_cluster/settings
+{
     "transient" : {
-        "discovery.zen.minimum_master_nodes" : null
+        "indices.recovery.max_bytes_per_sec" : null
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 Reset settings will not be included in the cluster response. So
 the response for the last example will be:
@@ -59,29 +67,34 @@ the response for the last example will be:
 [source,js]
 --------------------------------------------------
 {
+    ...
     "persistent" : {},
     "transient" : {}
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"acknowledged": true,/]
 
 Settings can also be reset using simple wildcards. For instance to reset
-all dynamic `discovery.zen` setting a prefix can be used:
+all dynamic `indices.recovery` setting a prefix can be used:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_cluster/settings -d '{
+PUT /_cluster/settings
+{
     "transient" : {
-        "discovery.zen.*" : null
+        "indices.recovery.*" : null
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 Cluster wide settings can be returned using:
 
 [source,js]
 --------------------------------------------------
-curl -XGET localhost:9200/_cluster/settings
+GET /_cluster/settings
 --------------------------------------------------
+// CONSOLE
 
 [float]
 === Precedence of settings

@@ -30,8 +30,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -107,10 +105,10 @@ public final class SettingsFilter extends AbstractComponent {
         }
         if (!simpleMatchPatternList.isEmpty()) {
             String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[simpleMatchPatternList.size()]);
-            Iterator<Entry<String, String>> iterator = builder.internalMap().entrySet().iterator();
+            Iterator<String> iterator = builder.keys().iterator();
             while (iterator.hasNext()) {
-                Map.Entry<String, String> current = iterator.next();
-                if (Regex.simpleMatch(simpleMatchPatterns, current.getKey())) {
+                String key = iterator.next();
+                if (Regex.simpleMatch(simpleMatchPatterns, key)) {
                     iterator.remove();
                 }
             }

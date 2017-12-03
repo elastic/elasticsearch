@@ -215,7 +215,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                                 actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "[" + inflight + "] ongoing operations on primary"));
                             } else {
                                 // 3. now send the sync request to all the shards
-                                String syncId = UUIDs.base64UUID();
+                                String syncId = UUIDs.randomBase64UUID();
                                 sendSyncRequests(syncId, activeShards, state, commitIds, shardId, totalShards, actionListener);
                             }
                         }
@@ -658,10 +658,10 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
         int opCount;
 
-        public InFlightOpsResponse() {
+        InFlightOpsResponse() {
         }
 
-        public InFlightOpsResponse(int opCount) {
+        InFlightOpsResponse(int opCount) {
             this.opCount = opCount;
         }
 

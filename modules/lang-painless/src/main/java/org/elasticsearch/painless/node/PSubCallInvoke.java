@@ -39,7 +39,7 @@ final class PSubCallInvoke extends AExpression {
     private final Type box;
     private final List<AExpression> arguments;
 
-    public PSubCallInvoke(Location location, Method method, Type box, List<AExpression> arguments) {
+    PSubCallInvoke(Location location, Method method, Type box, List<AExpression> arguments) {
         super(location);
 
         this.method = Objects.requireNonNull(method);
@@ -71,7 +71,7 @@ final class PSubCallInvoke extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (box.sort.primitive) {
+        if (box.clazz.isPrimitive()) {
             writer.box(box.type);
         }
 

@@ -42,7 +42,7 @@ import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Create snapshot request
@@ -88,6 +88,31 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     public CreateSnapshotRequest(String repository, String snapshot) {
         this.snapshot = snapshot;
         this.repository = repository;
+    }
+
+    public CreateSnapshotRequest(StreamInput in) throws IOException {
+        super(in);
+        snapshot = in.readString();
+        repository = in.readString();
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        settings = readSettingsFromStream(in);
+        includeGlobalState = in.readBoolean();
+        waitForCompletion = in.readBoolean();
+        partial = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(snapshot);
+        out.writeString(repository);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        writeSettingsToStream(settings, out);
+        out.writeBoolean(includeGlobalState);
+        out.writeBoolean(waitForCompletion);
+        out.writeBoolean(partial);
     }
 
     @Override
@@ -288,15 +313,16 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     /**
-     * Sets repository-specific snapshot settings in JSON, YAML or properties format
+     * Sets repository-specific snapshot settings in JSON or YAML format
      * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
+     * @param xContentType the content type of the source
      * @return this request
      */
-    public CreateSnapshotRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
+    public CreateSnapshotRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -312,7 +338,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -354,8 +380,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @param source snapshot definition
      * @return this request
      */
+    @SuppressWarnings("unchecked")
     public CreateSnapshotRequest source(Map<String, Object> source) {
-        for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
@@ -366,44 +393,23 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(lenientNodeBooleanValue(entry.getValue()));
+                partial(nodeBooleanValue(entry.getValue(), "partial"));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section, should indices an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
+                includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             }
         }
-        indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));
+        indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
         return this;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        snapshot = in.readString();
-        repository = in.readString();
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        settings = readSettingsFromStream(in);
-        includeGlobalState = in.readBoolean();
-        waitForCompletion = in.readBoolean();
-        partial = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(snapshot);
-        out.writeString(repository);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        writeSettingsToStream(settings, out);
-        out.writeBoolean(includeGlobalState);
-        out.writeBoolean(waitForCompletion);
-        out.writeBoolean(partial);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

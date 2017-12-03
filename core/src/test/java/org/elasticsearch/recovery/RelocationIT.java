@@ -24,10 +24,6 @@ import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -42,9 +38,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -58,6 +54,7 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -76,14 +73,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -100,45 +95,13 @@ public class RelocationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
-    }
-
-    @Override
-    public Settings indexSettings() {
-        return Settings.builder().put(super.indexSettings())
-            .put(INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getKey(), "200ms").build();
+        return Arrays.asList(InternalSettingsPlugin.class, MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
     }
 
     @Override
     protected void beforeIndexDeletion() throws Exception {
         super.beforeIndexDeletion();
-        assertBusy(() -> {
-            IndicesStatsResponse stats = client().admin().indices().prepareStats().clear().get();
-            for (IndexStats indexStats : stats.getIndices().values()) {
-                for (IndexShardStats indexShardStats : indexStats.getIndexShards().values()) {
-                    Optional<ShardStats> maybePrimary = Stream.of(indexShardStats.getShards())
-                        .filter(s -> s.getShardRouting().active() && s.getShardRouting().primary())
-                        .findFirst();
-                    if (maybePrimary.isPresent() == false) {
-                        continue;
-                    }
-                    ShardStats primary = maybePrimary.get();
-                    final SeqNoStats primarySeqNoStats = primary.getSeqNoStats();
-                    assertThat(primary.getShardRouting() + " should have set the global checkpoint",
-                        primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO)));
-                    for (ShardStats shardStats : indexShardStats) {
-                        final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
-                        assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
-                            seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
-
-                        assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",
-                            seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
-                        assertThat(shardStats.getShardRouting() + " max seq no mismatch",
-                            seqNoStats.getMaxSeqNo(), equalTo(primarySeqNoStats.getMaxSeqNo()));
-                    }
-                }
-            }
-        });
+        assertSeqNos();
     }
 
     public void testSimpleRelocationNoIndexing() {
@@ -164,7 +127,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20L));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits(), equalTo(20L));
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
@@ -181,10 +144,10 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count again...");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20L));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits(), equalTo(20L));
     }
 
-    @TestLogging("org.elasticsearch.action.index:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
+    @TestLogging("org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
     public void testRelocationWhileIndexingRandom() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -255,14 +218,14 @@ public class RelocationIT extends ESIntegTestCase {
                     logger.info("--> START search test round {}", i + 1);
                     SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexer.totalIndexedDocs()).storedFields().execute().actionGet().getHits();
                     ranOnce = true;
-                    if (hits.totalHits() != indexer.totalIndexedDocs()) {
+                    if (hits.getTotalHits() != indexer.totalIndexedDocs()) {
                         int[] hitIds = new int[(int) indexer.totalIndexedDocs()];
                         for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
                             hitIds[hit] = hit + 1;
                         }
                         IntHashSet set = IntHashSet.from(hitIds);
-                        for (SearchHit hit : hits.hits()) {
-                            int id = Integer.parseInt(hit.id());
+                        for (SearchHit hit : hits.getHits()) {
+                            int id = Integer.parseInt(hit.getId());
                             if (!set.remove(id)) {
                                 logger.error("Extra id [{}]", id);
                             }
@@ -271,7 +234,7 @@ public class RelocationIT extends ESIntegTestCase {
                             logger.error("Missing id [{}]", value);
                         });
                     }
-                    assertThat(hits.totalHits(), equalTo(indexer.totalIndexedDocs()));
+                    assertThat(hits.getTotalHits(), equalTo(indexer.totalIndexedDocs()));
                     logger.info("--> DONE search test round {}", i + 1);
 
             }
@@ -281,7 +244,7 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.action.index:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
+    @TestLogging("org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
     public void testRelocationWhileRefreshing() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -294,11 +257,14 @@ public class RelocationIT extends ESIntegTestCase {
         nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", numberOfReplicas)
-            .put("index.refresh_interval", -1) // we want to control refreshes c
-        ).get();
+        prepareCreate(
+                "test",
+                Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", numberOfReplicas)
+                        .put("index.refresh_interval", -1) // we want to control refreshes
+                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms"))
+                .get();
 
         for (int i = 1; i < numberOfNodes; i++) {
             logger.info("--> starting [node_{}] ...", i);
@@ -334,12 +300,12 @@ public class RelocationIT extends ESIntegTestCase {
 
             List<IndexRequestBuilder> builders1 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders1.add(client().prepareIndex("test", "type").setSource("{}"));
+                builders1.add(client().prepareIndex("test", "type").setSource("{}", XContentType.JSON));
             }
 
             List<IndexRequestBuilder> builders2 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders2.add(client().prepareIndex("test", "type").setSource("{}"));
+                builders2.add(client().prepareIndex("test", "type").setSource("{}", XContentType.JSON));
             }
 
             logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
@@ -368,13 +334,14 @@ public class RelocationIT extends ESIntegTestCase {
                 SearchResponse response = client.prepareSearch("test").setPreference("_local").setSize(0).get();
                 assertNoFailures(response);
                 if (expectedCount < 0) {
-                    expectedCount = response.getHits().totalHits();
+                    expectedCount = response.getHits().getTotalHits();
                 } else {
-                    assertEquals(expectedCount, response.getHits().totalHits());
+                    assertEquals(expectedCount, response.getHits().getTotalHits());
                 }
             }
 
         }
+
     }
 
     public void testCancellationCleansTempFiles() throws Exception {
@@ -383,7 +350,7 @@ public class RelocationIT extends ESIntegTestCase {
         final String p_node = internalCluster().startNode();
 
         prepareCreate(indexName, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
         ).get();
 
         internalCluster().startNode();
@@ -392,7 +359,7 @@ public class RelocationIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}"));
+            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
@@ -452,7 +419,11 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.action.index:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
+    @TestLogging(
+            "org.elasticsearch.action.bulk:TRACE,"
+                    + "org.elasticsearch.action.search:TRACE,"
+                    + "org.elasticsearch.cluster.service:TRACE,"
+                    + "org.elasticsearch.index.seqno:TRACE")
     public void testIndexAndRelocateConcurrently() throws ExecutionException, InterruptedException {
         int halfNodes = randomIntBetween(1, 3);
         Settings[] nodeSettings = Stream.concat(
@@ -466,11 +437,12 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("red nodes: {}", (Object)redNodes);
         ensureStableCluster(halfNodes * 2);
 
-        assertAcked(prepareCreate("test", Settings.builder()
-            .put("index.routing.allocation.exclude.color", "blue")
-            .put(indexSettings())
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
-        ));
+        final Settings.Builder settings = Settings.builder()
+                .put("index.routing.allocation.exclude.color", "blue")
+                .put(indexSettings())
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms");
+        assertAcked(prepareCreate("test", settings));
         assertAllShardsOnNodes("test", redNodes);
         int numDocs = randomIntBetween(100, 150);
         ArrayList<String> ids = new ArrayList<>();
@@ -510,13 +482,14 @@ public class RelocationIT extends ESIntegTestCase {
             assertNoFailures(afterRelocation);
             assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
         }
+
     }
 
     class RecoveryCorruption extends MockTransportService.DelegateTransport {
 
         private final CountDownLatch corruptionCount;
 
-        public RecoveryCorruption(Transport transport, CountDownLatch corruptionCount) {
+        RecoveryCorruption(Transport transport, CountDownLatch corruptionCount) {
             super(transport);
             this.corruptionCount = corruptionCount;
         }

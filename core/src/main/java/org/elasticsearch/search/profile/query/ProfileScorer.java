@@ -23,6 +23,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,13 +36,16 @@ final class ProfileScorer extends Scorer {
 
     private final Scorer scorer;
     private ProfileWeight profileWeight;
-    private final QueryProfileBreakdown profile;
+    private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer;
 
     ProfileScorer(ProfileWeight w, Scorer scorer, QueryProfileBreakdown profile) throws IOException {
         super(w);
         this.scorer = scorer;
         this.profileWeight = w;
-        this.profile = profile;
+        scoreTimer = profile.getTimer(QueryTimingType.SCORE);
+        nextDocTimer = profile.getTimer(QueryTimingType.NEXT_DOC);
+        advanceTimer = profile.getTimer(QueryTimingType.ADVANCE);
+        matchTimer = profile.getTimer(QueryTimingType.MATCH);
     }
 
     @Override
@@ -51,17 +55,12 @@ final class ProfileScorer extends Scorer {
 
     @Override
     public float score() throws IOException {
-        profile.startTime(QueryTimingType.SCORE);
+        scoreTimer.start();
         try {
             return scorer.score();
         } finally {
-            profile.stopAndRecordTime();
+            scoreTimer.stop();
         }
-    }
-
-    @Override
-    public int freq() throws IOException {
-        return scorer.freq();
     }
 
     @Override
@@ -70,7 +69,7 @@ final class ProfileScorer extends Scorer {
     }
 
     @Override
-    public Collection<ChildScorer> getChildren() {
+    public Collection<ChildScorer> getChildren() throws IOException {
         return scorer.getChildren();
     }
 
@@ -81,21 +80,21 @@ final class ProfileScorer extends Scorer {
 
             @Override
             public int advance(int target) throws IOException {
-                profile.startTime(QueryTimingType.ADVANCE);
+                advanceTimer.start();
                 try {
                     return in.advance(target);
                 } finally {
-                    profile.stopAndRecordTime();
+                    advanceTimer.stop();
                 }
             }
 
             @Override
             public int nextDoc() throws IOException {
-                profile.startTime(QueryTimingType.NEXT_DOC);
+                nextDocTimer.start();
                 try {
                     return in.nextDoc();
                 } finally {
-                    profile.stopAndRecordTime();
+                    nextDocTimer.stop();
                 }
             }
 
@@ -122,21 +121,21 @@ final class ProfileScorer extends Scorer {
 
             @Override
             public int advance(int target) throws IOException {
-                profile.startTime(QueryTimingType.ADVANCE);
+                advanceTimer.start();
                 try {
                     return inApproximation.advance(target);
                 } finally {
-                    profile.stopAndRecordTime();
+                    advanceTimer.stop();
                 }
             }
 
             @Override
             public int nextDoc() throws IOException {
-                profile.startTime(QueryTimingType.NEXT_DOC);
+                nextDocTimer.start();
                 try {
                     return inApproximation.nextDoc();
                 } finally {
-                    profile.stopAndRecordTime();
+                    nextDocTimer.stop();
                 }
             }
 
@@ -153,11 +152,11 @@ final class ProfileScorer extends Scorer {
         return new TwoPhaseIterator(approximation) {
             @Override
             public boolean matches() throws IOException {
-                profile.startTime(QueryTimingType.MATCH);
+                matchTimer.start();
                 try {
                     return in.matches();
                 } finally {
-                    profile.stopAndRecordTime();
+                    matchTimer.stop();
                 }
             }
 

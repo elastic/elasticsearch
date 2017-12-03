@@ -94,7 +94,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
      * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically
      * on the first shard in it. If the operation fails, it will be retried on the next shard in the iterator.
      */
-    protected abstract GroupShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices);
+    protected abstract GroupShardsIterator<ShardIterator> shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
@@ -107,7 +107,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
         private final ActionListener<Response> listener;
         private final ClusterState clusterState;
         private final DiscoveryNodes nodes;
-        private final GroupShardsIterator shardsIts;
+        private final GroupShardsIterator<ShardIterator> shardsIts;
         private final int expectedOps;
         private final AtomicInteger counterOps = new AtomicInteger();
         private final AtomicReferenceArray shardsResponses;
@@ -175,7 +175,6 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                         // no node connected, act as failure
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
-                        taskManager.registerChildTask(task, node.getId());
                         transportService.sendRequest(node, transportShardAction, shardRequest, new TransportResponseHandler<ShardResponse>() {
                             @Override
                             public ShardResponse newInstance() {

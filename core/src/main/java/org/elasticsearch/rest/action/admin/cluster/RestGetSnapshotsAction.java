@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -38,13 +37,15 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Returns information about snapshot
  */
 public class RestGetSnapshotsAction extends BaseRestHandler {
-
-    @Inject
     public RestGetSnapshotsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}", this);
     }
 
+    @Override
+    public String getName() {
+        return "get_snapshots_action";
+    }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
@@ -53,7 +54,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
         GetSnapshotsRequest getSnapshotsRequest = getSnapshotsRequest(repository).snapshots(snapshots);
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
-
+        getSnapshotsRequest.verbose(request.paramAsBoolean("verbose", getSnapshotsRequest.verbose()));
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));
     }

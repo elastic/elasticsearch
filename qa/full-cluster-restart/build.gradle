@@ -1,0 +1,114 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.standalone-test'
+
+// This is a top level task which we will add dependencies to below.
+// It is a single task that can be used to backcompat tests against all versions.
+task bwcTest {
+  description = 'Runs backwards compatibility tests.'
+  group = 'verification'
+}
+
+for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
+  String baseName = "v${version}"
+
+  Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+  }
+  tasks.getByName("${baseName}#oldClusterTestRunner").configure {
+    systemProperty 'tests.is_old_cluster', 'true'
+    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+  }
+
+  Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
+  configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
+    distribution = 'zip'
+    bwcVersion = version
+    numBwcNodes = 2
+    numNodes = 2
+    clusterName = 'full-cluster-restart'
+
+    // some tests rely on the translog not being flushed
+    setting 'indices.memory.shard_inactive_time', '20m'
+
+    // debug logging for testRecovery
+    setting 'logger.level', 'DEBUG'
+
+    if (version.onOrAfter('5.3.0')) {
+      setting 'http.content_type.required', 'true'
+    }
+  }
+
+
+  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask) {
+    dependsOn(oldClusterTest, "${baseName}#oldClusterTestCluster#node0.stop")
+  }
+
+  configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
+    dependsOn oldClusterTest,
+        "${baseName}#oldClusterTestCluster#node0.stop",
+        "${baseName}#oldClusterTestCluster#node1.stop"
+    distribution = 'zip'
+    clusterName = 'full-cluster-restart'
+
+    // some tests rely on the translog not being flushed
+    setting 'indices.memory.shard_inactive_time', '20m'
+
+    // debug logging for testRecovery
+    setting 'logger.level', 'DEBUG'
+
+    numNodes = 2
+    dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
+    cleanShared = false // We want to keep snapshots made by the old cluster!
+  }
+
+  tasks.getByName("${baseName}#upgradedClusterTestRunner").configure {
+    systemProperty 'tests.is_old_cluster', 'false'
+    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+
+  }
+
+  Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
+    dependsOn = [upgradedClusterTest]
+  }
+
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn(versionBwcTest)
+  }
+}
+
+test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+
+// basic integ tests includes testing bwc against the most recent version
+task integTest {
+  if (project.bwc_tests_enabled) {
+    for (final def version : versionCollection.basicIntegrationTestVersions) {
+      dependsOn "v${version}#bwcTest"
+    }
+  }
+}
+
+check.dependsOn(integTest)

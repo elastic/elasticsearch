@@ -41,15 +41,10 @@ import java.io.IOException;
 public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexNumericFieldData indexFieldData;
-    private final Object missingValue;
-    private final MultiValueMode sortMode;
-    private final Nested nested;
 
     public DoubleValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+        super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
-        this.missingValue = missingValue;
-        this.sortMode = sortMode;
-        this.nested = nested;
     }
 
     @Override
@@ -64,7 +59,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
     protected void setScorer(Scorer scorer) {}
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final double dMissingValue = (Double) missingObject(missingValue, reversed);

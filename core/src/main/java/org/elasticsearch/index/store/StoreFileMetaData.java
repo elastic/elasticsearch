@@ -27,11 +27,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Objects;
 
 public class StoreFileMetaData implements Writeable {
-
-    public static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_5_0_0;
 
     private final String name;
 
@@ -44,20 +43,11 @@ public class StoreFileMetaData implements Writeable {
 
     private final BytesRef hash;
 
-    public StoreFileMetaData(String name, long length, String checksum) {
-        this(name, length, checksum, FIRST_LUCENE_CHECKSUM_VERSION);
-    }
-
     public StoreFileMetaData(String name, long length, String checksum, Version writtenBy) {
         this(name, length, checksum, writtenBy, null);
     }
 
     public StoreFileMetaData(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
-        // its possible here to have a _na_ checksum or an unsupported writtenBy version, if the
-        // file is a segments_N file, but that is fine in the case of a segments_N file because
-        // we handle that case upstream
-        assert name.startsWith("segments_") || (writtenBy != null && writtenBy.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION)) :
-            "index version less that " + FIRST_LUCENE_CHECKSUM_VERSION + " are not supported but got: " + writtenBy;
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.length = length;
         this.checksum = Objects.requireNonNull(checksum, "checksum must not be null");
@@ -72,8 +62,11 @@ public class StoreFileMetaData implements Writeable {
         name = in.readString();
         length = in.readVLong();
         checksum = in.readString();
-        // TODO Why not Version.parse?
-        writtenBy = Lucene.parseVersionLenient(in.readString(), FIRST_LUCENE_CHECKSUM_VERSION);
+        try {
+            writtenBy = Version.parse(in.readString());
+        } catch (ParseException e) {
+            throw new AssertionError(e);
+        }
         hash = in.readBytesRef();
     }
 

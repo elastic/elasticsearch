@@ -27,7 +27,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.test.ESTestCase.randomAsciiOfLength;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 
 /**
  * A helper that allows to create shard routing instances within tests, while not requiring to expose
@@ -37,6 +37,10 @@ public class TestShardRouting {
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
         return newShardRouting(new ShardId(index, IndexMetaData.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);
+    }
+
+    public static ShardRouting newShardRouting(ShardId shardId, String currentNodeId, boolean primary, RecoverySource recoverySource, ShardRoutingState state) {
+        return new ShardRouting(shardId, currentNodeId, null, primary, state, recoverySource, buildUnassignedInfo(state), buildAllocationId(state), -1);
     }
 
     public static ShardRouting newShardRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
@@ -131,7 +135,7 @@ public class TestShardRouting {
             RecoverySource.PeerRecoverySource.INSTANCE,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,
             new RecoverySource.SnapshotRecoverySource(
-                new Snapshot("repo", new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID())),
+                new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
                 Version.CURRENT,
                 "some_index"));
     }

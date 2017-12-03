@@ -22,12 +22,15 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -50,13 +53,15 @@ public interface ShardSearchRequest {
 
     SearchSourceBuilder source();
 
+    AliasFilter getAliasFilter();
+
+    void setAliasFilter(AliasFilter filter);
+
     void source(SearchSourceBuilder source);
 
     int numberOfShards();
 
     SearchType searchType();
-
-    QueryBuilder filteringAliases();
 
     float indexBoost();
 
@@ -83,22 +88,12 @@ public interface ShardSearchRequest {
     BytesReference cacheKey() throws IOException;
 
     /**
-     * Rewrites this request into its primitive form. e.g. by rewriting the
-     * QueryBuilder.
-     */
-    void rewrite(QueryShardContext context) throws IOException;
-
-    @FunctionalInterface
-    public interface FilterParser {
-        QueryBuilder parse(byte[] bytes) throws IOException;
-    }
-    /**
      * Returns the filter associated with listed filtering aliases.
      * <p>
      * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
      * Returns <tt>null</tt> if no filtering is required.</p>
      */
-    static QueryBuilder parseAliasFilter(FilterParser filterParser,
+    static QueryBuilder parseAliasFilter(CheckedFunction<byte[], QueryBuilder, IOException> filterParser,
                                          IndexMetaData metaData, String... aliasNames) {
         if (aliasNames == null || aliasNames.length == 0) {
             return null;
@@ -110,7 +105,7 @@ public interface ShardSearchRequest {
                 return null;
             }
             try {
-                return filterParser.parse(alias.filter().uncompressed());
+                return filterParser.apply(alias.filter().uncompressed());
             } catch (IOException ex) {
                 throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
             }
@@ -143,5 +138,13 @@ public interface ShardSearchRequest {
             return combined;
         }
     }
+
+    /**
+     * Returns the cluster alias if this request is for a remote cluster or <code>null</code> if the request if targeted to the local
+     * cluster.
+     */
+    String getClusterAlias();
+
+    Rewriteable<Rewriteable> getRewriteable();
 
 }

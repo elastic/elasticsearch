@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -51,7 +52,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
             client().prepareIndex("test-0", "type1", "2").setSource("field1", "quick brown"),
             client().prepareIndex("test-0", "type1", "3").setSource("field1", "quick"));
         refresh("test-*");
-        assertHitCount(client().prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchQuery("_all", "quick")).get(), 3L);
+        assertHitCount(client().prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(queryStringQuery("quick")).get(), 3L);
     }
 
     public void testResolveIndexRouting() throws Exception {

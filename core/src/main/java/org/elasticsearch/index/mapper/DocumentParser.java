@@ -22,10 +22,12 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -46,7 +48,7 @@ final class DocumentParser {
     private final DocumentMapperParser docMapperParser;
     private final DocumentMapper docMapper;
 
-    public DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
+    DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
         this.docMapper = docMapper;
@@ -57,9 +59,10 @@ final class DocumentParser {
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
-        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(), source.source())) {
-            context = new ParseContext.InternalParseContext(indexSettings.getSettings(),
-                    docMapperParser, docMapper, source, parser);
+        final XContentType xContentType = source.getXContentType();
+
+        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(), source.source(), xContentType)) {
+            context = new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, context, parser);
             validateEnd(parser);
@@ -73,8 +76,7 @@ final class DocumentParser {
 
         reverseOrder(context);
 
-        ParsedDocument doc = parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
-        return doc;
+        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
     }
 
     private static void internalParseDocument(Mapping mapping, ParseContext.InternalParseContext context, XContentParser parser) throws IOException {
@@ -88,7 +90,7 @@ final class DocumentParser {
             // entire type is disabled
             parser.skipChildren();
         } else if (emptyDoc == false) {
-            parseObjectOrNested(context, mapping.root, true);
+            parseObjectOrNested(context, mapping.root);
         }
 
         for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
@@ -153,6 +155,7 @@ final class DocumentParser {
             source.routing(),
             context.docs(),
             context.sourceToParse().source(),
+            context.sourceToParse().getXContentType(),
             update
         ).parent(source.parent());
     }
@@ -172,6 +175,24 @@ final class DocumentParser {
         return new MapperParsingException("failed to parse", e);
     }
 
+    private static String[] splitAndValidatePath(String fullFieldPath) {
+        if (fullFieldPath.contains(".")) {
+            String[] parts = fullFieldPath.split("\\.");
+            for (String part : parts) {
+                if (Strings.hasText(part) == false) {
+                    throw new IllegalArgumentException(
+                            "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]");
+                }
+            }
+            return parts;
+        } else {
+            if (Strings.isEmpty(fullFieldPath)) {
+                throw new IllegalArgumentException("field name cannot be an empty string");
+            }
+            return new String[] {fullFieldPath};
+        }
+    }
+
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
     static Mapping createDynamicUpdate(Mapping mapping, DocumentMapper docMapper, List<Mapper> dynamicMappers) {
         if (dynamicMappers.isEmpty()) {
@@ -184,7 +205,7 @@ final class DocumentParser {
         Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
         Mapper firstUpdate = dynamicMapperItr.next();
-        parentMappers.add(createUpdate(mapping.root(), firstUpdate.name().split("\\."), 0, firstUpdate));
+        parentMappers.add(createUpdate(mapping.root(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
         Mapper previousMapper = null;
         while (dynamicMapperItr.hasNext()) {
             Mapper newMapper = dynamicMapperItr.next();
@@ -196,7 +217,7 @@ final class DocumentParser {
                 continue;
             }
             previousMapper = newMapper;
-            String[] nameParts = newMapper.name().split("\\.");
+            String[] nameParts = splitAndValidatePath(newMapper.name());
 
             // We first need the stack to only contain mappers in common with the previously processed mapper
             // For example, if the first mapper processed was a.b.c, and we now have a.d, the stack will contain
@@ -318,7 +339,7 @@ final class DocumentParser {
         return parent.mappingUpdate(mapper);
     }
 
-    static void parseObjectOrNested(ParseContext context, ObjectMapper mapper, boolean atRoot) throws IOException {
+    static void parseObjectOrNested(ParseContext context, ObjectMapper mapper) throws IOException {
         if (mapper.isEnabled() == false) {
             context.parser().skipChildren();
             return;
@@ -338,12 +359,6 @@ final class DocumentParser {
         ObjectMapper.Nested nested = mapper.nested();
         if (nested.isNested()) {
             context = nestedContext(context, mapper);
-        }
-
-        // update the default value of include_in_all if necessary
-        Boolean includeInAll = mapper.includeInAll();
-        if (includeInAll != null) {
-            context = context.setIncludeInAllDefault(includeInAll);
         }
 
         // if we are at the end of the previous object, advance
@@ -411,15 +426,39 @@ final class DocumentParser {
         context = context.createNestedContext(mapper.fullPath());
         ParseContext.Document nestedDoc = context.doc();
         ParseContext.Document parentDoc = nestedDoc.getParent();
-        // pre add the uid field if possible (id was already provided)
-        IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
-        if (uidField != null) {
-            // we don't need to add it as a full uid field in nested docs, since we don't need versioning
-            // we also rely on this for UidField#loadVersion
 
-            // this is a deeply nested field
-            nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        // We need to add the uid or id to this nested Lucene document too,
+        // If we do not do this then when a document gets deleted only the root Lucene document gets deleted and
+        // not the nested Lucene documents! Besides the fact that we would have zombie Lucene documents, the ordering of
+        // documents inside the Lucene index (document blocks) will be incorrect, as nested documents of different root
+        // documents are then aligned with other root documents. This will lead tothe nested query, sorting, aggregations
+        // and inner hits to fail or yield incorrect results.
+        if (context.mapperService().getIndexSettings().isSingleType()) {
+            IndexableField idField = parentDoc.getField(IdFieldMapper.NAME);
+            if (idField != null) {
+                // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
+                // delete it when the root document is deleted too.
+                if (idField.stringValue() != null) {
+                    // backward compat with 5.x
+                    // TODO: Remove on 7.0
+                    nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                } else {
+                    nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                }
+            } else {
+                throw new IllegalStateException("The root document of a nested document should have an id field");
+            }
+        } else {
+            IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
+            if (uidField != null) {
+                /// We just need to store the uid as indexed field, so that IndexWriter#deleteDocuments(term) can then
+                // delete it when the root document is deleted too.
+                nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            } else {
+                throw new IllegalStateException("The root document of a nested document should have an uid field");
+            }
         }
+
         // the type of the nested doc starts with __, so we can identify that its a nested one in filters
         // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
         // across types (for example, with similar nested objects)
@@ -429,31 +468,27 @@ final class DocumentParser {
 
     private static void parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper) {
-            parseObjectOrNested(context, (ObjectMapper) mapper, false);
+            parseObjectOrNested(context, (ObjectMapper) mapper);
         } else {
             FieldMapper fieldMapper = (FieldMapper)mapper;
             Mapper update = fieldMapper.parse(context);
             if (update != null) {
                 context.addDynamicMapper(update);
             }
-            if (fieldMapper.copyTo() != null) {
-                parseCopyFields(context, fieldMapper.copyTo().copyToFields());
-            }
+            parseCopyFields(context, fieldMapper.copyTo().copyToFields());
         }
     }
 
-    private static ObjectMapper parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
+    private static void parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
         assert currentFieldName != null;
 
-        ObjectMapper update = null;
-        Mapper objectMapper = getMapper(mapper, currentFieldName);
+        final String[] paths = splitAndValidatePath(currentFieldName);
+        Mapper objectMapper = getMapper(mapper, currentFieldName, paths);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
             parseObjectOrField(context, objectMapper);
             context.path().remove();
         } else {
-
-            final String[] paths = currentFieldName.split("\\.");
             currentFieldName = paths[paths.length - 1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, mapper);
             ObjectMapper parentMapper = parentMapperTuple.v2();
@@ -479,13 +514,13 @@ final class DocumentParser {
                 context.path().remove();
             }
         }
-
-        return update;
     }
 
     private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
         String arrayFieldName = lastFieldName;
-        Mapper mapper = getMapper(parentMapper, lastFieldName);
+
+        final String[] paths = splitAndValidatePath(arrayFieldName);
+        Mapper mapper = getMapper(parentMapper, lastFieldName, paths);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
@@ -496,8 +531,6 @@ final class DocumentParser {
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             }
         } else {
-
-            final String[] paths = arrayFieldName.split("\\.");
             arrayFieldName = paths[paths.length - 1];
             lastFieldName = arrayFieldName;
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
@@ -556,12 +589,12 @@ final class DocumentParser {
         if (currentFieldName == null) {
             throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with no field associated with it, current value [" + context.parser().textOrNull() + "]");
         }
-        Mapper mapper = getMapper(parentMapper, currentFieldName);
+
+        final String[] paths = splitAndValidatePath(currentFieldName);
+        Mapper mapper = getMapper(parentMapper, currentFieldName, paths);
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
-
-            final String[] paths = currentFieldName.split("\\.");
             currentFieldName = paths[paths.length - 1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
             parentMapper = parentMapperTuple.v2();
@@ -574,7 +607,7 @@ final class DocumentParser {
 
     private static void parseNullValue(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
         // we can only handle null values if we have mappings for them
-        Mapper mapper = getMapper(parentMapper, lastFieldName);
+        Mapper mapper = getMapper(parentMapper, lastFieldName, splitAndValidatePath(lastFieldName));
         if (mapper != null) {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
@@ -813,7 +846,7 @@ final class DocumentParser {
             // The path of the dest field might be completely different from the current one so we need to reset it
             context = context.overridePath(new ContentPath(0));
 
-            final String[] paths = field.split("\\.");
+            final String[] paths = splitAndValidatePath(field);
             final String fieldName = paths[paths.length-1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, null);
             ObjectMapper mapper = parentMapperTuple.v2();
@@ -860,7 +893,7 @@ final class DocumentParser {
                             break;
                         case FALSE:
                            // Should not dynamically create any more mappers so return the last mapper
-                        return new Tuple<Integer, ObjectMapper>(pathsAdded, parent);
+                        return new Tuple<>(pathsAdded, parent);
 
                     }
                 }
@@ -868,7 +901,7 @@ final class DocumentParser {
                 pathsAdded++;
                 parent = mapper;
             }
-        return new Tuple<Integer, ObjectMapper>(pathsAdded, mapper);
+        return new Tuple<>(pathsAdded, mapper);
     }
 
     // find what the dynamic setting is given the current parse context and parent
@@ -896,8 +929,7 @@ final class DocumentParser {
     }
 
     // looks up a child mapper, but takes into account field names that expand to objects
-    static Mapper getMapper(ObjectMapper objectMapper, String fieldName) {
-        String[] subfields = fieldName.split("\\.");
+    private static Mapper getMapper(ObjectMapper objectMapper, String fieldName, String[] subfields) {
         for (int i = 0; i < subfields.length - 1; ++i) {
             Mapper mapper = objectMapper.getMapper(subfields[i]);
             if (mapper == null || (mapper instanceof ObjectMapper) == false) {

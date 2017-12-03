@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -50,7 +49,7 @@ public final class SExpression extends AStatement {
     @Override
     void analyze(Locals locals) {
         Type rtnType = locals.getReturnType();
-        boolean isVoid = rtnType.sort == Sort.VOID;
+        boolean isVoid = rtnType.clazz == void.class;
 
         expression.read = lastSource && !isVoid;
         expression.analyze(locals);
@@ -59,7 +58,7 @@ public final class SExpression extends AStatement {
             throw createError(new IllegalArgumentException("Not a statement."));
         }
 
-        boolean rtn = lastSource && !isVoid && expression.actual.sort != Sort.VOID;
+        boolean rtn = lastSource && !isVoid && expression.actual.clazz != void.class;
 
         expression.expected = rtn ? rtnType : expression.actual;
         expression.internal = rtn;
@@ -79,7 +78,7 @@ public final class SExpression extends AStatement {
         if (methodEscape) {
             writer.returnValue();
         } else {
-            writer.writePop(expression.expected.sort.size);
+            writer.writePop(expression.expected.type.getSize());
         }
     }
 

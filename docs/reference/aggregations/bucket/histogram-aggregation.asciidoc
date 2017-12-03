@@ -14,12 +14,14 @@ To make this more formal, here is the rounding function that is used:
 bucket_key = Math.floor((value - offset) / interval) * interval + offset
 --------------------------------------------------
 
-The `interval` must be a positive decimal, while the `offset` must be a decimal in `[0, interval[`.
+The `interval` must be a positive decimal, while the `offset` must be a decimal in `[0, interval)`
+(a decimal greater than or equal to `0` and less than `interval`)
 
 The following snippet "buckets" the products based on their `price` by interval of `50`:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "prices" : {
@@ -31,29 +33,36 @@ The following snippet "buckets" the products based on their `price` by interval 
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 And the following may be the response:
 
 [source,js]
 --------------------------------------------------
 {
+    ...
     "aggregations": {
         "prices" : {
             "buckets": [
                 {
-                    "key": 0,
-                    "doc_count": 2
+                    "key": 0.0,
+                    "doc_count": 1
                 },
                 {
-                    "key": 50,
-                    "doc_count": 4
+                    "key": 50.0,
+                    "doc_count": 1
                 },
                 {
-                    "key": 100,
+                    "key": 100.0,
                     "doc_count": 0
                 },
                 {
-                    "key": 150,
+                    "key": 150.0,
+                    "doc_count": 2
+                },
+                {
+                    "key": 200.0,
                     "doc_count": 3
                 }
             ]
@@ -61,15 +70,17 @@ And the following may be the response:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ==== Minimum document count
 
-The response above show that no documents has a price that falls within the range of `[100 - 150)`. By default the
+The response above show that no documents has a price that falls within the range of `[100, 150)`. By default the
 response will fill gaps in the histogram with empty buckets. It is possible change that and request buckets with
 a higher minimum count thanks to the `min_doc_count` setting:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "prices" : {
@@ -82,25 +93,32 @@ a higher minimum count thanks to the `min_doc_count` setting:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 Response:
 
 [source,js]
 --------------------------------------------------
 {
+    ...
     "aggregations": {
         "prices" : {
             "buckets": [
                 {
-                    "key": 0,
+                    "key": 0.0,
+                    "doc_count": 1
+                },
+                {
+                    "key": 50.0,
+                    "doc_count": 1
+                },
+                {
+                    "key": 150.0,
                     "doc_count": 2
                 },
                 {
-                    "key": 50,
-                    "doc_count": 4
-                },
-                {
-                    "key": 150,
+                    "key": 200.0,
                     "doc_count": 3
                 }
             ]
@@ -108,6 +126,7 @@ Response:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 [[search-aggregations-bucket-histogram-aggregation-extended-bounds]]
 By default the `histogram` returns all the buckets within the range of the data itself, that is, the documents with
@@ -137,6 +156,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "query" : {
         "constant_score" : { "filter": { "range" : { "price" : { "to" : "500" } } } }
@@ -155,121 +175,21 @@ Example:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 ==== Order
 
-By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controlled
-using the `order` setting.
-
-Ordering the buckets by their key - descending:
-
-[source,js]
---------------------------------------------------
-{
-    "aggs" : {
-        "prices" : {
-            "histogram" : {
-                "field" : "price",
-                "interval" : 50,
-                "order" : { "_key" : "desc" }
-            }
-        }
-    }
-}
---------------------------------------------------
-
-Ordering the buckets by their `doc_count` - ascending:
-
-[source,js]
---------------------------------------------------
-{
-    "aggs" : {
-        "prices" : {
-            "histogram" : {
-                "field" : "price",
-                "interval" : 50,
-                "order" : { "_count" : "asc" }
-            }
-        }
-    }
-}
---------------------------------------------------
-
-If the histogram aggregation has a direct metrics sub-aggregation, the latter can determine the order of the buckets:
-
-[source,js]
---------------------------------------------------
-{
-    "aggs" : {
-        "prices" : {
-            "histogram" : {
-                "field" : "price",
-                "interval" : 50,
-                "order" : { "price_stats.min" : "asc" } <1>
-            },
-            "aggs" : {
-                "price_stats" : { "stats" : {} } <2>
-            }
-        }
-    }
-}
---------------------------------------------------
-
-<1> The `{ "price_stats.min" : asc" }` will sort the buckets based on `min` value of their `price_stats` sub-aggregation.
-
-<2> There is no need to configure the `price` field for the `price_stats` aggregation as it will inherit it by default from its parent histogram aggregation.
-
-It is also possible to order the buckets based on a "deeper" aggregation in the hierarchy. This is supported as long
-as the aggregations path are of a single-bucket type, where the last aggregation in the path may either by a single-bucket
-one or a metrics one. If it's a single-bucket type, the order will be defined by the number of docs in the bucket (i.e. `doc_count`),
-in case it's a metrics one, the same rules as above apply (where the path must indicate the metric name to sort by in case of
-a multi-value metrics aggregation, and in case of a single-value metrics aggregation the sort will be applied on that value).
-
-The path must be defined in the following form:
-
-// https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
-[source,ebnf]
---------------------------------------------------
-AGG_SEPARATOR       =  '>' ;
-METRIC_SEPARATOR    =  '.' ;
-AGG_NAME            =  <the name of the aggregation> ;
-METRIC              =  <the name of the metric (in case of multi-value metrics aggregation)> ;
-PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEPARATOR>, <METRIC> ] ;
---------------------------------------------------
-
-[source,js]
---------------------------------------------------
-{
-    "aggs" : {
-        "prices" : {
-            "histogram" : {
-                "field" : "price",
-                "interval" : 50,
-                "order" : { "promoted_products>rating_stats.avg" : "desc" } <1>
-            },
-            "aggs" : {
-                "promoted_products" : {
-                    "filter" : { "term" : { "promoted" : true }},
-                    "aggs" : {
-                        "rating_stats" : { "stats" : { "field" : "rating" }}
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-
-The above will sort the buckets based on the avg rating among the promoted products
-
+By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controlled using
+the `order` setting. Supports the same `order` functionality as the <<search-aggregations-bucket-terms-aggregation-order,`Terms Aggregation`>>.
 
 ==== Offset
 
 By default the bucket keys start with 0 and then continue in even spaced steps of `interval`, e.g. if the interval is 10 the first buckets
-(assuming there is data inside them) will be [0 - 9], [10-19], [20-29]. The bucket boundaries can be shifted by using the `offset` option.
+(assuming there is data inside them) will be `[0, 10)`, `[10, 20)`, `[20, 30)`. The bucket boundaries can be shifted by using the `offset` option.
 
 This can be best illustrated with an example. If there are 10 documents with values ranging from 5 to 14, using interval `10` will result in
-two buckets with 5 documents each. If an additional offset `5` is used, there will be only one single bucket [5-14] containing all the 10
+two buckets with 5 documents each. If an additional offset `5` is used, there will be only one single bucket `[5, 15)` containing all the 10
 documents.
 
 ==== Response Format
@@ -279,6 +199,7 @@ instead keyed by the buckets keys:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "prices" : {
@@ -291,25 +212,36 @@ instead keyed by the buckets keys:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 Response:
 
 [source,js]
 --------------------------------------------------
 {
+    ...
     "aggregations": {
         "prices": {
             "buckets": {
-                "0": {
-                    "key": 0,
+                "0.0": {
+                    "key": 0.0,
+                    "doc_count": 1
+                },
+                "50.0": {
+                    "key": 50.0,
+                    "doc_count": 1
+                },
+                "100.0": {
+                    "key": 100.0,
+                    "doc_count": 0
+                },
+                "150.0": {
+                    "key": 150.0,
                     "doc_count": 2
                 },
-                "50": {
-                    "key": 50,
-                    "doc_count": 4
-                },
-                "150": {
-                    "key": 150,
+                "200.0": {
+                    "key": 200.0,
                     "doc_count": 3
                 }
             }
@@ -317,6 +249,7 @@ Response:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ==== Missing value
 
@@ -326,6 +259,7 @@ had a value.
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs" : {
         "quantity" : {
@@ -338,5 +272,7 @@ had a value.
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 <1> Documents without a value in the `quantity` field will fall into the same bucket as documents that have the value `0`.

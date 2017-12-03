@@ -24,9 +24,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 public final class IndexNotFoundException extends ResourceNotFoundException {
+    /**
+     * Construct with a custom message.
+     */
+    public IndexNotFoundException(String message, String index) {
+        super(message);
+        setIndex(index);
+    }
 
     public IndexNotFoundException(String index) {
-        this(index, null);
+        this(index, (Throwable) null);
     }
 
     public IndexNotFoundException(String index, Throwable cause) {

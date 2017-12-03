@@ -3,13 +3,9 @@
 
 See {ref}/query-dsl-span-term-query.html[Span Term Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = spanTermQuery(
-    "user",                                     <1>
-    "kimchy"                                    <2>
-);
+include-tagged::{query-dsl-test}[span_term]
 --------------------------------------------------
 <1> field
 <2> value
-

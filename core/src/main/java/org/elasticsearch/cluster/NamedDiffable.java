@@ -30,6 +30,6 @@ public interface NamedDiffable<T> extends Diffable<T>, NamedWriteable {
      * The minimal version of the recipient this custom object can be sent to
      */
     default Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+        return Version.CURRENT.minimumIndexCompatibilityVersion();
     }
 }

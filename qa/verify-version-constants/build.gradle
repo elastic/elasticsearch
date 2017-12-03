@@ -1,0 +1,89 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Locale
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.standalone-test'
+
+// This is a top level task which we will add dependencies to below.
+// It is a single task that can be used to backcompat tests against all versions.
+task bwcTest {
+    description = 'Runs backwards compatibility tests.'
+    group = 'verification'
+}
+
+for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
+    String baseName = "v${version}"
+    Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
+        mustRunAfter(precommit)
+    }
+    configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
+        distribution = 'zip'
+        bwcVersion = version
+        numBwcNodes = 1
+        numNodes = 1
+        clusterName = 'verify-version-constants'
+        if (version.onOrAfter('5.3.0')) {
+            setting 'http.content_type.required', 'true'
+        }
+    }
+
+    Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
+        dependsOn = [oldClusterTest]
+    }
+
+    bwcTest.dependsOn(versionBwcTest)
+}
+
+test.enabled = false
+
+task integTest {
+    for (final def version : versionCollection.basicIntegrationTestVersions) {
+        dependsOn "v${version}#bwcTest"
+    }
+}
+
+task verifyDocsLuceneVersion {
+  doFirst {
+    File docsVersionsFile = rootProject.file('docs/Versions.asciidoc')
+    List<String> versionLines = docsVersionsFile.readLines('UTF-8')
+    String docsLuceneVersion = null
+    for (String line : versionLines) {
+      if (line.startsWith(':lucene_version:')) {
+        docsLuceneVersion = line.split()[1]
+      }
+    }
+    if (docsLuceneVersion == null) {
+      throw new GradleException('Could not find lucene version in docs version file')
+    }
+    String expectedLuceneVersion = VersionProperties.lucene
+    if (expectedLuceneVersion.contains('-snapshot-')) {
+      expectedLuceneVersion = expectedLuceneVersion.substring(0, expectedLuceneVersion.lastIndexOf('-'))
+      expectedLuceneVersion = expectedLuceneVersion.toUpperCase(Locale.ROOT)
+    }
+    if (docsLuceneVersion != expectedLuceneVersion) {
+      throw new GradleException("Lucene version in docs [${docsLuceneVersion}] does not match version.properties [${expectedLuceneVersion}]")
+    }
+  }
+}
+
+check.dependsOn integTest, verifyDocsLuceneVersion

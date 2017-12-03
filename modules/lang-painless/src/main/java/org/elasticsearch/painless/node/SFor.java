@@ -94,7 +94,7 @@ public final class SFor extends AStatement {
         }
 
         if (condition != null) {
-            condition.expected = Definition.BOOLEAN_TYPE;
+            condition.expected = locals.getDefinition().booleanType;
             condition.analyze(locals);
             condition = condition.cast(locals);
 
@@ -161,7 +161,7 @@ public final class SFor extends AStatement {
             AExpression initializer = (AExpression)this.initializer;
 
             initializer.write(writer, globals);
-            writer.writePop(initializer.expected.sort.size);
+            writer.writePop(initializer.expected.type.getSize());
         }
 
         writer.mark(start);

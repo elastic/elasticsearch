@@ -23,7 +23,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -94,7 +93,7 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     @Override
-    public void testUnknownField() throws IOException {
+    public void testUnknownField() {
         assumeTrue("test doesn't apply for query filter queries", false);
     }
 
@@ -117,5 +116,11 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
 
         assertEquals(json, 23.0, parsed.boost(), 0.0001);
         assertEquals(json, 42.0, parsed.innerQuery().boost(), 0.0001);
+    }
+
+    public void testRewriteToMatchNone() throws IOException {
+        ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(new MatchNoneQueryBuilder());
+        QueryBuilder rewrite = constantScoreQueryBuilder.rewrite(createShardContext());
+        assertEquals(rewrite, new MatchNoneQueryBuilder());
     }
 }

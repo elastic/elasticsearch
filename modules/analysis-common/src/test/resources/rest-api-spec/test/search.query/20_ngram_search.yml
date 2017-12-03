@@ -1,0 +1,41 @@
+"ngram search":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            analysis:
+              analyzer:
+                my_analyzer:
+                  tokenizer: standard
+                  filter: [my_ngram]
+              filter:
+                my_ngram:
+                  type: ngram
+                  min: 2,
+                  max: 2
+          mappings:
+            doc:
+              properties:
+                text:
+                  type: text
+                  analyzer: my_analyzer
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    1
+        body:  { "text": "foo bar baz" }
+        refresh: true
+
+  - do:
+      search:
+        body:
+          query:
+            match:
+              text:
+                query: foa
+  - match: {hits.total: 1}

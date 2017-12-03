@@ -39,7 +39,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         boolean isVerbose = randomBoolean();
-        String id = randomBoolean() ? randomAsciiOfLengthBetween(1, 10) : null;
+        String id = randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null;
         int numResults = randomIntBetween(1, 10);
         List<SimulateDocumentResult> results = new ArrayList<>(numResults);
         for (int i = 0; i < numResults; i++) {
@@ -49,7 +49,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                 int numProcessors = randomIntBetween(1, 10);
                 List<SimulateProcessorResult> processorResults = new ArrayList<>(numProcessors);
                 for (int j = 0; j < numProcessors; j++) {
-                    String processorTag = randomAsciiOfLengthBetween(1, 10);
+                    String processorTag = randomAlphaOfLengthBetween(1, 10);
                     SimulateProcessorResult processorResult;
                     if (isFailure) {
                         processorResult = new SimulateProcessorResult(processorTag, new IllegalArgumentException("test"));

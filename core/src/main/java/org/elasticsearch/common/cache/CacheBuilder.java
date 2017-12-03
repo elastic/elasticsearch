@@ -91,7 +91,7 @@ public class CacheBuilder<K, V> {
     }
 
     public Cache<K, V> build() {
-        Cache<K, V> cache = new Cache();
+        Cache<K, V> cache = new Cache<>();
         if (maximumWeight != -1) {
             cache.setMaximumWeight(maximumWeight);
         }

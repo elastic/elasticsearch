@@ -36,7 +36,7 @@ public class IndexIdTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
         // assert equals and hashcode
-        String name = randomAsciiOfLength(8);
+        String name = randomAlphaOfLength(8);
         String id = UUIDs.randomBase64UUID();
         IndexId indexId1 = new IndexId(name, id);
         IndexId indexId2 = new IndexId(name, id);
@@ -49,7 +49,7 @@ public class IndexIdTests extends ESTestCase {
         assertEquals(indexId1, indexId2);
         assertEquals(indexId1.hashCode(), indexId2.hashCode());
         //assert not equals when name or id differ
-        indexId2 = new IndexId(randomAsciiOfLength(8), id);
+        indexId2 = new IndexId(randomAlphaOfLength(8), id);
         assertNotEquals(indexId1, indexId2);
         assertNotEquals(indexId1.hashCode(), indexId2.hashCode());
         indexId2 = new IndexId(name, UUIDs.randomBase64UUID());
@@ -58,14 +58,14 @@ public class IndexIdTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        IndexId indexId = new IndexId(randomAsciiOfLength(8), UUIDs.randomBase64UUID());
+        IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
         BytesStreamOutput out = new BytesStreamOutput();
         indexId.writeTo(out);
         assertEquals(indexId, new IndexId(out.bytes().streamInput()));
     }
 
     public void testXContent() throws IOException {
-        IndexId indexId = new IndexId(randomAsciiOfLength(8), UUIDs.randomBase64UUID());
+        IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
         XContentBuilder builder = JsonXContent.contentBuilder();
         indexId.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());

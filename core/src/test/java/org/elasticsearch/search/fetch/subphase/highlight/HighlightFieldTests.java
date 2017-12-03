@@ -38,14 +38,14 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 public class HighlightFieldTests extends ESTestCase {
 
     public static HighlightField createTestItem() {
-        String name = frequently() ? randomAsciiOfLengthBetween(1, 20) : randomRealisticUnicodeOfCodepointLengthBetween(1, 20);
+        String name = frequently() ? randomAlphaOfLengthBetween(5, 20) : randomRealisticUnicodeOfCodepointLengthBetween(5, 20);
         Text[] fragments = null;
         if (frequently()) {
             int size = randomIntBetween(0, 5);
             fragments = new Text[size];
             for (int i = 0; i < size; i++) {
                 fragments[i] = new Text(
-                        frequently() ? randomAsciiOfLengthBetween(10, 30) : randomRealisticUnicodeOfCodepointLengthBetween(10, 30));
+                        frequently() ? randomAlphaOfLengthBetween(10, 30) : randomRealisticUnicodeOfCodepointLengthBetween(10, 30));
             }
         }
         return new HighlightField(name, fragments);
@@ -63,6 +63,7 @@ public class HighlightFieldTests extends ESTestCase {
         builder.endObject();
         XContentParser parser = createParser(builder);
         parser.nextToken(); // skip to the opening object token, fromXContent advances from here and starts with the field name
+        parser.nextToken();
         HighlightField parsedField = HighlightField.fromXContent(parser);
         assertEquals(highlightField, parsedField);
         if (highlightField.fragments() != null) {

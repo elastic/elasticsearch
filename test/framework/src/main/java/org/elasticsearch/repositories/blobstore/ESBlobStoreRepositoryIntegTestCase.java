@@ -83,7 +83,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     logger.info("--> add random documents to {}", index);
                     addRandomDocuments(index, randomIntBetween(10, 1000));
                 } else {
-                    int docCount = (int) client().prepareSearch(index).setSize(0).get().getHits().totalHits();
+                    int docCount = (int) client().prepareSearch(index).setSize(0).get().getHits().getTotalHits();
                     int deleteCount = randomIntBetween(1, docCount);
                     logger.info("--> delete {} random documents from {}", deleteCount, index);
                     for (int i = 0; i < deleteCount; i++) {
@@ -138,7 +138,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 addRandomDocuments(indexName, docCount);
             }
             // Check number of documents in this iteration
-            docCounts[i] = (int) client().prepareSearch(indexName).setSize(0).get().getHits().totalHits();
+            docCounts[i] = (int) client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits();
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
             assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName + "-" + i)
                     .setWaitForCompletion(true).setIndices(indexName));
@@ -222,7 +222,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             indexRequestBuilders[i] = client().prepareIndex(name, name, Integer.toString(i))
-                .setRouting(randomAsciiOfLength(randomIntBetween(1, 10))).setSource("field", "value");
+                .setRouting(randomAlphaOfLength(randomIntBetween(1, 10))).setSource("field", "value");
         }
         indexRandom(true, indexRequestBuilders);
     }
@@ -262,6 +262,6 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     public static String randomAsciiName() {
-        return randomAsciiOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        return randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
     }
 }

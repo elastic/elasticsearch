@@ -62,49 +62,68 @@ public class ReplaceMissingTests extends ESTestCase {
         assertEquals("cat", dv.lookupOrd(0).utf8ToString());
         assertEquals("dog", dv.lookupOrd(1).utf8ToString());
 
-        assertEquals(0, dv.getOrd(0));
-        assertEquals(0, dv.getOrd(1));
-        assertEquals(1, dv.getOrd(2));
+        assertTrue(dv.advanceExact(0));
+        assertEquals(0, dv.ordValue());
+        assertTrue(dv.advanceExact(1));
+        assertEquals(0, dv.ordValue());
+        assertTrue(dv.advanceExact(2));
+        assertEquals(1, dv.ordValue());
 
+        raw = ar.getSortedDocValues("field");
         dv = new BytesRefFieldComparatorSource.ReplaceMissing(raw, new BytesRef("dog"));
         assertEquals(2, dv.getValueCount());
         assertEquals("cat", dv.lookupOrd(0).utf8ToString());
         assertEquals("dog", dv.lookupOrd(1).utf8ToString());
 
-        assertEquals(0, dv.getOrd(0));
-        assertEquals(1, dv.getOrd(1));
-        assertEquals(1, dv.getOrd(2));
+        assertTrue(dv.advanceExact(0));
+        assertEquals(0, dv.ordValue());
+        assertTrue(dv.advanceExact(1));
+        assertEquals(1, dv.ordValue());
+        assertTrue(dv.advanceExact(2));
+        assertEquals(1, dv.ordValue());
 
         // non-existing values
+        raw = ar.getSortedDocValues("field");
         dv = new BytesRefFieldComparatorSource.ReplaceMissing(raw, new BytesRef("apple"));
         assertEquals(3, dv.getValueCount());
         assertEquals("apple", dv.lookupOrd(0).utf8ToString());
         assertEquals("cat", dv.lookupOrd(1).utf8ToString());
         assertEquals("dog", dv.lookupOrd(2).utf8ToString());
 
-        assertEquals(1, dv.getOrd(0));
-        assertEquals(0, dv.getOrd(1));
-        assertEquals(2, dv.getOrd(2));
+        assertTrue(dv.advanceExact(0));
+        assertEquals(1, dv.ordValue());
+        assertTrue(dv.advanceExact(1));
+        assertEquals(0, dv.ordValue());
+        assertTrue(dv.advanceExact(2));
+        assertEquals(2, dv.ordValue());
 
+        raw = ar.getSortedDocValues("field");
         dv = new BytesRefFieldComparatorSource.ReplaceMissing(raw, new BytesRef("company"));
         assertEquals(3, dv.getValueCount());
         assertEquals("cat", dv.lookupOrd(0).utf8ToString());
         assertEquals("company", dv.lookupOrd(1).utf8ToString());
         assertEquals("dog", dv.lookupOrd(2).utf8ToString());
 
-        assertEquals(0, dv.getOrd(0));
-        assertEquals(1, dv.getOrd(1));
-        assertEquals(2, dv.getOrd(2));
+        assertTrue(dv.advanceExact(0));
+        assertEquals(0, dv.ordValue());
+        assertTrue(dv.advanceExact(1));
+        assertEquals(1, dv.ordValue());
+        assertTrue(dv.advanceExact(2));
+        assertEquals(2, dv.ordValue());
 
+        raw = ar.getSortedDocValues("field");
         dv = new BytesRefFieldComparatorSource.ReplaceMissing(raw, new BytesRef("ebay"));
         assertEquals(3, dv.getValueCount());
         assertEquals("cat", dv.lookupOrd(0).utf8ToString());
         assertEquals("dog", dv.lookupOrd(1).utf8ToString());
         assertEquals("ebay", dv.lookupOrd(2).utf8ToString());
 
-        assertEquals(0, dv.getOrd(0));
-        assertEquals(2, dv.getOrd(1));
-        assertEquals(1, dv.getOrd(2));
+        assertTrue(dv.advanceExact(0));
+        assertEquals(0, dv.ordValue());
+        assertTrue(dv.advanceExact(1));
+        assertEquals(2, dv.ordValue());
+        assertTrue(dv.advanceExact(2));
+        assertEquals(1, dv.ordValue());
 
         reader.close();
         dir.close();

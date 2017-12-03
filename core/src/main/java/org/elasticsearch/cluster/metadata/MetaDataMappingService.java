@@ -145,7 +145,7 @@ public class MetaDataMappingService extends AbstractComponent {
             IndexService indexService = indicesService.indexService(indexMetaData.getIndex());
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(indexMetaData, Collections.emptyList(), shardId -> {});
+                indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
                 removeIndex = true;
                 indexService.mapperService().merge(indexMetaData, MergeReason.MAPPING_RECOVERY, true);
             }

@@ -25,12 +25,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -38,7 +36,6 @@ import java.util.Objects;
 
 public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedAggregationBuilder> {
     public static final String NAME = "nested";
-    private static final Type TYPE = new Type(NAME);
 
     private final String path;
 
@@ -50,7 +47,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
      *            match the path to a nested object in the mappings.
      */
     public NestedAggregationBuilder(String name, String path) {
-        super(name, TYPE);
+        super(name);
         if (path == null) {
             throw new IllegalArgumentException("[path] must not be null: [" + name + "]");
         }
@@ -61,7 +58,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
      * Read from a stream.
      */
     public NestedAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE);
+        super(in);
         path = in.readString();
     }
 
@@ -83,7 +80,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         ObjectMapper childObjectMapper = context.getObjectMapper(path);
         if (childObjectMapper == null) {
             // in case the path has been unmapped:
-            return new NestedAggregatorFactory(name, type, null, null, context, parent, subFactoriesBuilder, metaData);
+            return new NestedAggregatorFactory(name, null, null, context, parent, subFactoriesBuilder, metaData);
         }
 
         if (childObjectMapper.nested().isNested() == false) {
@@ -91,7 +88,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         }
         try {
             ObjectMapper parentObjectMapper = context.getQueryShardContext().nestedScope().nextLevel(childObjectMapper);
-            return new NestedAggregatorFactory(name, type, parentObjectMapper, childObjectMapper, context, parent, subFactoriesBuilder,
+            return new NestedAggregatorFactory(name, parentObjectMapper, childObjectMapper, context, parent, subFactoriesBuilder,
                     metaData);
         } finally {
             context.getQueryShardContext().nestedScope().previousLevel();
@@ -106,12 +103,11 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         return builder;
     }
 
-    public static NestedAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+    public static NestedAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         String path = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
-        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -148,7 +144,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

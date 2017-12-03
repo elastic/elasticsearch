@@ -26,13 +26,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -143,8 +144,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
+     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * will be used across different requests.
      */
     public SearchRequestBuilder setPreference(String preference) {
         request.preference(preference);
@@ -301,20 +302,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Adds a field data based field to load and return. The field does not have to be stored,
-     * but its recommended to use non analyzed or numeric fields.
-     *
-     * @param name The field to get from the field data cache
-     * @deprecated Use {@link SearchRequestBuilder#addDocValueField(String)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder addFieldDataField(String name) {
-        sourceBuilder().docValueField(name);
-        return this;
-    }
-
-
-    /**
      * Adds a script based field to load and return. The field does not have to be stored,
      * but its recommended to use non analyzed or numeric fields.
      *
@@ -362,11 +349,18 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Applies when sorting, and controls if scores will be tracked as well. Defaults to
-     * <tt>false</tt>.
+     * Applies when sorting, and controls if scores will be tracked as well. Defaults to <tt>false</tt>.
      */
     public SearchRequestBuilder setTrackScores(boolean trackScores) {
         sourceBuilder().trackScores(trackScores);
+        return this;
+    }
+
+    /**
+     * Indicates if the total hit count for the query should be tracked. Defaults to <tt>true</tt>
+     */
+    public SearchRequestBuilder setTrackTotalHits(boolean trackTotalHits) {
+        sourceBuilder().trackTotalHits(trackTotalHits);
         return this;
     }
 
@@ -421,25 +415,25 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder<?> rescorer) {
+    public SearchRequestBuilder setRescorer(RescorerBuilder<?> rescorer) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer);
     }
 
     /**
      * Clears all rescorers on the builder and sets the first one.  To use multiple rescore windows use
-     * {@link #addRescorer(org.elasticsearch.search.rescore.RescoreBuilder, int)}.
+     * {@link #addRescorer(org.elasticsearch.search.rescore.RescorerBuilder, int)}.
      *
      * @param rescorer rescorer configuration
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescoreBuilder rescorer, int window) {
+    public SearchRequestBuilder setRescorer(RescorerBuilder rescorer, int window) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer.windowSize(window));
     }
@@ -450,7 +444,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param rescorer rescorer configuration
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer) {
+    public SearchRequestBuilder addRescorer(RescorerBuilder<?> rescorer) {
         sourceBuilder().addRescorer(rescorer);
         return this;
     }
@@ -462,7 +456,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder addRescorer(RescoreBuilder<?> rescorer, int window) {
+    public SearchRequestBuilder addRescorer(RescorerBuilder<?> rescorer, int window) {
         sourceBuilder().addRescorer(rescorer.windowSize(window));
         return this;
     }
@@ -503,6 +497,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder setCollapse(CollapseBuilder collapse) {
+        sourceBuilder().collapse(collapse);
+        return this;
+    }
+
     @Override
     public String toString() {
         if (request.source() != null) {
@@ -516,5 +515,35 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
             request.source(new SearchSourceBuilder());
         }
         return request.source();
+    }
+
+    /**
+     * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
+     * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     */
+    public SearchRequestBuilder setBatchedReduceSize(int batchedReduceSize) {
+        this.request.setBatchedReduceSize(batchedReduceSize);
+        return this;
+    }
+
+    /**
+     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public SearchRequestBuilder setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        this.request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        return this;
+    }
+
+    /**
+     * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {
+        this.request.setPreFilterShardSize(preFilterShardSize);
+        return this;
     }
 }

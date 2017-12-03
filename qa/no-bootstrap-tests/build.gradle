@@ -23,4 +23,3 @@
  */
 
 apply plugin: 'elasticsearch.standalone-test'
-

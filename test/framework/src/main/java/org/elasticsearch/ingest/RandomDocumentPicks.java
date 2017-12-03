@@ -42,25 +42,22 @@ public final class RandomDocumentPicks {
      */
     public static String randomFieldName(Random random) {
         int numLevels = RandomNumbers.randomIntBetween(random, 1, 5);
-        String fieldName = "";
+        StringBuilder fieldName = new StringBuilder();
         for (int i = 0; i < numLevels; i++) {
             if (i > 0) {
-                fieldName += ".";
+                fieldName.append('.');
             }
-            fieldName += randomString(random);
+            fieldName.append(randomString(random));
         }
-        return fieldName;
+        return fieldName.toString();
     }
 
     /**
      * Returns a random leaf field name.
      */
     public static String randomLeafFieldName(Random random) {
-        String fieldName;
-        do {
-            fieldName = randomString(random);
-        } while (fieldName.contains("."));
-        return fieldName;
+        // Never generates a dot:
+        return RandomStrings.randomAsciiAlphanumOfLengthBetween(random, 1, 10);
     }
 
     /**

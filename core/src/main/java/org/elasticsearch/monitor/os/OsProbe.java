@@ -35,10 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class OsProbe {
 
@@ -188,8 +185,9 @@ public class OsProbe {
         return lines.get(0);
     }
 
-    // pattern for lines in /proc/self/cgroup
-    private static final Pattern CONTROL_GROUP_PATTERN = Pattern.compile("\\d+:([^:,]+(?:,[^:,]+)?):(/.*)");
+    // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
+    // respect to /proc/self/cgroup; for Docker containers this should be set to "/"
+    private static final String CONTROL_GROUPS_HIERARCHY_OVERRIDE = System.getProperty("es.cgroups.hierarchy.override");
 
     /**
      * A map of the control groups to which the Elasticsearch process belongs. Note that this is a map because the control groups can vary
@@ -202,17 +200,29 @@ public class OsProbe {
         final List<String> lines = readProcSelfCgroup();
         final Map<String, String> controllerMap = new HashMap<>();
         for (final String line : lines) {
-            final Matcher matcher = CONTROL_GROUP_PATTERN.matcher(line);
-            // note that Matcher#matches must be invoked as
-            // matching is lazy; this can not happen in an assert
-            // as assertions might not be enabled
-            final boolean matches = matcher.matches();
-            assert matches : line;
-            // at this point we have captured the subsystems and the
-            // control group
-            final String[] controllers = matcher.group(1).split(",");
+            /*
+             * The virtual file /proc/self/cgroup lists the control groups that the Elasticsearch process is a member of. Each line contains
+             * three colon-separated fields of the form hierarchy-ID:subsystem-list:cgroup-path. For cgroups version 1 hierarchies, the
+             * subsystem-list is a comma-separated list of subsystems. The subsystem-list can be empty if the hierarchy represents a cgroups
+             * version 2 hierarchy. For cgroups version 1
+             */
+            final String[] fields = line.split(":");
+            assert fields.length == 3;
+            final String[] controllers = fields[1].split(",");
             for (final String controller : controllers) {
-                controllerMap.put(controller, matcher.group(2));
+                final String controlGroupPath;
+                if (CONTROL_GROUPS_HIERARCHY_OVERRIDE != null) {
+                    /*
+                     * Docker violates the relationship between /proc/self/cgroup and the /sys/fs/cgroup hierarchy. It's possible that this
+                     * will be fixed in future versions of Docker with cgroup namespaces, but this requires modern kernels. Thus, we provide
+                     * an undocumented hack for overriding the control group path. Do not rely on this hack, it will be removed.
+                     */
+                    controlGroupPath = CONTROL_GROUPS_HIERARCHY_OVERRIDE;
+                } else {
+                    controlGroupPath = fields[2];
+                }
+                final String previous = controllerMap.put(controller, controlGroupPath);
+                assert previous == null;
             }
         }
         return controllerMap;
@@ -370,13 +380,71 @@ public class OsProbe {
     }
 
     /**
-     * Checks if cgroup stats are available by checking for the existence of {@code /proc/self/cgroup}, {@code /sys/fs/cgroup/cpu}, and
-     * {@code /sys/fs/cgroup/cpuacct}.
+     * The maximum amount of user memory (including file cache).
+     * If there is no limit then some Linux versions return the maximum value that can be stored in an
+     * unsigned 64 bit number, and this will overflow a long, hence the result type is <code>String</code>.
+     * (The alternative would have been <code>BigInteger</code> but then it would not be possible to index
+     * the OS stats document into Elasticsearch without losing information, as <code>BigInteger</code> is
+     * not a supported Elasticsearch type.)
+     *
+     * @param controlGroup the control group for the Elasticsearch process for the {@code memory} subsystem
+     * @return the maximum amount of user memory (including file cache)
+     * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
+     */
+    private String getCgroupMemoryLimitInBytes(final String controlGroup) throws IOException {
+        return readSysFsCgroupMemoryLimitInBytes(controlGroup);
+    }
+
+    /**
+     * Returns the line from {@code memory.limit_in_bytes} for the control group to which the Elasticsearch process belongs for the
+     * {@code memory} subsystem. This line represents the maximum amount of user memory (including file cache).
+     *
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code memory} subsystem
+     * @return the line from {@code memory.limit_in_bytes}
+     * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
+     */
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/memory")
+    String readSysFsCgroupMemoryLimitInBytes(final String controlGroup) throws IOException {
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/memory", controlGroup, "memory.limit_in_bytes"));
+    }
+
+    /**
+     * The total current memory usage by processes in the cgroup (in bytes).
+     * If there is no limit then some Linux versions return the maximum value that can be stored in an
+     * unsigned 64 bit number, and this will overflow a long, hence the result type is <code>String</code>.
+     * (The alternative would have been <code>BigInteger</code> but then it would not be possible to index
+     * the OS stats document into Elasticsearch without losing information, as <code>BigInteger</code> is
+     * not a supported Elasticsearch type.)
+     *
+     * @param controlGroup the control group for the Elasticsearch process for the {@code memory} subsystem
+     * @return the total current memory usage by processes in the cgroup (in bytes)
+     * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
+     */
+    private String getCgroupMemoryUsageInBytes(final String controlGroup) throws IOException {
+        return readSysFsCgroupMemoryUsageInBytes(controlGroup);
+    }
+
+    /**
+     * Returns the line from {@code memory.usage_in_bytes} for the control group to which the Elasticsearch process belongs for the
+     * {@code memory} subsystem. This line represents the total current memory usage by processes in the cgroup (in bytes).
+     *
+     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code memory} subsystem
+     * @return the line from {@code memory.usage_in_bytes}
+     * @throws IOException if an I/O exception occurs reading {@code memory.usage_in_bytes} for the control group
+     */
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/memory")
+    String readSysFsCgroupMemoryUsageInBytes(final String controlGroup) throws IOException {
+        return readSingleLine(PathUtils.get("/sys/fs/cgroup/memory", controlGroup, "memory.usage_in_bytes"));
+    }
+
+    /**
+     * Checks if cgroup stats are available by checking for the existence of {@code /proc/self/cgroup}, {@code /sys/fs/cgroup/cpu},
+     * {@code /sys/fs/cgroup/cpuacct} and {@code /sys/fs/cgroup/memory}.
      *
      * @return {@code true} if the stats are available, otherwise {@code false}
      */
-    @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, and /sys/fs/cgroup/cpuacct")
-    protected boolean areCgroupStatsAvailable() {
+    @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, /sys/fs/cgroup/cpuacct and /sys/fs/cgroup/memory")
+    boolean areCgroupStatsAvailable() {
         if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
             return false;
         }
@@ -384,6 +452,9 @@ public class OsProbe {
             return false;
         }
         if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct"))) {
+            return false;
+        }
+        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/memory"))) {
             return false;
         }
         return true;
@@ -412,18 +483,24 @@ public class OsProbe {
                 final long cgroupCpuAcctCpuCfsQuotaMicros = getCgroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup);
                 final OsStats.Cgroup.CpuStat cpuStat = getCgroupCpuAcctCpuStat(cpuControlGroup);
 
+                final String memoryControlGroup = controllerMap.get("memory");
+                assert memoryControlGroup != null;
+                final String cgroupMemoryLimitInBytes = getCgroupMemoryLimitInBytes(memoryControlGroup);
+                final String cgroupMemoryUsageInBytes = getCgroupMemoryUsageInBytes(memoryControlGroup);
+
                 return new OsStats.Cgroup(
                     cpuAcctControlGroup,
                     cgroupCpuAcctUsageNanos,
                     cpuControlGroup,
                     cgroupCpuAcctCpuCfsPeriodMicros,
                     cgroupCpuAcctCpuCfsQuotaMicros,
-                    cpuStat);
+                    cpuStat,
+                    memoryControlGroup,
+                    cgroupMemoryLimitInBytes,
+                    cgroupMemoryUsageInBytes);
             }
         } catch (final IOException e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("error reading control group stats", e);
-            }
+            logger.debug("error reading control group stats", e);
             return null;
         }
     }

@@ -26,6 +26,7 @@ import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
@@ -47,7 +48,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Support class to build MockEngines like {@link org.elasticsearch.test.engine.MockInternalEngine} or {@link org.elasticsearch.test.engine.MockShadowEngine}
+ * Support class to build MockEngines like {@link org.elasticsearch.test.engine.MockInternalEngine}
  * since they need to subclass the actual engine
  */
 public final class MockEngineSupport {
@@ -133,7 +134,8 @@ public final class MockEngineSupport {
         }
     }
 
-    public AssertingIndexSearcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
+    public AssertingIndexSearcher newSearcher(String source, IndexSearcher searcher,
+                                              ReferenceManager<IndexSearcher> manager) throws EngineException {
         IndexReader reader = searcher.getIndexReader();
         IndexReader wrappedReader = reader;
         assert reader != null;
@@ -180,14 +182,10 @@ public final class MockEngineSupport {
             this.subReaderWrapper = subReaderWrapper;
         }
 
-        @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
-        }
-
     }
 
-    public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher, IndexSearcher searcher, SearcherManager manager) {
+    public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher, IndexSearcher searcher,
+                                        ReferenceManager<IndexSearcher> manager) {
         final AssertingIndexSearcher assertingIndexSearcher = newSearcher(source, searcher, manager);
         assertingIndexSearcher.setSimilarity(searcher.getSimilarity(true));
         // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will

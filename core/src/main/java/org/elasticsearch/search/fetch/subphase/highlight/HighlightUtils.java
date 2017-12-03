@@ -35,7 +35,7 @@ import static java.util.Collections.singleton;
 
 public final class HighlightUtils {
 
-    //U+2029 PARAGRAPH SEPARATOR (PS): each value holds a discrete passage for highlighting (postings highlighter)
+    //U+2029 PARAGRAPH SEPARATOR (PS): each value holds a discrete passage for highlighting (unified highlighter)
     public static final char PARAGRAPH_SEPARATOR = 8233;
     public static final char NULL_SEPARATOR = '\u0000';
 

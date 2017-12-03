@@ -59,7 +59,7 @@ public abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoPointF
 
             @Override
             public MultiGeoPointValues getGeoPointValues() {
-                return FieldData.emptyMultiGeoPoints(maxDoc);
+                return FieldData.emptyMultiGeoPoints();
             }
         };
     }

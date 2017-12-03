@@ -45,6 +45,6 @@ public class CommonTermsQueryParserTests extends ESSingleNodeTestCase {
                 client().prepareSearch(index).setTypes(type).setQuery(commonTermsQueryBuilder).execute().actionGet();
 
         assertNotNull(response);
-        assertEquals(response.getHits().hits().length, 0);
+        assertEquals(response.getHits().getHits().length, 0);
     }
 }

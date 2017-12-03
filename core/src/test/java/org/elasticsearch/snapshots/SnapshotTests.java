@@ -46,8 +46,8 @@ public class SnapshotTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        final SnapshotId snapshotId = new SnapshotId(randomAsciiOfLength(randomIntBetween(2, 8)), UUIDs.randomBase64UUID());
-        final Snapshot original = new Snapshot(randomAsciiOfLength(randomIntBetween(2, 8)), snapshotId);
+        final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(randomIntBetween(2, 8)), UUIDs.randomBase64UUID());
+        final Snapshot original = new Snapshot(randomAlphaOfLength(randomIntBetween(2, 8)), snapshotId);
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
         assertThat(new Snapshot(out.bytes().streamInput()), equalTo(original));

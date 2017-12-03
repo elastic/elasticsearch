@@ -1,0 +1,94 @@
+[[literals]]
+=== Literals
+
+Literals are values that you can specify directly in Painless scripts.
+
+[[integers]]
+==== Integers
+
+Specify integer literals in decimal, octal, or hex notation. Use the following
+single letter designations to specify the primitive type: `l` for `long`, `f`
+for `float`, and `d` for `double`.  If not specified, the type defaults to
+`int` (with the exception of certain assignments described later).
+
+*Grammar:*
+[source,ANTLR4]
+----
+INTEGER: '-'? ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
+OCTAL: '-'? '0' [0-7]+ [lL]?;
+HEX: '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
+----
+
+*Examples:*
+[source,Java]
+----
+0     // integer literal of 0
+0D    // double literal of 0.0
+1234L // long literal of 1234
+-90F  // float literal of -90.0
+-022  // integer literal of -18 specified in octal
+0xF2A // integer literal of 3882
+----
+
+[[floating-point-values]]
+==== Floating Point Values
+
+Specify floating point literals using the following single letter designations
+for the primitive type: `f` for `float` and `d` for `double`.
+If not specified, the type defaults to `double`.
+
+*Grammar:*
+[source,ANTLR4]
+----
+DECIMAL: '-'? ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fFdD]?;
+----
+
+*Examples:*
+[source,Java]
+----
+0.0      // double value of 0.0
+1E6      // double value of 1000000
+0.977777 // double value of 0.97777
+-126.34  // double value of -126.34
+89.9F    // float value of 89.9
+----
+
+[[strings]]
+==== Strings
+
+Specify literal string with either single or double quotes. In double-quoted
+literal strings, you can escape double-quotes with a backslash to include them
+in the string. Similarly, you escape single quotes with a backslash in
+single-quoted literal strings. Backslashes themselves also need to be
+escaped with a backslash.
+
+*Grammar:*
+[source,ANTLR4]
+----
+STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\'] )*? '\'' );
+----
+
+*Examples:*
+[source,Java]
+----
+"double-quoted String literal"
+'single-quoted String literal'
+"\"double-quoted String with escaped double-quotes\" and backslash: \\"
+'\'single-quoted String with escaped single-quotes\' and backslash \\'
+"double-quoted String with non-escaped 'single-quotes'"
+'single-quoted String with non-escaped "double-quotes"'
+----
+
+[[char]]
+===== Char
+
+You cannot directly specify character literals in Painless. However, you can
+cast single-character strings to char. Attempting to cast a multi-character
+string to a char throws an error.
+
+*Examples:*
+[source,Java]
+----
+(char)"C"
+(char)'c'
+----

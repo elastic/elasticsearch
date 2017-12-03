@@ -1,0 +1,117 @@
+[[painless-syntax]]
+=== Painless Syntax
+
+[float]
+[[control-flow]]
+==== Control flow
+
+Painless supports all of Java's https://docs.oracle.com/javase/tutorial/java/nutsandbolts/flow.html[
+control flow statements] except the `switch` statement.
+
+Painless also supports the `for in` syntax from Groovy:
+
+[source,painless]
+---------------------------------------------------------
+for (item : list) {
+  ...
+}
+---------------------------------------------------------
+
+[float]
+[[functions]]
+==== Functions
+
+You can declare functions at the beginning of a Painless script, for example:
+
+[source,painless]
+---------------------------------------------------------
+boolean isNegative(def x) { x < 0 }
+...
+if (isNegative(someVar)) {
+  ...
+}
+---------------------------------------------------------
+
+[float]
+[[lambda-expressions]]
+==== Lambda expressions
+Lambda expressions and method references work the same as in https://docs.oracle.com/javase/tutorial/java/javaOO/lambdaexpressions.html[Java].
+
+[source,painless]
+---------------------------------------------------------
+list.removeIf(item -> item == 2);
+list.removeIf((int item) -> item == 2);
+list.removeIf((int item) -> { item == 2 });
+list.sort((x, y) -> x - y);
+list.sort(Integer::compare);
+---------------------------------------------------------
+
+You can make method references to functions within the script with `this`,
+for example `list.sort(this::mycompare)`.
+
+[float]
+[[patterns]]
+==== Patterns
+
+Regular expression constants are directly supported. To ensure fast performance,
+this is the only mechanism for creating patterns. Regular expressions
+are always constants and compiled efficiently a single time.
+
+[source,painless]
+---------------------------------------------------------
+Pattern p = /[aeiou]/
+---------------------------------------------------------
+
+[float]
+[[pattern-flags]]
+===== Pattern flags
+
+You can define flags on patterns in Painless by adding characters after the
+trailing `/` like `/foo/i` or `/foo \w #comment/iUx`. Painless exposes all of
+the flags from Java's
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[
+Pattern class] using these characters:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+| Character | Java Constant | Example
+|`c` | CANON_EQ                  | `'å' ==~ /å/c` (open in hex editor to see)
+|`i` | CASE_INSENSITIVE          | `'A' ==~ /a/i`
+|`l` | LITERAL                   | `'[a]' ==~ /[a]/l`
+|`m` | MULTILINE                 | `'a\nb\nc' =~ /^b$/m`
+|`s` | DOTALL (aka single line)  | `'a\nb\nc' =~ /.b./s`
+|`U` | UNICODE_CHARACTER_CLASS   | `'Ɛ' ==~ /\\w/U`
+|`u` | UNICODE_CASE              | `'Ɛ' ==~ /ɛ/iu`
+|`x` | COMMENTS (aka extended)   | `'a' ==~ /a #comment/x`
+|=======================================================================
+
+[float]
+[[painless-deref]]
+==== Dereferences
+
+Like lots of languages, Painless uses `.` to reference fields and call methods:
+
+[source,painless]
+---------------------------------------------------------
+String foo = 'foo';
+TypeWithGetterOrPublicField bar = new TypeWithGetterOrPublicField()
+return foo.length() + bar.x
+---------------------------------------------------------
+
+Like Groovy, Painless uses `?.` to perform null-safe references, with the
+result being `null` if the left hand side is `null`:
+
+[source,painless]
+---------------------------------------------------------
+String foo = null;
+return foo?.length()  // Returns null
+---------------------------------------------------------
+
+Unlike Groovy, Painless doesn't support writing to `null` values with this
+operator:
+
+[source,painless]
+---------------------------------------------------------
+TypeWithSetterOrPublicField foo = null;
+foo?.x = 'bar'  // Compile error
+---------------------------------------------------------

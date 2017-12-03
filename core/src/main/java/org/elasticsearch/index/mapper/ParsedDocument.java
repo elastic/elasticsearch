@@ -20,10 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.List;
 
@@ -35,40 +34,37 @@ public class ParsedDocument {
     private final Field version;
 
     private final String id, type;
-    private final BytesRef uid;
-    private final SeqNoFieldMapper.SequenceID seqID;
+    private final SeqNoFieldMapper.SequenceIDFields seqID;
 
     private final String routing;
 
     private final List<Document> documents;
 
     private BytesReference source;
+    private XContentType xContentType;
 
     private Mapping dynamicMappingsUpdate;
 
     private String parent;
 
     public ParsedDocument(Field version,
-                          SeqNoFieldMapper.SequenceID seqID,
+                          SeqNoFieldMapper.SequenceIDFields seqID,
                           String id,
                           String type,
                           String routing,
                           List<Document> documents,
                           BytesReference source,
+                          XContentType xContentType,
                           Mapping dynamicMappingsUpdate) {
         this.version = version;
         this.seqID = seqID;
         this.id = id;
         this.type = type;
-        this.uid = Uid.createUidAsBytes(type, id);
         this.routing = routing;
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
-    }
-
-    public BytesRef uid() {
-        return uid;
+        this.xContentType = xContentType;
     }
 
     public String id() {
@@ -105,8 +101,13 @@ public class ParsedDocument {
         return this.source;
     }
 
-    public void setSource(BytesReference source) {
+    public XContentType getXContentType() {
+        return this.xContentType;
+    }
+
+    public void setSource(BytesReference source, XContentType xContentType) {
         this.source = source;
+        this.xContentType = xContentType;
     }
 
     public ParsedDocument parent(String parent) {
@@ -136,9 +137,7 @@ public class ParsedDocument {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Document ").append("uid[").append(uid).append("] doc [").append(documents).append("]");
-        return sb.toString();
+        return "Document uid[" + Uid.createUidAsBytes(type, id) + "] doc [" + documents + ']';
     }
 
 }

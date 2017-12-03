@@ -32,7 +32,6 @@ import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Disc
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -162,7 +161,8 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
 
         InetAddress ipAddress = null;
         try {
-            ipAddress = networkService.resolvePublishHostAddresses(null);
+            ipAddress = networkService.resolvePublishHostAddresses(
+                NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
             logger.trace("ip of current node: [{}]", ipAddress);
         } catch (IOException e) {
             // We can't find the publish host address... Hmmm. Too bad :-(

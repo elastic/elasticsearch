@@ -266,10 +266,6 @@ public class EquivalenceIT extends ESIntegTestCase {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .execute().get());
 
-        TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[] {
-                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
-        };
-
         SearchResponse resp = client().prepareSearch("idx")
                     .addAggregation(
                             terms("long")
@@ -294,14 +290,14 @@ public class EquivalenceIT extends ESIntegTestCase {
                             terms("string_global_ordinals")
                                     .field("string_values")
                                     .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString())
+                                    .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
                                     .size(maxNumTerms)
                                     .subAggregation(extendedStats("stats").field("num")))
                     .addAggregation(
                             terms("string_global_ordinals_doc_values")
                                     .field("string_values.doc_values")
                                     .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                    .executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString())
+                                    .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
                                     .size(maxNumTerms)
                                     .subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();
@@ -485,10 +481,10 @@ public class EquivalenceIT extends ESIntegTestCase {
     }
 
     private void assertEquals(Terms t1, Terms t2) {
-        List<Terms.Bucket> t1Buckets = t1.getBuckets();
-        List<Terms.Bucket> t2Buckets = t1.getBuckets();
+        List<? extends Terms.Bucket> t1Buckets = t1.getBuckets();
+        List<? extends Terms.Bucket> t2Buckets = t1.getBuckets();
         assertEquals(t1Buckets.size(), t2Buckets.size());
-        for (Iterator<Terms.Bucket> it1 = t1Buckets.iterator(), it2 = t2Buckets.iterator(); it1.hasNext(); ) {
+        for (Iterator<? extends Terms.Bucket> it1 = t1Buckets.iterator(), it2 = t2Buckets.iterator(); it1.hasNext(); ) {
             final Terms.Bucket b1 = it1.next();
             final Terms.Bucket b2 = it2.next();
             assertEquals(b1.getDocCount(), b2.getDocCount());

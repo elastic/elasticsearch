@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilders;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -109,25 +109,25 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .setPostFilter(QueryBuilders.termQuery("field.bool", "true"))
                 .execute().actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo((long) 1));
+        assertThat(response.getHits().getTotalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
                 .setPostFilter(QueryBuilders.geoDistanceQuery("field.point").point(42.0, 51.0).distance("1km"))
                 .execute().actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo((long) 1));
+        assertThat(response.getHits().getTotalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilders.newPoint(-100, 45)).relation(ShapeRelation.WITHIN))
+                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", new PointBuilder(-100, 45)).relation(ShapeRelation.WITHIN))
                         .execute().actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo((long) 1));
+        assertThat(response.getHits().getTotalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
                 .setPostFilter(QueryBuilders.termQuery("field.field", "foo"))
                 .execute().actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo((long) 1));
+        assertThat(response.getHits().getTotalHits(), equalTo((long) 1));
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
@@ -157,6 +157,6 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .setQuery(QueryBuilders.termQuery("f.g.raw", "FOO BAR"))
                 .execute().actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo((long) 1));
+        assertThat(response.getHits().getTotalHits(), equalTo((long) 1));
     }
 }

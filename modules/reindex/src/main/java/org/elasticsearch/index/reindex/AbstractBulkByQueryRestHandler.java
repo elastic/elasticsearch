@@ -19,34 +19,28 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
-
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 
 /**
  * Rest handler for reindex actions that accepts a search request like Update-By-Query or Delete-By-Query
  */
 public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
-        A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
+        A extends GenericAction<Request, BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers, ClusterService clusterService,
-            A action) {
-        super(settings, searchRequestParsers, clusterService, action);
+    protected AbstractBulkByQueryRestHandler(Settings settings, A action) {
+        super(settings, action);
     }
 
     protected void parseInternalRequest(Request internal, RestRequest restRequest,
@@ -55,25 +49,12 @@ public abstract class AbstractBulkByQueryRestHandler<
         assert restRequest != null : "RestRequest should not be null";
 
         SearchRequest searchRequest = internal.getSearchRequest();
-        int scrollSize = searchRequest.source().size();
-        searchRequest.source().size(SIZE_ALL_MATCHES);
 
-        restRequest.withContentOrSourceParamParserOrNull(parser -> {
-            XContentParser searchRequestParser = extractRequestSpecificFieldsAndReturnSearchCompatibleParser(parser, bodyConsumers);
-            /* searchRequestParser might be parser or it might be a new parser built from parser's contents. If it is parser then
-             * withContentOrSourceParamParserOrNull will close it for us but if it isn't then we should close it. Technically close on
-             * the generated parser probably is a noop but we should do the accounting just in case. It doesn't hurt to close twice but it
-             * really hurts not to close if by some miracle we have to. */
-            try {
-                RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher,
-                        searchRequestParser);
-            } finally {
-                IOUtils.close(searchRequestParser);
-            }
-        });
+        try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, internal::setSize);
+        }
 
-        internal.setSize(searchRequest.source().size());
-        searchRequest.source().size(restRequest.paramAsInt("scroll_size", scrollSize));
+        searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
 
         String conflicts = restRequest.param("conflicts");
         if (conflicts != null) {
@@ -93,12 +74,13 @@ public abstract class AbstractBulkByQueryRestHandler<
      * should get better when SearchRequest has full ObjectParser support
      * then we can delegate and stuff.
      */
-    private XContentParser extractRequestSpecificFieldsAndReturnSearchCompatibleParser(XContentParser parser,
-                                      Map<String, Consumer<Object>> bodyConsumers) throws IOException {
-        if (parser == null) {
-            return parser;
+    private XContentParser extractRequestSpecificFields(RestRequest restRequest,
+                                                        Map<String, Consumer<Object>> bodyConsumers) throws IOException {
+        if (restRequest.hasContentOrSourceParam() == false) {
+            return null; // body is optional
         }
-        try {
+        try (XContentParser parser = restRequest.contentOrSourceParamParser();
+             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
             Map<String, Object> body = parser.map();
 
             for (Map.Entry<String, Consumer<Object>> consumer : bodyConsumers.entrySet()) {
@@ -107,12 +89,7 @@ public abstract class AbstractBulkByQueryRestHandler<
                     consumer.getValue().accept(value);
                 }
             }
-
-            try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
-                return parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.map(body).bytes());
-            }
-        } finally {
-            parser.close();
+            return parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.map(body).bytes());
         }
     }
 }

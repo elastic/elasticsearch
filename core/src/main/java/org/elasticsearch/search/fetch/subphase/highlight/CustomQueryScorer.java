@@ -24,9 +24,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.util.Map;
@@ -66,11 +65,11 @@ public final class CustomQueryScorer extends QueryScorer {
 
     private static class CustomWeightedSpanTermExtractor extends WeightedSpanTermExtractor {
 
-        public CustomWeightedSpanTermExtractor() {
+        CustomWeightedSpanTermExtractor() {
             super();
         }
 
-        public CustomWeightedSpanTermExtractor(String defaultField) {
+        CustomWeightedSpanTermExtractor(String defaultField) {
             super(defaultField);
         }
 
@@ -83,16 +82,24 @@ public final class CustomQueryScorer extends QueryScorer {
         }
 
         protected void extract(Query query, float boost, Map<String, WeightedSpanTerm> terms) throws IOException {
-            if (query instanceof HasChildQueryBuilder.LateParsingQuery) {
+            if (isChildOrParentQuery(query.getClass())) {
                 // skip has_child or has_parent queries, see: https://github.com/elastic/elasticsearch/issues/14999
                 return;
             } else if (query instanceof FunctionScoreQuery) {
                 super.extract(((FunctionScoreQuery) query).getSubQuery(), boost, terms);
-            } else if (query instanceof FiltersFunctionScoreQuery) {
-                super.extract(((FiltersFunctionScoreQuery) query).getSubQuery(), boost, terms);
+            } else if (query instanceof ESToParentBlockJoinQuery) {
+                super.extract(((ESToParentBlockJoinQuery) query).getChildQuery(), boost, terms);
             } else {
                 super.extract(query, boost, terms);
             }
+        }
+
+        /**
+         * Workaround to detect parent/child query
+         */
+        private static final String PARENT_CHILD_QUERY_NAME = "HasChildQueryBuilder$LateParsingQuery";
+        private static boolean isChildOrParentQuery(Class<?> clazz) {
+            return clazz.getName().endsWith(PARENT_CHILD_QUERY_NAME);
         }
     }
 }

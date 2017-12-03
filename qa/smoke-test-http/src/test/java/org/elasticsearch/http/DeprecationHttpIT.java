@@ -23,6 +23,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -39,10 +40,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
 import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
 import static org.elasticsearch.http.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -167,13 +170,20 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
         }
         for (Setting<?> setting : settings) {
             if (setting.isDeprecated()) {
-                headerMatchers.add(containsString(LoggerMessageFormat.format("[{}] setting was deprecated", (Object)setting.getKey())));
+                headerMatchers.add(equalTo(
+                        "[" + setting.getKey() + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                        "See the breaking changes documentation for the next major version."));
             }
         }
 
         assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
+        for (final String deprecatedWarning : deprecatedWarnings) {
+            assertThat(deprecatedWarning, matches(WARNING_HEADER_PATTERN.pattern()));
+        }
+        final List<String> actualWarningValues =
+                deprecatedWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toList());
         for (Matcher<String> headerMatcher : headerMatchers) {
-            assertThat(deprecatedWarnings, hasItem(headerMatcher));
+            assertThat(actualWarningValues, hasItem(headerMatcher));
         }
     }
 

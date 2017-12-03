@@ -25,8 +25,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
-import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
@@ -39,6 +37,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -53,9 +52,9 @@ public class RecoveriesCollection {
 
     private final Logger logger;
     private final ThreadPool threadPool;
-    private final Callback<Long> ensureClusterStateVersionCallback;
+    private final LongConsumer ensureClusterStateVersionCallback;
 
-    public RecoveriesCollection(Logger logger, ThreadPool threadPool, Callback<Long> ensureClusterStateVersionCallback) {
+    public RecoveriesCollection(Logger logger, ThreadPool threadPool, LongConsumer ensureClusterStateVersionCallback) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;
@@ -82,14 +81,13 @@ public class RecoveriesCollection {
                 new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout));
     }
 
-
     /**
      * Resets the recovery and performs a recovery restart on the currently recovering index shard
      *
      * @see IndexShard#performRecoveryRestart()
      * @return newly created RecoveryTarget
      */
-    public RecoveryTarget resetRecovery(final long recoveryId, TimeValue activityTimeout) {
+    public RecoveryTarget resetRecovery(final long recoveryId, final TimeValue activityTimeout) {
         RecoveryTarget oldRecoveryTarget = null;
         final RecoveryTarget newRecoveryTarget;
 
@@ -107,25 +105,17 @@ public class RecoveriesCollection {
             }
 
             // Closes the current recovery target
-            final AtomicBoolean successfulReset = new AtomicBoolean();
-            try {
-                final RecoveryTarget finalOldRecoveryTarget = oldRecoveryTarget;
-                newRecoveryTarget.CancellableThreads().executeIO(() -> successfulReset.set(finalOldRecoveryTarget.resetRecovery()));
-            } catch (CancellableThreads.ExecutionCancelledException e) {
-                // new recovery target is already cancelled (probably due to shard closing or recovery source changing)
-                assert onGoingRecoveries.containsKey(newRecoveryTarget.recoveryId()) == false;
-                logger.trace("{} recovery reset cancelled, recovery from {}, id [{}], previous id [{}]", newRecoveryTarget.shardId(),
-                    newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(), oldRecoveryTarget.recoveryId());
-                oldRecoveryTarget.cancel("recovery reset cancelled"); // if finalOldRecoveryTarget.resetRecovery did not even get to execute
-                return null;
-            }
-            if (successfulReset.get() == false) {
-                cancelRecovery(newRecoveryTarget.recoveryId(), "failed to reset recovery");
-                return null;
-            } else {
+            boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
+            if (successfulReset) {
                 logger.trace("{} restarted recovery from {}, id [{}], previous id [{}]", newRecoveryTarget.shardId(),
                     newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(), oldRecoveryTarget.recoveryId());
                 return newRecoveryTarget;
+            } else {
+                logger.trace("{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
+                    newRecoveryTarget.shardId(), newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(),
+                    oldRecoveryTarget.recoveryId());
+                cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
+                return null;
             }
         } catch (Exception e) {
             // fail shard to be safe

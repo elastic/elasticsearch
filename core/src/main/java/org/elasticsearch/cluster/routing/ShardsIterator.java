@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.cluster.routing;
 
+import java.util.List;
+
 /**
  * Allows to iterate over unrelated shards.
  */
-public interface ShardsIterator {
+public interface ShardsIterator extends Iterable<ShardRouting> {
 
     /**
      * Resets the iterator to its initial state.
@@ -60,6 +62,9 @@ public interface ShardsIterator {
     @Override
     boolean equals(Object other);
 
-    Iterable<ShardRouting> asUnordered();
+    /**
+     * Returns the {@link ShardRouting}s that this shards iterator holds.
+     */
+    List<ShardRouting> getShardRoutings();
 }
 

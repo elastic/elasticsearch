@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -31,7 +30,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class GetStoredScriptRequestTests extends ESTestCase {
     public void testGetIndexedScriptRequestSerialization() throws IOException {
-        GetStoredScriptRequest request = new GetStoredScriptRequest("lang", "id");
+        GetStoredScriptRequest request = new GetStoredScriptRequest("id");
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(randomVersion(random()));
@@ -39,10 +38,8 @@ public class GetStoredScriptRequestTests extends ESTestCase {
 
         StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
-        GetStoredScriptRequest request2 = new GetStoredScriptRequest();
-        request2.readFrom(in);
+        GetStoredScriptRequest request2 = new GetStoredScriptRequest(in);
 
         assertThat(request2.id(), equalTo(request.id()));
-        assertThat(request2.lang(), equalTo(request.lang()));
     }
 }

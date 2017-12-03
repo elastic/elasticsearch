@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 /**
  * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.
@@ -61,4 +62,38 @@ public class TDigestState extends AVLTreeDigest {
         return state;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj instanceof TDigestState == false) {
+            return false;
+        }
+        TDigestState that = (TDigestState) obj;
+        if (compression != that.compression) {
+            return false;
+        }
+        Iterator<? extends Centroid> thisCentroids = centroids().iterator();
+        Iterator<? extends Centroid> thatCentroids = that.centroids().iterator();
+        while (thisCentroids.hasNext()) {
+            if (thatCentroids.hasNext() == false) {
+                return false;
+            }
+            Centroid thisNext = thisCentroids.next();
+            Centroid thatNext = thatCentroids.next();
+            if (thisNext.mean() != thatNext.mean() || thisNext.count() != thatNext.count()) {
+                return false;
+            }
+        }
+        return thatCentroids.hasNext() == false;
+    }
+
+    @Override
+    public int hashCode() {
+        int h = getClass().hashCode();
+        h = 31 * h + Double.hashCode(compression);
+        for (Centroid centroid : centroids()) {
+            h = 31 * h + Double.hashCode(centroid.mean());
+            h = 31 * h + centroid.count();
+        }
+        return h;
+    }
 }

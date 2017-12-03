@@ -75,12 +75,12 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                         try {
                             while (!stop.get()) {
                                 SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
-                                if (sr.getHits().totalHits() != numDocs) {
+                                if (sr.getHits().getTotalHits() != numDocs) {
                                     // if we did not search all shards but had no failures that is potentially fine
                                     // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
                                     // request comes in. It's a small window but a known limitation.
                                     if (sr.getTotalShards() != sr.getSuccessfulShards() && sr.getFailedShards() == 0) {
-                                        nonCriticalExceptions.add("Count is " + sr.getHits().totalHits() + " but " + numDocs +
+                                        nonCriticalExceptions.add("Count is " + sr.getHits().getTotalHits() + " but " + numDocs +
                                             " was expected. " + formatShardStatus(sr));
                                     } else {
                                         assertHitCount(sr, numDocs);

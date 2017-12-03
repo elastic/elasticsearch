@@ -43,7 +43,6 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
         this.shardId = shardId;
     }
 
-
     @Override
     public ShardId shardId() {
         return this.shardId;

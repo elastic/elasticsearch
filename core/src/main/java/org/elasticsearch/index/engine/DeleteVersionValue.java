@@ -27,20 +27,15 @@ class DeleteVersionValue extends VersionValue {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DeleteVersionValue.class);
 
-    private final long time;
+    final long time;
 
-    public DeleteVersionValue(long version, long time) {
-        super(version);
+    DeleteVersionValue(long version,long seqNo, long term, long time) {
+        super(version, seqNo, term);
         this.time = time;
     }
 
     @Override
-    public long time() {
-        return this.time;
-    }
-
-    @Override
-    public boolean delete() {
+    public boolean isDelete() {
         return true;
     }
 
@@ -50,10 +45,30 @@ class DeleteVersionValue extends VersionValue {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+
+        DeleteVersionValue that = (DeleteVersionValue) o;
+
+        return time == that.time;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = super.hashCode();
+        result = 31 * result + (int) (time ^ (time >>> 32));
+        return result;
+    }
+
+    @Override
     public String toString() {
         return "DeleteVersionValue{" +
-            "version=" + version() + ", " +
-            "time=" + time +
+            "version=" + version +
+            ", seqNo=" + seqNo +
+            ", term=" + term +
+            ",time=" + time +
             '}';
     }
 }

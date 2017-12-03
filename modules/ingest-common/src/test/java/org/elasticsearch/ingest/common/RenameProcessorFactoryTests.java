@@ -34,7 +34,7 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "old_field");
         config.put("target_field", "new_field");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         RenameProcessor renameProcessor = factory.create(null, processorTag, config);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
         assertThat(renameProcessor.getField(), equalTo("old_field"));
@@ -48,7 +48,7 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         config.put("field", "old_field");
         config.put("target_field", "new_field");
         config.put("ignore_missing", true);
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         RenameProcessor renameProcessor = factory.create(null, processorTag, config);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
         assertThat(renameProcessor.getField(), equalTo("old_field"));

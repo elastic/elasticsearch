@@ -20,12 +20,12 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -47,21 +47,28 @@ public class RestGetSettingsAction extends BaseRestHandler {
     private final IndexScopedSettings indexScopedSettings;
     private final SettingsFilter settingsFilter;
 
-    @Inject
     public RestGetSettingsAction(Settings settings, RestController controller, IndexScopedSettings indexScopedSettings,
             final SettingsFilter settingsFilter) {
         super(settings);
         this.indexScopedSettings = indexScopedSettings;
-        controller.registerHandler(GET, "/{index}/_settings/{name}", this);
         controller.registerHandler(GET, "/_settings/{name}", this);
+        controller.registerHandler(GET, "/{index}/_settings", this);
+        controller.registerHandler(GET, "/{index}/_settings/{name}", this);
         controller.registerHandler(GET, "/{index}/_setting/{name}", this);
         this.settingsFilter = settingsFilter;
+    }
+
+    @Override
+    public String getName() {
+        return "get_settings_action";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
+        // This is required so the "flat_settings" parameter counts as consumed
+        request.paramAsBoolean("flat_settings", false);
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
                 .indices(Strings.splitStringByCommaToArray(request.param("index")))
                 .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))
@@ -76,7 +83,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
                 builder.startObject();
                 for (ObjectObjectCursor<String, Settings> cursor : getSettingsResponse.getIndexToSettings()) {
                     // no settings, jump over it to shorten the response data
-                    if (cursor.value.getAsMap().isEmpty()) {
+                    if (cursor.value.isEmpty()) {
                         continue;
                     }
                     builder.startObject(cursor.key);

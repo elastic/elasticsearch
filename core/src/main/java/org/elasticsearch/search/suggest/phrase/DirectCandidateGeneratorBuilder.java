@@ -31,11 +31,12 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 
@@ -45,6 +46,9 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 public final class DirectCandidateGeneratorBuilder implements CandidateGenerator {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+            Loggers.getLogger(DirectCandidateGeneratorBuilder.class));
 
     private static final String TYPE = "direct_generator";
 
@@ -212,9 +216,9 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      * string distance for terms inside the index.
      * <li><code>damerau_levenshtein</code> - String distance algorithm
      * based on Damerau-Levenshtein algorithm.
-     * <li><code>levenstein</code> - String distance algorithm based on
-     * Levenstein edit distance algorithm.
-     * <li><code>jarowinkler</code> - String distance algorithm based on
+     * <li><code>levenshtein</code> - String distance algorithm based on
+     * Levenshtein edit distance algorithm.
+     * <li><code>jaro_winkler</code> - String distance algorithm based on
      * Jaro-Winkler algorithm.
      * <li><code>ngram</code> - String distance algorithm based on character
      * n-grams.
@@ -387,7 +391,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         }
     }
 
-    private static ConstructingObjectParser<DirectCandidateGeneratorBuilder, QueryParseContext> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DirectCandidateGeneratorBuilder, Void> PARSER = new ConstructingObjectParser<>(
             TYPE, args -> new DirectCandidateGeneratorBuilder((String) args[0]));
 
     static {
@@ -407,23 +411,19 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         PARSER.declareInt(DirectCandidateGeneratorBuilder::prefixLength, PREFIX_LENGTH_FIELD);
     }
 
-    public static DirectCandidateGeneratorBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        return PARSER.apply(parseContext.parser(), parseContext);
-    }
-
     @Override
     public PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException {
         PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
         generator.setField(this.field);
         transferIfNotNull(this.size, generator::size);
         if (this.preFilter != null) {
-            generator.preFilter(mapperService.getIndexAnalyzers().get(this.preFilter));
+            generator.preFilter(mapperService.getNamedAnalyzer(this.preFilter));
             if (generator.preFilter() == null) {
                 throw new IllegalArgumentException("Analyzer [" + this.preFilter + "] doesn't exists");
             }
         }
         if (this.postFilter != null) {
-            generator.postFilter(mapperService.getIndexAnalyzers().get(this.postFilter));
+            generator.postFilter(mapperService.getNamedAnalyzer(this.postFilter));
             if (generator.postFilter() == null) {
                 throw new IllegalArgumentException("Analyzer [" + this.postFilter + "] doesn't exists");
             }
@@ -463,17 +463,21 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         }
     }
 
-    private static StringDistance resolveDistance(String distanceVal) {
+    static StringDistance resolveDistance(String distanceVal) {
         distanceVal = distanceVal.toLowerCase(Locale.US);
         if ("internal".equals(distanceVal)) {
             return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
         } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {
             return new LuceneLevenshteinDistance();
         } else if ("levenstein".equals(distanceVal)) {
+            DEPRECATION_LOGGER.deprecated("Deprecated distance [levenstein] used, replaced by [levenshtein]");
             return new LevensteinDistance();
-            // TODO Jaro and Winkler are 2 people - so apply same naming logic
-            // as damerau_levenshtein
+        } else if ("levenshtein".equals(distanceVal)) {
+            return new LevensteinDistance();
         } else if ("jarowinkler".equals(distanceVal)) {
+            DEPRECATION_LOGGER.deprecated("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
+            return new JaroWinklerDistance();
+        } else if ("jaro_winkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {
             return new NGramDistance();

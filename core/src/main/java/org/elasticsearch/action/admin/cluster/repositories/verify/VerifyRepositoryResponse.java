@@ -22,18 +22,18 @@ package org.elasticsearch.action.admin.cluster.repositories.verify;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 
 /**
  * Unregister repository response
  */
-public class VerifyRepositoryResponse extends ActionResponse implements ToXContent {
+public class VerifyRepositoryResponse extends ActionResponse implements ToXContentObject {
 
     private DiscoveryNode[] nodes;
 
@@ -83,6 +83,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(Fields.NODES);
         for (DiscoveryNode node : nodes) {
             builder.startObject(node.getId());
@@ -90,11 +91,12 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
             builder.endObject();
         }
         builder.endObject();
+        builder.endObject();
         return builder;
     }
 
     @Override
     public String toString() {
-        return XContentHelper.toString(this);
+        return Strings.toString(this);
     }
 }

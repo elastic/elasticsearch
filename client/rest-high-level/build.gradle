@@ -1,0 +1,63 @@
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
+
+group = 'org.elasticsearch.client'
+archivesBaseName = 'elasticsearch-rest-high-level-client'
+
+publishing {
+    publications {
+        nebula {
+            artifactId = archivesBaseName
+        }
+    }
+}
+
+dependencies {
+  compile "org.elasticsearch:elasticsearch:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch.plugin:parent-join-client:${version}"
+  compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
+
+  testCompile "org.elasticsearch.client:test:${version}"
+  testCompile "org.elasticsearch.test:framework:${version}"
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+}
+
+dependencyLicenses {
+  // Don't check licenses for dependency that are part of the elasticsearch project
+  // But any other dependency should have its license/notice/sha1
+  dependencies = project.configurations.runtime.fileCollection {
+    it.group.startsWith('org.elasticsearch') == false
+  }
+}
+
+forbiddenApisMain {
+  // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
+  // specified
+  signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
+  signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
+}

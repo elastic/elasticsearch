@@ -56,7 +56,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
         AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
 
-        String clusterStateString = Strings.toString(clusterState, true);
+        String clusterStateString = Strings.toString(clusterState);
         assertNotNull(clusterStateString);
 
         assertThat(clusterStateString, containsString("test_idx"));

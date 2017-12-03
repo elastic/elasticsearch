@@ -20,6 +20,8 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptService;
 
 /**
  * Provider for {@link Similarity} instances
@@ -39,4 +41,11 @@ public interface SimilarityProvider {
      * @return Provided {@link Similarity}
      */
     Similarity get();
+
+    /** Factory of {@link SimilarityProvider} */
+    @FunctionalInterface
+    interface Factory {
+        /** Create a new {@link SimilarityProvider}. */
+        SimilarityProvider create(String name, Settings settings, Settings indexSettings, ScriptService scriptService);
+    }
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -38,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
@@ -47,11 +49,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -130,30 +134,42 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
                 MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
                 if (fieldType != null) {
-                    if (fieldType.tokenized() == false) {
+                    if (fieldType.tokenized()) {
+                        analyzer = fieldType.indexAnalyzer();
+                    } else if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                        analyzer = ((KeywordFieldMapper.KeywordFieldType) fieldType).normalizer();
+                        if (analyzer == null) {
+                            // this will be KeywordAnalyzer
+                            analyzer = fieldType.indexAnalyzer();
+                        }
+                    } else {
                         throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are only supported on tokenized fields");
                     }
-                    analyzer = fieldType.indexAnalyzer();
                     field = fieldType.name();
                 }
             }
             if (field == null) {
+                /**
+                 * TODO: _all is disabled by default and index.query.default_field can define multiple fields or patterns so we should
+                 * probably makes the field name mandatory in analyze query.
+                 **/
                 if (indexService != null) {
-                    field = indexService.getIndexSettings().getDefaultField();
-                } else {
-                    field = AllFieldMapper.NAME;
+                    field = indexService.getIndexSettings().getDefaultFields().get(0);
                 }
             }
             final AnalysisRegistry analysisRegistry = indicesService.getAnalysis();
-            return analyze(request, field, analyzer, indexService != null ? indexService.getIndexAnalyzers() : null, analysisRegistry, environment);
+            final int maxTokenCount = indexService == null ?
+                IndexSettings.MAX_TOKEN_COUNT_SETTING.get(settings) : indexService.getIndexSettings().getMaxTokenCount();
+            return analyze(request, field, analyzer, indexService != null ? indexService.getIndexAnalyzers() : null,
+                analysisRegistry, environment, maxTokenCount);
         } catch (IOException e) {
             throw new ElasticsearchException("analysis failed", e);
         }
 
     }
 
-    public static AnalyzeResponse analyze(AnalyzeRequest request, String field, Analyzer analyzer, IndexAnalyzers indexAnalyzers, AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
-
+    public static AnalyzeResponse analyze(AnalyzeRequest request, String field, Analyzer analyzer, IndexAnalyzers indexAnalyzers,
+            AnalysisRegistry analysisRegistry, Environment environment, int maxTokenCount) throws IOException {
         boolean closeAnalyzer = false;
         if (analyzer == null && request.analyzer() != null) {
             if (indexAnalyzers == null) {
@@ -167,18 +183,45 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     throw new IllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
                 }
             }
-
         } else if (request.tokenizer() != null) {
             final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
-            TokenizerFactory tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers, analysisRegistry, environment);
+            Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
+                        analysisRegistry, environment);
 
-            TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
-            tokenFilterFactories = getTokenFilterFactories(request, indexSettings, analysisRegistry, environment, tokenFilterFactories);
+            List<CharFilterFactory> charFilterFactoryList =
+                parseCharFilterFactories(request, indexSettings, analysisRegistry, environment, false);
 
-            CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
-            charFilterFactories = getCharFilterFactories(request, indexSettings, analysisRegistry, environment, charFilterFactories);
+            List<TokenFilterFactory> tokenFilterFactoryList = parseTokenFilterFactories(request, indexSettings, analysisRegistry,
+                environment, tokenizerFactory, charFilterFactoryList, false);
 
-            analyzer = new CustomAnalyzer(tokenizerFactory, charFilterFactories, tokenFilterFactories);
+            analyzer = new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
+                charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
+                tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()]));
+            closeAnalyzer = true;
+        } else if (request.normalizer() != null) {
+            // Get normalizer from indexAnalyzers
+            analyzer = indexAnalyzers.getNormalizer(request.normalizer());
+            if (analyzer == null) {
+                throw new IllegalArgumentException("failed to find normalizer under [" + request.normalizer() + "]");
+            }
+        } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
+                || (request.charFilters() != null && request.charFilters().size() > 0))) {
+            final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
+            // custom normalizer = if normalizer == null but filter or char_filter is not null and tokenizer/analyzer is null
+            // get charfilter and filter from request
+            List<CharFilterFactory> charFilterFactoryList =
+                parseCharFilterFactories(request, indexSettings, analysisRegistry, environment, true);
+
+            final String keywordTokenizerName = "keyword";
+            TokenizerFactory keywordTokenizerFactory = getTokenizerFactory(analysisRegistry, environment, keywordTokenizerName);
+
+            List<TokenFilterFactory> tokenFilterFactoryList =
+                parseTokenFilterFactories(request, indexSettings, analysisRegistry, environment, new Tuple<>(keywordTokenizerName, keywordTokenizerFactory), charFilterFactoryList, true);
+
+            analyzer = new CustomAnalyzer("keyword_for_normalizer",
+                keywordTokenizerFactory,
+                charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
+                tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()]));
             closeAnalyzer = true;
         } else if (analyzer == null) {
             if (indexAnalyzers == null) {
@@ -195,9 +238,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         DetailAnalyzeResponse detail = null;
 
         if (request.explain()) {
-            detail = detailAnalyze(request, analyzer, field);
+            detail = detailAnalyze(request, analyzer, field, maxTokenCount);
         } else {
-            tokens = simpleAnalyze(request, analyzer, field);
+            tokens = simpleAnalyze(request, analyzer, field, maxTokenCount);
         }
 
         if (closeAnalyzer) {
@@ -207,7 +250,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return new AnalyzeResponse(tokens, detail);
     }
 
-    private static List<AnalyzeResponse.AnalyzeToken> simpleAnalyze(AnalyzeRequest request, Analyzer analyzer, String field) {
+    private static List<AnalyzeResponse.AnalyzeToken> simpleAnalyze(AnalyzeRequest request,
+            Analyzer analyzer, String field, int maxTokenCount) {
+        TokenCounter tc = new TokenCounter(maxTokenCount);
         List<AnalyzeResponse.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
         int lastOffset = 0;
@@ -218,14 +263,16 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
                 OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
                 TypeAttribute type = stream.addAttribute(TypeAttribute.class);
+                PositionLengthAttribute posLen = stream.addAttribute(PositionLengthAttribute.class);
 
                 while (stream.incrementToken()) {
                     int increment = posIncr.getPositionIncrement();
                     if (increment > 0) {
                         lastPosition = lastPosition + increment;
                     }
-                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(), lastOffset + offset.endOffset(), type.type(), null));
-
+                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
+                        lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(), null));
+                    tc.increment();
                 }
                 stream.end();
                 lastOffset += offset.endOffset();
@@ -240,7 +287,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return tokens;
     }
 
-    private static DetailAnalyzeResponse detailAnalyze(AnalyzeRequest request, Analyzer analyzer, String field) {
+    private static DetailAnalyzeResponse detailAnalyze(AnalyzeRequest request, Analyzer analyzer, String field, int maxTokenCount) {
         DetailAnalyzeResponse detailResponse;
         final Set<String> includeAttributes = new HashSet<>();
         if (request.attributes() != null) {
@@ -265,7 +312,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             String[][] charFiltersTexts = new String[charFilterFactories != null ? charFilterFactories.length : 0][request.text().length];
             TokenListCreator[] tokenFiltersTokenListCreator = new TokenListCreator[tokenFilterFactories != null ? tokenFilterFactories.length : 0];
 
-            TokenListCreator tokenizerTokenListCreator = new TokenListCreator();
+            TokenListCreator tokenizerTokenListCreator = new TokenListCreator(maxTokenCount);
 
             for (int textIndex = 0; textIndex < request.text().length; textIndex++) {
                 String charFilteredSource = request.text()[textIndex];
@@ -291,7 +338,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 if (tokenFilterFactories != null) {
                     for (int tokenFilterIndex = 0; tokenFilterIndex < tokenFilterFactories.length; tokenFilterIndex++) {
                         if (tokenFiltersTokenListCreator[tokenFilterIndex] == null) {
-                            tokenFiltersTokenListCreator[tokenFilterIndex] = new TokenListCreator();
+                            tokenFiltersTokenListCreator[tokenFilterIndex] = new TokenListCreator(maxTokenCount);
                         }
                         TokenStream stream = createStackedTokenStream(request.text()[textIndex],
                             charFilterFactories, tokenizerFactory, tokenFilterFactories, tokenFilterIndex + 1);
@@ -314,7 +361,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         tokenFilterFactories[tokenFilterIndex].name(), tokenFiltersTokenListCreator[tokenFilterIndex].getArrayTokens());
                 }
             }
-            detailResponse = new DetailAnalyzeResponse(charFilteredLists, new DetailAnalyzeResponse.AnalyzeTokenList(tokenizerFactory.name(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
+            detailResponse = new DetailAnalyzeResponse(charFilteredLists, new DetailAnalyzeResponse.AnalyzeTokenList(
+                    customAnalyzer.getTokenizerName(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
         } else {
             String name;
             if (analyzer instanceof NamedAnalyzer) {
@@ -323,7 +371,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 name = analyzer.getClass().getName();
             }
 
-            TokenListCreator tokenListCreator = new TokenListCreator();
+            TokenListCreator tokenListCreator = new TokenListCreator(maxTokenCount);
             for (String text : request.text()) {
                 tokenListCreator.analyze(analyzer.tokenStream(field, text), analyzer, field,
                         includeAttributes);
@@ -365,13 +413,32 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return sb.toString();
     }
 
+    private static class TokenCounter{
+        private int tokenCount = 0;
+        private int maxTokenCount;
+
+        private TokenCounter(int maxTokenCount){
+            this.maxTokenCount = maxTokenCount;
+        }
+        private void increment(){
+            tokenCount++;
+            if (tokenCount > maxTokenCount) {
+                throw new IllegalStateException(
+                    "The number of tokens produced by calling _analyze has exceeded the allowed maximum of [" + maxTokenCount + "]."
+                        + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.");
+            }
+        }
+    }
+
     private static class TokenListCreator {
         int lastPosition = -1;
         int lastOffset = 0;
         List<AnalyzeResponse.AnalyzeToken> tokens;
+        private TokenCounter tc;
 
-        TokenListCreator() {
+        TokenListCreator(int maxTokenCount) {
             tokens = new ArrayList<>();
+            tc = new TokenCounter(maxTokenCount);
         }
 
         private void analyze(TokenStream stream, Analyzer analyzer, String field, Set<String> includeAttributes) {
@@ -381,6 +448,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
                 OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
                 TypeAttribute type = stream.addAttribute(TypeAttribute.class);
+                PositionLengthAttribute posLen = stream.addAttribute(PositionLengthAttribute.class);
 
                 while (stream.incrementToken()) {
                     int increment = posIncr.getPositionIncrement();
@@ -388,8 +456,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         lastPosition = lastPosition + increment;
                     }
                     tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
-                        lastOffset + offset.endOffset(), type.type(), extractExtendedAttributes(stream, includeAttributes)));
-
+                        lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(), extractExtendedAttributes(stream, includeAttributes)));
+                    tc.increment();
                 }
                 stream.end();
                 lastOffset += offset.endOffset();
@@ -447,12 +515,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return extendedAttributes;
     }
 
-    private static CharFilterFactory[] getCharFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
-                                                              Environment environment, CharFilterFactory[] charFilterFactories) throws IOException {
+    private static List<CharFilterFactory> parseCharFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
+                                                              Environment environment, boolean normalizer) throws IOException {
+        List<CharFilterFactory> charFilterFactoryList = new ArrayList<>();
         if (request.charFilters() != null && request.charFilters().size() > 0) {
-            charFilterFactories = new CharFilterFactory[request.charFilters().size()];
-            for (int i = 0; i < request.charFilters().size(); i++) {
-                final AnalyzeRequest.NameOrDefinition charFilter = request.charFilters().get(i);
+            List<AnalyzeRequest.NameOrDefinition> charFilters = request.charFilters();
+            for (AnalyzeRequest.NameOrDefinition charFilter : charFilters) {
+                CharFilterFactory charFilterFactory;
                 // parse anonymous settings
                 if (charFilter.definition != null) {
                     Settings settings = getAnonymousSettings(charFilter.definition);
@@ -466,7 +535,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         throw new IllegalArgumentException("failed to find global char filter under [" + charFilterTypeName + "]");
                     }
                     // Need to set anonymous "name" of char_filter
-                    charFilterFactories[i] = charFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_charfilter_[" + i + "]", settings);
+                    charFilterFactory = charFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_charfilter", settings);
                 } else {
                     AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory;
                     if (indexSettings == null) {
@@ -474,31 +543,41 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         if (charFilterFactoryFactory == null) {
                             throw new IllegalArgumentException("failed to find global char filter under [" + charFilter.name + "]");
                         }
-                        charFilterFactories[i] = charFilterFactoryFactory.get(environment, charFilter.name);
+                        charFilterFactory = charFilterFactoryFactory.get(environment, charFilter.name);
                     } else {
                         charFilterFactoryFactory = analysisRegistry.getCharFilterProvider(charFilter.name, indexSettings);
                         if (charFilterFactoryFactory == null) {
                             throw new IllegalArgumentException("failed to find char filter under [" + charFilter.name + "]");
                         }
-                        charFilterFactories[i] = charFilterFactoryFactory.get(indexSettings, environment, charFilter.name,
+                        charFilterFactory = charFilterFactoryFactory.get(indexSettings, environment, charFilter.name,
                             AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
                                 AnalysisRegistry.INDEX_ANALYSIS_CHAR_FILTER + "." + charFilter.name));
                     }
                 }
-                if (charFilterFactories[i] == null) {
+                if (charFilterFactory == null) {
                     throw new IllegalArgumentException("failed to find char filter under [" + charFilter.name + "]");
                 }
+                if (normalizer) {
+                    if (charFilterFactory instanceof MultiTermAwareComponent == false) {
+                        throw new IllegalArgumentException("Custom normalizer may not use char filter ["
+                            + charFilterFactory.name() + "]");
+                    }
+                    charFilterFactory = (CharFilterFactory) ((MultiTermAwareComponent) charFilterFactory).getMultiTermComponent();
+                }
+                charFilterFactoryList.add(charFilterFactory);
             }
         }
-        return charFilterFactories;
+        return charFilterFactoryList;
     }
 
-    private static TokenFilterFactory[] getTokenFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
-                                                                Environment environment, TokenFilterFactory[] tokenFilterFactories) throws IOException {
+    private static List<TokenFilterFactory> parseTokenFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
+                                                                Environment environment, Tuple<String, TokenizerFactory> tokenizerFactory,
+                                                                List<CharFilterFactory> charFilterFactoryList, boolean normalizer) throws IOException {
+        List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
         if (request.tokenFilters() != null && request.tokenFilters().size() > 0) {
-            tokenFilterFactories = new TokenFilterFactory[request.tokenFilters().size()];
-            for (int i = 0; i < request.tokenFilters().size(); i++) {
-                final AnalyzeRequest.NameOrDefinition tokenFilter = request.tokenFilters().get(i);
+            List<AnalyzeRequest.NameOrDefinition> tokenFilters = request.tokenFilters();
+            for (AnalyzeRequest.NameOrDefinition tokenFilter : tokenFilters) {
+                TokenFilterFactory tokenFilterFactory;
                 // parse anonymous settings
                 if (tokenFilter.definition != null) {
                     Settings settings = getAnonymousSettings(tokenFilter.definition);
@@ -512,7 +591,11 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         throw new IllegalArgumentException("failed to find global token filter under [" + filterTypeName + "]");
                     }
                     // Need to set anonymous "name" of tokenfilter
-                    tokenFilterFactories[i] = tokenFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenfilter_[" + i + "]", settings);
+                    tokenFilterFactory = tokenFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenfilter", settings);
+                    tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(), tokenizerFactory.v2(), tokenFilterFactoryList,
+                        charFilterFactoryList, environment);
+
+
                 } else {
                     AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory;
                     if (indexSettings == null) {
@@ -520,27 +603,38 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         if (tokenFilterFactoryFactory == null) {
                             throw new IllegalArgumentException("failed to find global token filter under [" + tokenFilter.name + "]");
                         }
-                        tokenFilterFactories[i] = tokenFilterFactoryFactory.get(environment, tokenFilter.name);
+                        tokenFilterFactory = tokenFilterFactoryFactory.get(environment, tokenFilter.name);
                     } else {
                         tokenFilterFactoryFactory = analysisRegistry.getTokenFilterProvider(tokenFilter.name, indexSettings);
-                       if (tokenFilterFactoryFactory == null) {
+                        if (tokenFilterFactoryFactory == null) {
                             throw new IllegalArgumentException("failed to find token filter under [" + tokenFilter.name + "]");
                         }
-                        tokenFilterFactories[i] = tokenFilterFactoryFactory.get(indexSettings, environment, tokenFilter.name,
-                            AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
-                                AnalysisRegistry.INDEX_ANALYSIS_FILTER + "." + tokenFilter.name));
+                        Settings settings = AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
+                            AnalysisRegistry.INDEX_ANALYSIS_FILTER + "." + tokenFilter.name);
+                        tokenFilterFactory = tokenFilterFactoryFactory.get(indexSettings, environment, tokenFilter.name, settings);
+                        tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(), tokenizerFactory.v2(), tokenFilterFactoryList,
+                            charFilterFactoryList, environment);
                     }
                 }
-                if (tokenFilterFactories[i] == null) {
+                if (tokenFilterFactory == null) {
                     throw new IllegalArgumentException("failed to find or create token filter under [" + tokenFilter.name + "]");
                 }
+                if (normalizer) {
+                    if (tokenFilterFactory instanceof MultiTermAwareComponent == false) {
+                        throw new IllegalArgumentException("Custom normalizer may not use filter ["
+                            + tokenFilterFactory.name() + "]");
+                    }
+                    tokenFilterFactory = (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilterFactory).getMultiTermComponent();
+                }
+                tokenFilterFactoryList.add(tokenFilterFactory);
             }
         }
-        return tokenFilterFactories;
+        return tokenFilterFactoryList;
     }
 
-    private static TokenizerFactory parseTokenizerFactory(AnalyzeRequest request, IndexAnalyzers indexAnalzyers,
+    private static Tuple<String, TokenizerFactory> parseTokenizerFactory(AnalyzeRequest request, IndexAnalyzers indexAnalzyers,
                                                           AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
+        String name;
         TokenizerFactory tokenizerFactory;
         final AnalyzeRequest.NameOrDefinition tokenizer = request.tokenizer();
         // parse anonymous settings
@@ -556,25 +650,35 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 throw new IllegalArgumentException("failed to find global tokenizer under [" + tokenizerTypeName + "]");
             }
             // Need to set anonymous "name" of tokenizer
+            name = "_anonymous_tokenizer";
             tokenizerFactory = tokenizerFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenizer", settings);
         } else {
             AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory;
             if (indexAnalzyers == null) {
-                tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(tokenizer.name);
-                if (tokenizerFactoryFactory == null) {
-                    throw new IllegalArgumentException("failed to find global tokenizer under [" + tokenizer.name + "]");
-                }
-                tokenizerFactory = tokenizerFactoryFactory.get(environment, tokenizer.name);
+                tokenizerFactory = getTokenizerFactory(analysisRegistry, environment, tokenizer.name);
+                name = tokenizer.name;
             } else {
                 tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(tokenizer.name, indexAnalzyers.getIndexSettings());
                 if (tokenizerFactoryFactory == null) {
                     throw new IllegalArgumentException("failed to find tokenizer under [" + tokenizer.name + "]");
                 }
+                name = tokenizer.name;
                 tokenizerFactory = tokenizerFactoryFactory.get(indexAnalzyers.getIndexSettings(), environment, tokenizer.name,
                     AnalysisRegistry.getSettingsFromIndexSettings(indexAnalzyers.getIndexSettings(),
                         AnalysisRegistry.INDEX_ANALYSIS_TOKENIZER + "." + tokenizer.name));
             }
         }
+        return new Tuple<>(name, tokenizerFactory);
+    }
+
+    private static TokenizerFactory getTokenizerFactory(AnalysisRegistry analysisRegistry, Environment environment, String name) throws IOException {
+        AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory;
+        TokenizerFactory tokenizerFactory;
+        tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(name);
+        if (tokenizerFactoryFactory == null) {
+            throw new IllegalArgumentException("failed to find global tokenizer under [" + name + "]");
+        }
+        tokenizerFactory = tokenizerFactoryFactory.get(environment, name);
         return tokenizerFactory;
     }
 

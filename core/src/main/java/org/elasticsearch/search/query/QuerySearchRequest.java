@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -47,10 +46,25 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     public QuerySearchRequest() {
     }
 
-    public QuerySearchRequest(SearchRequest request, long id, AggregatedDfs dfs) {
+    public QuerySearchRequest(OriginalIndices originalIndices, long id, AggregatedDfs dfs) {
         this.id = id;
         this.dfs = dfs;
-        this.originalIndices = new OriginalIndices(request);
+        this.originalIndices = originalIndices;
+    }
+
+    public QuerySearchRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readLong();
+        dfs = readAggregatedDfs(in);
+        originalIndices = OriginalIndices.readOriginalIndices(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeLong(id);
+        dfs.writeTo(out);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 
     public long id() {
@@ -73,18 +87,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readLong();
-        dfs = readAggregatedDfs(in);
-        originalIndices = OriginalIndices.readOriginalIndices(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeLong(id);
-        dfs.writeTo(out);
-        OriginalIndices.writeOriginalIndices(originalIndices, out);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

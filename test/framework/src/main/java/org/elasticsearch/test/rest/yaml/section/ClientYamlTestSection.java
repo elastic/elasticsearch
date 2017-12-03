@@ -36,17 +36,15 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
         try {
             parser.nextToken();
             testSection.setSkipSection(SkipSection.parseIfNext(parser));
-
             while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
                 ParserUtils.advanceToFieldName(parser);
                 testSection.addExecutableSection(ExecutableSection.parse(parser));
             }
-
+            if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                throw new IllegalArgumentException("malformed section [" + testSection.getName() + "] expected ["
+                        + XContentParser.Token.END_OBJECT + "] but was [" + parser.currentToken() + "]");
+            }
             parser.nextToken();
-            assert parser.currentToken() == XContentParser.Token.END_OBJECT : "malformed section [" + testSection.getName() + "] expected "
-                + XContentParser.Token.END_OBJECT  + " but was " + parser.currentToken();
-            parser.nextToken();
-
             return testSection;
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Error parsing test named [" + testSection.getName() + "]", e);

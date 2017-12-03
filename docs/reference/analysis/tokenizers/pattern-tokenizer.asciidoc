@@ -111,7 +111,7 @@ The `pattern` tokenizer accepts the following parameters:
 `flags`::
 
     Java regular expression http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
-    lags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`.
+    Flags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`.
 
 `group`::
 

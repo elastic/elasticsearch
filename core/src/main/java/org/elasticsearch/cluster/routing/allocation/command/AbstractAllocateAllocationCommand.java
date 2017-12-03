@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -50,8 +49,8 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     private static final String SHARD_FIELD = "shard";
     private static final String NODE_FIELD = "node";
 
-    protected static <T extends Builder<?>> ObjectParser<T, ParseFieldMatcherSupplier> createAllocateParser(String command) {
-        ObjectParser<T, ParseFieldMatcherSupplier> parser = new ObjectParser<>(command);
+    protected static <T extends Builder<?>> ObjectParser<T, Void> createAllocateParser(String command) {
+        ObjectParser<T, Void> parser = new ObjectParser<>(command);
         parser.declareString(Builder::setIndex, new ParseField(INDEX_FIELD));
         parser.declareInt(Builder::setShard, new ParseField(SHARD_FIELD));
         parser.declareString(Builder::setNode, new ParseField(NODE_FIELD));

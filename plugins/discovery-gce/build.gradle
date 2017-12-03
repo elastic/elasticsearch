@@ -6,11 +6,11 @@ esplugin {
 }
 
 versions << [
-  'google': '1.20.0'
+  'google': '1.23.0'
 ]
 
 dependencies {
-  compile "com.google.apis:google-api-services-compute:v1-rev71-${versions.google}"
+  compile "com.google.apis:google-api-services-compute:v1-rev160-${versions.google}"
   compile "com.google.api-client:google-api-client:${versions.google}"
   compile "com.google.oauth-client:google-oauth-client:${versions.google}"
   compile "com.google.http-client:google-http-client:${versions.google}"

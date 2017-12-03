@@ -25,7 +25,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -40,13 +39,16 @@ import java.util.Set;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 
 public class RestClusterHealthAction extends BaseRestHandler {
-
-    @Inject
     public RestClusterHealthAction(Settings settings, RestController controller) {
         super(settings);
 
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/health", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/health/{index}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "cluster_health_action";
     }
 
     @Override
@@ -60,7 +62,9 @@ public class RestClusterHealthAction extends BaseRestHandler {
             clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));
         }
         clusterHealthRequest.waitForNoRelocatingShards(
-                request.paramAsBoolean("wait_for_no_relocating_shards", clusterHealthRequest.waitForNoRelocatingShards()));
+            request.paramAsBoolean("wait_for_no_relocating_shards", clusterHealthRequest.waitForNoRelocatingShards()));
+        clusterHealthRequest.waitForNoInitializingShards(
+            request.paramAsBoolean("wait_for_no_initializing_shards", clusterHealthRequest.waitForNoRelocatingShards()));
         if (request.hasParam("wait_for_relocating_shards")) {
             // wait_for_relocating_shards has been removed in favor of wait_for_no_relocating_shards
             throw new IllegalArgumentException("wait_for_relocating_shards has been removed, " +

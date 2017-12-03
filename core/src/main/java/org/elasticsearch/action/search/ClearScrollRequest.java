@@ -23,6 +23,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +34,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class ClearScrollRequest extends ActionRequest {
+public class ClearScrollRequest extends ActionRequest implements ToXContentObject {
 
     private List<String> scrollIds;
 
@@ -83,4 +86,47 @@ public class ClearScrollRequest extends ActionRequest {
         }
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.startArray("scroll_id");
+        for (String scrollId : scrollIds) {
+            builder.value(scrollId);
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
+    }
+
+    public void fromXContent(XContentParser parser) throws IOException {
+        scrollIds = null;
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Malformed content, must start with an object");
+        } else {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if ("scroll_id".equals(currentFieldName)){
+                    if (token == XContentParser.Token.START_ARRAY) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue() == false) {
+                                throw new IllegalArgumentException("scroll_id array element should only contain scroll_id");
+                            }
+                            addScrollId(parser.text());
+                        }
+                    } else {
+                        if (token.isValue() == false) {
+                            throw new IllegalArgumentException("scroll_id element should only contain scroll_id");
+                        }
+                        addScrollId(parser.text());
+                    }
+                } else {
+                    throw new IllegalArgumentException("Unknown parameter [" + currentFieldName
+                            + "] in request body or parameter is of the wrong type[" + token + "] ");
+                }
+            }
+        }
+    }
 }

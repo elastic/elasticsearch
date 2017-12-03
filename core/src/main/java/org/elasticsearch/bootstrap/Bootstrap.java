@@ -30,16 +30,16 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.IfConfig;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
@@ -48,7 +48,7 @@ import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.InternalSettingsPreparer;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -145,6 +145,7 @@ final class Bootstrap {
 
         Natives.trySetMaxNumberOfThreads();
         Natives.trySetMaxSizeVirtualMemory();
+        Natives.trySetMaxFileSize();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
@@ -162,16 +163,6 @@ final class Bootstrap {
 
         try {
             spawner.spawnNativePluginControllers(environment);
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        spawner.close();
-                    } catch (IOException e) {
-                        throw new ElasticsearchException("Failed to destroy spawned controllers", e);
-                    }
-                }
-            });
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -190,7 +181,7 @@ final class Bootstrap {
                 @Override
                 public void run() {
                     try {
-                        IOUtils.close(node);
+                        IOUtils.close(node, spawner);
                         LoggerContext context = (LoggerContext) LogManager.getContext(false);
                         Configurator.shutdown(context);
                     } catch (IOException ex) {
@@ -207,6 +198,9 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
+        // Log ifconfig output before SecurityManager is installed
+        IfConfig.logIfNecessary();
+
         // install SM after natives, shutdown hooks, etc.
         try {
             Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
@@ -217,21 +211,48 @@ final class Bootstrap {
         node = new Node(environment) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
-                final Settings settings,
+                final BootstrapContext context,
                 final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
-                BootstrapChecks.check(settings, boundTransportAddress, checks);
+                BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
     }
 
-    private static Environment initialEnvironment(boolean foreground, Path pidFile, Settings initialSettings) {
-        Terminal terminal = foreground ? Terminal.DEFAULT : null;
+    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+        final KeyStoreWrapper keystore;
+        try {
+            keystore = KeyStoreWrapper.load(initialEnv.configFile());
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
+        if (keystore == null) {
+            return null; // no keystore
+        }
+
+        try {
+            keystore.decrypt(new char[0] /* TODO: read password from stdin */);
+            KeyStoreWrapper.upgrade(keystore, initialEnv.configFile());
+        } catch (Exception e) {
+            throw new BootstrapException(e);
+        }
+        return keystore;
+    }
+
+    private static Environment createEnvironment(
+            final boolean foreground,
+            final Path pidFile,
+            final SecureSettings secureSettings,
+            final Settings initialSettings,
+            final Path configPath) {
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
         builder.put(initialSettings);
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap());
+        if (secureSettings != null) {
+            builder.setSecureSettings(secureSettings);
+        }
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath);
     }
 
     private void start() throws NodeValidationException {
@@ -241,17 +262,10 @@ final class Bootstrap {
 
     static void stop() throws IOException {
         try {
-            IOUtils.close(INSTANCE.node);
+            IOUtils.close(INSTANCE.node, INSTANCE.spawner);
         } finally {
             INSTANCE.keepAliveLatch.countDown();
         }
-    }
-
-    /** Set the system property before anything has a chance to trigger its use */
-    // TODO: why? is it just a bad default somewhere? or is it some BS around 'but the client' garbage <-- my guess
-    @SuppressForbidden(reason = "sets logger prefix on initialization")
-    static void initLoggerPrefix() {
-        System.setProperty("es.logger.prefix", "");
     }
 
     /**
@@ -261,24 +275,20 @@ final class Bootstrap {
             final boolean foreground,
             final Path pidFile,
             final boolean quiet,
-            final Settings initialSettings) throws BootstrapException, NodeValidationException, UserException {
-        // Set the system property before anything has a chance to trigger its use
-        initLoggerPrefix();
-
+            final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();
 
         INSTANCE = new Bootstrap();
 
-        Environment environment = initialEnvironment(foreground, pidFile, initialSettings);
+        final SecureSettings keystore = loadSecureSettings(initialEnv);
+        final Environment environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
-        checkForCustomConfFile();
-
         if (environment.pidFile() != null) {
             try {
                 PidFile.create(environment.pidFile(), true);
@@ -308,6 +318,13 @@ final class Bootstrap {
                 new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(environment.settings())));
 
             INSTANCE.setup(true, environment);
+
+            try {
+                // any secure settings must be read during node construction
+                IOUtils.close(keystore);
+            } catch (IOException e) {
+                throw new BootstrapException(e);
+            }
 
             INSTANCE.start();
 
@@ -367,28 +384,6 @@ final class Bootstrap {
     @SuppressForbidden(reason = "System#err")
     private static void closeSysError() {
         System.err.close();
-    }
-
-    private static void checkForCustomConfFile() {
-        String confFileSetting = System.getProperty("es.default.config");
-        checkUnsetAndMaybeExit(confFileSetting, "es.default.config");
-        confFileSetting = System.getProperty("es.config");
-        checkUnsetAndMaybeExit(confFileSetting, "es.config");
-        confFileSetting = System.getProperty("elasticsearch.config");
-        checkUnsetAndMaybeExit(confFileSetting, "elasticsearch.config");
-    }
-
-    private static void checkUnsetAndMaybeExit(String confFileSetting, String settingName) {
-        if (confFileSetting != null && confFileSetting.isEmpty() == false) {
-            Logger logger = Loggers.getLogger(Bootstrap.class);
-            logger.info("{} is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.", settingName);
-            exit(1);
-        }
-    }
-
-    @SuppressForbidden(reason = "Allowed to exit explicitly in bootstrap phase")
-    private static void exit(int status) {
-        System.exit(status);
     }
 
     private static void checkLucene() {

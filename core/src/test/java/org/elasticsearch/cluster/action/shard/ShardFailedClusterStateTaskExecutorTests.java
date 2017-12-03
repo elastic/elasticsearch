@@ -165,10 +165,9 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
 
     private List<ShardStateAction.ShardEntry> createExistingShards(ClusterState currentState, String reason) {
         List<ShardRouting> shards = new ArrayList<>();
-        GroupShardsIterator shardGroups =
-            currentState.routingTable().allAssignedShardsGrouped(new String[] { INDEX }, true);
+        GroupShardsIterator<ShardIterator> shardGroups = currentState.routingTable().allAssignedShardsGrouped(new String[] { INDEX }, true);
         for (ShardIterator shardIt : shardGroups) {
-            for (ShardRouting shard : shardIt.asUnordered()) {
+            for (ShardRouting shard : shardIt) {
                 shards.add(shard);
             }
         }
@@ -209,7 +208,9 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     private ShardRouting nonExistentShardRouting(Index index, List<String> nodeIds, boolean primary) {
-        return TestShardRouting.newShardRouting(new ShardId(index, 0), randomFrom(nodeIds), primary, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING, ShardRoutingState.STARTED));
+        ShardRoutingState state = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING, ShardRoutingState.STARTED);
+        return TestShardRouting.newShardRouting(new ShardId(index, 0), randomFrom(nodeIds),
+            state == ShardRoutingState.RELOCATING ? randomFrom(nodeIds) : null, primary, state);
     }
 
     private static void assertTasksSuccessful(

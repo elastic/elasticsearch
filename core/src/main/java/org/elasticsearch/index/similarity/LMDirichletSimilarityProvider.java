@@ -36,7 +36,7 @@ public class LMDirichletSimilarityProvider extends AbstractSimilarityProvider {
 
     private final LMDirichletSimilarity similarity;
 
-    public LMDirichletSimilarityProvider(String name, Settings settings) {
+    public LMDirichletSimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
         float mu = settings.getAsFloat("mu", 2000f);
         this.similarity = new LMDirichletSimilarity(mu);

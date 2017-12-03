@@ -108,6 +108,8 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         final ClusterStateTaskExecutor.ClusterTasksResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
                 executor.execute(clusterState, tasks);
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
+        verify(electMasterService).countMasterNodes(eq(remainingNodesClusterState.get().nodes()));
+        verify(electMasterService).minimumMasterNodes();
         verifyNoMoreInteractions(electMasterService);
 
         // ensure that we did not reroute

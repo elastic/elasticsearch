@@ -18,7 +18,6 @@
  */
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.JavaVersion
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'ru.vyarus.animalsniffer'
@@ -29,9 +28,18 @@ targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
 
 group = 'org.elasticsearch.client'
+archivesBaseName = 'elasticsearch-rest-client-sniffer'
+
+publishing {
+  publications {
+    nebula {
+      artifactId = archivesBaseName
+    }
+  }
+}
 
 dependencies {
-  compile "org.elasticsearch.client:rest:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"

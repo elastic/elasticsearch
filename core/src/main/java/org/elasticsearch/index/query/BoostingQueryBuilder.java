@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+
 /**
  * The BoostingQuery class can be used to effectively demote results that match a given query.
  * Unlike the "NOT" clause, this still selects documents that contain undesirable terms,
@@ -136,14 +137,12 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         builder.endObject();
     }
 
-    public static BoostingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static BoostingQueryBuilder fromXContent(XContentParser parser) throws IOException {
         QueryBuilder positiveQuery = null;
         boolean positiveQueryFound = false;
         QueryBuilder negativeQuery = null;
         boolean negativeQueryFound = false;
-        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        float boost = DEFAULT_BOOST;
         float negativeBoost = -1;
         String queryName = null;
 
@@ -154,10 +153,10 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (POSITIVE_FIELD.match(currentFieldName)) {
-                    positiveQuery = parseContext.parseInnerQueryBuilder();
+                    positiveQuery = parseInnerQueryBuilder(parser);
                     positiveQueryFound = true;
                 } else if (NEGATIVE_FIELD.match(currentFieldName)) {
-                    negativeQuery = parseContext.parseInnerQueryBuilder();
+                    negativeQuery = parseInnerQueryBuilder(parser);
                     negativeQueryFound = true;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");
@@ -165,9 +164,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             } else if (token.isValue()) {
                 if (NEGATIVE_BOOST_FIELD.match(currentFieldName)) {
                     negativeBoost = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");
@@ -230,8 +229,8 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
-    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
-        InnerHitBuilder.extractInnerHits(positiveQuery, innerHits);
-        InnerHitBuilder.extractInnerHits(negativeQuery, innerHits);
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
+        InnerHitContextBuilder.extractInnerHits(positiveQuery, innerHits);
+        InnerHitContextBuilder.extractInnerHits(negativeQuery, innerHits);
     }
 }

@@ -22,17 +22,19 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
@@ -86,7 +88,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
-                    builder.required(lenientNodeBooleanValue(fieldNode));
+                    builder.required(TypeParsers.nodeBooleanValue(name, "required", fieldNode, parserContext));
                     iterator.remove();
                 }
             }
@@ -107,7 +109,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     static final class RoutingFieldType extends TermBasedFieldType {
 
-        public RoutingFieldType() {
+        RoutingFieldType() {
         }
 
         protected RoutingFieldType(RoutingFieldType ref) {
@@ -122,6 +124,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
         }
     }
 
@@ -167,6 +174,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         if (routing != null) {
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
                 fields.add(new Field(fieldType().name(), routing, fieldType()));
+                createFieldNamesField(context, fields);
             }
         }
     }

@@ -224,10 +224,6 @@ public class MoreLikeThisQuery extends Query {
         return likeText;
     }
 
-    public void setLikeText(String likeText) {
-        setLikeText(new String[]{likeText});
-    }
-
     public void setLikeText(String... likeText) {
         this.likeText = likeText;
     }
@@ -236,7 +232,7 @@ public class MoreLikeThisQuery extends Query {
         return likeFields;
     }
 
-    public void setLikeText(Fields... likeFields) {
+    public void setLikeFields(Fields... likeFields) {
         this.likeFields = likeFields;
     }
 
@@ -244,7 +240,7 @@ public class MoreLikeThisQuery extends Query {
         setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
     }
 
-    public void setUnlikeText(Fields... unlikeFields) {
+    public void setUnlikeFields(Fields... unlikeFields) {
         this.unlikeFields = unlikeFields;
     }
 

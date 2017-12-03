@@ -37,7 +37,7 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
         when(logger.isInfoEnabled()).thenReturn(true);
         when(logger.isDebugEnabled()).thenReturn(true);
         final JvmGcMonitorService.JvmMonitor.Threshold threshold = randomFrom(JvmGcMonitorService.JvmMonitor.Threshold.values());
-        final String name = randomAsciiOfLength(16);
+        final String name = randomAlphaOfLength(16);
         final long seq = randomIntBetween(1, 1 << 30);
         final int elapsedValue = randomIntBetween(1, 1 << 10);
         final long totalCollectionCount = randomIntBetween(1, 16);

@@ -36,7 +36,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
     private List<InjectionListener<? super T>> injectionListeners; // lazy
     private boolean valid = true;
 
-    public EncounterImpl(Errors errors, Lookups lookups) {
+    EncounterImpl(Errors errors, Lookups lookups) {
         this.errors = errors;
         this.lookups = lookups;
     }

@@ -67,7 +67,7 @@ public interface ExtendedStats extends Stats {
     String getVarianceAsString();
 
 
-    public enum Bounds {
+    enum Bounds {
         UPPER, LOWER
     }
 

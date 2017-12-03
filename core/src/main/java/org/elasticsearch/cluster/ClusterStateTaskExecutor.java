@@ -71,21 +71,18 @@ public interface ClusterStateTaskExecutor<T> {
      * @param <T> the type of the cluster state update task
      */
     class ClusterTasksResult<T> {
-        public final boolean noMaster;
         @Nullable
         public final ClusterState resultingState;
         public final Map<T, TaskResult> executionResults;
 
         /**
          * Construct an execution result instance with a correspondence between the tasks and their execution result
-         * @param noMaster whether this node steps down as master or has lost connection to the master
          * @param resultingState the resulting cluster state
          * @param executionResults the correspondence between tasks and their outcome
          */
-        ClusterTasksResult(boolean noMaster, ClusterState resultingState, Map<T, TaskResult> executionResults) {
+        ClusterTasksResult(ClusterState resultingState, Map<T, TaskResult> executionResults) {
             this.resultingState = resultingState;
             this.executionResults = executionResults;
-            this.noMaster = noMaster;
         }
 
         public static <T> Builder<T> builder() {
@@ -124,11 +121,11 @@ public interface ClusterStateTaskExecutor<T> {
             }
 
             public ClusterTasksResult<T> build(ClusterState resultingState) {
-                return new ClusterTasksResult<>(false, resultingState, executionResults);
+                return new ClusterTasksResult<>(resultingState, executionResults);
             }
 
             ClusterTasksResult<T> build(ClusterTasksResult<T> result, ClusterState previousState) {
-                return new ClusterTasksResult<>(result.noMaster, result.resultingState == null ? previousState : result.resultingState,
+                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState,
                     executionResults);
             }
         }

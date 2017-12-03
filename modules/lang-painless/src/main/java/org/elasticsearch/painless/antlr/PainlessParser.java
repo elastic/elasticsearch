@@ -11,7 +11,7 @@ import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class PainlessParser extends Parser {
-  static { RuntimeMetaData.checkVersion("4.5.1", RuntimeMetaData.VERSION); }
+  static { RuntimeMetaData.checkVersion("4.5.3", RuntimeMetaData.VERSION); }
 
   protected static final DFA[] _decisionToDFA;
   protected static final PredictionContextCache _sharedContextCache =
@@ -579,6 +579,7 @@ class PainlessParser extends Parser {
     try {
       int _alt;
       setState(185);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,11,_ctx) ) {
       case 1:
         _localctx = new IfContext(_localctx);
@@ -595,6 +596,7 @@ class PainlessParser extends Parser {
         setState(103);
         trailer();
         setState(107);
+        _errHandler.sync(this);
         switch ( getInterpreter().adaptivePredict(_input,4,_ctx) ) {
         case 1:
           {
@@ -1127,6 +1129,7 @@ class PainlessParser extends Parser {
     enterRule(_localctx, 14, RULE_initializer);
     try {
       setState(204);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,14,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
@@ -1653,6 +1656,7 @@ class PainlessParser extends Parser {
           _prevctx = _localctx;
           {
           setState(290);
+          _errHandler.sync(this);
           switch ( getInterpreter().adaptivePredict(_input,18,_ctx) ) {
           case 1:
             {
@@ -1979,6 +1983,7 @@ class PainlessParser extends Parser {
     int _la;
     try {
       setState(308);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,20,_ctx) ) {
       case 1:
         _localctx = new PreContext(_localctx);
@@ -2126,6 +2131,7 @@ class PainlessParser extends Parser {
     try {
       int _alt;
       setState(326);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,23,_ctx) ) {
       case 1:
         _localctx = new DynamicContext(_localctx);
@@ -2342,6 +2348,7 @@ class PainlessParser extends Parser {
     int _la;
     try {
       setState(346);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,24,_ctx) ) {
       case 1:
         _localctx = new PrecedenceContext(_localctx);
@@ -2493,6 +2500,7 @@ class PainlessParser extends Parser {
     enterRule(_localctx, 36, RULE_postfix);
     try {
       setState(351);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,25,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
@@ -2551,6 +2559,7 @@ class PainlessParser extends Parser {
     enterRule(_localctx, 38, RULE_postdot);
     try {
       setState(355);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,26,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
@@ -2803,6 +2812,7 @@ class PainlessParser extends Parser {
     try {
       int _alt;
       setState(412);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,34,_ctx) ) {
       case 1:
         _localctx = new NewstandardarrayContext(_localctx);
@@ -2837,6 +2847,7 @@ class PainlessParser extends Parser {
           _alt = getInterpreter().adaptivePredict(_input,27,_ctx);
         } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
         setState(385);
+        _errHandler.sync(this);
         switch ( getInterpreter().adaptivePredict(_input,29,_ctx) ) {
         case 1:
           {
@@ -2974,6 +2985,7 @@ class PainlessParser extends Parser {
     int _la;
     try {
       setState(427);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,36,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
@@ -3055,6 +3067,7 @@ class PainlessParser extends Parser {
     int _la;
     try {
       setState(443);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,38,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
@@ -3252,6 +3265,7 @@ class PainlessParser extends Parser {
     enterRule(_localctx, 56, RULE_argument);
     try {
       setState(465);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,41,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
@@ -3533,6 +3547,7 @@ class PainlessParser extends Parser {
     enterRule(_localctx, 62, RULE_funcref);
     try {
       setState(505);
+      _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,47,_ctx) ) {
       case 1:
         _localctx = new ClassfuncrefContext(_localctx);

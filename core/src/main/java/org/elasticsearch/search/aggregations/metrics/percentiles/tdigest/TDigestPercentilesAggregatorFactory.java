@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -41,10 +40,10 @@ public class TDigestPercentilesAggregatorFactory
     private final double compression;
     private final boolean keyed;
 
-    public TDigestPercentilesAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, double[] percents,
+    public TDigestPercentilesAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double[] percents,
             double compression, boolean keyed, SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.percents = percents;
         this.compression = compression;
         this.keyed = keyed;

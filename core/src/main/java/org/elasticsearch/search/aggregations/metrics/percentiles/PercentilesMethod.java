@@ -41,7 +41,7 @@ public enum PercentilesMethod implements Writeable {
 
     private final ParseField parseField;
 
-    private PercentilesMethod(String name, String... deprecatedNames) {
+    PercentilesMethod(String name, String... deprecatedNames) {
         this.parseField = new ParseField(name, deprecatedNames);
     }
 
@@ -53,16 +53,12 @@ public enum PercentilesMethod implements Writeable {
     }
 
     public static PercentilesMethod readFromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown PercentilesMethod ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
+        return in.readEnum(PercentilesMethod.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(ordinal());
+        out.writeEnum(this);
     }
 
     @Override

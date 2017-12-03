@@ -8,7 +8,7 @@ best explained by example:
 Imagine that you are selling shirts that have the following properties:
 
 [source,js]
--------------------------------------------------
+--------------------------------------------------
 PUT /shirts
 {
     "mappings": {
@@ -28,7 +28,7 @@ PUT /shirts/item/1?refresh
     "color": "red",
     "model": "slim"
 }
-------------------------------------------------
+--------------------------------------------------
 // CONSOLE
 // TESTSETUP
 

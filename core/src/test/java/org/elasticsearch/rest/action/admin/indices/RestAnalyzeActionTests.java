@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -74,6 +75,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
                         .array("mappings", "ph => f", "qu => q")
                     .endObject()
                 .endArray()
+                .field("normalizer", "normalizer")
             .endObject());
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
@@ -88,11 +90,13 @@ public class RestAnalyzeActionTests extends ESTestCase {
         assertThat(analyzeRequest.tokenFilters().get(1).definition, notNullValue());
         assertThat(analyzeRequest.charFilters().size(), equalTo(1));
         assertThat(analyzeRequest.charFilters().get(0).definition, notNullValue());
+        assertThat(analyzeRequest.normalizer(), equalTo("normalizer"));
     }
 
     public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() throws Exception {
         RestAnalyzeAction action = new RestAnalyzeAction(Settings.EMPTY, mock(RestController.class));
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray("{invalid_json}")).build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray("{invalid_json}"), XContentType.JSON).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.handleRequest(request, null, null));
         assertThat(e.getMessage(), equalTo("Failed to parse request body"));
     }
@@ -118,6 +122,17 @@ public class RestAnalyzeActionTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> RestAnalyzeAction.buildFromContent(invalidExplain, analyzeRequest));
         assertThat(e.getMessage(), startsWith("explain must be either 'true' or 'false'"));
+    }
+
+    public void testParseXContentForAnalyzeRequestWithInvalidNormalizerThrowsException() throws Exception {
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
+        XContentParser invalidExplain = createParser(XContentFactory.jsonBuilder()
+            .startObject()
+            .field("normalizer", true)
+            .endObject());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> RestAnalyzeAction.buildFromContent(invalidExplain, analyzeRequest));
+        assertThat(e.getMessage(), startsWith("normalizer should be normalizer's name"));
     }
 
     public void testDeprecatedParamIn2xException() throws Exception {

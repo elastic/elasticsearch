@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.util.CountedBitSet;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -103,22 +102,6 @@ final class MultiSnapshot implements Translog.Snapshot {
             final boolean wasOn = bitset.get(index);
             bitset.set(index);
             return wasOn;
-        }
-
-        // For testing
-        long completeSetsSize() {
-            int completedBitSets = 0;
-            for (ObjectCursor<BitSet> bitset : bitSets.values()) {
-                if (bitset.value.cardinality() == bitset.value.length()) {
-                    completedBitSets++;
-                }
-            }
-            return completedBitSets;
-        }
-
-        // For testing
-        long ongoingSetsSize() {
-            return bitSets.size() - completeSetsSize();
         }
     }
 }

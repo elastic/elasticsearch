@@ -286,6 +286,12 @@ public class RequestTests extends ESTestCase {
         setRandomMasterTimeout(openIndexRequest, expectedParams);
         setRandomIndicesOptions(openIndexRequest::indicesOptions, openIndexRequest::indicesOptions, expectedParams);
 
+        if (randomBoolean()) {
+            int waitForActiveShards = randomIntBetween(0, 10);
+            openIndexRequest.waitForActiveShards(waitForActiveShards);
+            expectedParams.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
+        }
+
         Request request = Request.openIndex(openIndexRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_open");
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));

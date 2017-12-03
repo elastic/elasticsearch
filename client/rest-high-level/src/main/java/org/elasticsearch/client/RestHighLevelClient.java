@@ -368,8 +368,7 @@ public class RestHighLevelClient implements Closeable {
      * Open Index API on elastic.co</a>
      */
     public final OpenIndexResponse openIndex(OpenIndexRequest openIndexRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent,
-                Collections.singleton(404), headers);
+        return performRequestAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -379,8 +378,8 @@ public class RestHighLevelClient implements Closeable {
      * Open Index API on elastic.co</a>
      */
     public final void openIndexAsync(OpenIndexRequest openIndexRequest, ActionListener<OpenIndexResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent, listener,
-                Collections.singleton(404), headers);
+        performRequestAsyncAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent, listener, emptySet(),
+                headers);
     }
 
     /**

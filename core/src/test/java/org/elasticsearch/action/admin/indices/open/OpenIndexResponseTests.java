@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class OpenIndexResponseTests extends ESTestCase {
@@ -37,14 +38,21 @@ public class OpenIndexResponseTests extends ESTestCase {
         boolean humanReadable = randomBoolean();
         final XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(openIndexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference mutated;
+        if (randomBoolean()) {
+            mutated = insertRandomFields(xContentType, originalBytes, null, random());
+        } else {
+            mutated = originalBytes;
+        }
         
-        OpenIndexResponse parsedCreateIndexResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsedCreateIndexResponse = OpenIndexResponse.fromXContent(parser);
+        OpenIndexResponse parsedOpenIndexResponse;
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
+            parsedOpenIndexResponse = OpenIndexResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
-        assertThat(parsedCreateIndexResponse.isShardsAcknowledged(), equalTo(openIndexResponse.isShardsAcknowledged()));
-        assertThat(parsedCreateIndexResponse.isAcknowledged(), equalTo(openIndexResponse.isAcknowledged()));
+
+        assertThat(parsedOpenIndexResponse.isShardsAcknowledged(), equalTo(openIndexResponse.isShardsAcknowledged()));
+        assertThat(parsedOpenIndexResponse.isAcknowledged(), equalTo(openIndexResponse.isAcknowledged()));
     }
     
     private static OpenIndexResponse createTestItem() {

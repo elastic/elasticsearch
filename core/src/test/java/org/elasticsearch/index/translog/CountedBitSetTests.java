@@ -54,7 +54,7 @@ public class CountedBitSetTests extends ESTestCase {
         int numBits = (short) randomIntBetween(8, 4096);
         final CountedBitSet countedBitSet = new CountedBitSet((short) numBits);
         final List<Integer> values = IntStream.range(0, numBits).boxed().collect(Collectors.toList());
-        final long withBitSetRamUsage = countedBitSet.ramBytesUsed();
+        final long ramBytesUsedWithBitSet = countedBitSet.ramBytesUsed();
 
         for (int i = 1; i < numBits; i++) {
             final int value = values.get(i);
@@ -67,7 +67,7 @@ public class CountedBitSetTests extends ESTestCase {
             assertThat(countedBitSet.isInternalBitsetReleased(), equalTo(false));
             assertThat(countedBitSet.length(), equalTo(numBits));
             assertThat(countedBitSet.cardinality(), equalTo(i));
-            assertThat(countedBitSet.ramBytesUsed(), equalTo(withBitSetRamUsage));
+            assertThat(countedBitSet.ramBytesUsed(), equalTo(ramBytesUsedWithBitSet));
         }
 
         // The missing piece to fill all bits.
@@ -82,7 +82,7 @@ public class CountedBitSetTests extends ESTestCase {
             assertThat(countedBitSet.isInternalBitsetReleased(), equalTo(true));
             assertThat(countedBitSet.length(), equalTo(numBits));
             assertThat(countedBitSet.cardinality(), equalTo(numBits));
-            assertThat(countedBitSet.ramBytesUsed(), lessThan(withBitSetRamUsage));
+            assertThat(countedBitSet.ramBytesUsed(), lessThan(ramBytesUsedWithBitSet));
         }
 
         // Tests with released internal bitset.

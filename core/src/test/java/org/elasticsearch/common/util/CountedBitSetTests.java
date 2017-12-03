@@ -35,17 +35,17 @@ public class CountedBitSetTests extends ESTestCase {
         final FixedBitSet fixedBitSet = new FixedBitSet(numBits);
         final CountedBitSet countedBitSet = new CountedBitSet((short) numBits);
 
-        final int iterations = iterations(1000, 20000);
-        for (int i = 0; i < iterations; i++) {
-            final int key = randomInt(numBits - 1);
-            assertThat(countedBitSet.get(key), equalTo(fixedBitSet.get(key)));
-            if (frequently()) {
-                countedBitSet.set(key);
-                fixedBitSet.set(key);
-                assertThat(countedBitSet.get(key), equalTo(fixedBitSet.get(key)));
-                assertThat(countedBitSet.length(), equalTo(fixedBitSet.length()));
-                assertThat(countedBitSet.cardinality(), equalTo(fixedBitSet.cardinality()));
+        for (int i = 0; i < numBits; i++) {
+            if (randomBoolean()) {
+                fixedBitSet.set(i);
+                countedBitSet.set(i);
             }
+            assertThat(countedBitSet.cardinality(), equalTo(fixedBitSet.cardinality()));
+            assertThat(countedBitSet.length(), equalTo(fixedBitSet.length()));
+        }
+
+        for (int i = 0; i < numBits; i++) {
+            assertThat(countedBitSet.get(i), equalTo(fixedBitSet.get(i)));
         }
     }
 

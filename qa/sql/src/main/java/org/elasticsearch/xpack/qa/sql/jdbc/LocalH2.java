@@ -63,8 +63,8 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
     @Override
     @SuppressForbidden(reason = "H2 gets really confused with non Gregorian calendars")
     protected void before() throws Throwable {
-        if ("gregory".equals(Calendar.getInstance().getCalendarType()) == false) {
-            logger.info("Non gregorian calendar is detected. Overriding locale.");
+        if ("japanese".equals(Calendar.getInstance().getCalendarType())) {
+            logger.info("Japanese calendar is detected. Overriding locale.");
             locale = Locale.getDefault();
             Locale.setDefault(locale.stripExtensions()); // removes the calendar setting
             assert "gregory".equals(Calendar.getInstance().getCalendarType());

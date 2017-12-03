@@ -39,6 +39,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -73,6 +74,8 @@ public final class EngineConfig {
     private final Sort indexSort;
     private final boolean forceNewHistoryUUID;
     private final TranslogRecoveryRunner translogRecoveryRunner;
+    @Nullable
+    private final CircuitBreakerService circuitBreakerService;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -118,7 +121,7 @@ public final class EngineConfig {
                         QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
                         boolean forceNewHistoryUUID, TranslogConfig translogConfig, TimeValue flushMergesAfter,
                         List<ReferenceManager.RefreshListener> refreshListeners, Sort indexSort,
-                        TranslogRecoveryRunner translogRecoveryRunner) {
+                        TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -147,6 +150,7 @@ public final class EngineConfig {
         this.refreshListeners = refreshListeners;
         this.indexSort = indexSort;
         this.translogRecoveryRunner = translogRecoveryRunner;
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     /**
@@ -357,5 +361,13 @@ public final class EngineConfig {
      */
     public Sort getIndexSort() {
         return indexSort;
+    }
+
+    /**
+     * Returns the circuit breaker service for this engine, or {@code null} if none is to be used.
+     */
+    @Nullable
+    public CircuitBreakerService getCircuitBreakerService() {
+        return this.circuitBreakerService;
     }
 }

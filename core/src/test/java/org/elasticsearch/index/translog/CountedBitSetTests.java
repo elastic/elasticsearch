@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.test.ESTestCase;

@@ -21,7 +21,6 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.util.CountedBitSet;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;

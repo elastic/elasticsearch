@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
@@ -27,7 +27,7 @@ import org.apache.lucene.util.FixedBitSet;
  * when all bits are set to reduce memory usage. This structure can work well for sequence numbers
  * from translog as these numbers are likely to form contiguous ranges (eg. filling all bits).
  */
-public final class CountedBitSet extends BitSet {
+final class CountedBitSet extends BitSet {
     private short onBits; // Number of bits are set.
     private FixedBitSet bitset;
 

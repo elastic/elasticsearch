@@ -283,7 +283,7 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
      */
-    public void getAsync(GetRequest getRequest, ActionListener<GetResponse> listener, Header... headers) {
+    public final void getAsync(GetRequest getRequest, ActionListener<GetResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(getRequest, Request::get, GetResponse::fromXContent, listener, singleton(404), headers);
     }
 

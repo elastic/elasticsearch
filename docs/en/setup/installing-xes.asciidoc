@@ -33,7 +33,7 @@ internet access:
 .. Manually download the {xpack} zip file:
 https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip[
 +https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip+]
-(https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip.sha1[sha1])
+(https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip.sha512[sha512])
 +
 --
 NOTE: The plugins for {es}, {kib}, and Logstash are included in the same zip

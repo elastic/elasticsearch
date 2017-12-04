@@ -141,9 +141,9 @@ public class JarHell {
                 if (urlElements.add(url) == false) {
                     String jarHellDescription;
                     if (element.endsWith("idea_rt.jar")) {
-                        jarHellDescription = "Jar hell, caused by IntelliJ IDEA's run launcher; see CONTRIBUTING.md for the necessary fix.";
+                        jarHellDescription = "jar hell, caused by IntelliJ IDEA's run launcher; see CONTRIBUTING.md for the necessary fix.";
                     } else {
-                        jarHellDescription = "Jar hell!";
+                        jarHellDescription = "jar hell!";
                     }
                     throw new IllegalStateException(jarHellDescription + System.lineSeparator() +
                         "duplicate jar [" + element + "] on classpath: " + classPath);

@@ -14,6 +14,9 @@
                 "bucket_span": "60s",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
             "data_description" : {
                 "format":"xcontent",
                 "time_field":"time",
@@ -61,6 +64,9 @@
                 "influencers": "",
                 "bucket_span": "60s",
                 "detectors" :[{"function":"count","field_name":""}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
             },
             "data_description" : {
                 "format":"xcontent",

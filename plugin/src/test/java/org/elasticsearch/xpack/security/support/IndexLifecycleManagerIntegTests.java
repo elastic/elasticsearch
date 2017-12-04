@@ -28,7 +28,7 @@ public class IndexLifecycleManagerIntegTests extends SecurityIntegTestCase {
         final int processors = Runtime.getRuntime().availableProcessors();
         final int numThreads = scaledRandomIntBetween((processors + 1) / 2, 4 * processors);
         final int maxNumRequests = 100 / numThreads; // bound to a maximum of 100 requests
-        final int numRequests = scaledRandomIntBetween(4, maxNumRequests);
+        final int numRequests = scaledRandomIntBetween(Math.min(4, maxNumRequests), maxNumRequests);
 
         final List<ActionFuture<PutUserResponse>> futures = new CopyOnWriteArrayList<>();
         final List<Exception> exceptions = new CopyOnWriteArrayList<>();

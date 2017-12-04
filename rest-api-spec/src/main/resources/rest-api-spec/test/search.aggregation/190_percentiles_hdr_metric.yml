@@ -418,6 +418,7 @@ setup:
 
   - do:
       search:
+        allow_partial_search_results: true
         body:
           aggs:
             percentiles_int:

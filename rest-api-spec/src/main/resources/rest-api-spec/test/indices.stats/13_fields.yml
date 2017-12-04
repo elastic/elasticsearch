@@ -62,6 +62,7 @@ setup:
 
   - do:
       search:
+          allow_partial_search_results: true
           sort: bar,baz
 
 ---

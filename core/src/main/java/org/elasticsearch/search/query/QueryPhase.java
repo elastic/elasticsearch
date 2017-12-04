@@ -273,6 +273,11 @@ public class QueryPhase implements SearchPhase {
                 }
             } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
+                
+                if (!searchContext.request().allowPartialSearchResults()) {
+                    // Can't rethrow TimeExceededException because not serializable
+                    throw new QueryPhaseExecutionException(searchContext, "Time exceeded");
+                }
                 queryResult.searchTimedOut(true);
             } finally {
                 searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);

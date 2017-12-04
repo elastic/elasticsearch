@@ -131,13 +131,26 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             onPhaseFailure(currentPhase, "all shards failed", null);
         } else {
-            if (logger.isTraceEnabled()) {
-                final String resultsFrom = results.getSuccessfulResults()
-                    .map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","));
-                logger.trace("[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
-                    currentPhase.getName(), nextPhase.getName(), resultsFrom, clusterStateVersion);
+            Boolean allowPartialResults = request.allowPartialSearchResults();
+            if (allowPartialResults != null && !allowPartialResults && shardFailures.get() != null ){
+                if (logger.isDebugEnabled()) {
+                    final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
+                    Throwable cause = shardSearchFailures.length == 0 ? null :
+                        ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} shards failed for phase: [{}]", 
+                            shardSearchFailures.length, getName()),
+                        cause);
+                }
+                onPhaseFailure(currentPhase, "Partial shards failure", null);                
+            } else { 
+                if (logger.isTraceEnabled()) {
+                    final String resultsFrom = results.getSuccessfulResults()
+                        .map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","));
+                    logger.trace("[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
+                        currentPhase.getName(), nextPhase.getName(), resultsFrom, clusterStateVersion);
+                }
+                executePhase(nextPhase);
             }
-            executePhase(nextPhase);
         }
     }
 
@@ -265,8 +278,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
+        
+        ShardSearchFailure[] failures = buildShardFailures();
+        Boolean allowPartialResults = request.allowPartialSearchResults();
+        if (allowPartialResults !=null && !allowPartialResults && failures.length > 0){
+            raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));                        
+        }                              
+        
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
-            skippedOps.get(), buildTookInMillis(), buildShardFailures(), clusters);
+            skippedOps.get(), buildTookInMillis(), failures, clusters);
     }
 
     @Override

@@ -581,7 +581,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         public static StringDistanceImpl resolve(final String str) {
             Objects.requireNonNull(str, "Input string is null");
-            final String distanceVal = str.toLowerCase(Locale.US);
+            final String distanceVal = str.toLowerCase(Locale.ROOT);
             switch (distanceVal) {
                 case "internal":
                     return INTERNAL;

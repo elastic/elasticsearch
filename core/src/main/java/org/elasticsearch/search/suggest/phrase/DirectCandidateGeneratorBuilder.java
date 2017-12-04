@@ -464,7 +464,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     }
 
     static StringDistance resolveDistance(String distanceVal) {
-        distanceVal = distanceVal.toLowerCase(Locale.US);
+        distanceVal = distanceVal.toLowerCase(Locale.ROOT);
         if ("internal".equals(distanceVal)) {
             return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
         } else if ("damerau_levenshtein".equals(distanceVal)) {

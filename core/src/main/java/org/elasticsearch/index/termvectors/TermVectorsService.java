@@ -217,7 +217,12 @@ public class TermVectorsService  {
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
             analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field).toString());
         } else {
-            analyzer = mapperService.fullName(field).indexAnalyzer();
+            MappedFieldType fieldType = mapperService.fullName(field);
+            if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                analyzer = ((KeywordFieldMapper.KeywordFieldType) fieldType).normalizer();
+            } else {
+                analyzer = fieldType.indexAnalyzer();
+            }
         }
         if (analyzer == null) {
             analyzer = mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer();

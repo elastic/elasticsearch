@@ -832,6 +832,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         prepareCreate("test-idx").setSettings(Settings.builder().put("index.allocation.max_retries", Integer.MAX_VALUE)).get();
         ensureGreen();
 
+        final NumShards numShards = getNumShards("test-idx");
+
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
             index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
@@ -856,11 +858,29 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
         logger.info("--> restore index after deletion");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-        SearchResponse countResponse = client.prepareSearch("test-idx").setSize(0).get();
-        assertThat(countResponse.getHits().getTotalHits(), equalTo(100L));
+        final RestoreSnapshotResponse restoreResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+                                                                                .setWaitForCompletion(true)
+                                                                                .get();
+
         logger.info("--> total number of simulated failures during restore: [{}]", getFailureCount("test-repo"));
+        final RestoreInfo restoreInfo = restoreResponse.getRestoreInfo();
+        assertThat(restoreInfo.totalShards(), equalTo(numShards.numPrimaries));
+
+        if (restoreInfo.successfulShards() == restoreInfo.totalShards()) {
+            // All shards were restored, we must find the exact number of hits
+            assertHitCount(client.prepareSearch("test-idx").setSize(0).get(), 100L);
+        } else {
+            // One or more shards failed to be restored. This can happen when there is
+            // only 1 data node: a shard failed because of the random IO exceptions
+            // during restore and then we don't allow the shard to be assigned on the
+            // same node again during the same reroute operation. Then another reroute
+            // operation is scheduled, but the RestoreInProgressAllocationDecider will
+            // block the shard to be assigned again because it failed during restore.
+            final ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().get();
+            assertEquals(1, clusterStateResponse.getState().getNodes().getDataNodes().size());
+            assertEquals(restoreInfo.failedShards(),
+                clusterStateResponse.getState().getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size());
+        }
     }
 
     public void testDataFileCorruptionDuringRestore() throws Exception {

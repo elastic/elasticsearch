@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
-import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
+import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
+import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -26,8 +26,8 @@ import java.util.Map;
 public class VerifierErrorMessagesTests extends ESTestCase {
 
     private SqlParser parser;
+    private GetIndexResult getIndexResult;
     private FunctionRegistry functionRegistry;
-    private Catalog catalog;
     private Analyzer analyzer;
 
     public VerifierErrorMessagesTests() {
@@ -40,13 +40,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         mapping.put("text", DataTypes.TEXT);
         mapping.put("keyword", DataTypes.KEYWORD);
         EsIndex test = new EsIndex("test", mapping);
-        catalog = new Catalog(Catalog.GetIndexResult.valid(test));
+        getIndexResult = GetIndexResult.valid(test);
         analyzer = new Analyzer(functionRegistry);
     }
 
     @Before
     public void setupContext() {
-        TestingSqlSession.setCurrentContext(TestingSqlSession.ctx(catalog));
+        TestingSqlSession.setCurrentContext(TestingSqlSession.ctx(getIndexResult));
     }
 
     @After
@@ -62,6 +62,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMissingIndex() {
+        TestingSqlSession.removeCurrentContext();
+        TestingSqlSession.setCurrentContext(TestingSqlSession.ctx(GetIndexResult.notFound("missing")));
         assertEquals("1:17: Unknown index [missing]", verify("SELECT foo FROM missing"));
     }
 

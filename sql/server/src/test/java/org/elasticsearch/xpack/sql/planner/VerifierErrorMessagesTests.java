@@ -7,9 +7,8 @@ package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
-import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.catalog.InMemoryCatalog;
+import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
+import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
@@ -23,13 +22,11 @@ import org.junit.Before;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import static java.util.Collections.singletonList;
-
 public class VerifierErrorMessagesTests extends ESTestCase {
 
     private SqlParser parser;
     private FunctionRegistry functionRegistry;
-    private Catalog catalog;
+    private GetIndexResult getIndexResult;
     private Analyzer analyzer;
     private Optimizer optimizer;
     private Planner planner;
@@ -44,7 +41,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         mapping.put("text", DataTypes.TEXT);
         mapping.put("keyword", DataTypes.KEYWORD);
         EsIndex test = new EsIndex("test", mapping);
-        catalog = new InMemoryCatalog(singletonList(test));
+        getIndexResult = GetIndexResult.valid(test);
         analyzer = new Analyzer(functionRegistry);
         optimizer = new Optimizer();
         planner = new Planner();
@@ -53,7 +50,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     @Before
     public void setupContext() {
-        TestingSqlSession.setCurrentContext(TestingSqlSession.ctx(catalog));
+        TestingSqlSession.setCurrentContext(TestingSqlSession.ctx(getIndexResult));
     }
 
     @After

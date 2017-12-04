@@ -10,7 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
-import org.elasticsearch.xpack.sql.analysis.catalog.IndexResolver;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
@@ -31,15 +31,15 @@ public class PlanExecutor {
     private final FunctionRegistry functionRegistry;
 
     private final SqlParser parser;
-    private final IndexResolver catalogResolver;
+    private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
     private final Analyzer analyzer;
     private final Optimizer optimizer;
     private final Planner planner;
 
-    public PlanExecutor(Client client, IndexResolver catalogResolver) {
+    public PlanExecutor(Client client, IndexResolver indexResolver) {
         this.client = client;
-        this.catalogResolver = catalogResolver;
+        this.indexResolver = indexResolver;
         this.functionRegistry = new DefaultFunctionRegistry();
 
         this.parser = new SqlParser();
@@ -50,7 +50,7 @@ public class PlanExecutor {
     }
 
     private SqlSession newSession(Configuration cfg) {
-        return new SqlSession(cfg, client, functionRegistry, parser, catalogResolver, preAnalyzer, analyzer, optimizer, planner);
+        return new SqlSession(cfg, client, functionRegistry, parser, indexResolver, preAnalyzer, analyzer, optimizer, planner);
     }
 
     public void searchSource(String sql, Configuration settings, ActionListener<SearchSourceBuilder> listener) {

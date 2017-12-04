@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.analysis.catalog;
+package org.elasticsearch.xpack.sql.analysis.index;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
@@ -13,14 +13,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.Types;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,9 +31,9 @@ public class IndexResolver {
     }
 
     /**
-     * Resolves a single catalog by name. 
+     * Resolves a single index by name.
      */
-    public void asCatalog(final String index, ActionListener<Catalog> listener) {
+    public void asIndex(final String index, ActionListener<GetIndexResult> listener) {
         GetIndexRequest getIndexRequest = createGetIndexRequest(index);
         client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(getIndexResponse -> {
             GetIndexResult result;
@@ -57,7 +55,7 @@ public class IndexResolver {
             } else {
                 result = GetIndexResult.notFound(index);
             }
-            listener.onResponse(new Catalog(result));
+            listener.onResponse(result);
         }, listener::onFailure));
     }
 
@@ -67,8 +65,9 @@ public class IndexResolver {
     public void asList(String index, ActionListener<List<EsIndex>> listener) {
         GetIndexRequest getIndexRequest = createGetIndexRequest(index);
         client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(getIndexResponse -> {
-            Map<String, GetIndexResult> map = new HashMap<>();
-            for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings : getIndexResponse.getMappings()) {
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = getIndexResponse.getMappings();
+            List<EsIndex> results = new ArrayList<>(mappings.size());
+            for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings : mappings) {
                 /*
                  * We support wildcard expressions here, and it's only for commands that only perform the get index call.
                  * We can and simply have to use the concrete index name and show that to users.
@@ -76,12 +75,9 @@ public class IndexResolver {
                  * and not the concrete index: there is a well known information leak of the concrete index name in the response.
                  */
                 String concreteIndex = indexMappings.key;
-                map.put(concreteIndex, buildGetIndexResult(concreteIndex, concreteIndex, indexMappings.value));
-            }
-            List<EsIndex> results = new ArrayList<>(map.size());
-            for (GetIndexResult result : map.values()) {
-                if (result.isValid()) {
-                    results.add(result.get());
+                GetIndexResult getIndexResult = buildGetIndexResult(concreteIndex, concreteIndex, indexMappings.value);
+                if (getIndexResult.isValid()) {
+                    results.add(getIndexResult.get());
                 }
             }
             results.sort(Comparator.comparing(EsIndex::name));

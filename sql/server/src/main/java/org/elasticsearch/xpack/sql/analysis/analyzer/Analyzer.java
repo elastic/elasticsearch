@@ -7,8 +7,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
-import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
+import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -253,14 +252,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
-            GetIndexResult index = SqlSession.currentContext().catalog.getIndex(table.index());
+            GetIndexResult index = SqlSession.currentContext().getIndexResult;
             if (index.isValid() == false) {
                 return plan.unresolvedMessage().equals(index.toString()) ? plan : new UnresolvedRelation(plan.location(), plan.table(),
                         plan.alias(), index.toString());
             }
-
-            LogicalPlan catalogTable = new EsRelation(plan.location(), index.get());
-            SubQueryAlias sa = new SubQueryAlias(plan.location(), catalogTable, table.index());
+            assert index.matches(table.index());
+            LogicalPlan logicalPlan = new EsRelation(plan.location(), index.get());
+            SubQueryAlias sa = new SubQueryAlias(plan.location(), logicalPlan, table.index());
 
             if (plan.alias() != null) {
                 sa = new SubQueryAlias(plan.location(), sa, plan.alias());

@@ -11,8 +11,8 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
-import org.elasticsearch.xpack.sql.analysis.catalog.IndexResolver;
+import org.elasticsearch.xpack.sql.analysis.index.GetIndexResult;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
@@ -43,18 +43,18 @@ public class SqlSession {
     public static class SessionContext {
         
         public final Configuration configuration;
-        public final Catalog catalog;
+        public final GetIndexResult getIndexResult;
 
-        SessionContext(Configuration configuration, Catalog catalog) {
+        SessionContext(Configuration configuration, GetIndexResult getIndexResult) {
             this.configuration = configuration;
-            this.catalog = catalog;
+            this.getIndexResult = getIndexResult;
         }
     }
     
     // thread-local used for sharing settings across the plan compilation
     // Currently this is used during:
     // 1. parsing - to set the TZ in date time functions (if they are used)
-    // 2. analysis - to compute the Catalog and share it across the rules
+    // 2. analysis - to compute the ESIndex and share it across the rules
     // Might be used in
     // 3. Optimization - to pass in configs around plan hints/settings
     // 4. Folding/mapping - same as above
@@ -131,7 +131,8 @@ public class SqlSession {
     private LogicalPlan doParse(String sql) {
         try {
             // NB: it's okay for the catalog to be empty - parsing only cares about the configuration
-            CURRENT_CONTEXT.set(new SessionContext(settings, Catalog.EMPTY));
+            //TODO find a better way to replace the empty catalog
+            CURRENT_CONTEXT.set(new SessionContext(settings, GetIndexResult.invalid("_na_")));
             return parser.createStatement(sql);
         } finally {
             CURRENT_CONTEXT.remove();
@@ -160,9 +161,9 @@ public class SqlSession {
             return;
         }
 
-        preAnalyze(parsed, c -> {
+        preAnalyze(parsed, getIndexResult -> {
             try {
-                CURRENT_CONTEXT.set(new SessionContext(settings, c));
+                CURRENT_CONTEXT.set(new SessionContext(settings, getIndexResult));
                 return analyzer.debugAnalyze(parsed);
             } finally {
                 CURRENT_CONTEXT.remove();
@@ -170,19 +171,18 @@ public class SqlSession {
         }, listener);
     }
 
-    private <T> void preAnalyze(LogicalPlan parsed, Function<Catalog, T> action, ActionListener<T> listener) {
+    private <T> void preAnalyze(LogicalPlan parsed, Function<GetIndexResult, T> action, ActionListener<T> listener) {
         PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        //TODO why do we have a list if we only support one single element? Seems like it's the wrong data structure?
         if (preAnalysis.indices.size() > 1) {
             listener.onFailure(new SqlIllegalArgumentException("Queries with multiple indices are not supported"));
-            return;
-        }
-        //TODO why do we have a list if we only support one single element? Seems like it's the wrong data structure?
-        if (preAnalysis.indices.size() == 1) {
-            indexResolver.asCatalog(preAnalysis.indices.get(0),
-                    wrap(c -> listener.onResponse(action.apply(c)), listener::onFailure));
+        } else if (preAnalysis.indices.size() == 1) {
+            indexResolver.asIndex(preAnalysis.indices.get(0),
+                    wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {
-                listener.onResponse(action.apply(Catalog.EMPTY));
+                //TODO when can this ever happen? shouldn't it be an exception instead?
+                listener.onResponse(action.apply(GetIndexResult.invalid("_na_")));
             } catch (Exception ex) {
                 listener.onFailure(ex);
             }

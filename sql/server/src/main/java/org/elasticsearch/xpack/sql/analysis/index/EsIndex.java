@@ -3,18 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.analysis.catalog;
+package org.elasticsearch.xpack.sql.analysis.index;
 
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-
 public class EsIndex {
-
-    public static final EsIndex NOT_FOUND = new EsIndex(StringUtils.EMPTY, emptyMap());
 
     private final String name;
     private final Map<String, DataType> mapping;

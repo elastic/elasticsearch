@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.elasticsearch.xpack.sql.analysis.catalog.MappingException;
+import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.TextType;

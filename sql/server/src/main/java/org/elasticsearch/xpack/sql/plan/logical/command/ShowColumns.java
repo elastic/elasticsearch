@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.analysis.catalog.Catalog.GetIndexResult;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.session.Rows;
@@ -47,10 +46,9 @@ public class ShowColumns extends Command {
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        session.indexResolver().asCatalog(index, ActionListener.wrap(
-                c -> {
+        session.indexResolver().asIndex(index, ActionListener.wrap(
+                indexResult -> {
                     List<List<?>> rows = emptyList();
-                    GetIndexResult indexResult = c.getIndex(index);
                     if (indexResult.isValid()) {
                         rows = new ArrayList<>();
                         fillInRows(indexResult.get().mapping(), null, rows);

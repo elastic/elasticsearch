@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.sql.analysis.catalog.MappingException;
+import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

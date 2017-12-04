@@ -54,6 +54,11 @@ import java.util.concurrent.TimeUnit;
  */
 public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
 
+    private static final int SECONDS_IN_MINUTE = 60;
+    private static final int TWO_MINS_SECONDS = 2 * SECONDS_IN_MINUTE;
+    private static final int TWENTY_MINS_SECONDS = 20 * SECONDS_IN_MINUTE;
+    private static final int HALF_DAY_SECONDS = 12 * 60 * SECONDS_IN_MINUTE;
+
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");
 
@@ -348,6 +353,53 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * Calculates a sensible default frequency for a given bucket span.
+     * <p>
+     * The default depends on the bucket span:
+     * <ul>
+     * <li> &lt;= 2 mins -&gt; 1 min</li>
+     * <li> &lt;= 20 mins -&gt; bucket span / 2</li>
+     * <li> &lt;= 12 hours -&gt; 10 mins</li>
+     * <li> &gt; 12 hours -&gt; 1 hour</li>
+     * </ul>
+     *
+     * If the datafeed has aggregations, the default frequency is the
+     * closest multiple of the histogram interval based on the rules above.
+     *
+     * @param bucketSpan the bucket span
+     * @return the default frequency
+     */
+    public TimeValue defaultFrequency(TimeValue bucketSpan) {
+        TimeValue defaultFrequency = defaultFrequencyTarget(bucketSpan);
+        if (hasAggregations()) {
+            long histogramIntervalMillis = getHistogramIntervalMillis();
+            long targetFrequencyMillis = defaultFrequency.millis();
+            long defaultFrequencyMillis = histogramIntervalMillis > targetFrequencyMillis ? histogramIntervalMillis
+                    : (targetFrequencyMillis / histogramIntervalMillis) * histogramIntervalMillis;
+            defaultFrequency = TimeValue.timeValueMillis(defaultFrequencyMillis);
+        }
+        return defaultFrequency;
+    }
+
+    private TimeValue defaultFrequencyTarget(TimeValue bucketSpan) {
+        long bucketSpanSeconds = bucketSpan.seconds();
+        if (bucketSpanSeconds <= 0) {
+            throw new IllegalArgumentException("Bucket span has to be > 0");
+        }
+
+        if (bucketSpanSeconds <= TWO_MINS_SECONDS) {
+            return TimeValue.timeValueSeconds(SECONDS_IN_MINUTE);
+        }
+        if (bucketSpanSeconds <= TWENTY_MINS_SECONDS) {
+            return TimeValue.timeValueSeconds(bucketSpanSeconds / 2);
+        }
+        if (bucketSpanSeconds <= HALF_DAY_SECONDS) {
+            return TimeValue.timeValueMinutes(10);
+        }
+        return TimeValue.timeValueHours(1);
     }
 
     public static class Builder {

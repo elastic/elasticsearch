@@ -29,6 +29,7 @@ public final class DatafeedJobValidator {
         if (datafeedConfig.hasAggregations()) {
             checkSummaryCountFieldNameIsSet(analysisConfig);
             checkValidHistogramInterval(datafeedConfig, analysisConfig);
+            checkFrequencyIsMultipleOfHistogramInterval(datafeedConfig);
         }
     }
 
@@ -55,6 +56,18 @@ public final class DatafeedJobValidator {
                     TimeValue.timeValueMillis(histogramIntervalMillis).getStringRep(),
                     TimeValue.timeValueMillis(bucketSpanMillis).getStringRep()));
         }
+    }
 
+    private static void checkFrequencyIsMultipleOfHistogramInterval(DatafeedConfig datafeedConfig) {
+        TimeValue frequency = datafeedConfig.getFrequency();
+        if (frequency != null) {
+            long histogramIntervalMillis = datafeedConfig.getHistogramIntervalMillis();
+            long frequencyMillis = frequency.millis();
+            if (frequencyMillis % histogramIntervalMillis != 0) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(
+                        Messages.DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL,
+                        frequency, TimeValue.timeValueMillis(histogramIntervalMillis).getStringRep()));
+            }
+        }
     }
 }

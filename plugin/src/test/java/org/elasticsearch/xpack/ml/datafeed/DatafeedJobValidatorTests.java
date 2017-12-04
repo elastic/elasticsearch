@@ -141,6 +141,39 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         DatafeedJobValidator.validate(goodDatafeedConfig, job);
     }
 
+    public void testVerify_FrequencyIsMultipleOfHistogramInterval() throws IOException {
+        Job.Builder builder = buildJobBuilder("foo");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setSummaryCountFieldName("some_count");
+        ac.setBucketSpan(TimeValue.timeValueMinutes(5));
+        builder.setAnalysisConfig(ac);
+        Job job = builder.build(new Date());
+        DatafeedConfig.Builder datafeedBuilder = createValidDatafeedConfigWithAggs(60 * 1000);
+
+        // Check with multiples
+        datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(60));
+        DatafeedJobValidator.validate(datafeedBuilder.build(), job);
+        datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(120));
+        DatafeedJobValidator.validate(datafeedBuilder.build(), job);
+        datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(180));
+        DatafeedJobValidator.validate(datafeedBuilder.build(), job);
+        datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(240));
+        DatafeedJobValidator.validate(datafeedBuilder.build(), job);
+        datafeedBuilder.setFrequency(TimeValue.timeValueHours(1));
+        DatafeedJobValidator.validate(datafeedBuilder.build(), job);
+
+        // Now non-multiples
+        datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(30));
+        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
+                () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job));
+        assertEquals("Datafeed frequency [30s] must be a multiple of the aggregation interval [60000ms]", e.getMessage());
+
+        datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(90));
+        e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
+                () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job));
+        assertEquals("Datafeed frequency [1.5m] must be a multiple of the aggregation interval [60000ms]", e.getMessage());
+    }
+
     private static Job.Builder buildJobBuilder(String id) {
         Job.Builder builder = new Job.Builder(id);
         AnalysisConfig.Builder ac = createAnalysisConfig();

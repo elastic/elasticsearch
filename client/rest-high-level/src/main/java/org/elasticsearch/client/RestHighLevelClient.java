@@ -362,27 +362,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Opens an index using the Open Index API
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
-     * Open Index API on elastic.co</a>
-     */
-    public final OpenIndexResponse openIndex(OpenIndexRequest openIndexRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent, emptySet(), headers);
-    }
-
-    /**
-     * Asynchronously opens an index using the Open Index API
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-open-close.html">
-     * Open Index API on elastic.co</a>
-     */
-    public final void openIndexAsync(OpenIndexRequest openIndexRequest, ActionListener<OpenIndexResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(openIndexRequest, Request::openIndex, OpenIndexResponse::fromXContent, listener, emptySet(),
-                headers);
-    }
-
-    /**
      * Executes a search using the Search API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>

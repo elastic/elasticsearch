@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -75,12 +76,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(openIndexResponse.isAcknowledged());
 
         for (String index : indices) {
-            client().performRequest("GET", index + "/_search");
+            Response response = client().performRequest("GET", index + "/_search");
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         }
     }
 
     public void testOpenNonExistentIndex() throws IOException {
-        String[] nonExistentIndices = randomIndices();
+        String[] nonExistentIndices = randomIndices(1, 5);
         for (String nonExistentIndex : nonExistentIndices) {
             assertFalse(indexExists(nonExistentIndex));
         }
@@ -89,13 +91,21 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(openIndexRequest, highLevelClient().indices()::openIndex, highLevelClient().indices()::openIndexAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
+
+        OpenIndexRequest lenientOpenIndexRequest = new OpenIndexRequest(nonExistentIndices);
+        lenientOpenIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        OpenIndexResponse lenientOpenIndexResponse = execute(lenientOpenIndexRequest, highLevelClient().indices()::openIndex,
+                highLevelClient().indices()::openIndexAsync);
+        assertThat(lenientOpenIndexResponse.isAcknowledged(), equalTo(true));
+
+        OpenIndexRequest strictOpenIndexRequest = new OpenIndexRequest(nonExistentIndices);
+        strictOpenIndexRequest.indicesOptions(IndicesOptions.strictExpandOpen());
+        ElasticsearchException strictException = expectThrows(ElasticsearchException.class,
+                () -> execute(openIndexRequest, highLevelClient().indices()::openIndex, highLevelClient().indices()::openIndexAsync));
+        assertEquals(RestStatus.NOT_FOUND, strictException.status());
     }
 
-    private String[] randomIndices() {
-        return randomIndices(0, 5);
-    }
-
-    private String[] randomIndices(int minIndicesNum, int maxIndicesNum) {
+    private static String[] randomIndices(int minIndicesNum, int maxIndicesNum) {
         int numIndices = randomIntBetween(minIndicesNum, maxIndicesNum);
         String[] indices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {

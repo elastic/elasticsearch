@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -47,9 +46,9 @@ public class DatafeedJobBuilder {
 
         // Step 5. Build datafeed job object
         Consumer<Context> contextHanlder = context -> {
-            Duration frequency = getFrequencyOrDefault(datafeed, job);
-            Duration queryDelay = Duration.ofMillis(datafeed.getQueryDelay().millis());
-            DatafeedJob datafeedJob = new DatafeedJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
+            TimeValue frequency = getFrequencyOrDefault(datafeed, job);
+            TimeValue queryDelay = datafeed.getQueryDelay();
+            DatafeedJob datafeedJob = new DatafeedJob(job.getId(), buildDataDescription(job), frequency.millis(), queryDelay.millis(),
                     context.dataExtractorFactory, client, auditor, currentTimeSupplier,
                     context.latestFinalBucketEndMs, context.latestRecordTimeMs);
             listener.onResponse(datafeedJob);
@@ -100,10 +99,13 @@ public class DatafeedJobBuilder {
         });
     }
 
-    private static Duration getFrequencyOrDefault(DatafeedConfig datafeed, Job job) {
+    private static TimeValue getFrequencyOrDefault(DatafeedConfig datafeed, Job job) {
         TimeValue frequency = datafeed.getFrequency();
-        TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
-        return frequency == null ? DefaultFrequency.ofBucketSpan(bucketSpan.seconds()) : Duration.ofSeconds(frequency.seconds());
+        if (frequency == null) {
+            TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
+            return datafeed.defaultFrequency(bucketSpan);
+        }
+        return frequency;
     }
 
     private static DataDescription buildDataDescription(Job job) {

@@ -96,7 +96,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         DatafeedConfig.Builder configBuilder = createDatafeedBuilder("data_feed_id", job.getId(), Collections.singletonList("*"));
 
         MaxAggregationBuilder maxAggregation = AggregationBuilders.max("time").field("time");
-        HistogramAggregationBuilder histogramAggregation = AggregationBuilders.histogram("time").interval(300000)
+        HistogramAggregationBuilder histogramAggregation = AggregationBuilders.histogram("time").interval(60000)
                 .subAggregation(maxAggregation).field("time");
 
         configBuilder.setAggregations(AggregatorFactories.builder().addAggregator(histogramAggregation));

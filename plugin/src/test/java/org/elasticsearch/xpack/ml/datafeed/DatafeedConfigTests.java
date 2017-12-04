@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,7 +32,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.datafeed.ChunkingConfig.Mode;
-import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.joda.time.DateTimeZone;
 
@@ -79,23 +77,29 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             }
             builder.setScriptFields(scriptFields);
         }
+        Long aggHistogramInterval = null;
         if (randomBoolean() && addScriptFields == false) {
             // can only test with a single agg as the xcontent order gets randomized by test base class and then
             // the actual xcontent isn't the same and test fail.
             // Testing with a single agg is ok as we don't have special list writeable / xconent logic
             AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-            long interval = randomNonNegativeLong();
-            interval = interval > bucketSpanMillis ? bucketSpanMillis : interval;
-            interval = interval <= 0 ? 1 : interval;
+            aggHistogramInterval = randomNonNegativeLong();
+            aggHistogramInterval = aggHistogramInterval> bucketSpanMillis ? bucketSpanMillis : aggHistogramInterval;
+            aggHistogramInterval = aggHistogramInterval <= 0 ? 1 : aggHistogramInterval;
             MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-            aggs.addAggregator(AggregationBuilders.dateHistogram("buckets").interval(interval).subAggregation(maxTime).field("time"));
+            aggs.addAggregator(AggregationBuilders.dateHistogram("buckets")
+                    .interval(aggHistogramInterval).subAggregation(maxTime).field("time"));
             builder.setAggregations(aggs);
         }
         if (randomBoolean()) {
             builder.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
+            if (aggHistogramInterval == null) {
+                builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
+            } else {
+                builder.setFrequency(TimeValue.timeValueMillis(randomIntBetween(1, 5) * aggHistogramInterval));
+            }
         }
         if (randomBoolean()) {
             builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, 1_000_000)));
@@ -396,6 +400,90 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::validateAggregations);
 
         assertEquals("Aggregations can only have 1 date_histogram or histogram aggregation", e.getMessage());
+    }
+
+    public void testDefaultFrequency_GivenNegative() {
+        DatafeedConfig datafeed = createTestInstance();
+        ESTestCase.expectThrows(IllegalArgumentException.class, () -> datafeed.defaultFrequency(TimeValue.timeValueSeconds(-1)));
+    }
+
+    public void testDefaultFrequency_GivenNoAggregations() {
+        DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", "job");
+        datafeedBuilder.setIndices(Arrays.asList("my_index"));
+        DatafeedConfig datafeed = datafeedBuilder.build();
+
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(30)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(120)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(121)));
+
+        assertEquals(TimeValue.timeValueSeconds(61), datafeed.defaultFrequency(TimeValue.timeValueSeconds(122)));
+        assertEquals(TimeValue.timeValueSeconds(75), datafeed.defaultFrequency(TimeValue.timeValueSeconds(150)));
+        assertEquals(TimeValue.timeValueSeconds(150), datafeed.defaultFrequency(TimeValue.timeValueSeconds(300)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1200)));
+
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1201)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1800)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(1)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(2)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
+
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(12 * 3600 + 1)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(13)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(24)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(48)));
+    }
+
+    public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_1_Second() {
+        DatafeedConfig datafeed = createDatafeedWithDateHistogram("1s");
+
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(120)));
+        assertEquals(TimeValue.timeValueSeconds(125), datafeed.defaultFrequency(TimeValue.timeValueSeconds(250)));
+        assertEquals(TimeValue.timeValueSeconds(250), datafeed.defaultFrequency(TimeValue.timeValueSeconds(500)));
+
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(1)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(13)));
+    }
+
+    public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_1_Minute() {
+        DatafeedConfig datafeed = createDatafeedWithDateHistogram("1m");
+
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(120)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(180)));
+        assertEquals(TimeValue.timeValueMinutes(2), datafeed.defaultFrequency(TimeValue.timeValueSeconds(240)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(20)));
+
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(20 * 60 + 1)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(6)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
+
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(13)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(72)));
+    }
+
+    public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_10_Minutes() {
+        DatafeedConfig datafeed = createDatafeedWithDateHistogram("10m");
+
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(10)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(20)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(30)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(12 * 60)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueMinutes(13 * 60)));
+    }
+
+    public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_1_Hour() {
+        DatafeedConfig datafeed = createDatafeedWithDateHistogram("1h");
+
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(1)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(3601)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(2)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
     }
 
     public static String randomValidDatafeedId() {

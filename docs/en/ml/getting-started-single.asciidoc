@@ -1,24 +1,8 @@
 [[ml-gs-jobs]]
 === Creating Single Metric Jobs
 
-Machine learning jobs contain the configuration information and metadata
-necessary to perform an analytical task. They also contain the results of the
-analytical task.
-
-[NOTE]
---
-This tutorial uses {kib} to create jobs and view results, but you can
-alternatively use APIs to accomplish most tasks.
-For API reference information, see {ref}/ml-apis.html[Machine Learning APIs].
-
-The {xpackml} features in {kib} use pop-ups. You must configure your
-web browser so that it does not block pop-up windows or create an
-exception for your {kib} URL.
---
-
-You can choose to create single metric, multi-metric, population, or advanced
-jobs in {kib}. At this point in the tutorial, the goal is to detect anomalies in
-the total requests received by your applications and services. The sample data
+At this point in the tutorial, the goal is to detect anomalies in the
+total requests received by your applications and services. The sample data
 contains a single key performance indicator(KPI) to track this, which is the total
 requests over time. It is therefore logical to start by creating a single metric
 job for this KPI.

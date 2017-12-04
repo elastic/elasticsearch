@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -82,7 +83,7 @@ public class CountedBitSetTests extends ESTestCase {
             assertThat(countedBitSet.isInternalBitsetReleased(), equalTo(true));
             assertThat(countedBitSet.length(), equalTo(numBits));
             assertThat(countedBitSet.cardinality(), equalTo(numBits));
-            assertThat(countedBitSet.ramBytesUsed(), lessThan(ramBytesUsedWithBitSet));
+            assertThat(countedBitSet.ramBytesUsed(), allOf(equalTo(CountedBitSet.BASE_RAM_BYTES_USED), lessThan(ramBytesUsedWithBitSet)));
         }
 
         // Tests with released internal bitset.

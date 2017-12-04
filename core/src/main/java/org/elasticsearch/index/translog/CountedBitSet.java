@@ -29,7 +29,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * from translog as these numbers are likely to form contiguous ranges (eg. filling all bits).
  */
 final class CountedBitSet extends BitSet {
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CountedBitSet.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CountedBitSet.class);
     private short onBits; // Number of bits are set.
     private FixedBitSet bitset;
 

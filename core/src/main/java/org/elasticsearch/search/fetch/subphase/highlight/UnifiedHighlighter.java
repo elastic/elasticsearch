@@ -32,8 +32,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -50,8 +53,6 @@ import java.util.stream.Collectors;
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class UnifiedHighlighter implements Highlighter {
-    private static final String CACHE_KEY = "highlight-unified";
-
     @Override
     public boolean canHighlight(FieldMapper fieldMapper) {
         return true;
@@ -63,36 +64,20 @@ public class UnifiedHighlighter implements Highlighter {
         SearchContextHighlight.Field field = highlighterContext.field;
         SearchContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
-
-        if (!hitContext.cache().containsKey(CACHE_KEY)) {
-            hitContext.cache().put(CACHE_KEY, new HighlighterEntry());
-        }
-
-        HighlighterEntry highlighterEntry = (HighlighterEntry) hitContext.cache().get(CACHE_KEY);
-        MapperHighlighterEntry mapperHighlighterEntry = highlighterEntry.mappers.get(fieldMapper);
-
-        if (mapperHighlighterEntry == null) {
-            Encoder encoder = field.fieldOptions().encoder().equals("html") ?
-                HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
-            CustomPassageFormatter passageFormatter =
-                new CustomPassageFormatter(field.fieldOptions().preTags()[0],
-                    field.fieldOptions().postTags()[0], encoder);
-            mapperHighlighterEntry = new MapperHighlighterEntry(passageFormatter);
-        }
+        Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
+        CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0],
+            field.fieldOptions().postTags()[0], encoder);
 
         List<Snippet> snippets = new ArrayList<>();
         int numberOfFragments;
         try {
-            Analyzer analyzer =
-                context.mapperService().documentMapper(hitContext.hit().getType()).mappers().indexAnalyzer();
+
+            final Analyzer analyzer =
+                getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldMapper.fieldType());
             List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldMapper, context, hitContext);
-            fieldValues = fieldValues.stream().map(obj -> {
-                if (obj instanceof BytesRef) {
-                    return fieldMapper.fieldType().valueForDisplay(obj).toString();
-                } else {
-                    return obj;
-                }
-            }).collect(Collectors.toList());
+            fieldValues = fieldValues.stream()
+                .map((s) -> convertFieldValue(fieldMapper.fieldType(), s))
+                .collect(Collectors.toList());
             final IndexSearcher searcher = new IndexSearcher(hitContext.reader());
             final CustomUnifiedHighlighter highlighter;
             final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
@@ -102,15 +87,14 @@ public class UnifiedHighlighter implements Highlighter {
                 // breaks the text on, so we don't lose the distinction between the different values of a field and we
                 // get back a snippet per value
                 CustomSeparatorBreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-                highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource,
-                        mapperHighlighterEntry.passageFormatter, field.fieldOptions().boundaryScannerLocale(),
-                        breakIterator, fieldValue, field.fieldOptions().noMatchSize());
+                highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource, passageFormatter,
+                    field.fieldOptions().boundaryScannerLocale(), breakIterator, fieldValue, field.fieldOptions().noMatchSize());
                 numberOfFragments = fieldValues.size(); // we are highlighting the whole content, one snippet per value
             } else {
                 //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
                 BreakIterator bi = getBreakIterator(field);
-                highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource,
-                    mapperHighlighterEntry.passageFormatter, field.fieldOptions().boundaryScannerLocale(), bi,
+                highlighter = new CustomUnifiedHighlighter(searcher, analyzer, offsetSource, passageFormatter,
+                    field.fieldOptions().boundaryScannerLocale(), bi,
                     fieldValue, field.fieldOptions().noMatchSize());
                 numberOfFragments = field.fieldOptions().numberOfFragments();
             }
@@ -210,6 +194,24 @@ public class UnifiedHighlighter implements Highlighter {
         return filteredSnippets;
     }
 
+    static Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
+        if (type instanceof KeywordFieldMapper.KeywordFieldType) {
+            KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) type;
+            if (keywordFieldType.normalizer() != null) {
+                return  keywordFieldType.normalizer();
+            }
+        }
+        return docMapper.mappers().indexAnalyzer();
+    }
+
+    static String convertFieldValue(MappedFieldType type, Object value) {
+        if (value instanceof BytesRef) {
+            return type.valueForDisplay(value).toString();
+        } else {
+            return value.toString();
+        }
+    }
+
     private static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
         //postings highlighter accepts all values in a single string, as offsets etc. need to match with content
         //loaded from stored fields, we merge all values using a proper separator
@@ -225,18 +227,5 @@ public class UnifiedHighlighter implements Highlighter {
             return OffsetSource.TERM_VECTORS;
         }
         return OffsetSource.ANALYSIS;
-    }
-
-
-    private static class HighlighterEntry {
-        Map<FieldMapper, MapperHighlighterEntry> mappers = new HashMap<>();
-    }
-
-    private static class MapperHighlighterEntry {
-        final CustomPassageFormatter passageFormatter;
-
-        private MapperHighlighterEntry(CustomPassageFormatter passageFormatter) {
-            this.passageFormatter = passageFormatter;
-        }
     }
 }

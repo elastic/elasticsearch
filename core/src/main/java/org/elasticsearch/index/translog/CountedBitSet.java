@@ -21,6 +21,7 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * A {@link CountedBitSet} wraps a {@link FixedBitSet} but automatically releases the internal bitset
@@ -28,11 +29,14 @@ import org.apache.lucene.util.FixedBitSet;
  * from translog as these numbers are likely to form contiguous ranges (eg. filling all bits).
  */
 final class CountedBitSet extends BitSet {
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CountedBitSet.class);
     private short onBits; // Number of bits are set.
     private FixedBitSet bitset;
 
     CountedBitSet(short numBits) {
-        assert numBits > 0;
+        if (numBits <= 0) {
+            throw new IllegalArgumentException("Number of bits must be positive. Given [" + numBits + "]");
+        }
         this.onBits = 0;
         this.bitset = new FixedBitSet(numBits);
     }
@@ -41,7 +45,6 @@ final class CountedBitSet extends BitSet {
     public boolean get(int index) {
         assert 0 <= index && index < this.length();
         assert bitset == null || onBits < bitset.length() : "Bitset should be released when all bits are set";
-
         return bitset == null ? true : bitset.get(index);
     }
 
@@ -52,7 +55,7 @@ final class CountedBitSet extends BitSet {
 
         // Ignore set when bitset is full.
         if (bitset != null) {
-            boolean wasOn = bitset.getAndSet(index);
+            final boolean wasOn = bitset.getAndSet(index);
             if (wasOn == false) {
                 onBits++;
                 // Once all bits are set, we can simply just return YES for all indexes.
@@ -66,12 +69,12 @@ final class CountedBitSet extends BitSet {
 
     @Override
     public void clear(int startIndex, int endIndex) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void clear(int index) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -86,20 +89,19 @@ final class CountedBitSet extends BitSet {
 
     @Override
     public int prevSetBit(int index) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public int nextSetBit(int index) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public long ramBytesUsed() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return BASE_RAM_BYTES_USED + (bitset == null ? 0 : bitset.ramBytesUsed());
     }
 
-    // Exposed for testing
     boolean isInternalBitsetReleased() {
         return bitset == null;
     }

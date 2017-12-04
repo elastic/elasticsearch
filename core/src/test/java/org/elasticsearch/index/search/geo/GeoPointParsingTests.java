@@ -61,16 +61,12 @@ public class GeoPointParsingTests  extends ESTestCase {
     public void testEqualsHashCodeContract() {
         // GeoPoint doesn't care about coordinate system bounds, this simply validates equality and hashCode.
         final DoubleSupplier randomDelta = () -> randomValueOtherThan(0.0, () -> randomDoubleBetween(-1000000, 1000000, true));
-        checkEqualsAndHashCode(RandomGeoGenerator.randomPoint(random()), GeoPoint::new, pt -> {
-            switch (randomInt(2)) {
-                case 1:
-                    return new GeoPoint(pt.lat(), pt.lon() + randomDelta.getAsDouble());
-                case 2:
-                    return new GeoPoint(pt.lat() + randomDelta.getAsDouble(), pt.lon());
-                default:
-                    return new GeoPoint(pt.lat() + randomDelta.getAsDouble(), pt.lon() + randomDelta.getAsDouble());
-            }
-        });
+        checkEqualsAndHashCode(RandomGeoGenerator.randomPoint(random()), GeoPoint::new,
+            pt -> new GeoPoint(pt.lat() + randomDelta.getAsDouble(), pt.lon()));
+        checkEqualsAndHashCode(RandomGeoGenerator.randomPoint(random()), GeoPoint::new,
+            pt -> new GeoPoint(pt.lat(), pt.lon() + randomDelta.getAsDouble()));
+        checkEqualsAndHashCode(RandomGeoGenerator.randomPoint(random()), GeoPoint::new,
+            pt -> new GeoPoint(pt.lat() + randomDelta.getAsDouble(), pt.lon() + randomDelta.getAsDouble()));
     }
 
     public void testGeoPointParsing() throws IOException {

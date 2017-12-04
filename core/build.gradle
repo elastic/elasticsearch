@@ -21,6 +21,10 @@
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 
+plugins {
+  id "tech.harmonysoft.oss.traute" version "1.0.5"
+}
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
 apply plugin: 'nebula.maven-base-publish'
@@ -60,6 +64,7 @@ dependencies {
   // utilities
   compile "org.elasticsearch:elasticsearch-cli:${version}"
   compile 'com.carrotsearch:hppc:0.7.1'
+  compile 'com.google.code.findbugs:jsr305:1.3.9'
 
   // time handling, remove with java 8 time
   compile 'joda-time:joda-time:2.9.5'
@@ -114,6 +119,11 @@ if (isEclipse) {
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+
+traute {
+  javacPluginVersion = '1.0.10'
+  exceptionTexts = [ 'parameter' : '${PARAMETER_NAME}' ]
+}
 
 forbiddenPatterns {
   exclude '**/*.json'

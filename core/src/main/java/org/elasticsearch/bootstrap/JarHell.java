@@ -139,7 +139,13 @@ public class JarHell {
             try {
                 URL url = PathUtils.get(element).toUri().toURL();
                 if (urlElements.add(url) == false) {
-                    throw new IllegalStateException("jar hell!" + System.lineSeparator() +
+                    String jarHellDescription;
+                    if (element.endsWith("idea_rt.jar")) {
+                        jarHellDescription = "jar hell, caused by IntelliJ IDEA's run launcher; see CONTRIBUTING.md for the necessary fix.";
+                    } else {
+                        jarHellDescription = "jar hell!";
+                    }
+                    throw new IllegalStateException(jarHellDescription + System.lineSeparator() +
                         "duplicate jar [" + element + "] on classpath: " + classPath);
                 }
             } catch (MalformedURLException e) {

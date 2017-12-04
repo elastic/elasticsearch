@@ -20,6 +20,8 @@ public class EsIndex {
     private final Map<String, DataType> mapping;
 
     public EsIndex(String name, Map<String, DataType> mapping) {
+        assert name != null;
+        assert mapping != null;
         this.name = name;
         this.mapping = mapping;
     }

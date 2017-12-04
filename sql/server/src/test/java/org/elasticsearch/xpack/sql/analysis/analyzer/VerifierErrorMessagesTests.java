@@ -10,7 +10,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.catalog.InMemoryCatalog;
 import org.elasticsearch.xpack.sql.expression.function.DefaultFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -22,8 +21,6 @@ import org.junit.Before;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import static java.util.Collections.singletonList;
 
 @TestLogging("org.elasticsearch.xpack.sql:TRACE")
 public class VerifierErrorMessagesTests extends ESTestCase {
@@ -43,7 +40,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         mapping.put("text", DataTypes.TEXT);
         mapping.put("keyword", DataTypes.KEYWORD);
         EsIndex test = new EsIndex("test", mapping);
-        catalog = new InMemoryCatalog(singletonList(test));
+        catalog = new Catalog(Catalog.GetIndexResult.valid(test));
         analyzer = new Analyzer(functionRegistry);
     }
 

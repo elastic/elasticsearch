@@ -128,12 +128,12 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     @Override
-    public void testSelectInvalidSql() throws Exception {
+    public void testSelectInvalidSql() {
         expectBadRequest(() -> runSql("SELECT * FRO"), containsString("1:8: Cannot determine columns for *"));
     }
 
     @Override
-    public void testSelectFromMissingIndex() throws IOException {
+    public void testSelectFromMissingIndex() {
         expectBadRequest(() -> runSql("SELECT * FROM missing"), containsString("1:15: Unknown index [missing]"));
     }
 
@@ -161,7 +161,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     private void expectBadRequest(ThrowingRunnable code, Matcher<String> errorMessageMatcher) {
         ResponseException e = expectThrows(ResponseException.class, code);
-        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertEquals(e.getMessage(), 400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), errorMessageMatcher);
     }
 

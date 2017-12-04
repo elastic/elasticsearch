@@ -176,6 +176,7 @@ public class SqlSession {
             listener.onFailure(new SqlIllegalArgumentException("Queries with multiple indices are not supported"));
             return;
         }
+        //TODO why do we have a list if we only support one single element? Seems like it's the wrong data structure?
         if (preAnalysis.indices.size() == 1) {
             indexResolver.asCatalog(preAnalysis.indices.get(0),
                     wrap(c -> listener.onResponse(action.apply(c)), listener::onFailure));

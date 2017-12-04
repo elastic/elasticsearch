@@ -253,17 +253,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
-            EsIndex found = null;
-
             GetIndexResult index = SqlSession.currentContext().catalog.getIndex(table.index());
-            if (index.isValid()) {
-                found = index.get();
-            } else {
+            if (index.isValid() == false) {
                 return plan.unresolvedMessage().equals(index.toString()) ? plan : new UnresolvedRelation(plan.location(), plan.table(),
                         plan.alias(), index.toString());
             }
 
-            LogicalPlan catalogTable = new EsRelation(plan.location(), found);
+            LogicalPlan catalogTable = new EsRelation(plan.location(), index.get());
             SubQueryAlias sa = new SubQueryAlias(plan.location(), catalogTable, table.index());
 
             if (plan.alias() != null) {

@@ -5,26 +5,39 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
- * Converts from Elasticsearch's internal metadata ({@link ClusterState})
- * into a representation that is compatible with SQL (@{link {@link EsIndex}).
+ * Index representation that is compatible with SQL ({@link EsIndex}).
  */
-public interface Catalog {
+public final class Catalog {
 
-    Catalog EMPTY = GetIndexResult::notFound;
+    public static final Catalog EMPTY = new Catalog(GetIndexResult::notFound);
             
+    private final Function<String, GetIndexResult> resultFunction;
+
+    //TODO given that this always holds a single index, we cana probably get rid of the whole idea of Catalog
+    public Catalog(GetIndexResult result) {
+        assert result != null;
+        this.resultFunction = index -> result.matches(index) ? result : GetIndexResult.notFound(index);
+    }
+
+    private Catalog(Function<String, GetIndexResult> resultFunction) {
+        assert resultFunction != null;
+        this.resultFunction = resultFunction;
+    }
+
     /**
      * Lookup the information for a table.
      */
-    @Nullable
-    GetIndexResult getIndex(String index);
+    public GetIndexResult getIndex(String index) {
+        return resultFunction.apply(index);
+    }
 
-    class GetIndexResult {
+    public static final class GetIndexResult {
         public static GetIndexResult valid(EsIndex index) {
             Objects.requireNonNull(index, "index must not be null if it was found");
             return new GetIndexResult(index, null);
@@ -45,6 +58,10 @@ public interface Catalog {
         private GetIndexResult(EsIndex index, @Nullable String invalid) {
             this.index = index;
             this.invalid = invalid;
+        }
+
+        private boolean matches(String index) {
+            return isValid() && this.index.name().equals(index);
         }
 
         /**

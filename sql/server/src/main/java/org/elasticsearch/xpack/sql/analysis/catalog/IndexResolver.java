@@ -38,10 +38,10 @@ public class IndexResolver {
     public void asCatalog(final String index, ActionListener<Catalog> listener) {
         GetIndexRequest getIndexRequest = createGetIndexRequest(index);
         client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(getIndexResponse -> {
-            Map<String, GetIndexResult> results = new HashMap<>();
+            GetIndexResult result;
             if (getIndexResponse.getMappings().size() > 1) {
-                results.put(index, GetIndexResult.invalid(
-                        "[" + index + "] is an alias pointing to more than one index which is currently incompatible with sql"));
+                result = GetIndexResult.invalid(
+                        "[" + index + "] is an alias pointing to more than one index which is currently incompatible with sql");
             } else if (getIndexResponse.getMappings().size() == 1){
                 ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings =
                         getIndexResponse.getMappings().iterator().next();
@@ -53,9 +53,11 @@ public class IndexResolver {
                  * make sure that the search is executed against the same alias name from the original command, rather than
                  * the resolved concrete index that we get back from the get index API
                  */
-                results.put(index, buildGetIndexResult(concreteIndex, index, indexMappings.value));
+                result = buildGetIndexResult(concreteIndex, index, indexMappings.value);
+            } else {
+                result = GetIndexResult.notFound(index);
             }
-            listener.onResponse(new PreloadedCatalog(results));
+            listener.onResponse(new Catalog(result));
         }, listener::onFailure));
     }
 

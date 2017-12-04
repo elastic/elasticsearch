@@ -26,7 +26,7 @@ import java.io.IOException;
 public abstract class ProtoHandler implements HttpHandler, AutoCloseable {
 
     private static PlanExecutor planExecutor(EmbeddedModeFilterClient client) {
-        return new PlanExecutor(client, new IndexResolver(client, null));
+        return new PlanExecutor(client, new IndexResolver(client));
     }
 
     protected static final Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());

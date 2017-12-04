@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -40,18 +40,17 @@ public class ShowTables extends Command {
 
     @Override
     public List<Attribute> output() {
-        return Arrays.asList(new RootFieldAttribute(location(), "table", DataTypes.KEYWORD));
+        return Collections.singletonList(new RootFieldAttribute(location(), "table", DataTypes.KEYWORD));
     }
 
     @Override
     public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         String pattern = Strings.hasText(this.pattern) ? StringUtils.jdbcToEsPattern(this.pattern) : "*";
-
-        session.indexResolver().asList(ActionListener.wrap(result -> {
+        session.indexResolver().asList(pattern, ActionListener.wrap(result -> {
             listener.onResponse(Rows.of(output(), result.stream()
                 .map(t -> singletonList(t.name()))
                 .collect(toList())));
-        }, listener::onFailure), pattern);
+        }, listener::onFailure));
     }
 
     @Override

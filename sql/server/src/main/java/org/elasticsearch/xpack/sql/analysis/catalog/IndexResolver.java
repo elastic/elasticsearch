@@ -27,11 +27,9 @@ import java.util.Map;
 public class IndexResolver {
 
     private final Client client;
-    private final FilteredCatalog.Filter catalogFilter;
 
-    public IndexResolver(Client client, FilteredCatalog.Filter catalogFilter) {
+    public IndexResolver(Client client) {
         this.client = client;
-        this.catalogFilter = catalogFilter;
     }
 
     /**
@@ -57,18 +55,15 @@ public class IndexResolver {
                  */
                 results.put(index, buildGetIndexResult(concreteIndex, index, indexMappings.value));
             }
-            Catalog catalog = new PreloadedCatalog(results);
-            catalog = catalogFilter != null ? new FilteredCatalog(catalog, catalogFilter) : catalog;
-            listener.onResponse(catalog);
+            listener.onResponse(new PreloadedCatalog(results));
         }, listener::onFailure));
     }
 
     /**
      *  Discover (multiple) matching indices for a given name.
      */
-    //TODO this method can take a single index pattern once SqlGetIndicesAction is removed
-    public void asList(ActionListener<List<EsIndex>> listener, String... indices) {
-        GetIndexRequest getIndexRequest = createGetIndexRequest(indices);
+    public void asList(String index, ActionListener<List<EsIndex>> listener) {
+        GetIndexRequest getIndexRequest = createGetIndexRequest(index);
         client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(getIndexResponse -> {
             Map<String, GetIndexResult> map = new HashMap<>();
             for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings : getIndexResponse.getMappings()) {
@@ -84,9 +79,7 @@ public class IndexResolver {
             List<EsIndex> results = new ArrayList<>(map.size());
             for (GetIndexResult result : map.values()) {
                 if (result.isValid()) {
-                    //as odd as this is, it will go away once mappings are returned filtered
-                    GetIndexResult filtered = catalogFilter != null ? catalogFilter.filterIndex(result) : result;
-                    results.add(filtered.get());
+                    results.add(result.get());
                 }
             }
             results.sort(Comparator.comparing(EsIndex::name));
@@ -94,10 +87,10 @@ public class IndexResolver {
         }, listener::onFailure));
     }
 
-    private static GetIndexRequest createGetIndexRequest(String... indices) {
+    private static GetIndexRequest createGetIndexRequest(String index) {
         return new GetIndexRequest()
                 .local(true)
-                .indices(indices)
+                .indices(index)
                 .features(Feature.MAPPINGS)
                 //lenient because we throw our own errors looking at the response e.g. if something was not resolved
                 //also because this way security doesn't throw authorization exceptions but rather honours ignore_unavailable

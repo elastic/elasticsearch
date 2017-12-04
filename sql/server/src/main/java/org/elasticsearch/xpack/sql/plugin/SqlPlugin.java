@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
@@ -51,17 +49,13 @@ public class SqlPlugin implements ActionPlugin {
 
     /**
      * Create components used by the sql plugin.
-     * @param catalogFilter if non-null it is a filter for the catalog to apply security
      */
-    public Collection<Object> createComponents(Client client, @Nullable FilteredCatalog.Filter catalogFilter) {
+    public Collection<Object> createComponents(Client client) {
         if (false == enabled) {
             return emptyList();
         }
-        indexResolver = new IndexResolver(client, catalogFilter);
-        return Arrays.asList(
-                sqlLicenseChecker,
-                indexResolver,
-                new PlanExecutor(client, indexResolver));
+        indexResolver = new IndexResolver(client);
+        return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver));
     }
 
     @Override
@@ -86,7 +80,6 @@ public class SqlPlugin implements ActionPlugin {
         }
 
         return Arrays.asList(new ActionHandler<>(SqlAction.INSTANCE, TransportSqlAction.class),
-                             new ActionHandler<>(SqlGetIndicesAction.INSTANCE, SqlGetIndicesAction.TransportAction.class),
                              new ActionHandler<>(SqlTranslateAction.INSTANCE, SqlTranslateAction.TransportAction.class));
     }
 }

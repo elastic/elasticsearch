@@ -85,8 +85,6 @@ import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.sql.SecurityCatalogFilter;
-import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
 import org.elasticsearch.xpack.sql.plugin.SqlLicenseChecker;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
@@ -300,12 +298,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.addAll(upgrade.createComponents(client, clusterService, threadPool, resourceWatcherService,
                 scriptService, xContentRegistry));
 
-        FilteredCatalog.Filter securityCatalogFilter = XPackSettings.SECURITY_ENABLED.get(settings) ?
-                new SecurityCatalogFilter(threadPool.getThreadContext(), licenseState) : null;
         /* Note that we need *client*, not *internalClient* because client preserves the
          * authenticated user while internalClient throws that user away and acts as the
          * x-pack user. */
-        components.addAll(sql.createComponents(client, securityCatalogFilter));
+        components.addAll(sql.createComponents(client));
 
         PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(settings, tasksExecutors);
         PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(settings, registry, clusterService);

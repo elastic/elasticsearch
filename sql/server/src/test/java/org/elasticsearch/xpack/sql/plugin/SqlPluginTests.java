@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.analysis.catalog.FilteredCatalog;
 
 import java.util.Collections;
 
@@ -25,7 +24,7 @@ public class SqlPluginTests  extends ESTestCase {
 
     public void testSqlDisabled() {
         SqlPlugin plugin = new SqlPlugin(false, new SqlLicenseChecker(() -> {}, () -> {}));
-        assertThat(plugin.createComponents(mock(Client.class), mock(FilteredCatalog.Filter.class)), empty());
+        assertThat(plugin.createComponents(mock(Client.class)), empty());
         assertThat(plugin.getActions(), empty());
         assertThat(plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

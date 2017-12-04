@@ -27,7 +27,7 @@ class JdbcProtoHandler extends ProtoHandler {
     JdbcProtoHandler(Client client) {
         super(client);
         action = new RestSqlJdbcAction(Settings.EMPTY, mock(RestController.class), new SqlLicenseChecker(() -> {}, () -> {}),
-                new IndexResolver(client, null));
+                new IndexResolver(client));
     }
 
     @Override

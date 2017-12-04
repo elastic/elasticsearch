@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -79,7 +78,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
     /**
      * Actual implementation of the operation
      */
-    public Consumer<RestChannel> operation(Request request, Client client) throws IOException {
+    public Consumer<RestChannel> operation(Request request, Client client) {
         sqlLicenseChecker.checkIfJdbcAllowed();
         RequestType requestType = (RequestType) request.requestType();
         switch (requestType) {
@@ -89,9 +88,9 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
                             response.getVersion().major, response.getVersion().minor, response.getVersion().toString(),
                             response.getBuild().shortHash(), response.getBuild().date())));
         case META_TABLE:
-            return metaTable(client, (MetaTableRequest) request);
+            return metaTable((MetaTableRequest) request);
         case META_COLUMN:
-            return metaColumn(client, (MetaColumnRequest) request);
+            return metaColumn((MetaColumnRequest) request);
         case QUERY_INIT:
             return queryInit(client, (QueryInitRequest) request);
         case QUERY_PAGE:
@@ -101,46 +100,18 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
         }
     }
 
-    private Consumer<RestChannel> metaTable(Client client, MetaTableRequest request) {
-        //TODO once mappings are filtered this can go directly to the IndexResolver (code commented out below)
+    private Consumer<RestChannel> metaTable(MetaTableRequest request) {
         String indexPattern = hasText(request.pattern()) ? StringUtils.jdbcToEsPattern(request.pattern()) : "*";
-        SqlGetIndicesAction.Request getRequest = new SqlGetIndicesAction.Request(IndicesOptions.lenientExpandOpen(), indexPattern);
-        getRequest.local(true);
-        return channel -> client.execute(SqlGetIndicesAction.INSTANCE, getRequest, toActionListener(channel,
-                response -> new MetaTableResponse(response.indices().stream().map(EsIndex::name).collect(toList()))));
-        /*String indexPattern = hasText(request.pattern()) ? StringUtils.jdbcToEsPattern(request.pattern()) : "*";
-        return channel -> indexResolver.asList(indexPattern, toActionListener(request, channel, list ->
+        return channel -> indexResolver.asList(indexPattern, toActionListener(channel, list ->
                 new MetaTableResponse(list.stream()
                         .map(EsIndex::name)
-                        .collect(toList()))));*/
+                        .collect(toList()))));
     }
 
-    private Consumer<RestChannel> metaColumn(Client client, MetaColumnRequest request) {
-        //TODO once mappings are filtered this can go directly to the IndexResolver (code commented out below)
+    private Consumer<RestChannel> metaColumn(MetaColumnRequest request) {
         String indexPattern = Strings.hasText(request.tablePattern()) ? StringUtils.jdbcToEsPattern(request.tablePattern()) : "*";
         Pattern columnMatcher = hasText(request.columnPattern()) ? StringUtils.likeRegex(request.columnPattern()) : null;
-
-        SqlGetIndicesAction.Request getRequest = new SqlGetIndicesAction.Request(IndicesOptions.lenientExpandOpen(), indexPattern);
-        getRequest.local(true);
-        return channel -> client.execute(SqlGetIndicesAction.INSTANCE, getRequest, toActionListener(channel, response -> {
-            List<MetaColumnInfo> columns = new ArrayList<>();
-            for (EsIndex esIndex : response.indices()) {
-                int pos = 0;
-                for (Map.Entry<String, DataType> entry : esIndex.mapping().entrySet()) {
-                    pos++;
-                    String name = entry.getKey();
-                    if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
-                        DataType type = entry.getValue();
-                        // the column size it's actually its precision (based on the Javadocs)
-                        columns.add(new MetaColumnInfo(esIndex.name(), name, type.sqlType(), type.precision(), pos));
-                    }
-                }
-            }
-            return new MetaColumnResponse(columns);
-        }));
-        /*String indexPattern = Strings.hasText(request.tablePattern()) ? StringUtils.jdbcToEsPattern(request.tablePattern()) : "*";
-        Pattern columnMatcher = hasText(request.columnPattern()) ? StringUtils.likeRegex(request.columnPattern()) : null;
-        return channel -> indexResolver.asList(indexPattern, toActionListener(request, channel, esIndices -> {
+        return channel -> indexResolver.asList(indexPattern, toActionListener(channel, esIndices -> {
             List<MetaColumnInfo> columns = new ArrayList<>();
             for (EsIndex esIndex : esIndices) {
                 int pos = 0;
@@ -155,7 +126,7 @@ public class RestSqlJdbcAction extends AbstractSqlProtocolRestAction {
                 }
             }
             return new MetaColumnResponse(columns);
-        }));*/
+        }));
     }
 
     private Consumer<RestChannel> queryInit(Client client, QueryInitRequest request) {

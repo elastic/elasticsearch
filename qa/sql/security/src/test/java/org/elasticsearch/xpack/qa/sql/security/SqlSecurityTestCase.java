@@ -143,7 +143,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     @Before
-    public void setInitialAuditLogOffset() throws IOException {
+    public void setInitialAuditLogOffset() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
@@ -468,9 +468,6 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         public AuditLogAsserter expectSqlCompositeAction(String user, String... indices) {
             expect(true, SQL_ACTION_NAME, user, empty());
-            for (String index : indices) {
-                expect(true, SQL_ACTION_NAME, user, hasItems(index));
-            }
             expect(true, GetIndexAction.NAME, user, hasItems(indices));
             return this;
         }

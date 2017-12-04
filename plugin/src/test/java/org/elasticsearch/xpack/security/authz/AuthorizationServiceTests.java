@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -84,7 +83,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.GetLicenseAction;
@@ -135,9 +133,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.BiFunction;
 
-import static java.util.Collections.singleton;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
@@ -590,33 +586,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(state, times(1)).metaData();
     }
 
-    public void testAuditTrailIsRecordedWhenIndexWildcardThrowsErrorDuringDelayed() {
-        IndicesOptions options = IndicesOptions.fromOptions(false, false, false, false);
-        TransportRequest request = new SqlRequest();
-        ClusterState state = mockEmptyMetaData();
-        User user = new User("test user", "a_all");
-        RoleDescriptor role = new RoleDescriptor("a_all", null,
-                new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
-        roleMap.put("a_all", role);
-
-        try (StoredContext context = threadContext.stashContext()) {
-            authorize(createAuthentication(user), SqlAction.NAME, request);
-            verify(auditTrail).accessGranted(user, SqlAction.NAME, request, new String[]{ role.getName() },  null);
-
-            BiFunction<IndicesOptions, String[], IndicesAccessControl> resolver =
-                    threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_RESOLVER_KEY);
-            final Exception e = expectThrows(
-                    ElasticsearchParseException.class,
-                    () -> resolver.apply(options, new String[] {"<{>"}));
-            assertEquals("invalid dynamic name expression [{>]. date math placeholder is open ended", e.getMessage());
-            verify(auditTrail).accessDenied(user, SqlAction.NAME, request, new String[]{ role.getName() }, singleton("<{>"));
-        }
-
-        verifyNoMoreInteractions(auditTrail);
-        verify(clusterService).state();
-        verify(state, times(1)).metaData();
-    }
-
     public void testRunAsRequestWithNoRolesUser() {
         TransportRequest request = mock(TransportRequest.class);
         User user = new User("run as me", null, new User("test user", "admin"));
@@ -770,23 +739,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(createAuthentication(user), ClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(user, ClusterHealthAction.NAME, request, new String[] { role.getName() }, null);
         verifyNoMoreInteractions(auditTrail);
-
-        // Delayed request
-        try (StoredContext context = threadContext.stashContext()) {
-            request = new SqlRequest();
-            authorize(createAuthentication(user), SqlAction.NAME, request);
-            verify(auditTrail).accessGranted(user, SqlAction.NAME, request, new String[] { role.getName() }, null);
-
-            BiFunction<IndicesOptions, String[], IndicesAccessControl> resolver =
-                    threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_RESOLVER_KEY);
-            assertThrowsAuthorizationException(
-                    () -> resolver.apply(IndicesOptions.strictSingleIndexNoExpandForbidClosed(),
-                            new String[] {SecurityLifecycleService.SECURITY_INDEX_NAME}),
-                    SqlAction.NAME, "all_access_user");
-            verify(auditTrail).accessDenied(user, SqlAction.NAME, request, new String[] { role.getName() },
-                    singleton(SecurityLifecycleService.SECURITY_INDEX_NAME));
-            verifyNoMoreInteractions(auditTrail);
-        }
 
         SearchRequest searchRequest = new SearchRequest("_all");
         authorize(createAuthentication(user), SearchAction.NAME, searchRequest);

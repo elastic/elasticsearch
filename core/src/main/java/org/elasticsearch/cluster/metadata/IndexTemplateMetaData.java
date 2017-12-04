@@ -81,6 +81,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     private final Settings settings;
 
+    private final boolean inferIndexNameFromAlias;
+
     // the mapping source should always include the type as top level
     private final ImmutableOpenMap<String, CompressedXContent> mappings;
 
@@ -92,15 +94,17 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                  List<String> patterns, Settings settings,
                                  ImmutableOpenMap<String, CompressedXContent> mappings,
                                  ImmutableOpenMap<String, AliasMetaData> aliases,
-                                 ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
+                                 ImmutableOpenMap<String, IndexMetaData.Custom> customs,
+                                 boolean inferIndexNameFromAlias) {
         this.name = name;
         this.order = order;
         this.version = version;
-        this.patterns= patterns;
+        this.patterns = patterns;
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
         this.customs = customs;
+        this.inferIndexNameFromAlias = inferIndexNameFromAlias;
     }
 
     public String name() {
@@ -169,6 +173,14 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return this.customs;
     }
 
+    public boolean inferIndexNameFromAlias() {
+        return this.inferIndexNameFromAlias;
+    }
+
+    public boolean isInferIndexNameFromAlias() {
+        return this.inferIndexNameFromAlias;
+    }
+
     @SuppressWarnings("unchecked")
     public <T extends IndexMetaData.Custom> T custom(String type) {
         return (T) customs.get(type);
@@ -190,6 +202,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         if (!name.equals(that.name)) return false;
         if (!settings.equals(that.settings)) return false;
         if (!patterns.equals(that.patterns)) return false;
+        if (inferIndexNameFromAlias != that.inferIndexNameFromAlias) return false;
 
         return Objects.equals(version, that.version);
     }
@@ -202,6 +215,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         result = 31 * result + patterns.hashCode();
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
+        result = 31 * result + (inferIndexNameFromAlias ? 1 : 0);
+
         return result;
     }
 
@@ -228,6 +243,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             String type = in.readString();
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
             builder.putCustom(type, customIndexMetaData);
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            builder.inferIndexNameFromAlias(in.readBoolean());
         }
         builder.version(in.readOptionalVInt());
         return builder.build();
@@ -261,12 +279,16 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             out.writeString(cursor.key);
             cursor.value.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(inferIndexNameFromAlias);
+        }
         out.writeOptionalVInt(version);
     }
 
     public static class Builder {
 
-        private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings", "index_patterns");
+        private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings", "index_patterns",
+                "infer_index_name_from_alias");
         static {
             VALID_FIELDS.addAll(IndexMetaData.customPrototypes.keySet());
         }
@@ -280,6 +302,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         private List<String> indexPatterns;
 
         private Settings settings = Settings.Builder.EMPTY_SETTINGS;
+
+        private boolean inferIndexNameFromAlias = false;
 
         private final ImmutableOpenMap.Builder<String, CompressedXContent> mappings;
 
@@ -300,6 +324,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             version(indexTemplateMetaData.version());
             patterns(indexTemplateMetaData.patterns());
             settings(indexTemplateMetaData.settings());
+            inferIndexNameFromAlias = indexTemplateMetaData.inferIndexNameFromAlias();
 
             mappings = ImmutableOpenMap.builder(indexTemplateMetaData.mappings());
             aliases = ImmutableOpenMap.builder(indexTemplateMetaData.aliases());
@@ -321,7 +346,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return this;
         }
 
-
         public Builder settings(Settings.Builder settings) {
             this.settings = settings.build();
             return this;
@@ -329,6 +353,11 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         public Builder settings(Settings settings) {
             this.settings = settings;
+            return this;
+        }
+
+        public Builder inferIndexNameFromAlias(boolean inferIndexNameFromAlias) {
+            this.inferIndexNameFromAlias = inferIndexNameFromAlias;
             return this;
         }
 
@@ -373,7 +402,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         public IndexTemplateMetaData build() {
             return new IndexTemplateMetaData(name, order, version, indexPatterns, settings, mappings.build(),
-                aliases.build(), customs.build());
+                aliases.build(), customs.build(), inferIndexNameFromAlias);
         }
 
         @SuppressWarnings("unchecked")
@@ -394,6 +423,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 builder.field("version", indexTemplateMetaData.version());
             }
             builder.field("index_patterns", indexTemplateMetaData.patterns());
+            builder.field("infer_index_name_from_alias", indexTemplateMetaData.inferIndexNameFromAlias());
 
             builder.startObject("settings");
             indexTemplateMetaData.settings().toXContent(builder, params);

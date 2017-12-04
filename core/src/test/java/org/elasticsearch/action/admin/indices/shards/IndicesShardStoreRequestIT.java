@@ -152,7 +152,6 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(shardStatuses.get(index1).size(), equalTo(2));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12416")
     public void testCorruptedShards() throws Exception {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -189,22 +188,24 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             }
         }
 
-        IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores(index).setShardStatuses("all").get();
-        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStatuses = rsp.getStoreStatuses().get(index);
-        assertNotNull(shardStatuses);
-        assertThat(shardStatuses.size(), greaterThan(0));
-        for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStatus : shardStatuses) {
-            for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
-                if (corruptedShardIDMap.containsKey(shardStatus.key)
+        assertBusy(() -> { // IndicesClusterStateService#failAndRemoveShard() called asynchronously but we need it to have completed here.
+            IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores(index).setShardStatuses("all").get();
+            ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStatuses = rsp.getStoreStatuses().get(index);
+            assertNotNull(shardStatuses);
+            assertThat(shardStatuses.size(), greaterThan(0));
+            for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStatus : shardStatuses) {
+                for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
+                    if (corruptedShardIDMap.containsKey(shardStatus.key)
                         && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().getName())) {
-                    assertThat("shard [" + shardStatus.key + "] is failed on node [" + status.getNode().getName() + "]",
-                        status.getStoreException(), notNullValue());
-                } else {
-                    assertNull("shard [" + shardStatus.key + "] is not failed on node [" + status.getNode().getName() + "]",
-                        status.getStoreException());
+                        assertThat("shard [" + shardStatus.key + "] is failed on node [" + status.getNode().getName() + "]",
+                            status.getStoreException(), notNullValue());
+                    } else {
+                        assertNull("shard [" + shardStatus.key + "] is not failed on node [" + status.getNode().getName() + "]",
+                            status.getStoreException());
+                    }
                 }
             }
-        }
+        });
         logger.info("--> enable allocation");
         enableAllocation(index);
     }

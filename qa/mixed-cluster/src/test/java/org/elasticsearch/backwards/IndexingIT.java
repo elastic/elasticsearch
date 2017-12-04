@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -48,14 +47,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class IndexingIT extends ESRestTestCase {
-
-    private void updateIndexSetting(String name, Settings.Builder settings) throws IOException {
-        updateIndexSetting(name, settings.build());
-    }
-    private void updateIndexSetting(String name, Settings settings) throws IOException {
-        assertOK(client().performRequest("PUT", name + "/_settings", Collections.emptyMap(),
-            new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
-    }
 
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
@@ -113,7 +104,7 @@ public class IndexingIT extends ESRestTestCase {
             final int finalVersionForDoc1 = indexDocWithConcurrentUpdates(index, 1, nUpdates);
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
-            ensureGreen();
+            ensureGreen(index);
             assertOK(client().performRequest("POST", index + "/_refresh"));
             List<Shard> shards = buildShards(index, nodes, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
@@ -138,7 +129,7 @@ public class IndexingIT extends ESRestTestCase {
             primary = shards.stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
             updateIndexSetting(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
-            ensureGreen();
+            ensureGreen(index);
             nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing docs with [{}] concurrent updates after moving primary", nUpdates);
             final int finalVersionForDoc3 = indexDocWithConcurrentUpdates(index, 3, nUpdates);
@@ -151,7 +142,7 @@ public class IndexingIT extends ESRestTestCase {
 
             logger.info("setting number of replicas to 0");
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 0));
-            ensureGreen();
+            ensureGreen(index);
             nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing doc with [{}] concurrent updates after setting number of replicas to 0", nUpdates);
             final int finalVersionForDoc4 = indexDocWithConcurrentUpdates(index, 4, nUpdates);
@@ -164,7 +155,7 @@ public class IndexingIT extends ESRestTestCase {
 
             logger.info("setting number of replicas to 1");
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
-            ensureGreen();
+            ensureGreen(index);
             nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing doc with [{}] concurrent updates after setting number of replicas to 1", nUpdates);
             final int finalVersionForDoc5 = indexDocWithConcurrentUpdates(index, 5, nUpdates);
@@ -199,7 +190,7 @@ public class IndexingIT extends ESRestTestCase {
             assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
-            ensureGreen();
+            ensureGreen(index);
             assertOK(client().performRequest("POST", index + "/_refresh"));
             for (final String bwcName : bwcNamesList) {
                 assertCount(index, "_only_nodes:" + bwcName, numDocs);
@@ -211,7 +202,7 @@ public class IndexingIT extends ESRestTestCase {
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
             updateIndexSetting(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
-            ensureGreen();
+            ensureGreen(index);
             int numDocsOnNewPrimary = 0;
             final int numberOfDocsAfterMovingPrimary = 1 + randomInt(5);
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
@@ -230,7 +221,7 @@ public class IndexingIT extends ESRestTestCase {
             numDocs += numberOfDocsAfterDroppingReplicas;
             logger.info("setting number of replicas to 1");
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
-            ensureGreen();
+            ensureGreen(index);
             assertOK(client().performRequest("POST", index + "/_refresh"));
 
             for (Shard shard : buildShards(index, nodes, newNodeClient)) {
@@ -272,7 +263,7 @@ public class IndexingIT extends ESRestTestCase {
         final String index = "test-snapshot-index";
         createIndex(index, settings.build());
         indexDocs(index, 0, between(50, 100));
-        ensureGreen();
+        ensureGreen(index);
         assertOK(client().performRequest("POST", index + "/_refresh"));
 
         assertOK(
@@ -282,7 +273,7 @@ public class IndexingIT extends ESRestTestCase {
 
         // Allocating shards on all nodes, taking snapshots should happen on all nodes.
         updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
-        ensureGreen();
+        ensureGreen(index);
         assertOK(client().performRequest("POST", index + "/_refresh"));
 
         assertOK(

@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongObjectHashMap;
-import com.carrotsearch.hppc.LongSet;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
@@ -84,41 +82,9 @@ final class MultiSnapshot implements Translog.Snapshot {
         onClose.close();
     }
 
-    /**
-     * A wrapper of {@link FixedBitSet} but allows to check if all bits are set in O(1).
-     */
-    private static final class CountedBitSet {
-        private short onBits;
-        private final FixedBitSet bitset;
-
-        CountedBitSet(short numBits) {
-            assert numBits > 0;
-            this.onBits = 0;
-            this.bitset = new FixedBitSet(numBits);
-        }
-
-        boolean getAndSet(int index) {
-            assert index >= 0;
-            boolean wasOn = bitset.getAndSet(index);
-            if (wasOn == false) {
-                onBits++;
-            }
-            return wasOn;
-        }
-
-        boolean hasAllBitsOn() {
-            return onBits == bitset.length();
-        }
-    }
-
-    /**
-     * Sequence numbers from translog are likely to form contiguous ranges,
-     * thus collapsing a completed bitset into a single entry will reduce memory usage.
-     */
     static final class SeqNoSet {
         static final short BIT_SET_SIZE = 1024;
-        private final LongSet completedSets = new LongHashSet();
-        private final LongObjectHashMap<CountedBitSet> ongoingSets = new LongObjectHashMap<>();
+        private final LongObjectHashMap<BitSet> bitSets = new LongObjectHashMap<>();
 
         /**
          * Marks this sequence number and returns <tt>true</tt> if it is seen before.
@@ -126,33 +92,15 @@ final class MultiSnapshot implements Translog.Snapshot {
         boolean getAndSet(long value) {
             assert value >= 0;
             final long key = value / BIT_SET_SIZE;
-
-            if (completedSets.contains(key)) {
-                return true;
-            }
-
-            CountedBitSet bitset = ongoingSets.get(key);
+            BitSet bitset = bitSets.get(key);
             if (bitset == null) {
                 bitset = new CountedBitSet(BIT_SET_SIZE);
-                ongoingSets.put(key, bitset);
+                bitSets.put(key, bitset);
             }
-
-            final boolean wasOn = bitset.getAndSet(Math.toIntExact(value % BIT_SET_SIZE));
-            if (bitset.hasAllBitsOn()) {
-                ongoingSets.remove(key);
-                completedSets.add(key);
-            }
+            final int index = Math.toIntExact(value % BIT_SET_SIZE);
+            final boolean wasOn = bitset.get(index);
+            bitset.set(index);
             return wasOn;
-        }
-
-        // For testing
-        long completeSetsSize() {
-            return completedSets.size();
-        }
-
-        // For testing
-        long ongoingSetsSize() {
-            return ongoingSets.size();
         }
     }
 }

@@ -189,8 +189,8 @@ public class RecoveryIT extends ESRestTestCase {
                 asyncIndexDocs(index, 60, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
-                assertCount(index, "_only_nodes:" + nodes.get(0), 60);
-                assertCount(index, "_only_nodes:" + nodes.get(1), 60);
+                assertCount(index, "_only_nodes:" + nodes.get(0), 110);
+                assertCount(index, "_only_nodes:" + nodes.get(1), 110);
                 break;
             default:
                 throw new IllegalStateException("unknown type " + clusterType);

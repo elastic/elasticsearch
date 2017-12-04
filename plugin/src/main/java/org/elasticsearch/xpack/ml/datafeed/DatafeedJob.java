@@ -50,7 +50,7 @@ class DatafeedJob {
     private final Supplier<Long> currentTimeSupplier;
 
     private volatile long lookbackStartTimeMs;
-    private volatile Long lastEndTimeMs;
+    private volatile long lastEndTimeMs;
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
 
@@ -98,6 +98,8 @@ class DatafeedJob {
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(lookbackStartTimeMs),
                 endTime == null ? "real-time" : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(lookbackEnd));
         auditor.info(jobId, msg);
+        LOGGER.info("[" + jobId + "] " + msg);
+
 
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
@@ -120,23 +122,20 @@ class DatafeedJob {
     }
 
     private long skipToStartTime(long startTime) {
-        if (lastEndTimeMs != null) {
-            if (lastEndTimeMs + 1 > startTime) {
-                // start time is before last checkpoint, thus continue from checkpoint
-                return lastEndTimeMs + 1;
-            }
-            // start time is after last checkpoint, thus we need to skip time
-            FlushJobAction.Request request = new FlushJobAction.Request(jobId);
-            request.setSkipTime(String.valueOf(startTime));
-            FlushJobAction.Response flushResponse = flushJob(request);
-            LOGGER.info("Skipped to time [" + flushResponse.getLastFinalizedBucketEnd().getTime() + "]");
-            return flushResponse.getLastFinalizedBucketEnd().getTime();
+        if (lastEndTimeMs + 1 > startTime) {
+            // start time is before last checkpoint, thus continue from checkpoint
+            return lastEndTimeMs + 1;
         }
-        return startTime;
+        // start time is after last checkpoint, thus we need to skip time
+        FlushJobAction.Request request = new FlushJobAction.Request(jobId);
+        request.setSkipTime(String.valueOf(startTime));
+        FlushJobAction.Response flushResponse = flushJob(request);
+        LOGGER.info("Skipped to time [" + flushResponse.getLastFinalizedBucketEnd().getTime() + "]");
+        return flushResponse.getLastFinalizedBucketEnd().getTime();
     }
 
     long runRealtime() throws Exception {
-        long start = lastEndTimeMs == null ? lookbackStartTimeMs : Math.max(lookbackStartTimeMs, lastEndTimeMs + 1);
+        long start = Math.max(lookbackStartTimeMs, lastEndTimeMs + 1);
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
@@ -239,7 +238,7 @@ class DatafeedJob {
             }
         }
 
-        lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, end - 1);
+        lastEndTimeMs = Math.max(lastEndTimeMs, end - 1);
         LOGGER.debug("[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]", jobId, error, recordCount,
                 lastEndTimeMs, isRunning(), dataExtractor.isCancelled());
 
@@ -311,7 +310,7 @@ class DatafeedJob {
     /**
      * Visible for testing
      */
-    Long lastEndTimeMs() {
+    long lastEndTimeMs() {
         return lastEndTimeMs;
     }
 

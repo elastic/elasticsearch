@@ -135,24 +135,6 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(safeTranslogGen));
     }
 
-    public void testCleanupDuplicateCommits() throws Exception {
-        final AtomicLong globalCheckpoint = new AtomicLong();
-        TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
-        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(OPEN_INDEX_AND_TRANSLOG, translogPolicy, globalCheckpoint::get);
-
-        final long maxSeqNo = randomNonNegativeLong();
-        final long lastTranslogGen = randomNonNegativeLong();
-        IndexCommit commit1 = mockIndexCommit(maxSeqNo, randomNonNegativeLong());
-        IndexCommit commit2 = mockIndexCommit(maxSeqNo, lastTranslogGen);
-
-        indexPolicy.onInit(Arrays.asList(commit1, commit2));
-        verify(commit2, never()).delete();
-        verify(commit1, times(1)).delete();
-
-        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(lastTranslogGen));
-        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(lastTranslogGen));
-    }
-
     IndexCommit mockIndexCommit(long maxSeqNo, long translogGen) throws IOException {
         final Map<String, String> userData = new HashMap<>();
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));

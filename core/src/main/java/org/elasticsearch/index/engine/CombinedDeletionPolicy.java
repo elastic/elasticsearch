@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -30,8 +26,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
@@ -57,7 +51,7 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        final List<IndexCommit> keptCommits = deleteOldIndexCommits(commits);
+        final int keptPosition = deleteOldIndexCommits(commits);
         switch (openMode) {
             case CREATE_INDEX_AND_TRANSLOG:
                 break;
@@ -66,7 +60,7 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
                 assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                setLastCommittedTranslogGeneration(keptCommits);
+                setLastCommittedTranslogGeneration(commits, keptPosition);
                 break;
             default:
                 throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
@@ -75,22 +69,20 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        final List<IndexCommit> keptCommits = deleteOldIndexCommits(commits);
-        setLastCommittedTranslogGeneration(keptCommits);
+        final int keptKeptPosition = deleteOldIndexCommits(commits);
+        setLastCommittedTranslogGeneration(commits, keptKeptPosition);
     }
 
-    private void setLastCommittedTranslogGeneration(List<IndexCommit> keptCommits) throws IOException {
-        assert keptCommits.isEmpty() == false : "All index commits were deleted";
-        assert keptCommits.stream().allMatch(c -> c.isDeleted() == false) : "All kept commits must not be deleted";
-
-        final IndexCommit lastCommit = keptCommits.get(keptCommits.size() - 1);
+    private void setLastCommittedTranslogGeneration(List<? extends IndexCommit> commits, final int keptPosition) throws IOException {
+        final IndexCommit lastCommit = commits.get(commits.size() - 1);
+        assert lastCommit.isDeleted() == false : "The last commit should not be deleted";
         final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-        long minRequiredGen = lastGen;
-        for (IndexCommit indexCommit : keptCommits) {
-            long translogGen = Long.parseLong(indexCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-            minRequiredGen = Math.min(minRequiredGen, translogGen);
-        }
-        assert minRequiredGen <= lastGen;
+
+        final IndexCommit keptCommit = commits.get(keptPosition);
+        assert keptCommit.isDeleted() == false : "The kept commit should not be deleted";
+        final long minRequiredGen = Long.parseLong(keptCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+
+        assert minRequiredGen <= lastGen : "MinRequiredGen must not be greater than LastGen";
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
     }
@@ -98,26 +90,12 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * Deletes old index commits which are not required for operation based recovery.
      */
-    private List<IndexCommit> deleteOldIndexCommits(List<? extends IndexCommit> commits) throws IOException {
-        if (commits.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        final List<IndexCommit> keptCommits = new ArrayList<>();
+    private int deleteOldIndexCommits(List<? extends IndexCommit> commits) throws IOException {
         final int keptPosition = indexOfKeptCommits(commits);
-        final IntSet duplicateIndexes = indexesOfDuplicateCommits(commits);
-
-        for (int i = 0; i < commits.size() - 1; i++) {
-            final IndexCommit commit = commits.get(i);
-            if (i < keptPosition || duplicateIndexes.contains(i)) {
-                commit.delete();
-            } else {
-                keptCommits.add(commit);
-            }
+        for (int i = 0; i < keptPosition; i++) {
+            commits.get(i).delete();
         }
-        keptCommits.add(commits.get(commits.size() - 1)); // Always keep the last commit.
-
-        return keptCommits;
+        return keptPosition;
     }
 
     /**
@@ -145,29 +123,6 @@ final class CombinedDeletionPolicy extends IndexDeletionPolicy {
          * 2. In peer-recovery, if the file-based happens, a replica will be received the latest commit from a primary.
          * However, that commit may not be a safe commit if writes are in progress in the primary.
          */
-        return -1;
-    }
-
-    /**
-     * In some cases, we may have more than one index commits with the same max sequence number.
-     * We better scan and delete these duplicate index commits as soon as possible.
-     *
-     * @return index positions of duplicate commits.
-     */
-    private IntSet indexesOfDuplicateCommits(List<? extends IndexCommit> commits) throws IOException {
-        final LongSet seenMaxSeqNo = new LongHashSet();
-        final IntSet duplicateIndexes = new IntHashSet();
-
-        for (int i = commits.size() - 1; i >= 0; i--) {
-            final Map<String, String> commitUserData = commits.get(i).getUserData();
-            // 5.x commits do not contain MAX_SEQ_NO.
-            if (commitUserData.containsKey(SequenceNumbers.MAX_SEQ_NO)) {
-                final long maxSeqNoFromCommit = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));
-                if (seenMaxSeqNo.add(maxSeqNoFromCommit) == false) {
-                    duplicateIndexes.add(i);
-                }
-            }
-        }
-        return duplicateIndexes;
+        return 0;
     }
 }

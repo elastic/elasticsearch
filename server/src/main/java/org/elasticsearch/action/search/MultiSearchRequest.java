@@ -226,6 +226,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.preference(nodeStringValue(value, null));
                         } else if ("routing".equals(entry.getKey())) {
                             searchRequest.routing(nodeStringValue(value, null));
+                        } else if ("allow_partial_search_results".equals(entry.getKey())) {
+                            searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
                         }
                     }
                     defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
@@ -296,6 +298,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 }
                 if (request.routing() != null) {
                     xContentBuilder.field("routing", request.routing());
+                }
+                if (request.allowPartialSearchResults() != null) {
+                    xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
                 }
                 xContentBuilder.endObject();
                 xContentBuilder.bytes().writeTo(output);

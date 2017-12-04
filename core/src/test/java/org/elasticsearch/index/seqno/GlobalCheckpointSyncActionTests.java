@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 
+import static org.elasticsearch.mock.orig.Mockito.never;
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.Mockito.mock;
@@ -86,6 +87,9 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, id);
         when(indexShard.shardId()).thenReturn(shardId);
 
+        final Translog.Durability durability = randomFrom(Translog.Durability.ASYNC, Translog.Durability.REQUEST);
+        when(indexShard.getTranslogDurability()).thenReturn(durability);
+
         final Translog translog = mock(Translog.class);
         when(indexShard.getTranslog()).thenReturn(translog);
 
@@ -105,7 +109,11 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             action.shardOperationOnReplica(new GlobalCheckpointSyncAction.Request(indexShard.shardId()), indexShard);
         }
 
-        verify(translog).sync();
+        if (durability == Translog.Durability.ASYNC) {
+            verify(translog, never()).sync();
+        } else {
+            verify(translog).sync();
+        }
     }
 
 }

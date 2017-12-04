@@ -44,6 +44,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+
 /**
  * Background global checkpoint sync action initiated when a shard goes inactive. This is needed because while we send the global checkpoint
  * on every replication operation, after the last operation completes the global checkpoint could advance but without a follow-up operation
@@ -117,18 +119,22 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     @Override
     protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
             final Request request, final IndexShard indexShard) throws Exception {
-        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST) {
-            indexShard.getTranslog().sync();
-        }
+        maybeSyncTranslog(indexShard);
         return new PrimaryResult<>(request, new ReplicationResponse());
     }
 
     @Override
     protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard indexShard) throws Exception {
-        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST) {
+        maybeSyncTranslog(indexShard);
+        return new ReplicaResult();
+    }
+
+    private void maybeSyncTranslog(final IndexShard indexShard) throws IOException {
+        final Translog translog = indexShard.getTranslog();
+        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST &&
+                translog.getLastSyncedGlobalCheckpoint() < indexShard.getGlobalCheckpoint()) {
             indexShard.getTranslog().sync();
         }
-        return new ReplicaResult();
     }
 
     public static final class Request extends ReplicationRequest<Request> {

@@ -32,7 +32,7 @@ public class LegacyDelimitedPayloadTokenFilterFactory extends DelimitedPayloadTo
 
     LegacyDelimitedPayloadTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_2_0)) {
             DEPRECATION_LOGGER.deprecated("Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]");
         }
     }

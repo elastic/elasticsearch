@@ -141,6 +141,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         for (Alias expectedAlias : expected) {
             for (Alias actualAlias : actual) {
                 if (expectedAlias.equals(actualAlias)) {
+                    // As Alias#equals only looks at name, we check the equality of the other Alias parameters here.
                     assertEquals(expectedAlias.filter(), actualAlias.filter());
                     assertEquals(expectedAlias.indexRouting(), actualAlias.indexRouting());
                     assertEquals(expectedAlias.searchRouting(), actualAlias.searchRouting());

@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
@@ -144,6 +145,16 @@ public class SocketEventHandler extends EventHandler {
     void genericChannelException(NioChannel channel, Exception exception) {
         super.genericChannelException(channel, exception);
         exceptionCaught((NioSocketChannel) channel, exception);
+    }
+
+    /**
+     * This method is called when a listener attached to a channel operation throws an exception.
+     *
+     * @param listener that was called
+     * @param exception that occurred
+     */
+    <V> void listenerException(ActionListener<V> listener, Exception exception) {
+        logger.warn(new ParameterizedMessage("exception while executing listener: {}", listener), exception);
     }
 
     private void exceptionCaught(NioSocketChannel channel, Exception e) {

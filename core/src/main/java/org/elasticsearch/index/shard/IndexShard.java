@@ -125,6 +125,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TypeMissingException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -187,6 +188,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexEventListener indexEventListener;
     private final QueryCachingPolicy cachingPolicy;
     private final Supplier<Sort> indexSortSupplier;
+    // Package visible for testing
+    final CircuitBreakerService circuitBreakerService;
 
     private final SearchOperationListener searchOperationListener;
 
@@ -258,7 +261,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Engine.Warmer warmer,
             List<SearchOperationListener> searchOperationListener,
             List<IndexingOperationListener> listeners,
-            Runnable globalCheckpointSyncer) throws IOException {
+            Runnable globalCheckpointSyncer,
+            CircuitBreakerService circuitBreakerService) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -289,6 +293,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
         this.path = path;
+        this.circuitBreakerService = circuitBreakerService;
         /* create engine config */
         logger.debug("state: [CREATED]");
 
@@ -873,7 +878,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long numDeletedDocs = 0;
         long sizeInBytes = 0;
         try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accesssed only which will cause
+            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
             // the next scheduled refresh to go through and refresh the stats as well
             markSearcherAccessed();
             for (LeafReaderContext reader : searcher.reader().leaves()) {
@@ -972,7 +977,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
         try (Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accesssed only which will cause
+            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
             // the next scheduled refresh to go through and refresh the stats as well
             markSearcherAccessed();
             completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
@@ -2181,7 +2186,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort,
-            this::runTranslogRecovery);
+            this::runTranslogRecovery, circuitBreakerService);
     }
 
     /**
@@ -2457,7 +2462,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
         if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
-                && isSearchIdle() && indexSettings.isExplicitRefresh() == false) {
+                && isSearchIdle()
+                && indexSettings.isExplicitRefresh() == false
+                && active.get()) { // it must be active otherwise we might not free up segment memory once the shard became inactive
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                 // cause the next schedule to refresh.

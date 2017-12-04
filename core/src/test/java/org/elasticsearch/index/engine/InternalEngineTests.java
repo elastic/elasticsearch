@@ -116,6 +116,7 @@ import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -2546,7 +2547,7 @@ public class InternalEngineTests extends EngineTestCase {
                 threadPool, config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig, TimeValue.timeValueMinutes(5),
-                config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+                config.getRefreshListeners(), null, config.getTranslogRecoveryRunner(), new NoneCircuitBreakerService());
 
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
@@ -2600,7 +2601,7 @@ public class InternalEngineTests extends EngineTestCase {
             threadPool, indexSettings, null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(), false, config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
-            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner(), new NoneCircuitBreakerService());
         engine = new InternalEngine(newConfig);
         if (newConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             engine.recoverFromTranslog();
@@ -2630,7 +2631,7 @@ public class InternalEngineTests extends EngineTestCase {
             threadPool, config.getIndexSettings(), null, store, newMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(), true, config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
-            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner());
+            config.getRefreshListeners(), null, config.getTranslogRecoveryRunner(), new NoneCircuitBreakerService());
         engine = new InternalEngine(newConfig);
         if (newConfig.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             engine.recoverFromTranslog();

@@ -73,3 +73,11 @@ if [ -z "$ES_PATH_CONF" ]; then
   echo "ES_PATH_CONF must be set to the configuration path"
   exit 1
 fi
+
+if [ -z "$ES_TMPDIR" ]; then
+  if [ "`uname`" == "Darwin" ]; then
+    ES_TMPDIR=`mktemp -d -t elasticsearch`
+  else
+    ES_TMPDIR=`mktemp -d -t elasticsearch.XXXXXXXX`
+  fi
+fi

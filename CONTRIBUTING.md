@@ -110,17 +110,20 @@ IntelliJ users can automatically configure their IDE: `gradle idea`
 then `File->New Project From Existing Sources`. Point to the root of
 the source directory, select
 `Import project from external model->Gradle`, enable
-`Use auto-import`. Additionally, in order to run tests directly from 
+`Use auto-import`. In order to run tests directly from
 IDEA 2017.2 and above it is required to disable IDEA run launcher to avoid
 finding yourself in "jar hell", which can be achieved by adding the
 `-Didea.no.launcher=true` [JVM
 option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties)
 or by adding `idea.no.launcher=true` to the
-`idea.properties`[https://www.jetbrains.com/help/idea/file-idea-properties.html]
+[`idea.properties`](https://www.jetbrains.com/help/idea/file-idea-properties.html)
 file which can be accessed under Help > Edit Custom Properties within IDEA. You
 may also need to [remove `ant-javafx.jar` from your
-classpath][https://github.com/elastic/elasticsearch/issues/14348] if that is
-reported as a source of jar hell.
+classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
+reported as a source of jar hell. Additionally, in order to run tests directly
+from IDEA 2017.3 and above, go to `Run->Edit Configurations...` and change the
+value for the `Shorten command line` setting from `user-local default: none` to
+`classpath file`.
 
 The Elasticsearch codebase makes heavy use of Java `assert`s and the
 test runner requires that assertions be enabled within the JVM. This

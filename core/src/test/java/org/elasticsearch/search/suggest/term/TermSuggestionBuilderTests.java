@@ -100,7 +100,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
             case 0: return StringDistanceImpl.INTERNAL;
             case 1: return StringDistanceImpl.DAMERAU_LEVENSHTEIN;
             case 2: return StringDistanceImpl.LEVENSHTEIN;
-            case 3: return StringDistanceImpl.JAROWINKLER;
+            case 3: return StringDistanceImpl.JARO_WINKLER;
             case 4: return StringDistanceImpl.NGRAM;
             default: throw new IllegalArgumentException("No string distance algorithm with an ordinal of " + randomVal);
         }

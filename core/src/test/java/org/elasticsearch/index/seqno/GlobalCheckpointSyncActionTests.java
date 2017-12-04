@@ -93,6 +93,19 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         final Translog translog = mock(Translog.class);
         when(indexShard.getTranslog()).thenReturn(translog);
 
+        final long globalCheckpoint = randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Integer.MAX_VALUE);
+        final long lastSyncedGlobalCheckpoint;
+        if (randomBoolean() && globalCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {
+            lastSyncedGlobalCheckpoint =
+                    randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Math.toIntExact(globalCheckpoint) - 1);
+            assert lastSyncedGlobalCheckpoint < globalCheckpoint;
+        } else {
+            lastSyncedGlobalCheckpoint = globalCheckpoint;
+        }
+
+        when(indexShard.getGlobalCheckpoint()).thenReturn(globalCheckpoint);
+        when(translog.getLastSyncedGlobalCheckpoint()).thenReturn(lastSyncedGlobalCheckpoint);
+
         final GlobalCheckpointSyncAction action = new GlobalCheckpointSyncAction(
             Settings.EMPTY,
             transportService,
@@ -109,7 +122,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             action.shardOperationOnReplica(new GlobalCheckpointSyncAction.Request(indexShard.shardId()), indexShard);
         }
 
-        if (durability == Translog.Durability.ASYNC) {
+        if (durability == Translog.Durability.ASYNC || lastSyncedGlobalCheckpoint == globalCheckpoint) {
             verify(translog, never()).sync();
         } else {
             verify(translog).sync();

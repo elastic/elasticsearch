@@ -341,7 +341,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                     order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
                     break;
                 case "infer_index_name_from_alias":
-                    inferIndexNameFromAlias(XContentMapValues.lenientNodeBooleanValue(entry.getValue(), inferIndexNameFromAlias()));
+                    inferIndexNameFromAlias(XContentMapValues.nodeBooleanValue(entry.getValue(), inferIndexNameFromAlias()));
                     break;
                 case "version":
                     if (!(entry.getValue() instanceof Integer)) {
@@ -528,7 +528,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             aliases.add(Alias.read(in));
         }
         version = in.readOptionalVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             inferIndexNameFromAlias = in.readBoolean();
         }
     }
@@ -561,7 +561,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.writeTo(out);
         }
         out.writeOptionalVInt(version);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeOptionalBoolean(inferIndexNameFromAlias);
         }
     }

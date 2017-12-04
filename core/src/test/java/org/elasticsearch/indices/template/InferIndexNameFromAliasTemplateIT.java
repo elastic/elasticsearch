@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -33,6 +34,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -207,7 +209,7 @@ public class InferIndexNameFromAliasTemplateIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
@@ -226,8 +228,8 @@ public class InferIndexNameFromAliasTemplateIT extends ESIntegTestCase {
             logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
         }
         assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
-        assertThat(searchResponse.getHits().getAt(0).field("field2").value().toString(), equalTo("value 2"));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field("field2").getValue().toString(), equalTo("value 2"));
 
         // verify templates metadata
         for (IndexTemplateMetaData indexTemplateMetaData : getTemplatesResponse.getIndexTemplates()) {
@@ -299,7 +301,7 @@ public class InferIndexNameFromAliasTemplateIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
@@ -338,18 +340,19 @@ public class InferIndexNameFromAliasTemplateIT extends ESIntegTestCase {
         GetIndexTemplatesResponse getTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertThat(getTemplatesResponse.getIndexTemplates(), hasSize(1));
 
-        client().prepareIndex("ab123cd-xxx", "type1", "1")
+        final String indexName = "ab123cd-xxx";
+        client().prepareIndex(indexName, "type1", "1")
                 .setSource("field1", "value1", "field2", "value 2")
                 .setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
-        SearchResponse searchResponse = client().prepareSearch("ab123cd-xxx")
+        SearchResponse searchResponse = client().prepareSearch(indexName)
                 .setQuery(termQuery("field1", "value1"))
                 .addStoredField("field1").addStoredField("field2")
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
@@ -360,11 +363,14 @@ public class InferIndexNameFromAliasTemplateIT extends ESIntegTestCase {
 
         // verify indices metadata
         GetIndexResponse allIndices = client().admin().indices().prepareGetIndex().get();
-        // no index name is as given, no aliases were created
-        assertThat(allIndices.getAliases().size(), equalTo(0));
+        // no index name is as given, alias name == index name
+        assertThat(allIndices.getIndices().length, equalTo(1));
+        assertThat(allIndices.getIndices()[0], equalTo(indexName));
+        assertThat(allIndices.getAliases().size(), equalTo(1));
+        assertThat(allIndices.getAliases().keys().toArray()[0], equalTo(indexName));
 
-        assertThat(allIndices.getSettings().containsKey("ab123cd-xxx"), equalTo(true));
-        assertThat(allIndices.getSettings().get("ab123cd-xxx").get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME), equalTo("ab123cd-xxx"));
+        assertThat(allIndices.getSettings().containsKey(indexName), equalTo(true));
+        assertThat(allIndices.getSettings().get(indexName).get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME), equalTo(indexName));
     }
 
     public void testInferTrueWithNoMatchInAliasName() throws Exception {
@@ -398,7 +404,7 @@ public class InferIndexNameFromAliasTemplateIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
@@ -463,7 +469,7 @@ public class InferIndexNameFromAliasTemplateIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
@@ -493,23 +499,22 @@ public class InferIndexNameFromAliasTemplateIT extends ESIntegTestCase {
 
     public void testIndexTemplateWithAliasesInSource() {
         client().admin().indices().preparePutTemplate("template_1")
-                .setSource("{\n" +
+                .setSource(("{\n" +
                         "    \"template\" : \"*\",\n" +
                         "    \"aliases\" : {\n" +
                         "        \"{index}-blah\" : {\n" +
                         "            \"filter\" : {\n" +
-                        "                \"type\" : {\n" +
-                        "                    \"value\" : \"type2\"\n" +
+                        "                \"exists\" : {\n" +
+                        "                    \"field\" : \"t2\"\n" +
                         "                }\n" +
                         "            }\n" +
                         "        }\n" +
                         "    },\n" +
                         "    \"infer_index_name_from_alias\" : true\n" +
-                        "}")
+                        "}").getBytes(StandardCharsets.UTF_8), XContentType.JSON)
                 .get();
 
-
-        assertAcked(prepareCreate("test_index-blah").addMapping("type1").addMapping("type2"));
+        assertAcked(prepareCreate("test_index-blah").addMapping("type", "t1", "type=keyword", "t2", "type=keyword"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -517,8 +522,8 @@ public class InferIndexNameFromAliasTemplateIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().containsKey("test_index"), equalTo(true));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(1));
 
-        client().prepareIndex("test_index", "type1", "1").setSource("field", "value1").get();
-        client().prepareIndex("test_index", "type2", "2").setSource("field", "value2").get();
+        client().prepareIndex("test_index", "type", "1").setSource("t1", "value1").get();
+        client().prepareIndex("test_index", "type", "2").setSource("t2", "value2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test_index").get();
@@ -526,7 +531,8 @@ public class InferIndexNameFromAliasTemplateIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test_index-blah").get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
+        assertThat(searchResponse.getHits().getAt(0).getType(), equalTo("type"));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
 
         // verify templates metadata
         GetIndexTemplatesResponse getTemplatesResponse = client().admin().indices().prepareGetTemplates().get();

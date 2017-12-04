@@ -244,7 +244,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
             builder.putCustom(type, customIndexMetaData);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             builder.inferIndexNameFromAlias(in.readBoolean());
         }
         builder.version(in.readOptionalVInt());
@@ -279,7 +279,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             out.writeString(cursor.key);
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeBoolean(inferIndexNameFromAlias);
         }
         out.writeOptionalVInt(version);

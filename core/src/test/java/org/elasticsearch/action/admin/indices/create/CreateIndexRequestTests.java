@@ -135,13 +135,15 @@ public class CreateIndexRequestTests extends ESTestCase {
         }
     }
 
-    private void assertAliasesEqual(Set<Alias> expected, Set<Alias> actual) throws IOException {
+    private static void assertAliasesEqual(Set<Alias> expected, Set<Alias> actual) throws IOException {
         assertEquals(expected, actual);
 
         for (Alias expectedAlias : expected) {
             for (Alias actualAlias : actual) {
                 if (expectedAlias.equals(actualAlias)) {
                     assertEquals(expectedAlias.filter(), actualAlias.filter());
+                    assertEquals(expectedAlias.indexRouting(), actualAlias.indexRouting());
+                    assertEquals(expectedAlias.searchRouting(), actualAlias.searchRouting());
                 }
             }
         }
@@ -166,13 +168,13 @@ public class CreateIndexRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
-            request.settings(randomSettings());
+            request.settings(randomIndexSettings());
         }
 
         return request;
     }
 
-    public static Settings randomSettings() {
+    private static Settings randomIndexSettings() {
         Settings.Builder builder = Settings.builder();
 
         if (randomBoolean()) {
@@ -188,7 +190,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         return builder.build();
     }
 
-    public static XContentBuilder randomMapping(String type) throws IOException {
+    private static XContentBuilder randomMapping(String type) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().startObject(type);
 
@@ -206,7 +208,7 @@ public class CreateIndexRequestTests extends ESTestCase {
             builder.startObject(randomAlphaOfLength(5));
 
             if (allowObjectField && randomBoolean()) {
-                randomMappingFields(builder, randomBoolean());
+                randomMappingFields(builder, false);
             } else {
                 builder.field("type", "text");
             }
@@ -217,7 +219,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         builder.endObject();
     }
 
-    public static Alias randomAlias() {
+    private static Alias randomAlias() {
         Alias alias = new Alias(randomAlphaOfLength(5));
 
         if (randomBoolean()) {

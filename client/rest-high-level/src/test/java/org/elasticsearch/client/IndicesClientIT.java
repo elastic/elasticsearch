@@ -39,6 +39,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testCreateIndex() throws IOException {
         {
             // Create index
@@ -79,23 +80,24 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 execute(createIndexRequest, highLevelClient().indices()::createIndex, highLevelClient().indices()::createIndexAsync);
             assertTrue(createIndexResponse.isAcknowledged());
 
-            Map<?, ?> indexMetaData = getIndexMetadata(indexName);
+            Map<String, Object> indexMetaData = getIndexMetadata(indexName);
 
-            Map<?, ?> settingsData = (Map) indexMetaData.get("settings");
-            Map<?, ?> indexSettings = (Map) settingsData.get("index");
+            Map<String, Object> settingsData = (Map) indexMetaData.get("settings");
+            Map<String, Object> indexSettings = (Map) settingsData.get("index");
             assertEquals("2", indexSettings.get("number_of_replicas"));
 
-            Map<?, ?> aliasesData = (Map) indexMetaData.get("aliases");
-            Map<?, ?> aliasData = (Map) aliasesData.get("alias_name");
+            Map<String, Object> aliasesData = (Map) indexMetaData.get("aliases");
+            Map<String, Object> aliasData = (Map) aliasesData.get("alias_name");
             assertEquals("1", aliasData.get("index_routing"));
-            Map<?, ?> filter = (Map) aliasData.get("filter");
-            Map<?, ?> term = (Map) filter.get("term");
+            Map<String, Object> filter = (Map) aliasData.get("filter");
+            Map<String, Object> term = (Map) filter.get("term");
             assertEquals(2016, term.get("year"));
 
-            Map<?, ?> mappingsData = (Map) indexMetaData.get("mappings");
-            Map<?, ?> typeData = (Map) mappingsData.get("type_name");
-            Map<?, ?> properties = (Map) typeData.get("properties");
-            Map<?, ?> field = (Map) properties.get("field");
+            Map<String, Object> mappingsData = (Map) indexMetaData.get("mappings");
+            Map<String, Object> typeData = (Map) mappingsData.get("type_name");
+            Map<String, Object> properties = (Map) typeData.get("properties");
+            Map<String, Object> field = (Map) properties.get("field");
+
             assertEquals("text", field.get("type"));
         }
     }
@@ -138,14 +140,15 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         return response.getStatusLine().getStatusCode() == 200;
     }
 
-    private Map<?, ?> getIndexMetadata(String index) throws IOException {
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getIndexMetadata(String index) throws IOException {
         Response response = client().performRequest("GET", index);
 
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(),
             false);
 
-        Map<?, ?> indexMetaData = (Map<?, ?> ) responseEntity.get(index);
+        Map<String, Object> indexMetaData = (Map) responseEntity.get(index);
         assertNotNull(indexMetaData);
 
         return indexMetaData;

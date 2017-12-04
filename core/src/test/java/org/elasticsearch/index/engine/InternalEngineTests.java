@@ -4134,4 +4134,41 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testWriteIndexingBuffer() throws IOException {
+        try (Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+             Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)){
+            assertSameReader(getSearcher, searchSearcher);
+        }
+        for (int i = 0; i < 10; i++) {
+            final String docId = Integer.toString(i);
+            final ParsedDocument doc =
+                testParsedDocument(docId, null, testDocumentWithTextField(), SOURCE, null);
+            Engine.Index primaryResponse = indexForDoc(doc);
+            engine.index(primaryResponse);
+        }
+        long indexBufferRAMBytesUsed = engine.getIndexBufferRAMBytesUsed();
+        assertTrue(engine.refreshNeeded());
+        long nextWrittenBufferBytes = engine.getNextWrittenBufferBytes();
+        engine.writeIndexingBuffer();
+        long bufferAfterWrite = engine.getIndexBufferRAMBytesUsed();
+        assertEquals(nextWrittenBufferBytes, indexBufferRAMBytesUsed - bufferAfterWrite);
+        assertTrue(bufferAfterWrite < indexBufferRAMBytesUsed);
+        assertNotEquals(0, bufferAfterWrite);
+        SegmentsStats segmentsStats = engine.segmentsStats(false);
+        assertEquals(0, segmentsStats.getIndexWriterMemoryInBytes());
+        try (Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)){
+            assertEquals(0, getSearcher.reader().numDocs());
+        }
+        engine.refresh("test", Engine.SearcherScope.INTERNAL);
+        try (Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+             Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)){
+            assertEquals(10, getSearcher.reader().numDocs());
+            assertEquals(0, searchSearcher.reader().numDocs());
+            assertNotSameReader(getSearcher, searchSearcher);
+        }
+        segmentsStats = engine.segmentsStats(false);
+        assertEquals(0, segmentsStats.getIndexWriterMemoryInBytes());
+        assertEquals(0, segmentsStats.getVersionMapMemoryInBytes());
+    }
+
 }

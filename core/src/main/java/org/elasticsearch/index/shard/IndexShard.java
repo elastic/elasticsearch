@@ -141,7 +141,6 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -1698,6 +1697,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (Exception e) {
             handleRefreshException(e);
         }
+    }
+
+    public long getNextWrittenBufferBytes() {
+        Engine engine = getEngine();
+        return engine.getNextWrittenBufferBytes();
     }
 
     /**

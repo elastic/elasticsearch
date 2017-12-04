@@ -177,6 +177,8 @@ public abstract class Engine implements Closeable {
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
 
+    public abstract long getNextWrittenBufferBytes();
+
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling

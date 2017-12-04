@@ -586,7 +586,6 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 case "internal":
                     return INTERNAL;
                 case "damerau_levenshtein":
-                case "damerauLevenshtein":
                     return DAMERAU_LEVENSHTEIN;
                 case "levenstein":
                     DEPRECATION_LOGGER.deprecated("Deprecated distance [levenstein] used, replaced by [levenshtein]");

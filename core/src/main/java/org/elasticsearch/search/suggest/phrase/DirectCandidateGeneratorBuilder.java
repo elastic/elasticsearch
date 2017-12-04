@@ -467,7 +467,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         distanceVal = distanceVal.toLowerCase(Locale.US);
         if ("internal".equals(distanceVal)) {
             return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
-        } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {
+        } else if ("damerau_levenshtein".equals(distanceVal)) {
             return new LuceneLevenshteinDistance();
         } else if ("levenstein".equals(distanceVal)) {
             DEPRECATION_LOGGER.deprecated("Deprecated distance [levenstein] used, replaced by [levenshtein]");

@@ -2194,8 +2194,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
             indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            Arrays.asList(refreshListeners, new RefreshMetricUpdater(refreshMetric)), indexSort,
-            this::runTranslogRecovery, circuitBreakerService);
+            Collections.singletonList(refreshListeners),
+            Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
+            indexSort, this::runTranslogRecovery, circuitBreakerService);
     }
 
     /**

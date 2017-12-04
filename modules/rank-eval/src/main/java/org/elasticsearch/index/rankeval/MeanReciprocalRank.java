@@ -42,35 +42,55 @@ import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRati
  */
 public class MeanReciprocalRank implements EvaluationMetric {
 
-    private static final int DEFAULT_RATING_THRESHOLD = 1;
-
     public static final String NAME = "mean_reciprocal_rank";
 
-    /** ratings equal or above this value will be considered relevant. */
+    private static final int DEFAULT_RATING_THRESHOLD = 1;
+    private static final int DEFAULT_K = 10;
+
+    /** the search window size */
+    private final int k;
+
+    /** ratings equal or above this value will be considered relevant */
     private final int relevantRatingThreshhold;
 
     public MeanReciprocalRank() {
-        this(DEFAULT_RATING_THRESHOLD);
+        this(DEFAULT_RATING_THRESHOLD, DEFAULT_K);
     }
 
     MeanReciprocalRank(StreamInput in) throws IOException {
         this.relevantRatingThreshhold = in.readVInt();
+        this.k = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(relevantRatingThreshhold);
+        out.writeVInt(this.relevantRatingThreshhold);
+        out.writeVInt(this.k);
     }
 
     /**
      * Metric implementing Mean Reciprocal Rank (https://en.wikipedia.org/wiki/Mean_reciprocal_rank).<br>
-     * @param relevantRatingThreshold the rating value that a document needs to be regarded as "relevalnt". Defaults to 1.
+     * @param relevantRatingThreshold the rating value that a document needs to be regarded as "relevant". Defaults to 1.
+     * @param k the search window size all request use.
      */
-    public MeanReciprocalRank(int relevantRatingThreshold) {
+    public MeanReciprocalRank(int relevantRatingThreshold, int k) {
         if (relevantRatingThreshold < 0) {
             throw new IllegalArgumentException("Relevant rating threshold for precision must be positive integer.");
         }
+        if (k <= 0) {
+            throw new IllegalArgumentException("Window size k must be positive.");
+        }
+        this.k = k;
         this.relevantRatingThreshhold = relevantRatingThreshold;
+    }
+
+    int getK() {
+        return this.k;
+    }
+
+    @Override
+    public Optional<Integer> forcedSearchSize() {
+        return Optional.of(k);
     }
 
     @Override
@@ -113,18 +133,18 @@ public class MeanReciprocalRank implements EvaluationMetric {
     }
 
     private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
+    private static final ParseField K_FIELD = new ParseField("k");
     private static final ConstructingObjectParser<MeanReciprocalRank, Void> PARSER = new ConstructingObjectParser<>("reciprocal_rank",
             args -> {
                 Integer optionalThreshold = (Integer) args[0];
-                if (optionalThreshold == null) {
-                    return new MeanReciprocalRank();
-                } else {
-                    return new MeanReciprocalRank(optionalThreshold);
-                }
+                Integer optionalK = (Integer) args[1];
+                return new MeanReciprocalRank(optionalThreshold == null ? DEFAULT_RATING_THRESHOLD : optionalThreshold,
+                        optionalK == null ? DEFAULT_K : optionalK);
             });
 
     static {
         PARSER.declareInt(optionalConstructorArg(), RELEVANT_RATING_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), K_FIELD);
     }
 
     public static MeanReciprocalRank fromXContent(XContentParser parser) {
@@ -136,6 +156,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
         builder.startObject();
         builder.startObject(NAME);
         builder.field(RELEVANT_RATING_FIELD.getPreferredName(), this.relevantRatingThreshhold);
+        builder.field(K_FIELD.getPreferredName(), this.k);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -150,12 +171,13 @@ public class MeanReciprocalRank implements EvaluationMetric {
             return false;
         }
         MeanReciprocalRank other = (MeanReciprocalRank) obj;
-        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold);
+        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold)
+                && Objects.equals(k, other.k);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(relevantRatingThreshhold);
+        return Objects.hash(relevantRatingThreshhold, k);
     }
 
     static class Breakdown implements MetricDetails {

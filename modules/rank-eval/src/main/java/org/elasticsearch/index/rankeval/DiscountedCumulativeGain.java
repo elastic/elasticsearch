@@ -33,20 +33,28 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
 /**
- * Metric implementing Discounted Cumulative Gain (https://en.wikipedia.org/wiki/Discounted_cumulative_gain).<br>
+ * Metric implementing Discounted Cumulative Gain.
  * The `normalize` parameter can be set to calculate the normalized NDCG (set to <tt>false</tt> by default).<br>
  * The optional `unknown_doc_rating` parameter can be used to specify a default rating for unlabeled documents.
+ * @see <a href="https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Discounted_Cumulative_Gain">Discounted Cumulative Gain</a><br>
  */
 public class DiscountedCumulativeGain implements EvaluationMetric {
 
     /** If set to true, the dcg will be normalized (ndcg) */
     private final boolean normalize;
+
+    /** the default search window size */
+    private static final int DEFAULT_K = 10;
+
+    /** the search window size */
+    private final int k;
 
     /**
      * Optional. If set, this will be the rating for docs that are unrated in the ranking evaluation request
@@ -57,7 +65,7 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
     private static final double LOG2 = Math.log(2.0);
 
     public DiscountedCumulativeGain() {
-        this(false, null);
+        this(false, null, DEFAULT_K);
     }
 
     /**
@@ -65,23 +73,27 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
      *            If set to true, dcg will be normalized (ndcg) See
      *            https://en.wikipedia.org/wiki/Discounted_cumulative_gain
      * @param unknownDocRating
-     *            the rating for docs the user hasn't supplied an explicit
+     *            the rating for documents the user hasn't supplied an explicit
      *            rating for
+     * @param k the search window size all request use.
      */
-    public DiscountedCumulativeGain(boolean normalize, Integer unknownDocRating) {
+    public DiscountedCumulativeGain(boolean normalize, Integer unknownDocRating, int k) {
         this.normalize = normalize;
         this.unknownDocRating = unknownDocRating;
+        this.k = k;
     }
 
     DiscountedCumulativeGain(StreamInput in) throws IOException {
         normalize = in.readBoolean();
         unknownDocRating = in.readOptionalVInt();
+        k = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(normalize);
         out.writeOptionalVInt(unknownDocRating);
+        out.writeVInt(k);
     }
 
     @Override
@@ -89,11 +101,12 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         return NAME;
     }
 
-    /**
-     * check whether this metric computes only dcg or "normalized" ndcg
-     */
-    public boolean getNormalize() {
+    boolean getNormalize() {
         return this.normalize;
+    }
+
+    int getK() {
+        return this.k;
     }
 
     /**
@@ -101,6 +114,12 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
      */
     public Integer getUnknownDocRating() {
         return this.unknownDocRating;
+    }
+
+
+    @Override
+    public Optional<Integer> forcedSearchSize() {
+        return Optional.of(k);
     }
 
     @Override
@@ -142,17 +161,21 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         return dcg;
     }
 
+    private static final ParseField K_FIELD = new ParseField("k");
     private static final ParseField NORMALIZE_FIELD = new ParseField("normalize");
     private static final ParseField UNKNOWN_DOC_RATING_FIELD = new ParseField("unknown_doc_rating");
     private static final ConstructingObjectParser<DiscountedCumulativeGain, Void> PARSER = new ConstructingObjectParser<>("dcg_at",
             args -> {
                 Boolean normalized = (Boolean) args[0];
-                return new DiscountedCumulativeGain(normalized == null ? false : normalized, (Integer) args[1]);
+                Integer optK = (Integer) args[2];
+                return new DiscountedCumulativeGain(normalized == null ? false : normalized, (Integer) args[1],
+                        optK == null ? DEFAULT_K : optK);
             });
 
     static {
         PARSER.declareBoolean(optionalConstructorArg(), NORMALIZE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), UNKNOWN_DOC_RATING_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), K_FIELD);
     }
 
     public static DiscountedCumulativeGain fromXContent(XContentParser parser) {
@@ -167,6 +190,7 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         if (unknownDocRating != null) {
             builder.field(UNKNOWN_DOC_RATING_FIELD.getPreferredName(), this.unknownDocRating);
         }
+        builder.field(K_FIELD.getPreferredName(), this.k);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -182,11 +206,12 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         }
         DiscountedCumulativeGain other = (DiscountedCumulativeGain) obj;
         return Objects.equals(normalize, other.normalize)
-                && Objects.equals(unknownDocRating, other.unknownDocRating);
+                && Objects.equals(unknownDocRating, other.unknownDocRating)
+                && Objects.equals(k, other.k);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(normalize, unknownDocRating);
+        return Objects.hash(normalize, unknownDocRating, k);
     }
 }

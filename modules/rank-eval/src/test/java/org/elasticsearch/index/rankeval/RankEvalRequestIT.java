@@ -20,18 +20,17 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -64,13 +63,16 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         refresh();
     }
 
+    /**
+     * Test cases retrieves all six documents indexed above. The first part checks the Prec@10 calculation where
+     * all unlabeled docs are treated as "unrelevant". We average Prec@ metric across two search use cases, the
+     * first one that labels 4 out of the 6 documents as relevant, the second one with only one relevant document.
+     */
     public void testPrecisionAtRequest() {
-        List<String> indices = Arrays.asList(new String[] { "test" });
-
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        testQuery.sort(FieldSortBuilder.DOC_FIELD_NAME);
+        testQuery.sort("_id");
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
                 createRelevant("2", "3", "4", "5"), testQuery);
         amsterdamRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
@@ -79,12 +81,11 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("1"),
                 testQuery);
         berlinRequest.addSummaryFields(Arrays.asList(new String[] { "text", "title" }));
-
         specifications.add(berlinRequest);
 
         PrecisionAtK metric = new PrecisionAtK(1, false, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
-        task.addIndices(indices);
+        task.addIndices(Collections.singletonList("test"));
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
                 RankEvalAction.INSTANCE, new RankEvalRequest());
@@ -92,6 +93,8 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request())
                 .actionGet();
+        // the expected Prec@ for the first query is 4/6 and the expected Prec@ for the
+        // second is 1/6, divided by 2 to get the average
         double expectedPrecision = (1.0 / 6.0 + 4.0 / 6.0) / 2.0;
         assertEquals(expectedPrecision, response.getEvaluationResult(), Double.MIN_VALUE);
         Set<Entry<String, EvalQueryQuality>> entrySet = response.getPartialResults().entrySet();
@@ -129,14 +132,96 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // test that a different window size k affects the result
         metric = new PrecisionAtK(1, false, 3);
         task = new RankEvalSpec(specifications, metric);
-        task.addIndices(indices);
+        task.addIndices(Collections.singletonList("test"));
 
         builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        // if we look only at top 3 documente, the expected P@3 for the first query is
+        // 2/3 and the expected Prec@ for the second is 1/3, divided by 2 to get the average
         expectedPrecision = (1.0 / 3.0 + 2.0 / 3.0) / 2.0;
-        assertEquals(0.5, response.getEvaluationResult(), Double.MIN_VALUE);
+        assertEquals(expectedPrecision, response.getEvaluationResult(), Double.MIN_VALUE);
+    }
+
+    /**
+     * This test assumes we are using the same ratings as in {@link DiscountedCumulativeGainTests#testDCGAt()}.
+     * See details in that test case for how the expected values are calculated
+     */
+    public void testDCGRequest() {
+        SearchSourceBuilder testQuery = new SearchSourceBuilder();
+        testQuery.query(new MatchAllQueryBuilder());
+        testQuery.sort("_id");
+
+        List<RatedRequest> specifications = new ArrayList<>();
+        List<RatedDocument> ratedDocs = Arrays.asList(
+                new RatedDocument("test", "1", 3),
+                new RatedDocument("test", "2", 2),
+                new RatedDocument("test", "3", 3),
+                new RatedDocument("test", "4", 0),
+                new RatedDocument("test", "5", 1),
+                new RatedDocument("test", "6", 2));
+        specifications.add(new RatedRequest("amsterdam_query", ratedDocs, testQuery));
+
+        DiscountedCumulativeGain metric = new DiscountedCumulativeGain(false, null, 10);
+        RankEvalSpec task = new RankEvalSpec(specifications, metric);
+        task.addIndices(Collections.singletonList("test"));
+
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
+
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        assertEquals(DiscountedCumulativeGainTests.EXPECTED_DCG, response.getEvaluationResult(), Double.MIN_VALUE);
+
+        // test that a different window size k affects the result
+        metric = new DiscountedCumulativeGain(false, null, 3);
+        task = new RankEvalSpec(specifications, metric);
+        task.addIndices(Collections.singletonList("test"));
+
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
+
+        response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        assertEquals(12.392789260714371, response.getEvaluationResult(), Double.MIN_VALUE);
+    }
+
+    public void testMRRRequest() {
+        SearchSourceBuilder testQuery = new SearchSourceBuilder();
+        testQuery.query(new MatchAllQueryBuilder());
+        testQuery.sort("_id");
+
+        List<RatedRequest> specifications = new ArrayList<>();
+        specifications.add(new RatedRequest("amsterdam_query", createRelevant("5"), testQuery));
+        specifications.add(new RatedRequest("berlin_query", createRelevant("1"), testQuery));
+
+        MeanReciprocalRank metric = new MeanReciprocalRank(1, 10);
+        RankEvalSpec task = new RankEvalSpec(specifications, metric);
+        task.addIndices(Collections.singletonList("test"));
+
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
+
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        // the expected reciprocal rank for the amsterdam_query is 1/5
+        // the expected reciprocal rank for the berlin_query is 1/1
+        // dividing by 2 to get the average
+        double expectedMRR = (1.0 / 1.0 + 1.0 / 5.0) / 2.0;
+        assertEquals(expectedMRR, response.getEvaluationResult(), 0.0);
+
+        // test that a different window size k affects the result
+        metric = new MeanReciprocalRank(1, 3);
+        task = new RankEvalSpec(specifications, metric);
+        task.addIndices(Collections.singletonList("test"));
+
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
+
+        response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        // limiting to top 3 results, the amsterdam_query has no relevant document in it
+        // the reciprocal rank for the berlin_query is 1/1
+        // dividing by 2 to get the average
+        expectedMRR = (1.0/ 1.0) / 2.0;
+        assertEquals(expectedMRR, response.getEvaluationResult(), 0.0);
     }
 
     /**
@@ -162,16 +247,13 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
         task.addIndices(indices);
 
-        try (Client client = client()) {
-            RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client, RankEvalAction.INSTANCE, new RankEvalRequest());
-            builder.setRankEvalSpec(task);
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
 
-            RankEvalResponse response = client.execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-            assertEquals(1, response.getFailures().size());
-            ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(response.getFailures().get("broken_query"));
-            assertEquals("java.lang.NumberFormatException: For input string: \"noStringOnNumericFields\"",
-                    rootCauses[0].getCause().toString());
-        }
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        assertEquals(1, response.getFailures().size());
+        ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(response.getFailures().get("broken_query"));
+        assertEquals("java.lang.NumberFormatException: For input string: \"noStringOnNumericFields\"", rootCauses[0].getCause().toString());
     }
 
     private static List<RatedDocument> createRelevant(String... docs) {

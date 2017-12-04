@@ -42,13 +42,18 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 
 public class DiscountedCumulativeGainTests extends ESTestCase {
 
+    static final double EXPECTED_DCG = 13.84826362927298;
+    static final double EXPECTED_IDCG = 14.595390756454922;
+    static final double EXPECTED_NDCG = EXPECTED_DCG / EXPECTED_IDCG;
+    private static final double DELTA = 10E-16;
+
     /**
      * Assuming the docs are ranked in the following order:
      *
      * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
-     * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 
-     * 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
+     * 1 | 3 | 7.0 | 1.0 | 7.0 | 7.0 | 
+     * 2 | 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
      * 3 | 3 | 7.0 | 2.0 | 3.5
      * 4 | 0 | 0.0 | 2.321928094887362 | 0.0
      * 5 | 1 | 1.0 | 2.584962500721156 | 0.38685280723454163
@@ -66,7 +71,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
-        assertEquals(13.84826362927298, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
+        assertEquals(EXPECTED_DCG, dcg.evaluate("id", hits, rated).getQualityLevel(), DELTA);
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by
@@ -83,8 +88,8 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          *
          * idcg = 14.595390756454922 (sum of last column)
          */
-        dcg = new DiscountedCumulativeGain(true, null);
-        assertEquals(13.84826362927298 / 14.595390756454922, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
+        dcg = new DiscountedCumulativeGain(true, null, 10);
+        assertEquals(EXPECTED_NDCG, dcg.evaluate("id", hits, rated).getQualityLevel(), DELTA);
     }
 
     /**
@@ -117,7 +122,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, rated);
-        assertEquals(12.779642067948913, result.getQualityLevel(), 0.00001);
+        assertEquals(12.779642067948913, result.getQualityLevel(), DELTA);
         assertEquals(2, filterUnknownDocuments(result.getHitsAndRatings()).size());
 
         /**
@@ -135,8 +140,8 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          *
          * idcg = 13.347184833073591 (sum of last column)
          */
-        dcg = new DiscountedCumulativeGain(true, null);
-        assertEquals(12.779642067948913 / 13.347184833073591, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
+        dcg = new DiscountedCumulativeGain(true, null, 10);
+        assertEquals(12.779642067948913 / 13.347184833073591, dcg.evaluate("id", hits, rated).getQualityLevel(), DELTA);
     }
 
     /**
@@ -174,7 +179,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);
-        assertEquals(12.392789260714371, result.getQualityLevel(), 0.00001);
+        assertEquals(12.392789260714371, result.getQualityLevel(), DELTA);
         assertEquals(1, filterUnknownDocuments(result.getHitsAndRatings()).size());
 
         /**
@@ -193,16 +198,27 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          *
          * idcg = 13.347184833073591 (sum of last column)
          */
-        dcg = new DiscountedCumulativeGain(true, null);
-        assertEquals(12.392789260714371 / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).getQualityLevel(), 0.00001);
+        dcg = new DiscountedCumulativeGain(true, null, 10);
+        assertEquals(12.392789260714371 / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).getQualityLevel(), DELTA);
     }
 
     public void testParseFromXContent() throws IOException {
-        String xContent = " { \"unknown_doc_rating\": 2, \"normalize\": true }";
+        assertParsedCorrect("{ \"unknown_doc_rating\": 2, \"normalize\": true, \"k\" : 15 }", 2, true, 15);
+        assertParsedCorrect("{ \"normalize\": false, \"k\" : 15 }", null, false, 15);
+        assertParsedCorrect("{ \"unknown_doc_rating\": 2, \"k\" : 15 }", 2, false, 15);
+        assertParsedCorrect("{ \"unknown_doc_rating\": 2, \"normalize\": true }", 2, true, 10);
+        assertParsedCorrect("{ \"normalize\": true }", null, true, 10);
+        assertParsedCorrect("{ \"k\": 23 }", null, false, 23);
+        assertParsedCorrect("{ \"unknown_doc_rating\": 2 }", 2, false, 10);
+    }
+
+    private void assertParsedCorrect(String xContent, Integer expectedUnknownDocRating, boolean expectedNormalize, int expectedK)
+            throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             DiscountedCumulativeGain dcgAt = DiscountedCumulativeGain.fromXContent(parser);
-            assertEquals(2, dcgAt.getUnknownDocRating().intValue());
-            assertEquals(true, dcgAt.getNormalize());
+            assertEquals(expectedUnknownDocRating, dcgAt.getUnknownDocRating());
+            assertEquals(expectedNormalize, dcgAt.getNormalize());
+            assertEquals(expectedK, dcgAt.getK());
         }
     }
 
@@ -210,7 +226,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         boolean normalize = randomBoolean();
         Integer unknownDocRating = new Integer(randomIntBetween(0, 1000));
 
-        return new DiscountedCumulativeGain(normalize, unknownDocRating);
+        return new DiscountedCumulativeGain(normalize, unknownDocRating, 10);
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -238,16 +254,22 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
 
     public void testEqualsAndHash() throws IOException {
         checkEqualsAndHashCode(createTestItem(), original -> {
-            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating());
+            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(), original.getK());
         }, DiscountedCumulativeGainTests::mutateTestItem);
     }
 
     private static DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain original) {
-        if (randomBoolean()) {
-            return new DiscountedCumulativeGain(!original.getNormalize(), original.getUnknownDocRating());
-        } else {
+        switch (randomIntBetween(0, 2)) {
+        case 0:
+            return new DiscountedCumulativeGain(!original.getNormalize(), original.getUnknownDocRating(), original.getK());
+        case 1:
             return new DiscountedCumulativeGain(original.getNormalize(),
-                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)));
+                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)), original.getK());
+        case 2:
+            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(),
+                    randomValueOtherThan(original.getK(), () -> randomIntBetween(1, 10)));
+        default:
+            throw new IllegalArgumentException("mutation variant not allowed");
         }
     }
 }

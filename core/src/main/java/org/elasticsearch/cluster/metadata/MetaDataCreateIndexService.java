@@ -157,7 +157,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     /**
      * Validate the name for an index or alias against some static rules.
      */
-    public static void validateIndexOrAliasName(String index, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
+    static void validateIndexOrAliasName(String index, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
         if (!Strings.validFileName(index)) {
             throw exceptionCtor.apply(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
@@ -170,7 +170,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
             throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");
         }
-        int byteCount = 0;
+        int byteCount;
         try {
             byteCount = index.getBytes("UTF-8").length;
         } catch (UnsupportedEncodingException e) {
@@ -224,6 +224,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         indexScopedSettings.validate(build, true); // we do validate here - index setting must be consistent
         request.settings(build);
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
+
             new IndexCreationTask(logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, settings,
                 this::validate));
     }

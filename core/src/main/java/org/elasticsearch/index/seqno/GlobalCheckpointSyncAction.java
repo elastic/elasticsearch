@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -116,13 +117,17 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     @Override
     protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
             final Request request, final IndexShard indexShard) throws Exception {
-        indexShard.getTranslog().sync();
+        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST) {
+            indexShard.getTranslog().sync();
+        }
         return new PrimaryResult<>(request, new ReplicationResponse());
     }
 
     @Override
     protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard indexShard) throws Exception {
-        indexShard.getTranslog().sync();
+        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST) {
+            indexShard.getTranslog().sync();
+        }
         return new ReplicaResult();
     }
 

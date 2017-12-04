@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriterFactory;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -154,7 +154,12 @@ public class AutodetectCommunicator implements Closeable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
-            throw ExceptionsHelper.convertToElastic(e);
+            if (processKilled) {
+                // In this case the original exception is spurious and highly misleading
+                throw ExceptionsHelper.conflictStatusException("Close job interrupted by kill request");
+            } else {
+                throw new ElasticsearchException(e);
+            }
         }
     }
 
@@ -242,19 +247,15 @@ public class AutodetectCommunicator implements Closeable {
      */
     private void checkProcessIsAlive() {
         if (!autodetectProcess.isProcessAlive()) {
-            ParameterizedMessage message =
-                    new ParameterizedMessage("[{}] Unexpected death of autodetect: {}", job.getId(), autodetectProcess.readError());
-            LOGGER.error(message);
-            throw new ElasticsearchException(message.getFormattedMessage());
+            // Don't log here - it just causes double logging when the exception gets logged
+            throw new ElasticsearchException("[{}] Unexpected death of autodetect: {}", job.getId(), autodetectProcess.readError());
         }
     }
 
     private void checkResultsProcessorIsAlive() {
         if (autoDetectResultProcessor.isFailed()) {
-            ParameterizedMessage message =
-                    new ParameterizedMessage("[{}] Unexpected death of the result processor", job.getId());
-            LOGGER.error(message);
-            throw new ElasticsearchException(message.getFormattedMessage());
+            // Don't log here - it just causes double logging when the exception gets logged
+            throw new ElasticsearchException("[{}] Unexpected death of the result processor", job.getId());
         }
     }
 

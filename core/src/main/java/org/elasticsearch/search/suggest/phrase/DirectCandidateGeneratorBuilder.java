@@ -471,9 +471,6 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
             return new LuceneLevenshteinDistance();
         } else if ("levenshtein".equals(distanceVal)) {
             return new LevensteinDistance();
-        } else if ("jarowinkler".equals(distanceVal)) {
-            DEPRECATION_LOGGER.deprecated("Deprecated distance [jarowinkler] used, replaced by [jaro_winkler]");
-            return new JaroWinklerDistance();
         } else if ("jaro_winkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {

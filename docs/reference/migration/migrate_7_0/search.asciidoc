@@ -46,3 +46,4 @@ Scroll queries are not meant to be cached.
 The following suggestion distance algorithms have been removed:
 
 * 	`levenstein` - replaced by `levenshtein`
+* 	`jarowinkler` - replaced by `jaro_winkler`

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -429,7 +431,15 @@ public class DatafeedManager extends AbstractComponent {
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    logger.error("[" + getJobId() + "] failed to auto-close job", e);
+                                    // Given that the UI force-deletes the datafeed and then force-deletes the job, it's
+                                    // quite likely that the auto-close here will get interrupted by a process kill request,
+                                    // and it's misleading/worrying to log an error in this case.
+                                    if (e instanceof ElasticsearchStatusException &&
+                                            ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
+                                        logger.debug("[{}] {}", getJobId(), e.getMessage());
+                                    } else {
+                                        logger.error("[" + getJobId() + "] failed to auto-close job", e);
+                                    }
                                 }
                             });
                 }

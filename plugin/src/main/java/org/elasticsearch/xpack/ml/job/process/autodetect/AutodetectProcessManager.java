@@ -473,6 +473,10 @@ public class AutodetectProcessManager extends AbstractComponent {
             communicator.close(restart, reason);
             processByAllocation.remove(allocationId);
         } catch (Exception e) {
+            // If the close failed because the process has explicitly been killed by us then just pass on that exception
+            if (e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
+                throw e;
+            }
             logger.warn("[" + jobId + "] Exception closing autodetect process", e);
             setJobState(jobTask, JobState.FAILED);
             throw ExceptionsHelper.serverError("Exception closing autodetect process", e);

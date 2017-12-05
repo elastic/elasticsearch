@@ -245,7 +245,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
                 () -> authorize(createAuthentication(SystemUser.INSTANCE), "cluster:admin/whatever", request),
                 "cluster:admin/whatever", SystemUser.INSTANCE.principal());
-        verify(auditTrail).accessDenied(SystemUser.INSTANCE, "cluster:admin/whatever", request, new String[] { SystemUser.ROLE_NAME }, null);
+        verify(auditTrail).accessDenied(SystemUser.INSTANCE, "cluster:admin/whatever", request, new String[] { SystemUser.ROLE_NAME },
+                null);
         verifyNoMoreInteractions(auditTrail);
     }
 

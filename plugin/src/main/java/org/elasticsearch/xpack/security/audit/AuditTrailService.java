@@ -132,7 +132,8 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames,  @Nullable Set<String> specificIndices) {
+    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames,
+                              @Nullable Set<String> specificIndices) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.accessGranted(user, action, message, roleNames, specificIndices);
@@ -141,7 +142,8 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames,  @Nullable Set<String> specificIndices) {
+    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames,
+                             @Nullable Set<String> specificIndices) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.accessDenied(user, action, message, roleNames, specificIndices);

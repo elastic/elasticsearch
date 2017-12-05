@@ -43,7 +43,8 @@ Scroll queries are not meant to be cached.
 
 ==== Term Suggesters supported distance algorithms
 
-The following suggestion distance algorithms have been removed:
+For better readability and consistency the following string distance algorithms
+have been renamed:
 
 * 	`levenstein` - replaced by `levenshtein`
 * 	`jarowinkler` - replaced by `jaro_winkler`

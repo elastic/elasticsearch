@@ -42,11 +42,8 @@ IF ERRORLEVEL 1 (
 )
 
 set "ES_JVM_OPTIONS=%ES_PATH_CONF%\jvm.options"
-
 @setlocal
-rem extract the options from the JVM options file %ES_JVM_OPTIONS%
-rem such options are the lines beginning with '-', thus "findstr /b"
-for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%"`) do set JVM_OPTIONS=!JVM_OPTIONS! %%a
+for /F "usebackq delims=" %%a in (`"%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.launchers.JvmOptionsParser" "%ES_JVM_OPTIONS%""`) do set JVM_OPTIONS=%%a
 @endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS:${ES_TMPDIR}=!ES_TMPDIR!% %ES_JAVA_OPTS%
 
 cd "%ES_HOME%"

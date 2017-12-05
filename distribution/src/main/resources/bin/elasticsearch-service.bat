@@ -103,10 +103,14 @@ set ES_JVM_OPTIONS=%ES_PATH_CONF%\jvm.options
 if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
 @setlocal
-for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%" ^| findstr /b /v "\-server \-client"`) do set JVM_OPTIONS=!JVM_OPTIONS!%%a;
-@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS:${ES_TMPDIR}=!ES_TMPDIR!%%ES_JAVA_OPTS%
+for /F "usebackq delims=" %%a in (`"%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.launchers.JvmOptionsParser" "%ES_JVM_OPTIONS%""`) do set JVM_OPTIONS=%%a
+@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS:${ES_TMPDIR}=!ES_TMPDIR!% %ES_JAVA_OPTS%
+
+if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
 if "%ES_JAVA_OPTS:~-1%"==";" set ES_JAVA_OPTS=%ES_JAVA_OPTS:~0,-1%
+
+echo %ES_JAVA_OPTS%
 
 @setlocal EnableDelayedExpansion
 for %%a in ("%ES_JAVA_OPTS:;=","%") do (

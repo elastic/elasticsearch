@@ -74,6 +74,11 @@ This results in the need to always escape all parts of an URL.
 * The watch `_status` field has been renamed to `status`, as underscores in
 field names will not be allowed.
 
+Security::
+* The fields returned as part of the mappings section by get index, get
+mappings, get field mappings and field capabilities API are now only the ones
+that the user is authorized to access in case field level security is enabled.
+
 See also:
 
 * <<breaking-changes-6.0>>

@@ -46,9 +46,20 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.security.support.Automatons;
 
 import java.io.IOException;
@@ -971,4 +982,196 @@ public class FieldSubsetReaderTests extends ESTestCase {
         directoryReader.close();
         dir.close();
     }
+
+    @SuppressWarnings("unchecked")
+    public void testMappingsFilteringDuelWithSourceFiltering() throws Exception {
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("index")
+                        .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                        .putMapping("doc", MAPPING_TEST_ITEM)).build();
+
+        {
+            FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"*inner1"}, Strings.EMPTY_ARRAY);
+            FieldPermissions fieldPermissions = new FieldPermissions(definition);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index"},
+                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
+            ImmutableOpenMap<String, MappingMetaData> index = mappings.get("index");
+            Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
+            assertEquals(1, sourceAsMap.size());
+            Map<String, Object> properties = (Map<String, Object>) sourceAsMap.get("properties");
+            assertEquals(2, properties.size());
+            Map<String, Object> objectMapping = (Map<String, Object>) properties.get("object");
+            assertEquals(1, objectMapping.size());
+            Map<String, Object> objectProperties = (Map<String, Object>) objectMapping.get("properties");
+            assertEquals(1, objectProperties.size());
+            assertTrue(objectProperties.containsKey("inner1"));
+            Map<String, Object> nestedMapping = (Map<String, Object>) properties.get("nested");
+            assertEquals(2, nestedMapping.size());
+            assertEquals("nested", nestedMapping.get("type"));
+            Map<String, Object> nestedProperties = (Map<String, Object>) nestedMapping.get("properties");
+            assertEquals(1, nestedProperties.size());
+            assertTrue(nestedProperties.containsKey("inner1"));
+
+            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
+            CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
+            Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            assertEquals(2, filtered.size());
+            Map<String, Object> object = (Map<String, Object>)filtered.get("object");
+            assertEquals(1, object.size());
+            assertTrue(object.containsKey("inner1"));
+            List<Map<String, Object>> nested = (List<Map<String, Object>>)filtered.get("nested");
+            assertEquals(2, nested.size());
+            for (Map<String, Object> objectMap : nested) {
+                assertEquals(1, objectMap.size());
+                assertTrue(objectMap.containsKey("inner1"));
+            }
+        }
+        {
+            FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"object*"}, Strings.EMPTY_ARRAY);
+            FieldPermissions fieldPermissions = new FieldPermissions(definition);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index"},
+                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
+            ImmutableOpenMap<String, MappingMetaData> index = mappings.get("index");
+            Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
+            assertEquals(1, sourceAsMap.size());
+            Map<String, Object> properties = (Map<String, Object>) sourceAsMap.get("properties");
+            assertEquals(1, properties.size());
+            Map<String, Object> objectMapping = (Map<String, Object>) properties.get("object");
+            assertEquals(1, objectMapping.size());
+            Map<String, Object> objectProperties = (Map<String, Object>) objectMapping.get("properties");
+            assertEquals(2, objectProperties.size());
+            Map<String, Object> inner1 = (Map<String, Object>) objectProperties.get("inner1");
+            assertEquals(2, inner1.size());
+            assertEquals("text", inner1.get("type"));
+            Map<String, Object> inner1Fields = (Map<String, Object>) inner1.get("fields");
+            assertEquals(1, inner1Fields.size());
+            Map<String, Object> inner1Keyword = (Map<String, Object>) inner1Fields.get("keyword");
+            assertEquals(1, inner1Keyword.size());
+            assertEquals("keyword", inner1Keyword.get("type"));
+            Map<String, Object> inner2 = (Map<String, Object>) objectProperties.get("inner2");
+            assertEquals(1, inner2.size());
+            assertEquals("keyword", inner2.get("type"));
+
+            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
+            CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
+            Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            assertEquals(1, filtered.size());
+            Map<String, Object> object = (Map<String, Object>)filtered.get("object");
+            assertEquals(2, object.size());
+            assertTrue(object.containsKey("inner1"));
+            assertTrue(object.containsKey("inner2"));
+        }
+        {
+            FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"object"}, Strings.EMPTY_ARRAY);
+            FieldPermissions fieldPermissions = new FieldPermissions(definition);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index"},
+                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
+            ImmutableOpenMap<String, MappingMetaData> index = mappings.get("index");
+            Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
+            assertEquals(1, sourceAsMap.size());
+            Map<String, Object> properties = (Map<String, Object>) sourceAsMap.get("properties");
+            assertEquals(1, properties.size());
+            Map<String, Object> objectMapping = (Map<String, Object>) properties.get("object");
+            assertEquals(1, objectMapping.size());
+            Map<String, Object> objectProperties = (Map<String, Object>) objectMapping.get("properties");
+            assertEquals(0, objectProperties.size());
+
+            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
+            CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
+            Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            //TODO FLS filters out empty objects from source, although they are granted access.
+            //When filtering mappings though we keep them.
+            assertEquals(0, filtered.size());
+            /*assertEquals(1, filtered.size());
+            Map<String, Object> object = (Map<String, Object>)filtered.get("object");
+            assertEquals(0, object.size());*/
+        }
+        {
+            FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"nested.inner2"}, Strings.EMPTY_ARRAY);
+            FieldPermissions fieldPermissions = new FieldPermissions(definition);
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index"},
+                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
+            ImmutableOpenMap<String, MappingMetaData> index = mappings.get("index");
+            Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
+            assertEquals(1, sourceAsMap.size());
+            Map<String, Object> properties = (Map<String, Object>) sourceAsMap.get("properties");
+            assertEquals(1, properties.size());
+            Map<String, Object> nestedMapping = (Map<String, Object>) properties.get("nested");
+            assertEquals(2, nestedMapping.size());
+            assertEquals("nested", nestedMapping.get("type"));
+            Map<String, Object> nestedProperties = (Map<String, Object>) nestedMapping.get("properties");
+            assertEquals(1, nestedProperties.size());
+            assertTrue(nestedProperties.containsKey("inner2"));
+
+            Automaton automaton = FieldPermissions.initializePermittedFieldsAutomaton(definition);
+            CharacterRunAutomaton include = new CharacterRunAutomaton(automaton);
+            Map<String, Object> stringObjectMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), DOC_TEST_ITEM, false);
+            Map<String, Object> filtered = FieldSubsetReader.filter(stringObjectMap, include, 0);
+            assertEquals(1, filtered.size());
+            List<Map<String, Object>> nested = (List<Map<String, Object>>)filtered.get("nested");
+            assertEquals(2, nested.size());
+            for (Map<String, Object> objectMap : nested) {
+                assertEquals(1, objectMap.size());
+                assertTrue(objectMap.containsKey("inner2"));
+            }
+        }
+    }
+
+    private static final String DOC_TEST_ITEM = "{\n" +
+            "  \"field_text\" : \"text\",\n" +
+            "  \"object\" : {\n" +
+            "    \"inner1\" : \"text\",\n" +
+            "    \"inner2\" : \"keyword\"\n" +
+            "  },\n" +
+            "  \"nested\" : [\n" +
+            "    {\n" +
+            "      \"inner1\" : 1,\n" +
+            "      \"inner2\" : \"2017/12/12\"\n" +
+            "    },\n" +
+            "    {\n" +
+            "      \"inner1\" : 2,\n" +
+            "      \"inner2\" : \"2017/11/11\"\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}";
+
+    private static final String MAPPING_TEST_ITEM = "{\n" +
+            "  \"doc\": {\n" +
+            "    \"properties\" : {\n" +
+            "      \"field_text\" : {\n" +
+            "        \"type\":\"text\"\n" +
+            "      },\n" +
+            "      \"object\" : {\n" +
+            "        \"properties\" : {\n" +
+            "          \"inner1\" : {\n" +
+            "            \"type\": \"text\",\n" +
+            "            \"fields\" : {\n" +
+            "              \"keyword\" : {\n" +
+            "                \"type\" : \"keyword\"\n" +
+            "              }\n" +
+            "            }\n" +
+            "          },\n" +
+            "          \"inner2\" : {\n" +
+            "            \"type\": \"keyword\"\n" +
+            "          }\n" +
+            "        }\n" +
+            "      },\n" +
+            "      \"nested\" : {\n" +
+            "        \"type\":\"nested\",\n" +
+            "        \"properties\" : {\n" +
+            "          \"inner1\" : {\n" +
+            "            \"type\": \"integer\"\n" +
+            "          },\n" +
+            "          \"inner2\" : {\n" +
+            "            \"type\": \"date\"\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
 }

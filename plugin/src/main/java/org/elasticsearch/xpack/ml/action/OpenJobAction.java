@@ -749,7 +749,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 continue;
             }
 
-            if (nodeSupportsJobVersion(node.getVersion(), job.getJobVersion()) == false) {
+            if (nodeSupportsJobVersion(node.getVersion()) == false) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node
                         + "], because this node does not support jobs of version [" + job.getJobVersion() + "]";
                 logger.trace(reason);
@@ -891,7 +891,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         return unavailableIndices;
     }
 
-    static boolean nodeSupportsJobVersion(Version nodeVersion, Version jobVersion) {
+    private static boolean nodeSupportsJobVersion(Version nodeVersion) {
         return nodeVersion.onOrAfter(Version.V_5_5_0);
     }
 

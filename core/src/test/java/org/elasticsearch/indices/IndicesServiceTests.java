@@ -42,11 +42,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -103,22 +100,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
             return Collections.singletonMap("fake-mapper", new KeywordFieldMapper.TypeParser());
-        }
-
-        @Override
-        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Collections.singletonMap("metadata-mapper", new MetadataFieldMapper.TypeParser() {
-                @Override
-                public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-                        throws MapperParsingException {
-                    return null;
-                }
-
-                @Override
-                public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext parserContext) {
-                    return null;
-                }
-            });
         }
 
         @Override

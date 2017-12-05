@@ -1,5 +1,5 @@
 [[rolling-upgrades]]
-=== Rolling upgrades
+== Rolling upgrades
 
 A rolling upgrade allows an Elasticsearch cluster to be upgraded one node at
 a time so upgrading does not interrupt service. Running multiple versions of

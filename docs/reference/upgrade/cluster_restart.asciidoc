@@ -1,5 +1,5 @@
 [[restart-upgrade]]
-=== Full cluster restart upgrade
+== Full cluster restart upgrade
 
 A full cluster restart upgrade requires that you shut all nodes in the cluster
 down, upgrade them, and restart the cluster. A full cluster restart was required

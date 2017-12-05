@@ -43,8 +43,9 @@ Scroll queries are not meant to be cached.
 
 ==== Term Suggesters supported distance algorithms
 
-For better readability and consistency the following string distance algorithms
-have been renamed:
+The following string distance algorithms were given additional names in 6.2 and
+their existing names were deprecated. The deprecated names have now been
+removed.
 
 * 	`levenstein` - replaced by `levenshtein`
 * 	`jarowinkler` - replaced by `jaro_winkler`

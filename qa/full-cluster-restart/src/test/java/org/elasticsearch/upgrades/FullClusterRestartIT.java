@@ -696,8 +696,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
                 }
             }
-            assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrentVersion);
-            assertNotEquals("expected at least 1 old segment", 0, numBwcVersion);}
+            assertNotEquals("expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
+                0, numCurrentVersion);
+            assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);}
         }
     }
 

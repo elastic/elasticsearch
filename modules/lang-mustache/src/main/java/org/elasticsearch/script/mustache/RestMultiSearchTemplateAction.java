@@ -77,16 +77,12 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
         RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
                 (searchRequest, bytes) -> {
-                    try {
-                        SearchTemplateRequest searchTemplateRequest = RestSearchTemplateAction.parse(bytes);
-                        if (searchTemplateRequest.getScript() != null) {
-                            searchTemplateRequest.setRequest(searchRequest);
-                            multiRequest.add(searchTemplateRequest);
-                        } else {
-                            throw new IllegalArgumentException("Malformed search template");
-                        }
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("Exception when parsing search template request", e);
+                    SearchTemplateRequest searchTemplateRequest = RestSearchTemplateAction.parse(bytes);
+                    if (searchTemplateRequest.getScript() != null) {
+                        searchTemplateRequest.setRequest(searchRequest);
+                        multiRequest.add(searchTemplateRequest);
+                    } else {
+                        throw new IllegalArgumentException("Malformed search template");
                     }
                 });
         return multiRequest;

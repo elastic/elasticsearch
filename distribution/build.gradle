@@ -392,6 +392,7 @@ configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
     } else if (project.name == 'deb') {
       requires('bash')
     }
+    requires('coreutils')
 
     into '/usr/share/elasticsearch'
     fileMode 0644

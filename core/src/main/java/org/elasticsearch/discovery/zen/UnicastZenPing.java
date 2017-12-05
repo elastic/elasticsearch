@@ -167,12 +167,13 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
         unicastZenPingExecutorService = EsExecutors.newScaling(
-            "unicast_connect",
-            0, concurrentConnects,
-            60,
-            TimeUnit.SECONDS,
-            threadFactory,
-            threadPool.getThreadContext());
+                nodeName() + "/" + "unicast_connect",
+                0,
+                concurrentConnects,
+                60,
+                TimeUnit.SECONDS,
+                threadFactory,
+                threadPool.getThreadContext());
     }
 
     /**

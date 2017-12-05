@@ -3,4 +3,4 @@
 //
 
 debug
-SELECT MONTH(birth_date) AS d, COUNT(*) AS c, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY MONTH(birth_date) ORDER BY MONTH(birth_date) DESC;
+SELECT int FROM test GROUP BY AVG(int) + 2;

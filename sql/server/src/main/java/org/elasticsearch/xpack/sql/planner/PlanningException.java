@@ -7,9 +7,13 @@ package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.planner.Verifier.Failure;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Collection;
-import java.util.StringJoiner;
+import java.util.Locale;
+import java.util.stream.Collectors;
+
+import static java.lang.String.format;
 
 public class PlanningException extends ClientSqlException {
 
@@ -21,11 +25,9 @@ public class PlanningException extends ClientSqlException {
         super(extractMessage(sources));
     }
 
-    private static String extractMessage(Collection<Failure> sources) {
-        StringJoiner sj = new StringJoiner(",", "{", "}");
-        sources.forEach(s -> {
-            sj.add(s.source().nodeString() + s.source().location());
-        });
-        return "Fail to plan items " + sj.toString();
+    private static String extractMessage(Collection<Failure> failures) {
+        return failures.stream()
+                .map(f -> format(Locale.ROOT, "line %s:%s: %s", f.source().location().getLineNumber(), f.source().location().getColumnNumber(), f.message()))
+                .collect(Collectors.joining(StringUtils.NEW_LINE, "Found " + failures.size() + " problem(s)\n", StringUtils.EMPTY));
     }
 }

@@ -3,7 +3,7 @@
 //
 
 debug
-SELECT DAY_OF_YEAR(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+SELECT int FROM test GROUP BY AVG(int) + 2;
 
 table:s
 test_emp

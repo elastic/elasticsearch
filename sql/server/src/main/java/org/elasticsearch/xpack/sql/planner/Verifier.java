@@ -5,24 +5,26 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.Unexecutable;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
 import org.elasticsearch.xpack.sql.tree.Node;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 abstract class Verifier {
 
     static class Failure {
         private final Node<?> source;
         private final String message;
-        
+
         Failure(Node<?> source, String message) {
             this.source = source;
-            this.message = message + " " + source.nodeString();
+            this.message = message;
         }
 
         Node<?> source() {
@@ -69,10 +71,22 @@ abstract class Verifier {
                     failures.add(fail(e, "Unresolved expression"));
                 }
             });
+
+            if (p instanceof AggregateExec) {
+                forbidMultiFieldGroupBy((AggregateExec) p, failures);
+            }
         });
 
         return failures;
     }
+
+    private static void forbidMultiFieldGroupBy(AggregateExec a, List<Failure> failures) {
+        if (a.groupings().size() > 1) {
+            failures.add(fail(a.groupings().get(0), "Currently, only a single expression can be used with GROUP BY; please select one of "
+                    + Expressions.names(a.groupings())));
+        }
+    }
+
 
     static List<Failure> verifyExecutingPlan(PhysicalPlan plan) {
         List<Failure> failures = new ArrayList<>();

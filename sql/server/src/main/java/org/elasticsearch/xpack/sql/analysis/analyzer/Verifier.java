@@ -150,9 +150,8 @@ abstract class Verifier {
 
         // Concrete verifications
 
-        //
+            //
         // if there are no (major) unresolved failures, do more in-depth analysis
-        //
 
         if (failures.isEmpty()) {
             Map<String, Function> resolvedFunctions = new LinkedHashMap<>();
@@ -183,14 +182,14 @@ abstract class Verifier {
                 if (!groupingFailures.contains(p)) {
                     checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
                 }
-                // everything checks out
-                // mark the plan as analyzed
-                if (localFailures.isEmpty()) {
-                    p.setAnalyzed();
-                }
+            // everything checks out
+            // mark the plan as analyzed
+            if (localFailures.isEmpty()) {
+                p.setAnalyzed();
+            }
 
-                failures.addAll(localFailures);
-            });
+            failures.addAll(localFailures);
+        });
         }
 
         return failures;
@@ -252,7 +251,7 @@ abstract class Verifier {
                             Expressions.names(a.groupings())));
                     groupingFailures.add(a);
                     return false;
-                }
+                    }
             }
         }
         return true;
@@ -286,7 +285,7 @@ abstract class Verifier {
             a.aggregates().forEach(ne ->
             ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, functions)));
 
-            if (!missing.isEmpty()) {
+                if (!missing.isEmpty()) {
                 String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                 localFailures.add(fail(missing.values().iterator().next(), "Cannot use non-grouped column" + plural + " %s, expected %s",
                         Expressions.names(missing.keySet()),
@@ -307,9 +306,9 @@ abstract class Verifier {
             // TODO: this should be handled by a different rule
             if (function == null) {
                 return false;
-            }
+                }
             e = function;
-        }
+            }
 
         // scalar functions can be a binary tree
         // first test the function against the grouping
@@ -319,11 +318,11 @@ abstract class Verifier {
             // found group for the expression
             if (Expressions.anyMatch(groupings, e::semanticEquals)) {
                 return true;
-            }
+        }
             // unwrap function to find the base
             for (Expression arg : sf.arguments()) {
                 arg.collectFirstChildren(c -> checkGroupMatch(c, source, groupings, missing, functions));
-            }
+    }
 
             return true;
         }

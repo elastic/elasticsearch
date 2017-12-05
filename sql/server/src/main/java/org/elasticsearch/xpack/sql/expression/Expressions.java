@@ -17,7 +17,7 @@ import static java.util.stream.Collectors.toList;
 
 public abstract class Expressions {
 
-    public static List<NamedExpression> asNamed(List<Expression> exp) {
+    public static List<NamedExpression> asNamed(List<? extends Expression> exp) {
         return exp.stream()
                 .map(NamedExpression.class::cast)
                 .collect(toList());
@@ -72,25 +72,25 @@ public abstract class Expressions {
         return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.nodeName();
     }
 
-    public static List<String> names(Collection<Expression> e) {
+    public static List<String> names(Collection<? extends Expression> e) {
         List<String> names = new ArrayList<>(e.size());
         for (Expression ex : e) {
             names.add(name(ex));
         }
-        
+
         return names;
     }
 
     public static Attribute attribute(Expression e) {
         return e instanceof NamedExpression ? ((NamedExpression) e).toAttribute() : null;
     }
-    
+
     public static TypeResolution typeMustBe(Expression e, Predicate<Expression> predicate, String message) {
         return predicate.test(e) ? TypeResolution.TYPE_RESOLVED : new TypeResolution(message);
     }
-    
+
     public static TypeResolution typeMustBeNumeric(Expression e) {
-        return e.dataType().isNumeric()? TypeResolution.TYPE_RESOLVED : new TypeResolution( 
+        return e.dataType().isNumeric()? TypeResolution.TYPE_RESOLVED : new TypeResolution(
                 "Argument required to be numeric ('%s' of type '%s')", Expressions.name(e), e.dataType().esName());
     }
 }

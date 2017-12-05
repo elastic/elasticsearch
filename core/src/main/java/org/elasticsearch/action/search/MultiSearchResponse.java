@@ -47,12 +47,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContentObject {
 
     private static final ParseField RESPONSES = new ParseField(Fields.RESPONSES);
-    private static final ParseField TOOK_IN_MILLIS = new ParseField("took");
     private static final ConstructingObjectParser<MultiSearchResponse, Void> PARSER = new ConstructingObjectParser<>("multi_search",
-            true, a -> new MultiSearchResponse(((List<Item>)a[0]).toArray(new Item[0]), (long) a[1]));
+            true, a -> new MultiSearchResponse(((List<Item>)a[0]).toArray(new Item[0])));
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> itemFromXContent(p), RESPONSES);
-        PARSER.declareLong(constructorArg(), TOOK_IN_MILLIS);
     }
 
     /**

@@ -505,7 +505,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
         MultiSearchResponse multiSearchResponse =
                 execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
-        assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
         assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
@@ -547,7 +546,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
         MultiSearchResponse multiSearchResponse =
                 execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
-        assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
         assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
@@ -595,7 +593,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
         MultiSearchResponse multiSearchResponse =
                 execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
-        assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
         assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
@@ -620,7 +617,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchRequest2.source().highlighter(new HighlightBuilder().field("field"));
         searchRequest3.source().highlighter(new HighlightBuilder().field("field"));
         multiSearchResponse = execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
-        assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
         assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
@@ -658,7 +654,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
         MultiSearchResponse multiSearchResponse =
                 execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
-        assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(2));
 
         assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(true));

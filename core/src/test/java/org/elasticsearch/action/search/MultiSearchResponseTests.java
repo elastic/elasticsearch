@@ -29,7 +29,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -45,7 +44,6 @@ public class MultiSearchResponseTests extends ESTestCase {
             MultiSearchResponse actual = MultiSearchResponse.fromXContext(parser);
             assertThat(parser.nextToken(), nullValue());
 
-            assertThat(actual.getTook(), equalTo(expected.getTook()));
             assertThat(actual.getResponses().length, equalTo(expected.getResponses().length));
             for (int i = 0; i < expected.getResponses().length; i++) {
                 MultiSearchResponse.Item expectedItem = expected.getResponses()[i];
@@ -81,7 +79,7 @@ public class MultiSearchResponseTests extends ESTestCase {
                 items[i] = new MultiSearchResponse.Item(null, new ElasticsearchException("an error"));
             }
         }
-        return new MultiSearchResponse(items, randomNonNegativeLong());
+        return new MultiSearchResponse(items);
     }
 
 }

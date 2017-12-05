@@ -110,7 +110,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
@@ -430,5 +429,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(indexStats.isEmpty(), equalTo(false));
         assertThat("index not defined", indexStats.containsKey(index), equalTo(true));
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
+    }
+
+    public void testIsMetaDataField() {
+        IndicesService indicesService = getIndicesService();
+        assertFalse(indicesService.isMetaDataField(randomAlphaOfLengthBetween(10, 15)));
+        for (String builtIn : IndicesModule.getBuiltInMetaDataFields()) {
+            assertTrue(indicesService.isMetaDataField(builtIn));
+        }
     }
 }

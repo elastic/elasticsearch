@@ -75,7 +75,6 @@ To manually reindex your old indices with the <<docs-reindex,`reindex` API>>:
 .. Add any aliases that existed on the old index to the new index.
 
 
-// Flag this as X-Pack and conditionally include at GA.
 // Need to update the CSS to override sidebar titles.
 [role="xpack"]
 .Migration assistance and upgrade tools
@@ -84,7 +83,7 @@ To manually reindex your old indices with the <<docs-reindex,`reindex` API>>:
 reindexing and upgrading to 6.x. These tools are free with the X-Pack trial
 and Basic licenses and you can use them to upgrade whether or not X-Pack is a
 regular part of your Elastic Stack. For more information, see
-{stack-guide}/upgrading-elastic-stack.html.
+{stack-ref}/upgrading-elastic-stack.html.
 *******************************************
 
 [[reindex-upgrade-remote]]

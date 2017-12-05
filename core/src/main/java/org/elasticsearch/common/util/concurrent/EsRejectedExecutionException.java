@@ -31,7 +31,7 @@ public class EsRejectedExecutionException extends ElasticsearchException {
     private final boolean isExecutorShutdown;
 
     public EsRejectedExecutionException(String message, boolean isExecutorShutdown) {
-        super(message, isExecutorShutdown);
+        super(message);
         this.isExecutorShutdown = isExecutorShutdown;
     }
 

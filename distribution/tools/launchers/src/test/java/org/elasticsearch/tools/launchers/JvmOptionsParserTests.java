@@ -23,6 +23,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -197,7 +198,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testSpaceDelimitedJvmOptions() {
-        assertThat(JvmOptionsParser.spaceDelimitJvmOptions(Arrays.asList("-Xms1g")), equalTo("-Xms1g"));
+        assertThat(JvmOptionsParser.spaceDelimitJvmOptions(Collections.singletonList("-Xms1g")), equalTo("-Xms1g"));
         assertThat(JvmOptionsParser.spaceDelimitJvmOptions(Arrays.asList("-Xms1g", "-Xmx1g")), equalTo("-Xms1g -Xmx1g"));
         assertThat(
                 JvmOptionsParser.spaceDelimitJvmOptions(Arrays.asList("-Xms1g", "-Xmx1g", "-XX:+UseG1GC")),

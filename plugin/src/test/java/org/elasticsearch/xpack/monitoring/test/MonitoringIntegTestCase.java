@@ -5,18 +5,12 @@
  */
 package org.elasticsearch.xpack.monitoring.test;
 
-import io.netty.util.internal.SystemPropertyUtil;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -24,8 +18,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.XPackClient;
@@ -36,59 +28,31 @@ import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 
 public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected static final String MONITORING_INDICES_PREFIX = ".monitoring-";
     protected static final String ALL_MONITORING_INDICES = MONITORING_INDICES_PREFIX + "*";
 
-    /**
-     * Per test run this is enabled or disabled.
-     */
-    protected static Boolean securityEnabled;
-
-    @Override
-    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        if (securityEnabled == null) {
-            securityEnabled = randomBoolean();
-        }
-
-        return super.buildTestCluster(scope, seed);
-    }
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 // Disable native ML autodetect_process as the c++ controller won't be available
                 .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
@@ -96,57 +60,15 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 // we do this by default in core, but for monitoring this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);
 
-        SecuritySettings.apply(securityEnabled, builder);
-
         return builder.build();
     }
 
     @Override
-    protected Path nodeConfigPath(final int nodeOrdinal) {
-        if (!securityEnabled) {
-            return null;
-        }
-        final Path conf = createTempDir().resolve("monitoring_security");
-        final Path xpackConf = conf.resolve(XPackPlugin.NAME);
-        try {
-            Files.createDirectories(xpackConf);
-            writeFile(xpackConf, "users", SecuritySettings.USERS);
-            writeFile(xpackConf, "users_roles", SecuritySettings.USER_ROLES);
-            writeFile(xpackConf, "roles.yml", SecuritySettings.ROLES);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return conf;
-    }
-
-    static void writeFile(final Path folder, final String name, final String content) throws IOException {
-        final Path file = folder.resolve(name);
-        try (BufferedWriter stream = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-            Streams.copy(content, stream);
-        }
-    }
-
-    @Override
     protected Settings transportClientSettings() {
-        if (securityEnabled) {
-            return Settings.builder()
-                    .put(super.transportClientSettings())
-                    .put("client.transport.sniff", false)
-                    .put(Security.USER_SETTING.getKey(), "test:" + SecuritySettings.TEST_PASSWORD)
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
-                    .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
-                    .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                    .build();
-        }
         return Settings.builder().put(super.transportClientSettings())
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .build();
-    }
-
-    @Override
-    protected boolean addMockTransportService() {
-        return securityEnabled == false;
     }
 
     @Override
@@ -168,19 +90,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         return nodePlugins();
     }
 
-    @Override
-    protected Function<Client,Client> getClientWrapper() {
-        if (securityEnabled == false) {
-            return Function.identity();
-        }
-        Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue(SecuritySettings.TEST_USERNAME, new SecureString(SecuritySettings.TEST_PASSWORD.toCharArray())));
-        return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
-    }
-
     protected MonitoringClient monitoringClient() {
-        Client client = securityEnabled ? internalCluster().transportClient() : client();
-        return randomBoolean() ? new XPackClient(client).monitoring() : new MonitoringClient(client);
+        return randomBoolean() ? new XPackClient(client()).monitoring() : new MonitoringClient(client());
     }
 
     @Override
@@ -311,60 +222,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareExists(indices).get().isExists(), is(true));
     }
 
-    protected void updateClusterSettings(Settings settings) {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-    }
-
-    /**
-     * Checks if a field exist in a map of values. If the field contains a dot like 'foo.bar'
-     * it checks that 'foo' exists in the map of values and that it points to a sub-map. Then
-     * it recurses to check if 'bar' exists in the sub-map.
-     */
-    protected void assertContains(String field, Map<String, Object> values) {
-        assertContains(field, values, null);
-    }
-
-    /**
-     * Checks if a field exist in a map of values. If the field contains a dot like 'foo.bar'
-     * it checks that 'foo' exists in the map of values and that it points to a sub-map. Then
-     * it recurses to check if 'bar' exists in the sub-map.
-     */
-    protected void assertContains(String field, Map<String, Object> values, String parent) {
-        assertNotNull("field name should not be null", field);
-        assertNotNull("values map should not be null", values);
-
-        int point = field.indexOf('.');
-        if (point > -1) {
-            assertThat(point, allOf(greaterThan(0), lessThan(field.length())));
-
-            String segment = field.substring(0, point);
-            assertTrue(Strings.hasText(segment));
-
-            boolean fieldExists = values.containsKey(segment);
-            assertTrue("expecting field [" + rebuildName(parent, segment) + "] to be present in monitoring document", fieldExists);
-
-            Object value = values.get(segment);
-            String next = field.substring(point + 1);
-            if (next.length() > 0) {
-                assertTrue(value instanceof Map);
-                assertContains(next, (Map<String, Object>) value, rebuildName(parent, segment));
-            } else {
-                assertFalse(value instanceof Map);
-            }
-        } else {
-            assertTrue("expecting field [" + rebuildName(parent, field) + "] to be present in monitoring document",
-                       values.containsKey(field));
-        }
-    }
-
-    private String rebuildName(String parent, String field) {
-        if (Strings.isEmpty(parent)) {
-            return field;
-        }
-
-        return parent + "." + field;
-    }
-
     protected void disableMonitoringInterval() {
         updateMonitoringInterval(TimeValue.MINUS_ONE.millis(), TimeUnit.MILLISECONDS);
     }
@@ -373,62 +230,4 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().put(MonitoringService.INTERVAL.getKey(), value, timeUnit)));
     }
-
-    /** security related settings */
-
-    public static class SecuritySettings {
-
-        public static final String TEST_USERNAME = "test";
-        public static final String TEST_PASSWORD = SecuritySettingsSource.TEST_PASSWORD;
-        private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
-
-        static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
-
-        public static final String USERS =
-                "transport_client:" + TEST_PASSWORD_HASHED + "\n" +
-                        TEST_USERNAME + ":" + TEST_PASSWORD_HASHED + "\n" +
-                        "admin:" + TEST_PASSWORD_HASHED + "\n" +
-                        "monitor:" + TEST_PASSWORD_HASHED;
-
-        public static final String USER_ROLES =
-                "transport_client:transport_client\n" +
-                        "test:test\n" +
-                        "admin:admin\n" +
-                        "monitor:monitor";
-
-        public static final String ROLES =
-                "test:\n" + // a user for the test infra.
-                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
-                " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
-                " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
-                " 'cluster:admin/ingest/pipeline/get', 'cluster:admin/ingest/pipeline/put', 'cluster:admin/ingest/pipeline/delete'," +
-                " 'cluster:monitor/xpack/watcher/watch/get', 'cluster:admin/xpack/watcher/watch/put', " +
-                " 'cluster:admin/xpack/watcher/watch/delete'," +
-                " 'cluster:monitor/task', 'cluster:admin/xpack/monitoring/bulk' ]\n" +
-                "  indices:\n" +
-                "    - names: '*'\n" +
-                "      privileges: [ all ]\n" +
-                "\n" +
-                "admin:\n" +
-                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
-                "monitor:\n" +
-                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n"
-                ;
-
-
-        public static void apply(boolean enabled, Settings.Builder builder) {
-            if (!enabled) {
-                builder.put("xpack.security.enabled", false);
-                return;
-            }
-            builder.put("xpack.security.enabled", true)
-                    .put("xpack.ml.autodetect_process", false)
-                    .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
-                    .put("xpack.security.authc.realms.esusers.order", 0)
-                    .put("xpack.security.audit.enabled", auditLogsEnabled)
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
-                    .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
-        }
-    }
-
 }

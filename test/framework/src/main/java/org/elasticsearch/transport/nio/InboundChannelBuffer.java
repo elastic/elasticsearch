@@ -61,7 +61,7 @@ public final class InboundChannelBuffer {
         if (capacity < requiredCapacity) {
             int numPages = numPages(requiredCapacity + offset);
             int pagesToAdd = numPages - pages.size();
-            for (int i = 0; i < pagesToAdd; ++i) {
+            for (int i = 0; i < pagesToAdd; i++) {
                 pages.addLast(pageSupplier.get());
             }
             capacity += pagesToAdd * PAGE_SIZE;
@@ -80,7 +80,7 @@ public final class InboundChannelBuffer {
         }
 
         int pagesToRelease = pageIndex(offset + bytesToRelease);
-        for (int i = 0; i < pagesToRelease; ++i) {
+        for (int i = 0; i < pagesToRelease; i++) {
             pages.removeFirst();
         }
         capacity -= bytesToRelease;

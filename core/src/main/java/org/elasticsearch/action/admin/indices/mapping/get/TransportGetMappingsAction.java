@@ -31,15 +31,23 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
+
+    private final IndicesService indicesService;
 
     @Inject
     public TransportGetMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new, indexNameExpressionResolver);
+                                      ThreadPool threadPool, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
+        super(settings, GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new,
+                indexNameExpressionResolver);
+        this.indicesService = indicesService;
     }
 
     @Override
@@ -50,7 +58,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
 
     @Override
     protected ClusterBlockException checkBlock(GetMappingsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
+                indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
@@ -59,11 +68,15 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     }
 
     @Override
-    protected void doMasterOperation(final GetMappingsRequest request, String[] concreteIndices, final ClusterState state, final ActionListener<GetMappingsResponse> listener) {
+    protected void doMasterOperation(final GetMappingsRequest request, String[] concreteIndices, final ClusterState state,
+                                     final ActionListener<GetMappingsResponse> listener) {
         logger.trace("serving getMapping request based on version {}", state.version());
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result = state.metaData().findMappings(
-                concreteIndices, request.types()
-        );
-        listener.onResponse(new GetMappingsResponse(result));
+        try {
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result =
+                    state.metaData().findMappings(concreteIndices, request.types(), indicesService.getFieldFilter());
+            listener.onResponse(new GetMappingsResponse(result));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 }

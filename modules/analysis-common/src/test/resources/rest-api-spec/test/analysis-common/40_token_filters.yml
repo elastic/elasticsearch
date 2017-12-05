@@ -1028,8 +1028,8 @@
 ---
 "delimited_payload_filter":
     - skip:
-        version: " - 6.99.99"
-        reason:  delimited_payload_filter deprecated in 7.0, replaced by delimited_payload
+        version: " - 6.1.99"
+        reason:  delimited_payload_filter deprecated in 6.2, replaced by delimited_payload
         features: "warnings"
 
     - do:

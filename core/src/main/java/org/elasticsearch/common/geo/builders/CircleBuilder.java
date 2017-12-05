@@ -169,6 +169,11 @@ public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
     }
 
     @Override
+    public String toWKT() {
+        throw new UnsupportedOperationException("The WKT spec does not support CIRCLE geometry");
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(center, radius, unit.ordinal());
     }

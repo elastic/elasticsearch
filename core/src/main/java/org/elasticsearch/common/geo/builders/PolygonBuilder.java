@@ -482,7 +482,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
                             && !(sharedVertex = (edges[pos].intersect.compareTo(current.coordinate) == 0)) ) {
                 throw new InvalidShapeException("Invalid shape: Hole is not within polygon");
             }
-            final int index = -((sharedVertex) ? 0 : pos+2);
+            final int index = sharedVertex || pos == -1 ? 0 : -(pos+2);
             final int component = -edges[index].component - numHoles - 1;
 
             if(debugEnabled()) {

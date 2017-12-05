@@ -292,7 +292,7 @@ public class MetaDataTests extends ESTestCase {
         }
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index1"},
-                    randomBoolean() ? Strings.EMPTY_ARRAY : new String[]{"_all"}, (index, field) -> randomBoolean());
+                    randomBoolean() ? Strings.EMPTY_ARRAY : new String[]{"_all"}, index -> field -> randomBoolean());
             ImmutableOpenMap<String, MappingMetaData> index1 = mappings.get("index1");
             MappingMetaData mappingMetaData = index1.get("doc");
             assertNotSame(originalMappingMetaData, mappingMetaData);
@@ -306,7 +306,7 @@ public class MetaDataTests extends ESTestCase {
         }
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index1"},
-                    new String[]{"doc"}, (index, field) -> randomBoolean());
+                    new String[]{"doc"}, index -> field -> randomBoolean());
             ImmutableOpenMap<String, MappingMetaData> index1 = mappings.get("index1");
             MappingMetaData mappingMetaData = index1.get("doc");
             assertNotSame(originalMappingMetaData, mappingMetaData);
@@ -331,13 +331,22 @@ public class MetaDataTests extends ESTestCase {
 
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(
-                    new String[]{"index1", "index2" , "index3"},
-                    new String[]{"doc"}, (index, field) -> index.equals("index1")
-                            && field.startsWith("name.") == false && field.startsWith("properties.key.") == false
-                            && field.equals("age") == false && field.equals("address.location") == false);
+                    new String[]{"index1", "index2", "index3"},
+                    new String[]{"doc"}, index -> {
+                        if (index.equals("index1")) {
+                            return field -> field.startsWith("name.") == false && field.startsWith("properties.key.") == false
+                                    && field.equals("age") == false && field.equals("address.location") == false;
+                        }
+                        if (index.equals("index2")) {
+                            return field -> false;
+                        }
+                        return MapperPlugin.NOOP_FIELD_PREDICATE;
+                    });
+
+
 
             assertIndexMappingsNoFields(mappings, "index2");
-            assertIndexMappingsNoFields(mappings, "index3");
+            assertIndexMappingsNotFiltered(mappings, "index3");
 
             ImmutableOpenMap<String, MappingMetaData> index1Mappings = mappings.get("index1");
             assertNotNull(index1Mappings);
@@ -387,7 +396,7 @@ public class MetaDataTests extends ESTestCase {
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(
                     new String[]{"index1", "index2" , "index3"},
-                    new String[]{"doc"}, (index, field) -> (index.equals("index3") && field.endsWith("keyword")));
+                    new String[]{"doc"}, index -> field -> (index.equals("index3") && field.endsWith("keyword")));
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index2");
@@ -423,7 +432,7 @@ public class MetaDataTests extends ESTestCase {
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(
                     new String[]{"index1", "index2" , "index3"},
-                    new String[]{"doc"}, (index, field) -> (index.equals("index2")));
+                    new String[]{"doc"}, index -> field -> (index.equals("index2")));
 
             assertIndexMappingsNoFields(mappings, "index1");
             assertIndexMappingsNoFields(mappings, "index3");

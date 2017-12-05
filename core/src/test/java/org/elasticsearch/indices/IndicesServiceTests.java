@@ -42,8 +42,11 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -103,13 +106,28 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
+        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+            return Collections.singletonMap("metadata-mapper", new MetadataFieldMapper.TypeParser() {
+                @Override
+                public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+                        throws MapperParsingException {
+                    return null;
+                }
+
+                @Override
+                public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext parserContext) {
+                    return null;
+                }
+            });
+        }
+
+        @Override
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
             indexModule.addSimilarity("fake-similarity",
                     (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
         }
     }
-
 
     @Override
     protected boolean resetNodeAfterTest() {
@@ -430,5 +448,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(indexStats.isEmpty(), equalTo(false));
         assertThat("index not defined", indexStats.containsKey(index), equalTo(true));
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
+    }
+
+    public void testIsMetaDataField() {
+        IndicesService indicesService = getIndicesService();
+        assertFalse(indicesService.isMetaDataField(randomAlphaOfLengthBetween(10, 15)));
+        for (String builtIn : IndicesModule.getBuiltInMetaDataFields()) {
+            assertTrue(indicesService.isMetaDataField(builtIn));
+        }
     }
 }

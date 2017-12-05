@@ -40,7 +40,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.MetaDataTests.assertLeafs;
 import static org.elasticsearch.cluster.metadata.MetaDataTests.assertMultiField;
@@ -88,7 +89,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
     }
 
-    public void testFieldCapabilites() {
+    public void testFieldCapabilities() {
         FieldCapabilitiesResponse index1 = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("index1")).actionGet();
         assertFieldCaps(index1, ALL_FLAT_FIELDS);
         FieldCapabilitiesResponse filtered = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("filtered")).actionGet();
@@ -239,8 +240,8 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
 
         @Override
-        public BiPredicate<String, String> getFieldFilter() {
-            return (index, field) -> index.equals("filtered") == false || field.endsWith("visible");
+        public Function<String, Predicate<String>> getFieldFilter() {
+            return index -> index.equals("filtered") ? field ->  field.endsWith("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
         }
     }
 

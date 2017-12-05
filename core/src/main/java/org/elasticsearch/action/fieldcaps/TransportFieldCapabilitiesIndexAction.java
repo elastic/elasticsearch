@@ -40,7 +40,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardAction<FieldCapabilitiesIndexRequest,
     FieldCapabilitiesIndexResponse> {
@@ -78,13 +78,13 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
         for (String field : request.fields()) {
             fieldNames.addAll(mapperService.simpleMatchToIndexNames(field));
         }
-        BiPredicate<String, String> fieldFilter = indicesService.getFieldFilter();
+        Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         Map<String, FieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fullName(field);
             if (ft != null) {
                 FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
-                if (indicesService.isMetaDataField(field) || fieldFilter.test(shardId.getIndexName(), field)) {
+                if (indicesService.isMetaDataField(field) || fieldPredicate.test(field)) {
                     responseMap.put(field, fieldCap);
                 }
             }

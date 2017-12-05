@@ -52,7 +52,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -94,6 +93,9 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) {
         assert shardId != null;
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        Predicate<String> metadataFieldPredicate = indicesService::isMetaDataField;
+        Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
+
         Collection<String> typeIntersection;
         if (request.types().length == 0) {
             typeIntersection = indexService.mapperService().types();
@@ -111,8 +113,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         Map<String, Map<String, FieldMappingMetaData>> typeMappings = new HashMap<>();
         for (String type : typeIntersection) {
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            Map<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(shardId.getIndexName(),
-                    indicesService::isMetaDataField, indicesService.getFieldFilter(), documentMapper, request);
+            Map<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(fieldPredicate, documentMapper, request);
             if (!fieldMapping.isEmpty()) {
                 typeMappings.put(type, fieldMapping);
             }
@@ -167,9 +168,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         }
     };
 
-    private static Map<String, FieldMappingMetaData> findFieldMappingsByType(String index,
-                                                                             Predicate<String> metaDataFieldPredicate,
-                                                                             BiPredicate<String, String> fieldFilter,
+    private static Map<String, FieldMappingMetaData> findFieldMappingsByType(Predicate<String> fieldPredicate,
                                                                              DocumentMapper documentMapper,
                                                                              GetFieldMappingsIndexRequest request) {
         Map<String, FieldMappingMetaData> fieldMappings = new HashMap<>();
@@ -177,13 +176,12 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (FieldMapper fieldMapper : allFieldMappers) {
-                    addFieldMapper(index, metaDataFieldPredicate, fieldFilter, fieldMapper.fieldType().name(),
-                            fieldMapper, fieldMappings, request.includeDefaults());
+                    addFieldMapper(fieldPredicate, fieldMapper.fieldType().name(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
                 for (FieldMapper fieldMapper : allFieldMappers) {
                     if (Regex.simpleMatch(field, fieldMapper.fieldType().name())) {
-                        addFieldMapper(index, metaDataFieldPredicate, fieldFilter,  fieldMapper.fieldType().name(),
+                        addFieldMapper(fieldPredicate,  fieldMapper.fieldType().name(),
                                 fieldMapper, fieldMappings, request.includeDefaults());
                     }
                 }
@@ -191,7 +189,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
                 // not a pattern
                 FieldMapper fieldMapper = allFieldMappers.smartNameFieldMapper(field);
                 if (fieldMapper != null) {
-                    addFieldMapper(index, metaDataFieldPredicate, fieldFilter, field, fieldMapper, fieldMappings, request.includeDefaults());
+                    addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
                 } else if (request.probablySingleFieldRequest()) {
                     fieldMappings.put(field, FieldMappingMetaData.NULL);
                 }
@@ -200,14 +198,13 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         return Collections.unmodifiableMap(fieldMappings);
     }
 
-    private static void addFieldMapper(String index, Predicate<String> metaDataFieldPredicate, BiPredicate<String, String> fieldFilter,
+    private static void addFieldMapper(Predicate<String> fieldPredicate,
                                        String field, FieldMapper fieldMapper, Map<String, FieldMappingMetaData> fieldMappings,
                                        boolean includeDefaults) {
         if (fieldMappings.containsKey(field)) {
             return;
         }
-        //metadata fields are not filtered out
-        if (metaDataFieldPredicate.test(field) || fieldFilter.test(index, field)) {
+        if (fieldPredicate.test(field)) {
             try {
                 BytesReference bytes = XContentHelper.toXContent(fieldMapper, XContentType.JSON,
                         includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS, false);

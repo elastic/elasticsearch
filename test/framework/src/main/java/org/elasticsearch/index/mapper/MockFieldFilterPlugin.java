@@ -22,13 +22,14 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class MockFieldFilterPlugin extends Plugin implements MapperPlugin {
 
     @Override
-    public BiPredicate<String, String> getFieldFilter() {
-        //this filter doesn't filter any field out, but it's used to exercise the code path where the filter is not no-op
-        return (index, field) -> true;
+    public Function<String, Predicate<String>> getFieldFilter() {
+        //this filter doesn't filter any field out, but it's used to exercise the code path executed when the filter is not no-op
+        return index -> field -> true;
     }
 }

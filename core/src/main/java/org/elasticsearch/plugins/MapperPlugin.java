@@ -24,7 +24,8 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom mappers
@@ -33,7 +34,7 @@ public interface MapperPlugin {
 
     /**
      * Returns additional mapper implementations added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the unique name for the mapper which will be used
      * as the mapping {@code type}, and the value is a {@link Mapper.TypeParser} to parse the
      * mapper settings into a {@link Mapper}.
@@ -44,7 +45,7 @@ public interface MapperPlugin {
 
     /**
      * Returns additional metadata mapper implementations added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the unique name for the metadata mapper, which
      * is used in the mapping json to configure the metadata mapper, and the value is a
      * {@link MetadataFieldMapper.TypeParser} to parse the mapper settings into a
@@ -55,17 +56,23 @@ public interface MapperPlugin {
     }
 
     /**
-     * Returns a predicate that fields must match in order to be returned by get mappings, get index and get field mappings API.
-     * Useful to filter the fields that such API return. The predicate receives the index name and the field name as input arguments
-     * and should return true to show the field and false to hide it.
+     * Returns a function that given an index name returns a predicate which fields must match in order to be returned by get mappings,
+     * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return. The predicate receives
+     * the field name as input argument and should return true to show the field and false to hide it.
      */
-    default BiPredicate<String, String> getFieldFilter() {
+    default Function<String, Predicate<String>> getFieldFilter() {
         return NOOP_FIELD_FILTER;
     }
 
     /**
-     * The default predicate applied, which doesn't filter anything. That means that by default get mappings, get index
-     * and get field mappings API will return every field that's present in the mappings.
+     * The default field predicate applied, which doesn't filter anything. That means that by default get mappings, get index
+     * get field mappings and field capabilities API will return every field that's present in the mappings.
      */
-    BiPredicate<String, String> NOOP_FIELD_FILTER = (index, field) -> true;
+    Predicate<String> NOOP_FIELD_PREDICATE = field -> true;
+
+    /**
+     * The default field filter applied, which doesn't filter anything. That means that by default get mappings, get index
+     * get field mappings and field capabilities API will return every field that's present in the mappings.
+     */
+    Function<String, Predicate<String>> NOOP_FIELD_FILTER = index -> NOOP_FIELD_PREDICATE;
 }

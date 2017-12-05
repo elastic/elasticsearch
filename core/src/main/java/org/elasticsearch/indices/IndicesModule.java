@@ -65,7 +65,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Configures classes and services that are shared by indices on each node.
@@ -181,24 +182,35 @@ public class IndicesModule extends AbstractModule {
         return builtInMetadataMappers.keySet();
     }
 
-    private static BiPredicate<String, String> getFieldFilter(List<MapperPlugin> mapperPlugins) {
-        BiPredicate<String, String> fieldFilter = MapperPlugin.NOOP_FIELD_FILTER;
+    private static Function<String, Predicate<String>> getFieldFilter(List<MapperPlugin> mapperPlugins) {
+        Function<String, Predicate<String>> fieldFilter = MapperPlugin.NOOP_FIELD_FILTER;
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             fieldFilter = and(fieldFilter, mapperPlugin.getFieldFilter());
         }
         return fieldFilter;
     }
 
-    private static BiPredicate<String, String> and(BiPredicate<String, String> first, BiPredicate<String, String> second) {
-        //the purpose of this method is to not chain noop field filters, so that we can easily find out when no plugins plug in
-        //a field filter, hence skip the mappings filtering part as a whole
+    private static Function<String, Predicate<String>> and(Function<String, Predicate<String>> first,
+                                                           Function<String, Predicate<String>> second) {
+        //the purpose of this method is to not chain no-op field predicates, so that we can easily find out when no plugins plug in
+        //a field filter, hence skip the mappings filtering part as a whole, as it requires parsing mappings into a map.
         if (first == MapperPlugin.NOOP_FIELD_FILTER) {
             return second;
         }
         if (second == MapperPlugin.NOOP_FIELD_FILTER) {
             return first;
         }
-        return first.and(second);
+        return index -> {
+            Predicate<String> firstPredicate = first.apply(index);
+            Predicate<String> secondPredicate = second.apply(index);
+            if (firstPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+                return secondPredicate;
+            }
+            if (secondPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+                return firstPredicate;
+            }
+            return firstPredicate.and(secondPredicate);
+        };
     }
 
     @Override

@@ -45,7 +45,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -201,46 +202,83 @@ public class IndicesModuleTests extends ESTestCase {
         List<MapperPlugin> mapperPlugins = Arrays.asList(
             new MapperPlugin() {
                 @Override
-                public BiPredicate<String, String> getFieldFilter() {
-                    return (index, field) -> index.equals("hidden_index") == false;
+                public Function<String, Predicate<String>> getFieldFilter() {
+                    return MapperPlugin.NOOP_FIELD_FILTER;
                 }
             },
             new MapperPlugin() {
                 @Override
-                public BiPredicate<String, String> getFieldFilter() {
-                    return (index, field) -> field.equals("hidden_field") == false;
+                public Function<String, Predicate<String>> getFieldFilter() {
+                    return index -> index.equals("hidden_index") ? field -> false : MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
             },
             new MapperPlugin() {
                 @Override
-                public BiPredicate<String, String> getFieldFilter() {
-                    return (index, field) -> index.equals("filtered") && field.equals("visible");
+                public Function<String, Predicate<String>> getFieldFilter() {
+                    return index -> field -> field.equals("hidden_field") == false;
+                }
+            },
+            new MapperPlugin() {
+                @Override
+                public Function<String, Predicate<String>> getFieldFilter() {
+                    return index -> index.equals("filtered") ? field ->  field.equals("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
             });
 
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        BiPredicate<String, String> fieldFilter = mapperRegistry.getFieldFilter();
-        assertFalse(fieldFilter == MapperPlugin.NOOP_FIELD_FILTER);
+        Function<String, Predicate<String>> fieldFilter = mapperRegistry.getFieldFilter();
+        assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
 
-        assertFalse(fieldFilter.test("hidden_index", randomAlphaOfLengthBetween(3, 5)));
-        assertFalse(fieldFilter.test(randomAlphaOfLengthBetween(3, 5), randomAlphaOfLengthBetween(3, 5)));
-        assertFalse(fieldFilter.test(randomAlphaOfLengthBetween(3, 5), "hidden_field"));
-        assertFalse(fieldFilter.test("filtered", randomAlphaOfLengthBetween(3, 5)));
-        assertFalse(fieldFilter.test("filtered", "hidden_field"));
-        assertFalse(fieldFilter.test(randomAlphaOfLengthBetween(3, 5), "visible"));
-        assertFalse(fieldFilter.test("hidden_index", "visible"));
-        assertFalse(fieldFilter.test("hidden_index", "hidden_field"));
-        assertTrue(fieldFilter.test("filtered", "visible"));
+        assertFalse(fieldFilter.apply("hidden_index").test(randomAlphaOfLengthBetween(3, 5)));
+        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)).test(randomAlphaOfLengthBetween(3, 5)));
+
+        assertFalse(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)).test("hidden_field"));
+        assertFalse(fieldFilter.apply("filtered").test(randomAlphaOfLengthBetween(3, 5)));
+        assertFalse(fieldFilter.apply("filtered").test("hidden_field"));
+        assertTrue(fieldFilter.apply("filtered").test("visible"));
+        assertFalse(fieldFilter.apply("hidden_index").test("visible"));
+        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)).test("visible"));
+        assertFalse(fieldFilter.apply("hidden_index").test("hidden_field"));
     }
 
-    public void testGetFieldFilterIsNoOp() {
+    public void testDefaultFieldFilterIsNoOp() {
         int numPlugins = randomIntBetween(0, 10);
         List<MapperPlugin> mapperPlugins = new ArrayList<>(numPlugins);
         for (int i = 0; i < numPlugins; i++) {
             mapperPlugins.add(new MapperPlugin() {});
         }
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
-        assertTrue(indicesModule.getMapperRegistry().getFieldFilter() == MapperPlugin.NOOP_FIELD_FILTER);
+        Function<String, Predicate<String>> fieldFilter = indicesModule.getMapperRegistry().getFieldFilter();
+        assertSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
+    }
+
+    public void testNoOpFieldPredicate() {
+        List<MapperPlugin> mapperPlugins = Arrays.asList(
+                new MapperPlugin() {
+                    @Override
+                    public Function<String, Predicate<String>> getFieldFilter() {
+                        return MapperPlugin.NOOP_FIELD_FILTER;
+                    }
+                },
+                new MapperPlugin() {
+                    @Override
+                    public Function<String, Predicate<String>> getFieldFilter() {
+                        return index -> index.equals("hidden_index") ? field -> false : MapperPlugin.NOOP_FIELD_PREDICATE;
+                    }
+                },
+                new MapperPlugin() {
+                    @Override
+                    public Function<String, Predicate<String>> getFieldFilter() {
+                        return index -> index.equals("filtered") ? field ->  field.equals("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
+                    }
+                });
+
+        IndicesModule indicesModule = new IndicesModule(mapperPlugins);
+        MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
+        Function<String, Predicate<String>> fieldFilter = mapperRegistry.getFieldFilter();
+        assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 7)));
+        assertNotSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("hidden_index"));
+        assertNotSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("filtered"));
     }
 }

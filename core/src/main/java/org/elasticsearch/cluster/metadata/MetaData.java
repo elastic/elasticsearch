@@ -70,7 +70,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -337,7 +338,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      */
     public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices,
                                                                                             final String[] types,
-                                                                                            BiPredicate<String, String> fieldFilter)
+                                                                                            Function<String, Predicate<String>> fieldFilter)
             throws IOException {
         assert types != null;
         assert concreteIndices != null;
@@ -350,13 +351,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
+            Predicate<String> fieldPredicate = fieldFilter.apply(index);
             if (isAllTypes) {
-                indexMapBuilder.put(index, filterFields(index, indexMetaData.getMappings(), fieldFilter));
+                indexMapBuilder.put(index, filterFields(indexMetaData.getMappings(), fieldPredicate));
             } else {
                 ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings = ImmutableOpenMap.builder();
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     if (Regex.simpleMatch(types, cursor.key)) {
-                        filteredMappings.put(cursor.key, filterFields(index, cursor.value, fieldFilter));
+                        filteredMappings.put(cursor.key, filterFields(cursor.value, fieldPredicate));
                     }
                 }
                 if (!filteredMappings.isEmpty()) {
@@ -367,23 +369,22 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return indexMapBuilder.build();
     }
 
-    private static ImmutableOpenMap<String, MappingMetaData> filterFields(String index,
-                                                                          ImmutableOpenMap<String, MappingMetaData> mappings,
-                                                                          BiPredicate<String, String> fieldFilter) throws IOException {
-        if (fieldFilter == MapperPlugin.NOOP_FIELD_FILTER) {
+    private static ImmutableOpenMap<String, MappingMetaData> filterFields(ImmutableOpenMap<String, MappingMetaData> mappings,
+                                                                          Predicate<String> fieldPredicate) throws IOException {
+        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
             return mappings;
         }
         ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(mappings.size());
         for (ObjectObjectCursor<String, MappingMetaData> cursor : mappings) {
-            builder.put(cursor.key, filterFields(index, cursor.value, fieldFilter));
+            builder.put(cursor.key, filterFields(cursor.value, fieldPredicate));
         }
         return builder.build(); // No types specified means return them all
     }
 
     @SuppressWarnings("unchecked")
-    private static MappingMetaData filterFields(String index, MappingMetaData mappingMetaData, BiPredicate<String, String> fieldFilter)
-            throws IOException {
-        if (fieldFilter == MapperPlugin.NOOP_FIELD_FILTER) {
+    private static MappingMetaData filterFields(MappingMetaData mappingMetaData,
+                                                Predicate<String> fieldPredicate) throws IOException {
+        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
             return mappingMetaData;
         }
         Map<String, Object> sourceAsMap = mappingMetaData.getSourceAsMap();
@@ -392,14 +393,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return mappingMetaData;
         }
 
-        filterFields(index, "", properties, fieldFilter);
+        filterFields("", properties, fieldPredicate);
 
         return new MappingMetaData(mappingMetaData.type(), sourceAsMap);
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean filterFields(String index, String currentPath, Map<String, Object> fields,
-                                        BiPredicate<String, String> fieldFilter) {
+    private static boolean filterFields(String currentPath, Map<String, Object> fields, Predicate<String> fieldPredicate) {
         Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
         while (entryIterator.hasNext()) {
             Map.Entry<String, Object> entry = entryIterator.next();
@@ -411,12 +411,12 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 Map<String, Object> map = (Map<String, Object>) value;
                 Map<String, Object> properties = (Map<String, Object>)map.get("properties");
                 if (properties != null) {
-                    mayRemove = filterFields(index, newPath, properties, fieldFilter);
+                    mayRemove = filterFields(newPath, properties, fieldPredicate);
                 } else {
                     Map<String, Object> subFields = (Map<String, Object>)map.get("fields");
                     if (subFields != null) {
                         isMultiField = true;
-                        if (mayRemove = filterFields(index, newPath, subFields, fieldFilter)) {
+                        if (mayRemove = filterFields(newPath, subFields, fieldPredicate)) {
                             map.remove("fields");
                         }
                     }
@@ -426,7 +426,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
 
             //only remove a field if it has no sub-fields left and it has to be excluded
-            if (fieldFilter.test(index, newPath) == false) {
+            if (fieldPredicate.test(newPath) == false) {
                 if (mayRemove) {
                     entryIterator.remove();
                 } else if (isMultiField) {

@@ -118,7 +118,7 @@ class DatafeedJob {
             }
         }
         if (!isIsolated) {
-            LOGGER.debug("Lookback finished after being stopped");
+            LOGGER.debug("[{}] Lookback finished after being stopped", jobId);
         }
         return null;
     }
@@ -133,7 +133,7 @@ class DatafeedJob {
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
             FlushJobAction.Response flushResponse = flushJob(request);
-            LOGGER.info("Skipped to time [" + flushResponse.getLastFinalizedBucketEnd().getTime() + "]");
+            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().getTime());
             return flushResponse.getLastFinalizedBucketEnd().getTime();
         }
         return startTime;

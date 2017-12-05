@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.support;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -304,7 +305,8 @@ public class IndexLifecycleManagerTests extends ESTestCase {
 
     private static IndexTemplateMetaData.Builder getIndexTemplateMetaData(String templateName) throws IOException {
         final Map<String, String> mappings = getTemplateMappings(templateName);
-        IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(TEMPLATE_NAME);
+        IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(TEMPLATE_NAME)
+                .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             templateBuilder.putMapping(entry.getKey(), entry.getValue());
         }

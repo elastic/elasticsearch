@@ -59,6 +59,11 @@ See the <<query-dsl-has-child-query,`has_child`>> and
 the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation,
 and <<parent-child-inner-hits,inner hits>> for more information.
 
+The parent-join creates one field to index the name of the relation within the document (my_parent, my_child, …).
+
+It also creates one field per parent/child relation. The name of this field is the name of the join field followed by # and the name of the parent in the relation. So for instance for the my_parent ⇒ my_child relation, it creates an additional field named _parent#my_parent.
+
+This field contains the parent _id that the document links to if the document is a child (my_child) and the _id of document if it’s a parent (my_parent).
 The value of the `_parent` field is accessible in aggregations
 and scripts, and may be queried with the
 <<query-dsl-parent-id-query, `parent_id` query>>:
@@ -76,7 +81,7 @@ GET my_index/_search
   "aggs": {
     "parents": {
       "terms": {
-        "field": "_parent", <2>
+        "field": "_parent#my_parent", <2>
         "size": 10
       }
     }
@@ -84,7 +89,7 @@ GET my_index/_search
   "script_fields": {
     "parent": {
       "script": {
-         "source": "doc['_parent']" <3>
+         "source": "doc['_parent#my_parent']" <3>
       }
     }
   }
@@ -94,8 +99,8 @@ GET my_index/_search
 // TEST[continued]
 
 <1> Querying the id of the `_parent` field (also see the <<query-dsl-has-parent-query,`has_parent` query>> and the <<query-dsl-has-child-query,`has_child` query>>)
-<2> Aggregating on the `_parent` field (also see the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation)
-<3> Accessing the `_parent` field in scripts
+<2> Aggregating on the `_parent#my_parent` field (also see the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation)
+<3> Accessing the `_parent#my_parent` field in scripts
 
 
 ==== Parent-child restrictions
@@ -155,9 +160,9 @@ The amount of heap used by global ordinals can be checked as follows:
 [source,sh]
 --------------------------------------------------
 # Per-index
-GET _stats/fielddata?human&fields=_parent
+GET _stats/fielddata?human&fields=_parent*
 
 # Per-node per-index
-GET _nodes/stats/indices/fielddata?human&fields=_parent
+GET _nodes/stats/indices/fielddata?human&fields=_parent*
 --------------------------------------------------
 // CONSOLE

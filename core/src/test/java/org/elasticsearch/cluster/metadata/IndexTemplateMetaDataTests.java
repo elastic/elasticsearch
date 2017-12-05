@@ -20,6 +20,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -66,4 +68,25 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
         assertThat(indexTemplateMetaData, equalTo(indexTemplateMetaDataRoundTrip));
     }
 
+    public void testValidateInvalidTemplate() throws Exception {
+        final IllegalArgumentException nullPatternError = expectThrows(IllegalArgumentException.class, () -> {
+            new IndexTemplateMetaData(randomRealisticUnicodeOfLengthBetween(5, 10), randomInt(), randomInt(),
+                null, Settings.EMPTY, ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+        });
+        assertThat(nullPatternError.getMessage(), equalTo("Template must not be null"));
+
+        final String templateWithoutPattern = "{\"order\" : 1000," +
+            "\"settings\" : {\"number_of_shards\" : 10,\"number_of_replicas\" : 1}," +
+            "\"mappings\" : {\"doc\" :" +
+            "{\"properties\":{\"" +
+            randomAlphaOfLength(10) + "\":{\"type\":\"text\"},\"" +
+            randomAlphaOfLength(10) + "\":{\"type\":\"keyword\"}}" +
+            "}}}";
+        try (XContentParser parser =
+                 XContentHelper.createParser(NamedXContentRegistry.EMPTY, new BytesArray(templateWithoutPattern), XContentType.JSON)) {
+            final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> IndexTemplateMetaData.Builder.fromXContent(parser, randomAlphaOfLengthBetween(1, 100)));
+            assertThat(ex.getMessage(), equalTo("Template must not be null"));
+        }
+    }
 }

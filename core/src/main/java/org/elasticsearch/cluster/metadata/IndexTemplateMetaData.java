@@ -90,6 +90,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                  ImmutableOpenMap<String, CompressedXContent> mappings,
                                  ImmutableOpenMap<String, AliasMetaData> aliases,
                                  ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
+        if (template == null) {
+            throw new IllegalArgumentException("Template must not be null");
+        }
         this.name = name;
         this.order = order;
         this.version = version;

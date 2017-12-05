@@ -308,7 +308,8 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
             Collections.emptyList(),
             Collections.singletonList(
                 templates -> {
-                    templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template").build());
+                    templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template")
+                        .template(randomUnicodeOfCodepointLengthBetween(0, 100)).build());
                     return templates;
                 }
             ));
@@ -438,14 +439,17 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
             Collections.emptyList(),
             Arrays.asList(
                 indexTemplateMetaDatas -> {
-                    indexTemplateMetaDatas.put("template1", IndexTemplateMetaData.builder("template1").settings(
-                        Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 20).build()).build());
+                    indexTemplateMetaDatas.put("template1", IndexTemplateMetaData.builder("template1")
+                        .template(randomUnicodeOfCodepointLengthBetween(0, 100))
+                        .settings(Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 20).build())
+                        .build());
                     return indexTemplateMetaDatas;
 
                 },
                 indexTemplateMetaDatas -> {
-                    indexTemplateMetaDatas.put("template2", IndexTemplateMetaData.builder("template2").settings(
-                        Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 10).build()).build());
+                    indexTemplateMetaDatas.put("template2", IndexTemplateMetaData.builder("template2")
+                        .template(randomUnicodeOfCodepointLengthBetween(0, 100))
+                        .settings(Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 10).build()).build());
                     return indexTemplateMetaDatas;
 
                 }
@@ -535,6 +539,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .settings(settings(Version.CURRENT)
                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
                     .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5)))
+                .template(randomUnicodeOfCodepointLengthBetween(0, 100))
                 .build();
             builder.put(templateMetaData);
         }

@@ -44,7 +44,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
     public void testClusterStateSerialization() throws Exception {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test_idx").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
-                .put(IndexTemplateMetaData.builder("test_template").build())
+                .put(IndexTemplateMetaData.builder("test_template").template(randomUnicodeOfCodepointLengthBetween(0, 100)).build())
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

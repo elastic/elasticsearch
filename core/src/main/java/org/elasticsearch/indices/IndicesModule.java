@@ -151,7 +151,7 @@ public class IndicesModule extends AbstractModule {
             if (i < builtInMetadataMappers.size() - 1) {
                 metadataMappers.put(entry.getKey(), entry.getValue());
             } else {
-                assert entry.getKey().equals(FieldNamesFieldMapper.NAME);
+                assert entry.getKey().equals(FieldNamesFieldMapper.NAME) : "_field_names must be the last registered mapper, order counts";
                 fieldNamesEntry = entry;
             }
             i++;
@@ -174,6 +174,9 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(metadataMappers);
     }
 
+    /**
+     * Returns a set containing all of the builtin metadata fields
+     */
     public static Set<String> getBuiltInMetaDataFields() {
         return builtInMetadataMappers.keySet();
     }

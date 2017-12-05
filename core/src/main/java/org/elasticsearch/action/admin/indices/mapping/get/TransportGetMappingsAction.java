@@ -71,9 +71,9 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     protected void doMasterOperation(final GetMappingsRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetMappingsResponse> listener) {
         logger.trace("serving getMapping request based on version {}", state.version());
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result;
         try {
-            result = state.metaData().findMappings(concreteIndices, request.types(), indicesService.getFieldFilter());
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result =
+                    state.metaData().findMappings(concreteIndices, request.types(), indicesService.getFieldFilter());
             listener.onResponse(new GetMappingsResponse(result));
         } catch (IOException e) {
             listener.onFailure(e);

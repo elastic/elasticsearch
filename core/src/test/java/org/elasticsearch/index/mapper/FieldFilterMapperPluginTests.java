@@ -237,6 +237,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     }
 
     public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
+
         @Override
         public BiPredicate<String, String> getFieldFilter() {
             return (index, field) -> index.equals("filtered") == false || field.endsWith("visible");

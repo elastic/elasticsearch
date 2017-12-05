@@ -219,7 +219,8 @@ public class TermVectorsService  {
         } else {
             MappedFieldType fieldType = mapperService.fullName(field);
             if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-                analyzer = ((KeywordFieldMapper.KeywordFieldType) fieldType).normalizer();
+                KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) fieldType;
+                analyzer = keywordFieldType.normalizer() == null ? keywordFieldType.indexAnalyzer() : keywordFieldType.normalizer();
             } else {
                 analyzer = fieldType.indexAnalyzer();
             }

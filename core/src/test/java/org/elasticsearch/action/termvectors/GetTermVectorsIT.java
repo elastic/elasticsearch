@@ -1034,9 +1034,10 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase")
             .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase");
         assertAcked(prepareCreate(indexNames[0]).setSettings(builder.build())
-            .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets,analyzer=my_analyzer"));
+            .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets,analyzer=my_analyzer",
+                "field2", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
         assertAcked(prepareCreate(indexNames[1]).setSettings(builder.build())
-            .addMapping("type1", "field1", "type=keyword,normalizer=my_normalizer"));
+            .addMapping("type1", "field1", "type=keyword,normalizer=my_normalizer", "field2", "type=keyword"));
         ensureGreen();
 
         // index documents with and without term vectors
@@ -1049,7 +1050,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                     .setIndex(indexName)
                     .setType("type1")
                     .setId(String.valueOf(id))
-                    .setSource("field1", content[id]));
+                    .setSource("field1", content[id], "field2", content[id]));
             }
         }
         indexRandom(true, indexBuilders);
@@ -1061,12 +1062,13 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 TermVectorsResponse resp = client().prepareTermVector(indexNames[j], "type1", String.valueOf(id))
                     .setOffsets(true)
                     .setPositions(true)
-                    .setSelectedFields("field1")
+                    .setSelectedFields("field1", "field2")
                     .get();
                 assertThat("doc with index: " + indexNames[j] + ", type1 and id: " + id, resp.isExists(), equalTo(true));
                 fields[j] = resp.getFields();
             }
             compareTermVectors("field1", fields[0], fields[1]);
+            compareTermVectors("field2", fields[0], fields[1]);
         }
     }
 

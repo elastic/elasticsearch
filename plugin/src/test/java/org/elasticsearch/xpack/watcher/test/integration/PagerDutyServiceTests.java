@@ -48,8 +48,9 @@ public class PagerDutyServiceTests extends AbstractWatcherIntegrationTestCase {
 
         IncidentEvent event = new IncidentEvent("#testIncidentEvent()", null, null, "PagerDutyServiceTests", "_client_url", "_account",
                 true, new IncidentEventContext[] {
-                IncidentEventContext.link("_href", "_text"),
-                IncidentEventContext.image("_src", "_href", "_alt")
+                IncidentEventContext.link("https://www.elastic.co/products/x-pack/alerting", "Go to the Elastic.co Alerting website"),
+                IncidentEventContext.image("https://www.elastic.co/assets/blte5d899fd0b0e6808/icon-alerting-bb.svg",
+                        "https://www.elastic.co/products/x-pack/alerting", "X-Pack-Alerting website link with log")
         }, null);
 
         Payload payload = new Payload.Simple("_key", "_val");

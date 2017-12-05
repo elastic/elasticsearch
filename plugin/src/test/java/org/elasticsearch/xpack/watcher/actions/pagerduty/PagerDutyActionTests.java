@@ -14,20 +14,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEvent;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEventContext;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.IncidentEventDefaults;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.SentEvent;
-import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -176,7 +176,8 @@ public class PagerDutyActionTests extends ESTestCase {
                     IncidentEventContext.Template.link(new TextTemplate("_href"), new TextTemplate("_text")),
                     IncidentEventContext.Template.image(new TextTemplate("_src"), new TextTemplate("_href"), new TextTemplate("_alt"))
             };
-            builder.array("context", (Object) contexts);
+            String fieldName = randomBoolean() ? "contexts" : "context";
+            builder.array(fieldName, (Object) contexts);
         }
 
         builder.endObject();

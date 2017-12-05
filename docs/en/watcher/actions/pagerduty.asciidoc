@@ -45,7 +45,7 @@ payload as well as an array of contexts to the action.
       "attach_payload" : true,
       "client" : "/foo/bar/{{ctx.watch_id}}",
       "client_url" : "http://www.example.org/",
-      "context" : [
+      "contexts" : [
         {
           "type": "link",
           "href": "http://acme.pagerduty.com"

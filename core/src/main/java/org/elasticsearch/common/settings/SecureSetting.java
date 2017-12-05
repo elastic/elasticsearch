@@ -46,6 +46,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
     private SecureSetting(String key, Property... properties) {
         super(key, (String)null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES, Property.class));
         assert assertAllowedProperties(properties);
+        KeyStoreWrapper.validateSettingName(key);
     }
 
     private boolean assertAllowedProperties(Setting.Property... properties) {

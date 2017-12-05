@@ -28,7 +28,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -61,7 +60,7 @@ public class TcpReadContextTests extends ESTestCase {
         final AtomicLong bufferCapacity = new AtomicLong();
         when(channel.read(any(InboundChannelBuffer.class))).thenAnswer(invocationOnMock -> {
             InboundChannelBuffer buffer = (InboundChannelBuffer) invocationOnMock.getArguments()[0];
-            ByteBuffer byteBuffer = buffer.getPostIndexBuffers()[0];
+            ByteBuffer byteBuffer = buffer.sliceBuffersFrom(buffer.getIndex())[0];
             bufferCapacity.set(buffer.getCapacity() - buffer.getIndex());
             byteBuffer.put(fullMessage);
             buffer.incrementIndex(fullMessage.length);
@@ -88,7 +87,7 @@ public class TcpReadContextTests extends ESTestCase {
 
         when(channel.read(any(InboundChannelBuffer.class))).thenAnswer(invocationOnMock -> {
             InboundChannelBuffer buffer = (InboundChannelBuffer) invocationOnMock.getArguments()[0];
-            ByteBuffer byteBuffer = buffer.getPostIndexBuffers()[0];
+            ByteBuffer byteBuffer = buffer.sliceBuffersFrom(buffer.getIndex())[0];
             bufferCapacity.set(buffer.getCapacity() - buffer.getIndex());
             byteBuffer.put(bytes.get());
             buffer.incrementIndex(bytes.get().length);

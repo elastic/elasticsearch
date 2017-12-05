@@ -83,7 +83,7 @@ public class TcpReadContext implements ReadContext {
     }
 
     private static BytesReference toBytesReference(InboundChannelBuffer channelBuffer) {
-        ByteBuffer[] writtenToBuffers = channelBuffer.getPreIndexBuffers();
+        ByteBuffer[] writtenToBuffers = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
         ByteBufferReference[] references = new ByteBufferReference[writtenToBuffers.length];
         for (int i = 0; i < references.length; ++i) {
             references[i] = new ByteBufferReference(writtenToBuffers[i]);

@@ -90,17 +90,21 @@ public final class InboundChannelBuffer {
 
     /**
      * This method will return an array of {@link ByteBuffer} representing the bytes from the beginning of
-     * this buffer up through the current index. The buffers will be duplicates of the internal buffers, so
-     * any modifications to the markers {@link ByteBuffer#position()}, {@link ByteBuffer#limit()}, etc will
-     * not modify the this class.
+     * this buffer up through the index argument that was passed. The buffers will be duplicates of the
+     * internal buffers, so any modifications to the markers {@link ByteBuffer#position()},
+     * {@link ByteBuffer#limit()}, etc will not modify the this class.
      *
+     * @param to the index to slice up to
      * @return the byte buffers
      */
-    public ByteBuffer[] getPreIndexBuffers() {
-        if (internalIndex == 0) {
+    public ByteBuffer[] sliceBuffersTo(long to) {
+        if (to > capacity) {
+            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
+                "], with slice parameters to [" + to + "]");
+        } else if (to == 0) {
             return EMPTY_BYTE_BUFFER_ARRAY;
         }
-        long indexWithOffset = internalIndex + offset;
+        long indexWithOffset = to + offset;
         int pageCount = pageIndex(indexWithOffset);
         int finalLimit = indexInPage(indexWithOffset);
         if (finalLimit != 0) {
@@ -123,18 +127,22 @@ public final class InboundChannelBuffer {
     }
 
     /**
-     * This method will return an array of {@link ByteBuffer} representing the bytes from the current index
-     * of this buffer through the end. The buffers will be duplicates of the internal buffers, so any
+     * This method will return an array of {@link ByteBuffer} representing the bytes from the index passed
+     * through the end of this buffer. The buffers will be duplicates of the internal buffers, so any
      * modifications to the markers {@link ByteBuffer#position()}, {@link ByteBuffer#limit()}, etc will not
      * modify the this class.
      *
+     * @param from the index to slice from
      * @return the byte buffers
      */
-    public ByteBuffer[] getPostIndexBuffers() {
-        if (internalIndex == capacity) {
+    public ByteBuffer[] sliceBuffersFrom(long from) {
+        if (from > capacity) {
+            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
+                "], with slice parameters from [" + from + "]");
+        } else if (from == capacity) {
             return EMPTY_BYTE_BUFFER_ARRAY;
         }
-        long indexWithOffset = offset + internalIndex;
+        long indexWithOffset = from + offset;
 
         int pageIndex = pageIndex(indexWithOffset);
         int indexInPage = indexInPage(indexWithOffset);

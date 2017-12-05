@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -537,7 +538,13 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             String[] concreteIndices = aliasOrIndex.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
                     .toArray(String[]::new);
 
-            String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT, logger);
+            String[] indicesThatRequireAnUpdate;
+            try {
+                indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT, logger);
+            } catch (IOException e) {
+                listener.onFailure(e);
+                return;
+            }
 
             if (indicesThatRequireAnUpdate.length > 0) {
                 try (XContentBuilder mapping = mappingSupplier.get()) {
@@ -742,7 +749,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 continue;
             }
 
-            if (nodeSupportsJobVersion(node.getVersion(), job.getJobVersion()) == false) {
+            if (nodeSupportsJobVersion(node.getVersion()) == false) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node
                         + "], because this node does not support jobs of version [" + job.getJobVersion() + "]";
                 logger.trace(reason);
@@ -884,15 +891,16 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         return unavailableIndices;
     }
 
-    static boolean nodeSupportsJobVersion(Version nodeVersion, Version jobVersion) {
+    private static boolean nodeSupportsJobVersion(Version nodeVersion) {
         return nodeVersion.onOrAfter(Version.V_5_5_0);
     }
 
-    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion, Logger logger) {
+    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion,
+                                          Logger logger) throws IOException {
         List<String> indicesToUpdate = new ArrayList<>();
 
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
-                new String[] { ElasticsearchMappings.DOC_TYPE });
+                new String[] { ElasticsearchMappings.DOC_TYPE }, MapperPlugin.NOOP_FIELD_FILTER);
 
         for (String index : concreteIndices) {
             ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);

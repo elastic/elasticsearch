@@ -5,19 +5,15 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.apache.http.Header;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
 
@@ -26,8 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
 
@@ -59,16 +53,7 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
     }
 
     public void testGetSettingsSmtpPassword() throws Exception {
-        Header[] headers;
-        if (securityEnabled()) {
-            headers = new Header[] {
-                    new BasicHeader(BASIC_AUTH_HEADER,
-                            basicAuthHeaderValue(MonitoringIntegTestCase.SecuritySettings.TEST_USERNAME,
-                                    new SecureString(MonitoringIntegTestCase.SecuritySettings.TEST_PASSWORD.toCharArray())))};
-        } else {
-            headers = new Header[0];
-        }
-        Response response = getRestClient().performRequest("GET", "/_nodes/settings", headers);
+        Response response = getRestClient().performRequest("GET", "/_nodes/settings");
         Map<String, Object> responseMap = createParser(JsonXContent.jsonXContent, response.getEntity().getContent()).map();
         Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
         for (Object node : nodes.values()) {

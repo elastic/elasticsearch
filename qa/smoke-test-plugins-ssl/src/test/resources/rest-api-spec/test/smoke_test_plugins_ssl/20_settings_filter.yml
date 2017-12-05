@@ -15,3 +15,4 @@
   - is_false: nodes.$master.settings.xpack.monitoring.exporters._http.auth.password
   - is_false: nodes.$master.settings.xpack.monitoring.exporters._http.ssl.truststore.path
   - is_false: nodes.$master.settings.xpack.monitoring.exporters._http.ssl.truststore.password
+  - is_false: nodes.$master.settings.xpack.monitoring.exporters._http.ssl.verification_mode

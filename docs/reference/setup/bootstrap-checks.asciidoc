@@ -25,7 +25,7 @@ documented individually.
 
 By default, Elasticsearch binds to `localhost` for <<modules-http,HTTP>> and
 <<modules-transport,transport (internal)>> communication. This is fine for
-downloading and playing with Elasticsearch, and everyday development but it's
+downloading and playing with Elasticsearch as well as everyday development, but it's
 useless for production systems. To join a cluster, an Elasticsearch node must be
 reachable via transport communication. To join a cluster over an external
 network interface, a node must bind transport to an external interface and not

@@ -59,14 +59,10 @@ See the <<query-dsl-has-child-query,`has_child`>> and
 the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation,
 and <<parent-child-inner-hits,inner hits>> for more information.
 
-The parent-join creates one field to index the name of the relation within the document (my_parent, my_child, …).
-
-It also creates one field per parent/child relation. The name of this field is the name of the join field followed by # and the name of the parent in the relation. So for instance for the my_parent ⇒ my_child relation, it creates an additional field named _parent#my_parent.
-
-This field contains the parent _id that the document links to if the document is a child (my_child) and the _id of document if it’s a parent (my_parent).
-The value of the `_parent` field is accessible in aggregations
-and scripts, and may be queried with the
-<<query-dsl-parent-id-query, `parent_id` query>>:
+An additional field that contains the parent _id that the document links to if the document is a child (my_child) and the _id of document if it’s a parent (my_parent) is created in the index.
+The value of this field is accessible in aggregations
+and scripts through its entire name (`_parent#parent_name`) and may be queried with the
+<<query-dsl-parent-id-query, `parent_id` query>> directly:
 
 [source,js]
 --------------------------

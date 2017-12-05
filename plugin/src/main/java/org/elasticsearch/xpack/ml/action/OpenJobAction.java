@@ -61,8 +61,10 @@ import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.AllocatedPersistentTask;
@@ -390,15 +392,17 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         private final XPackLicenseState licenseState;
         private final PersistentTasksService persistentTasksService;
         private final Client client;
+        private final JobProvider jobProvider;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                ClusterService clusterService, PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
+                               IndexNameExpressionResolver indexNameExpressionResolver, Client client, JobProvider jobProvider) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
             this.persistentTasksService = persistentTasksService;
             this.client = client;
+            this.jobProvider = jobProvider;
         }
 
         @Override
@@ -422,10 +426,10 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
             JobParams jobParams = request.getJobParams();
             if (licenseState.isMachineLearningAllowed()) {
-                // Step 4. Wait for job to be started and respond
+                // Step 5. Wait for job to be started and respond
                 ActionListener<PersistentTask<JobParams>> finalListener = new ActionListener<PersistentTask<JobParams>>() {
                     @Override
                     public void onResponse(PersistentTask<JobParams> task) {
@@ -442,11 +446,42 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                     }
                 };
 
-                // Step 3. Start job task
-                ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
+                // Step 4. Start job task
+                ActionListener<PutJobAction.Response> establishedMemoryUpdateListener = ActionListener.wrap(
                         response -> persistentTasksService.startPersistentTask(MlMetadata.jobTaskId(jobParams.jobId),
-                                TASK_NAME, jobParams, finalListener)
-                        , listener::onFailure
+                                TASK_NAME, jobParams, finalListener),
+                        listener::onFailure
+                );
+
+                // Step 3. Update established model memory for pre-6.1 jobs that haven't had it set
+                ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
+                        response -> {
+                            MlMetadata mlMetadata = clusterService.state().getMetaData().custom(MlMetadata.TYPE);
+                            Job job = mlMetadata.getJobs().get(jobParams.getJobId());
+                            if (job != null) {
+                                Version jobVersion = job.getJobVersion();
+                                Long jobEstablishedModelMemory = job.getEstablishedModelMemory();
+                                if ((jobVersion == null || jobVersion.before(Version.V_6_1_0))
+                                        && (jobEstablishedModelMemory == null || jobEstablishedModelMemory == 0)) {
+                                    jobProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
+                                        if (establishedModelMemory != null && establishedModelMemory > 0) {
+                                            JobUpdate update = new JobUpdate.Builder(job.getId())
+                                                    .setEstablishedModelMemory(establishedModelMemory).build();
+                                            UpdateJobAction.Request updateRequest = new UpdateJobAction.Request(job.getId(), update);
+
+                                            executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
+                                                    establishedMemoryUpdateListener);
+                                        } else {
+                                            establishedMemoryUpdateListener.onResponse(null);
+                                        }
+                                    }, listener::onFailure);
+                                } else {
+                                    establishedMemoryUpdateListener.onResponse(null);
+                                }
+                            } else {
+                                establishedMemoryUpdateListener.onResponse(null);
+                            }
+                        }, listener::onFailure
                 );
 
                 // Step 2. Try adding state doc mapping

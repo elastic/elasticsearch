@@ -22,9 +22,13 @@ import java.util.Objects;
 public class CliFormatterCursor implements Cursor {
     public static final String NAME = "f";
 
-    private Cursor delegate;
-    private CliFormatter formatter;
+    private final Cursor delegate;
+    private final CliFormatter formatter;
 
+    /**
+     * If the newCursor is empty, returns an empty cursor. Otherwise, creates a new
+     * CliFormatterCursor that wraps the newCursor.
+     */
     public static Cursor wrap(Cursor newCursor, CliFormatter formatter) {
         if (newCursor == EMPTY) {
             return EMPTY;
@@ -32,7 +36,7 @@ public class CliFormatterCursor implements Cursor {
         return new CliFormatterCursor(newCursor, formatter);
     }
 
-    public CliFormatterCursor(Cursor delegate, CliFormatter formatter) {
+    private CliFormatterCursor(Cursor delegate, CliFormatter formatter) {
         this.delegate = delegate;
         this.formatter = formatter;
     }

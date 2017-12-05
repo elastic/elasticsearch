@@ -24,10 +24,13 @@ import java.util.Objects;
  */
 public class JdbcCursor implements Cursor {
     public static final String NAME = "j";
-    private Cursor delegate;
-    private List<JDBCType> types;
+    private final Cursor delegate;
+    private final List<JDBCType> types;
 
-
+    /**
+     * If the newCursor is empty, returns an empty cursor. Otherwise, creates a new
+     * CliFormatterCursor that wraps the newCursor.
+     */
     public static Cursor wrap(Cursor newCursor, List<JDBCType> types) {
         if (newCursor == EMPTY) {
             return EMPTY;
@@ -35,7 +38,7 @@ public class JdbcCursor implements Cursor {
         return new JdbcCursor(newCursor, types);
     }
 
-    public JdbcCursor(Cursor delegate, List<JDBCType> types) {
+    private JdbcCursor(Cursor delegate, List<JDBCType> types) {
         this.delegate = delegate;
         this.types = types;
     }

@@ -44,11 +44,11 @@ public class SqlResponseTests extends AbstractStreamableTestCase<SqlResponse> {
                 for (int i = 0; i < typeNum; i++) {
                     types.add(randomFrom(JDBCType.values()));
                 }
-                return new JdbcCursor(ScrollCursorTests.randomScrollCursor(), types);
+                return JdbcCursor.wrap(ScrollCursorTests.randomScrollCursor(), types);
             case 2:
                 SqlResponse response = createRandomInstance(Cursor.EMPTY);
                 if (response.columns() != null && response.rows() != null) {
-                    return new CliFormatterCursor(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
+                    return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
                 } else {
                     return ScrollCursorTests.randomScrollCursor();
                 }

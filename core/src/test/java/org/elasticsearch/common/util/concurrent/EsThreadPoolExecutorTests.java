@@ -44,57 +44,44 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
 
     public void testRejectedExecutionExceptionContainsNodeName() {
         // we test a fixed and an auto-queue executor but not scaling since it does not reject
-        {
-            final CountDownLatch latch = new CountDownLatch(1);
-                node().injector().getInstance(ThreadPool.class).executor("bulk").execute(() -> {
-                    try {
-                        latch.await();
-                    } catch (final InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            final EsRejectedExecutionException e = expectThrows(
-                    EsRejectedExecutionException.class,
-                    () -> node().injector().getInstance(ThreadPool.class).executor("bulk").execute(() -> { }));
-            assertThat(e, hasToString(containsString("name = es-thread-pool-executor-tests/" + "bulk" + ", ")));
-            latch.countDown();
-        }
+        runThreadPoolExecutorTest(1, ThreadPool.Names.BULK);
+        runThreadPoolExecutorTest(2, ThreadPool.Names.SEARCH);
 
-        {
-            final CountDownLatch latch = new CountDownLatch(2);
-            for (int i = 0; i < 2; i++) {
-                node().injector().getInstance(ThreadPool.class).executor("search").execute(() -> {
-                    try {
-                        latch.await();
-                    } catch (final InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            }
+    }
 
-            final AtomicBoolean rejected = new AtomicBoolean();
-            node().injector().getInstance(ThreadPool.class).executor("search").execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-
-                }
-
-                @Override
-                public void onRejection(Exception e) {
-                    rejected.set(true);
-                    assertThat(e, hasToString(containsString("name = es-thread-pool-executor-tests/" + "search" + ", ")));
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-
+    private void runThreadPoolExecutorTest(final int fill, final String executor) {
+        final CountDownLatch latch = new CountDownLatch(fill);
+        for (int i = 0; i < fill; i++) {
+            node().injector().getInstance(ThreadPool.class).executor(executor).execute(() -> {
+                try {
+                    latch.await();
+                } catch (final InterruptedException e) {
+                    throw new RuntimeException(e);
                 }
             });
-
-            latch.countDown();
-            assertTrue(rejected.get());
         }
 
+        final AtomicBoolean rejected = new AtomicBoolean();
+        node().injector().getInstance(ThreadPool.class).executor(executor).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                rejected.set(true);
+                assertThat(e, hasToString(containsString("name = es-thread-pool-executor-tests/" + executor + ", ")));
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+
+            }
+        });
+
+        latch.countDown();
+        assertTrue(rejected.get());
     }
 
 }

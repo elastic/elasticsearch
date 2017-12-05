@@ -17,29 +17,11 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.vagrantsupport'
-apply plugin: 'elasticsearch.vagrant'
+package org.elasticsearch.packaging
 
-esvagrant {
-  testTask ':qa:packaging:run'
-}
+class PackagingMain {
 
-List<String> plugins = []
-for (Project subproj : project.rootProject.subprojects) {
-  if (subproj.path.startsWith(':plugins:')) {
-    // add plugin as a dep
-    dependencies {
-      packaging project(path: "${subproj.path}", configuration: 'zip')
+    static void main(String[] args) {
+        println("hello world groovy packaging test")
     }
-    plugins.add(subproj.name)
-  }
-}
-plugins = plugins.toSorted()
-
-setupPackaging {
-  doFirst {
-    File expectedPlugins = file('build/plugins/expected')
-    expectedPlugins.parentFile.mkdirs()
-    expectedPlugins.setText(plugins.join('\n'), 'UTF-8')
-  }
 }

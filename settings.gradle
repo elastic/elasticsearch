@@ -70,6 +70,8 @@ List projects = [
   'qa:mixed-cluster',
   'qa:multi-cluster-search',
   'qa:no-bootstrap-tests',
+  'qa:packaging',
+  'qa:packaging-common',
   'qa:reindex-from-old',
   'qa:rolling-upgrade',
   'qa:smoke-test-client',

@@ -121,6 +121,7 @@ import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -1905,6 +1906,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             if (randomBoolean()) {
                 mocks.add(AssertingTransportInterceptor.TestPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(MockFieldFilterPlugin.class);
             }
         }
 

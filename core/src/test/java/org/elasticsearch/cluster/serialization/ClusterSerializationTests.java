@@ -172,7 +172,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         IndexMetaData indexMetaData
             = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1).build();
         IndexTemplateMetaData indexTemplateMetaData = IndexTemplateMetaData.builder("test-template")
-            .patterns(Arrays.asList()).build();
+            .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false))).build();
         MetaData metaData = MetaData.builder().put(indexMetaData, true).put(indexTemplateMetaData).build();
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();

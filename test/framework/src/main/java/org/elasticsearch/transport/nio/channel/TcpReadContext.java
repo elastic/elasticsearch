@@ -48,7 +48,8 @@ public class TcpReadContext implements ReadContext {
     @Override
     public int read() throws IOException {
         if (channelBuffer.getRemaining() == 0) {
-            channelBuffer.ensureCapacity(channelBuffer.getCapacity() + InboundChannelBuffer.PAGE_SIZE);
+            // Requiring one additional byte will ensure that a new page is allocated.
+            channelBuffer.ensureCapacity(channelBuffer.getCapacity() + 1);
         }
 
         int bytesRead = channel.read(channelBuffer);

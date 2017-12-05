@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.lease.Releasable;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Iterator;
@@ -32,30 +30,29 @@ import java.util.function.Supplier;
  * the pages internally. If more space is needed at the end of the buffer {@link #ensureCapacity(long)} can
  * be called and the buffer will expand using the supplier provided.
  */
-public class InboundChannelBuffer {
+public final class InboundChannelBuffer {
 
-    public static final int PAGE_SIZE = 1 << 14;
+    private static final int PAGE_SIZE = 1 << 14;
+    private static final int PAGE_MASK = PAGE_SIZE - 1;
+    private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
 
-    private final int pageMask;
-    private final int pageShift;
 
-    private final ArrayDeque<Page> pages;
-    private final Supplier<Page> pageSupplier;
+    private final ArrayDeque<ByteBuffer> pages;
+    private final Supplier<ByteBuffer> pageSupplier;
 
     private long capacity = 0;
     private long internalIndex = 0;
+    // The offset is an int as it is the offset of where the bytes begin in the first buffer
     private int offset = 0;
 
     public InboundChannelBuffer() {
-        this(() -> new Page(ByteBuffer.wrap(new byte[PAGE_SIZE]), () -> {}));
+        this(() -> ByteBuffer.wrap(new byte[PAGE_SIZE]));
     }
 
-    private InboundChannelBuffer(Supplier<Page> pageSupplier) {
+    private InboundChannelBuffer(Supplier<ByteBuffer> pageSupplier) {
         this.pageSupplier = pageSupplier;
         this.pages = new ArrayDeque<>();
-        this.pageMask = PAGE_SIZE - 1;
-        this.pageShift = Integer.numberOfTrailingZeros(PAGE_SIZE);
         this.capacity = PAGE_SIZE * pages.size();
         ensureCapacity(PAGE_SIZE);
     }
@@ -72,7 +69,8 @@ public class InboundChannelBuffer {
     }
 
     /**
-     * This method will release bytes from the head of this buffer.
+     * This method will release bytes from the head of this buffer. If you release bytes past the current
+     * index the index is truncated to zero.
      *
      * @param bytesToRelease number of bytes to drop
      */
@@ -83,8 +81,7 @@ public class InboundChannelBuffer {
 
         int pagesToRelease = pageIndex(offset + bytesToRelease);
         for (int i = 0; i < pagesToRelease; ++i) {
-            Page page = pages.removeFirst();
-            page.close();
+            pages.removeFirst();
         }
         capacity -= bytesToRelease;
         internalIndex = Math.max(internalIndex - bytesToRelease, 0);
@@ -111,12 +108,12 @@ public class InboundChannelBuffer {
         }
 
         ByteBuffer[] buffers = new ByteBuffer[pageCount];
-        Iterator<Page> pageIterator = pages.iterator();
-        ByteBuffer firstBuffer = pageIterator.next().buffer.duplicate();
+        Iterator<ByteBuffer> pageIterator = pages.iterator();
+        ByteBuffer firstBuffer = pageIterator.next().duplicate();
         firstBuffer.position(firstBuffer.position() + offset);
         buffers[0] = firstBuffer;
-        for (int i = 1; i < buffers.length; ++i) {
-            buffers[i] = pageIterator.next().buffer.duplicate();
+        for (int i = 1; i < buffers.length; i++) {
+            buffers[i] = pageIterator.next().duplicate();
         }
         if (finalLimit != 0) {
             buffers[buffers.length - 1].limit(finalLimit);
@@ -135,7 +132,7 @@ public class InboundChannelBuffer {
      */
     public ByteBuffer[] getPostIndexBuffers() {
         if (internalIndex == capacity) {
-            return new ByteBuffer[0];
+            return EMPTY_BYTE_BUFFER_ARRAY;
         }
         long indexWithOffset = offset + internalIndex;
 
@@ -143,11 +140,11 @@ public class InboundChannelBuffer {
         int indexInPage = indexInPage(indexWithOffset);
 
         ByteBuffer[] buffers = new ByteBuffer[pages.size() - pageIndex];
-        Iterator<Page> pageIterator = pages.descendingIterator();
+        Iterator<ByteBuffer> pageIterator = pages.descendingIterator();
         for (int i = buffers.length - 1; i > 0; --i) {
-            buffers[i] = pageIterator.next().buffer.duplicate();
+            buffers[i] = pageIterator.next().duplicate();
         }
-        ByteBuffer firstPostIndexBuffer = pageIterator.next().buffer.duplicate();
+        ByteBuffer firstPostIndexBuffer = pageIterator.next().duplicate();
         firstPostIndexBuffer.position(firstPostIndexBuffer.position() + indexInPage);
         buffers[0] = firstPostIndexBuffer;
 
@@ -180,35 +177,18 @@ public class InboundChannelBuffer {
     }
 
     private int numPages(long capacity) {
-        final long numPages = (capacity + pageMask) >>> pageShift;
+        final long numPages = (capacity + PAGE_MASK) >>> PAGE_SHIFT;
         if (numPages > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("pageSize=" + (pageMask + 1) + " is too small for such as capacity: " + capacity);
+            throw new IllegalArgumentException("pageSize=" + (PAGE_MASK + 1) + " is too small for such as capacity: " + capacity);
         }
         return (int) numPages;
     }
 
     private int pageIndex(long index) {
-        return (int) (index >>> pageShift);
+        return (int) (index >>> PAGE_SHIFT);
     }
 
     private int indexInPage(long index) {
-        return (int) (index & pageMask);
-    }
-
-    private static class Page implements Releasable {
-
-        private final ByteBuffer buffer;
-        private final Releasable releasable;
-
-
-        private Page(ByteBuffer buffer, Releasable releasable) {
-            this.buffer = buffer;
-            this.releasable = releasable;
-        }
-
-        @Override
-        public void close() {
-            releasable.close();
-        }
+        return (int) (index & PAGE_MASK);
     }
 }

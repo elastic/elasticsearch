@@ -121,7 +121,7 @@ public class IncidentEvent implements ToXContentObject {
                             builder.endObject();
                         }
                         if (contexts != null && contexts.length > 0) {
-                            builder.startArray(Fields.CONTEXT.getPreferredName());
+                            builder.startArray(Fields.CONTEXTS.getPreferredName());
                             for (IncidentEventContext context : contexts) {
                                 context.toXContent(builder, params);
                             }
@@ -154,7 +154,7 @@ public class IncidentEvent implements ToXContentObject {
         }
         builder.field(Fields.ATTACH_PAYLOAD.getPreferredName(), attachPayload);
         if (contexts != null) {
-            builder.startArray(Fields.CONTEXT.getPreferredName());
+            builder.startArray(Fields.CONTEXTS.getPreferredName());
             for (IncidentEventContext context : contexts) {
                 context.toXContent(builder, params);
             }
@@ -265,7 +265,7 @@ public class IncidentEvent implements ToXContentObject {
                 proxy.toXContent(builder, params);
             }
             if (contexts != null) {
-                builder.startArray(Fields.CONTEXT.getPreferredName());
+                builder.startArray(Fields.CONTEXTS.getPreferredName());
                 for (IncidentEventContext.Template context : contexts) {
                     context.toXContent(builder, params);
                 }
@@ -341,7 +341,7 @@ public class IncidentEvent implements ToXContentObject {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}], " +
                                 "expected a boolean value but found [{}] instead", Fields.ATTACH_PAYLOAD.getPreferredName(), token);
                     }
-                } else if (Fields.CONTEXT.match(currentFieldName)) {
+                } else if (Fields.CONTEXTS.match(currentFieldName) || Fields.CONTEXT_DEPRECATED.match(currentFieldName)) {
                     if (token == XContentParser.Token.START_ARRAY) {
                         List<IncidentEventContext.Template> list = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -349,7 +349,7 @@ public class IncidentEvent implements ToXContentObject {
                                 list.add(IncidentEventContext.Template.parse(parser));
                             } catch (ElasticsearchParseException e) {
                                 throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field " +
-                                        "[{}]", Fields.CONTEXT.getPreferredName());
+                                        "[{}]", parser.currentName());
                             }
                         }
                         contexts = list.toArray(new IncidentEventContext.Template[list.size()]);
@@ -438,7 +438,11 @@ public class IncidentEvent implements ToXContentObject {
         ParseField CLIENT = new ParseField("client");
         ParseField CLIENT_URL = new ParseField("client_url");
         ParseField ATTACH_PAYLOAD = new ParseField("attach_payload");
-        ParseField CONTEXT = new ParseField("context");
+        ParseField CONTEXTS = new ParseField("contexts");
+        // this field exists because in versions prior 6.0 we accidentally used context instead of contexts and thus the correct data
+        // was never picked up on the pagerduty side
+        // we need to keep this for BWC
+        ParseField CONTEXT_DEPRECATED = new ParseField("context");
 
         ParseField SERVICE_KEY = new ParseField("service_key");
         ParseField PAYLOAD = new ParseField("payload");

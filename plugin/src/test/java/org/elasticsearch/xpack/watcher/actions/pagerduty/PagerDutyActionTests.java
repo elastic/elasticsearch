@@ -176,7 +176,8 @@ public class PagerDutyActionTests extends ESTestCase {
                     IncidentEventContext.Template.link(new TextTemplate("_href"), new TextTemplate("_text")),
                     IncidentEventContext.Template.image(new TextTemplate("_src"), new TextTemplate("_href"), new TextTemplate("_alt"))
             };
-            builder.array("context", (Object) contexts);
+            String fieldName = randomBoolean() ? "contexts" : "context";
+            builder.array(fieldName, (Object) contexts);
         }
 
         builder.endObject();

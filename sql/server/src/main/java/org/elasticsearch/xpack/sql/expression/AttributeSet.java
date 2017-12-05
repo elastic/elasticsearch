@@ -7,121 +7,74 @@ package org.elasticsearch.xpack.sql.expression;
 
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
+import static java.util.Collections.emptyMap;
 
 public class AttributeSet implements Set<Attribute> {
 
-    public static final AttributeSet EMPTY = new AttributeSet(emptyList());
+    private static final AttributeMap<Object> EMPTY_DELEGATE = new AttributeMap<>(emptyMap());
 
-    private static class AttributeWrapper {
+    public static final AttributeSet EMPTY = new AttributeSet(EMPTY_DELEGATE);
 
-        private final Attribute attr;
+    // use the same name as in HashSet
+    private static final Object PRESENT = new Object();
 
-        AttributeWrapper(Attribute attr) {
-            this.attr = attr;
-        }
-
-        @Override
-        public int hashCode() {
-            return attr.id().hashCode();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof AttributeWrapper) {
-                AttributeWrapper aw = (AttributeWrapper) obj;
-                if (attr.getClass() == aw.attr.getClass()) {
-                    return attr.id().equals(aw.attr.id());
-                }
-            }
-
-            return false;
-        }
-
-        @Override
-        public String toString() {
-            return "AttrWrap[" + attr + "]";
-        }
-    }
-
-    private final Set<AttributeWrapper> delegate;
+    private final AttributeMap<Object> delegate;
 
     public AttributeSet() {
-        this.delegate = new LinkedHashSet<>();
+        delegate = new AttributeMap<>();
+    }
+
+    public AttributeSet(Attribute attr) {
+        delegate = new AttributeMap<Object>(attr, PRESENT);
     }
 
     public AttributeSet(Collection<Attribute> attr) {
         if (attr.isEmpty()) {
-            this.delegate = emptySet();
+            delegate = EMPTY_DELEGATE;
         }
         else {
-            this.delegate = new LinkedHashSet<>(attr.size());
+            delegate = new AttributeMap<Object>();
 
             for (Attribute a : attr) {
-                delegate.add(new AttributeWrapper(a));
+                delegate.add(a, PRESENT);
             }
         }
     }
 
-    public AttributeSet(Attribute attr) {
-        this.delegate = singleton(new AttributeWrapper(attr));
+    private AttributeSet(AttributeMap<Object> delegate) {
+        this.delegate = delegate;
     }
 
     // package protected - should be called through Expressions to cheaply create 
     // a set from a collection of sets without too much copying
     void addAll(AttributeSet other) {
-        this.delegate.addAll(other.delegate);
+        delegate.addAll(other.delegate);
     }
 
     public AttributeSet substract(AttributeSet other) {
-        AttributeSet diff = new AttributeSet();
-        for (AttributeWrapper aw : this.delegate) {
-            if (!other.delegate.contains(aw)) {
-                diff.delegate.add(aw);
-            }
-        }
-
-        return diff;
+        return new AttributeSet(delegate.substract(other.delegate));
     }
 
     public AttributeSet intersect(AttributeSet other) {
-        AttributeSet smaller = (other.size() > size() ? this : other);
-        AttributeSet larger = (smaller == this ? other : this);
-
-        AttributeSet intersect = new AttributeSet();
-        for (AttributeWrapper aw : smaller.delegate) {
-            if (larger.contains(aw)) {
-                intersect.delegate.add(aw);
-            }
-        }
-
-        return intersect;
+        return new AttributeSet(delegate.intersect(other.delegate));
     }
 
     public boolean subsetOf(AttributeSet other) {
-        if (this.size() > other.size()) {
-            return false;
-        }
-        for (AttributeWrapper aw : delegate) {
-            if (!other.delegate.contains(aw)) {
-                return false;
-            }
-        }
+        return delegate.subsetOf(other.delegate);
+    }
 
-        return true;
+    public Set<String> names() {
+        return delegate.attributeNames();
     }
 
     public void forEach(Consumer<? super Attribute> action) {
-        delegate.forEach(e -> action.accept(e.attr));
+        delegate.forEach((k, v) -> action.accept(k));
     }
 
     public int size() {
@@ -133,15 +86,12 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public boolean contains(Object o) {
-        if (o instanceof NamedExpression) {
-            return delegate.contains(new AttributeWrapper(((NamedExpression) o).toAttribute()));
-        }
-        return false;
+        return delegate.containsKey(o);
     }
 
     public boolean containsAll(Collection<?> c) {
         for (Object o : c) {
-            if (!delegate.contains(o)) {
+            if (!delegate.containsKey(o)) {
                 return false;
             }
         }
@@ -149,42 +99,15 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public Iterator<Attribute> iterator() {
-        return new Iterator<Attribute>() {
-            Iterator<AttributeWrapper> internal = delegate.iterator();
-
-            @Override
-            public boolean hasNext() {
-                return internal.hasNext();
-            }
-
-            @Override
-            public Attribute next() {
-                return internal.next().attr;
-            }
-        };
+        return delegate.keySet().iterator();
     }
 
     public Object[] toArray() {
-        Object[] array = delegate.toArray();
-        for (int i = 0; i < array.length; i++) {
-            array[i] = ((AttributeWrapper) array[i]).attr;
-        }
-        return array;
+        return delegate.keySet().toArray();
     }
 
-    @SuppressWarnings("unchecked")
     public <T> T[] toArray(T[] a) {
-        if (a.length < size())
-            a = (T[]) java.lang.reflect.Array.newInstance(a.getClass().getComponentType(), size());
-        int i = 0;
-        Object[] result = a;
-        for (Attribute attr : this) {
-            result[i++] = attr;
-        }
-        if (a.length > size()) {
-            a[size()] = null;
-        }
-        return a;
+        return delegate.keySet().toArray(a);
     }
 
     public boolean add(Attribute e) {
@@ -211,14 +134,6 @@ public class AttributeSet implements Set<Attribute> {
         throw new UnsupportedOperationException();
     }
 
-    public boolean equals(Object o) {
-        return delegate.equals(o);
-    }
-
-    public int hashCode() {
-        return delegate.hashCode();
-    }
-
     public Spliterator<Attribute> spliterator() {
         throw new UnsupportedOperationException();
     }
@@ -228,15 +143,22 @@ public class AttributeSet implements Set<Attribute> {
     }
 
     public Stream<Attribute> stream() {
-        return delegate.stream().map(e -> e.attr);
+        return delegate.keySet().stream();
     }
 
     public Stream<Attribute> parallelStream() {
-        return delegate.parallelStream().map(e -> e.attr);
+        return delegate.keySet().parallelStream();
     }
 
+    public boolean equals(Object o) {
+        return delegate.equals(o);
+    }
+
+    public int hashCode() {
+        return delegate.hashCode();
+    }
     @Override
     public String toString() {
-        return delegate.toString();
+        return delegate.keySet().toString();
     }
 }

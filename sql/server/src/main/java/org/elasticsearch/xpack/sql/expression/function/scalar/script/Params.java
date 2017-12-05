@@ -5,28 +5,31 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.script;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-
 import static java.util.Collections.emptyList;
 
-//
-// Parameters for a script
-//
-// This class mainly exists to handle the different aggregation cases.
-// While aggs can appear in scripts like regular parameters, they are not passed
-// as parameters but rather as bucket_path.
-// However in some cases (like count), it's not the agg path that is relevant but rather
-// its property (_count).
-// However the agg name still needs to be remembered to properly associate the script with.
-//
-// Hence why this class supports aggRef (which always returns the agg names) and aggPaths
-// (which returns the agg property if it exists or the agg name/reference).
-
+/**
+ * Parameters for a script
+ * 
+ * This class mainly exists to handle the different aggregation cases.
+ * While aggs can appear in scripts like regular parameters, they are not passed
+ * as parameters but rather as bucket_path.
+ * However in some cases (like count), it's not the agg path that is relevant but rather
+ * its property (_count). 
+ * As the agg name still needs to be remembered to properly associate the script with.
+ * 
+ * Hence why this class supports aggRef (which always returns the agg names) and aggPaths
+ * (which returns the agg property if it exists or the agg name/reference).
+ * 
+ * Also the parameter names support late binding/evaluation since the agg reference (like function id)
+ * can be changed during the optimization phase (for example min agg -&gt; stats.min).
+ */
 public class Params {
 
     public static final Params EMPTY = new Params(emptyList());
@@ -79,7 +82,7 @@ public class Params {
         for (Param<?> p : params) {
             if (p instanceof Agg) {
                 Agg a = (Agg) p;
-                String s = a.aggProperty() != null ? a.aggProperty() : a.value();
+                String s = a.aggProperty() != null ? a.aggProperty() : a.aggName();
                 map.put(p.prefix() + aggs++, s);
             }
         }
@@ -93,7 +96,7 @@ public class Params {
 
         for (Param<?> p : params) {
             if (p instanceof Agg) {
-                refs.add(p.value().toString());
+                refs.add(((Agg) p).aggName());
             }
         }
 

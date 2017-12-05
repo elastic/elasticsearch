@@ -30,7 +30,7 @@ public class Project extends UnaryPlan {
 
     @Override
     public boolean resolved() {
-        return super.resolved() && !Expressions.anyMatchInList(projections, Functions::isAggregateFunction);
+        return super.resolved() && !Expressions.anyMatch(projections, Functions::isAggregate);
     }
 
     @Override

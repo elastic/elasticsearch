@@ -15,6 +15,12 @@ public class Alias extends NamedExpression {
     private final Expression child;
     private final String qualifier;
 
+    /**
+     * Postpone attribute creation until it is actually created.
+     * Being immutable, create only one instance.
+     */
+    private Attribute lazyAttribute;
+
     public Alias(Location location, String name, Expression child) {
         this(location, name, null, child, null);
     }
@@ -53,6 +59,13 @@ public class Alias extends NamedExpression {
 
     @Override
     public Attribute toAttribute() {
+        if (lazyAttribute == null) {
+            lazyAttribute = createAttribute();
+        }
+        return lazyAttribute;
+    }
+
+    private Attribute createAttribute() {
         if (resolved()) {
             Expression c = child();
             

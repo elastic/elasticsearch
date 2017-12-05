@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -22,6 +23,10 @@ public abstract class Expressions {
                 .collect(toList());
     }
 
+    public static NamedExpression wrapAsNamed(Expression exp) {
+        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.location(), exp.nodeName(), exp);
+    }
+
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
         if (named.isEmpty()) {
             return emptyList();
@@ -33,7 +38,7 @@ public abstract class Expressions {
         return list;
     }
 
-    public static boolean anyMatchInList(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
+    public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
         for (Expression exp : exps) {
             if (exp.anyMatch(predicate)) {
                 return true;
@@ -67,6 +72,15 @@ public abstract class Expressions {
         return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.nodeName();
     }
 
+    public static List<String> names(Collection<Expression> e) {
+        List<String> names = new ArrayList<>(e.size());
+        for (Expression ex : e) {
+            names.add(name(ex));
+        }
+        
+        return names;
+    }
+
     public static Attribute attribute(Expression e) {
         return e instanceof NamedExpression ? ((NamedExpression) e).toAttribute() : null;
     }
@@ -79,5 +93,4 @@ public abstract class Expressions {
         return e.dataType().isNumeric()? TypeResolution.TYPE_RESOLVED : new TypeResolution( 
                 "Argument required to be numeric ('%s' of type '%s')", Expressions.name(e), e.dataType().esName());
     }
-
 }

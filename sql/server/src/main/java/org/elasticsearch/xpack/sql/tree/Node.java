@@ -12,6 +12,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static java.util.Collections.emptyList;
+
 /**
  * Immutable tree structure.
  * The traversal is done depth-first, pre-order (first the node then its children), that is seeks up and then goes down.
@@ -102,7 +104,47 @@ public abstract class Node<T extends Node<T>> {
     @SuppressWarnings("unchecked")
     public boolean anyMatch(Predicate<? super T> predicate) {
         boolean result = predicate.test((T) this);
-        return result ? true : children().stream().anyMatch(c -> c.anyMatch(predicate));
+        if (!result) {
+            for (T child : children) {
+                if (child.anyMatch(predicate)) {
+                    return true;
+                }
+            }
+        }
+        return result;
+    }
+
+    public List<T> collect(Predicate<? super T> predicate) {
+        List<T> l = new ArrayList<>();
+        forEachDown(n -> {
+            if (predicate.test(n)) {
+                l.add(n);
+            }
+        });
+        return l.isEmpty() ? emptyList() : l;
+    }
+
+    public List<T> collectLeaves() {
+        return collect(n -> n.children().isEmpty());
+    }
+
+    // parse the list in pre-order and on match, skip the child/branch and move on to the next child/branch
+    public List<T> collectFirstChildren(Predicate<? super T> predicate) {
+        List<T> matches = new ArrayList<>();
+        doCollectFirst(predicate, matches);
+        return matches;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void doCollectFirst(Predicate<? super T> predicate, List<T> matches) {
+        T t = (T) this;
+        if (predicate.test(t)) {
+            matches.add(t);
+        } else {
+            for (T child : children()) {
+                child.doCollectFirst(predicate, matches);
+            }
+        }
     }
 
     // TODO: maybe add a flatMap (need to double check the Stream bit) 
@@ -163,7 +205,11 @@ public abstract class Node<T extends Node<T>> {
             transformedChildren.add(next);
         }
 
-        return (childrenChanged ? NodeUtils.copyTree(this, transformedChildren) : (T) this);
+        return (childrenChanged ? replaceChildren(transformedChildren) : (T) this);
+    }
+
+    public T replaceChildren(List<T> newChildren) {
+        return NodeUtils.copyTree(this, newChildren);
     }
 
     //
@@ -201,6 +247,7 @@ public abstract class Node<T extends Node<T>> {
 
         return changed ? NodeUtils.cloneNode(this, props) : (T) this;
     }
+
 
     @Override
     public int hashCode() {

@@ -118,5 +118,7 @@ emp_no         |INTEGER
 first_name     |VARCHAR
 gender         |VARCHAR
 hire_date      |TIMESTAMP
+languages      |TINYINT
 last_name      |VARCHAR
+salary         |INTEGER
 ;

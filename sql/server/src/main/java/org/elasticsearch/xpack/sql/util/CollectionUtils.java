@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -46,7 +47,15 @@ public abstract class CollectionUtils {
 
         List<T> list = new ArrayList<>();
         for (Collection<? extends T> col : collections) {
-            list.addAll(col);
+            // typically AttributeSet which ends up iterating anyway plus creating a redundant array
+            if (col instanceof Set) {
+                for (T t : col) {
+                    list.add(t);
+                }
+            }
+            else {
+                list.addAll(col);
+            }
         }
         return list;
     }

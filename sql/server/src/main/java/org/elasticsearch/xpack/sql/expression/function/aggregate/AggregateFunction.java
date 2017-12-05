@@ -20,6 +20,8 @@ public abstract class AggregateFunction extends Function {
     private final Expression field;
     private final List<Expression> parameters;
 
+    private AggregateFunctionAttribute lazyAttribute;
+
     AggregateFunction(Location location, Expression field) {
         this(location, field, emptyList());
     }
@@ -38,13 +40,12 @@ public abstract class AggregateFunction extends Function {
         return parameters;
     }
 
-    public String functionId() {
-        return id().toString();
-    }
-
     @Override
     public AggregateFunctionAttribute toAttribute() {
-        // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-        return new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId(), null);
+        if (lazyAttribute == null) {
+            // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
+            lazyAttribute = new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId(), null);
+        }
+        return lazyAttribute;
     }
 }

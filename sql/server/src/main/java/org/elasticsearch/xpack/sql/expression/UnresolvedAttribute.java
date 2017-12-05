@@ -13,12 +13,14 @@ import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import static java.lang.String.format;
 
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     private final String unresolvedMsg;
+    private final Object resolutionMetadata;
 
     public UnresolvedAttribute(Location location, String name) {
         this(location, name, null);
@@ -29,18 +31,32 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     public UnresolvedAttribute(Location location, String name, String qualifier, String unresolvedMessage) {
-        super(location, name, qualifier, null);
+        this(location, name, qualifier, null, unresolvedMessage, null);
+    }
+
+    public UnresolvedAttribute(Location location, String name, String qualifier, ExpressionId id, String unresolvedMessage, Object resolutionMetadata) {
+        super(location, name, qualifier, id);
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
+        this.resolutionMetadata = resolutionMetadata;
+    }
+
+
+    public Object resolutionMetadata() {
+        return resolutionMetadata;
     }
 
     @Override
     public boolean resolved() {
         return false;
     }
-
+    
     @Override
     protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         return this;
+    }
+
+    public UnresolvedAttribute withUnresolvedMessage(String unresolvedMsg) {
+        return new UnresolvedAttribute(location(), name(), qualifier(), id(), unresolvedMsg, resolutionMetadata());
     }
 
     @Override
@@ -74,5 +90,14 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
             msg += ", did you mean " + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]": "any of " + potentialMatches.toString()) + "?";
         }
         return msg;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj)) {
+            UnresolvedAttribute ua = (UnresolvedAttribute) obj;
+            return Objects.equals(resolutionMetadata, ua.resolutionMetadata) && Objects.equals(unresolvedMsg, ua.unresolvedMsg);
+        }
+        return false;
     }
 }

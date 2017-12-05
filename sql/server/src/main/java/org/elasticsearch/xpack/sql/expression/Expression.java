@@ -68,6 +68,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
     public abstract boolean nullable();
 
+    // the references/inputs/leaves of the expression tree
     public AttributeSet references() {
         return Expressions.references(children());
     }
@@ -101,11 +102,11 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         return this;
     }
 
-    public final boolean canonicalEquals(Expression other) {
+    public boolean semanticEquals(Expression other) {
         return canonical().equals(other.canonical());
     }
 
-    public final int canonicalHash() {
+    public int semanticHash() {
         return canonical().hashCode();
     }
 

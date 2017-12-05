@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.script;
 
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,12 +23,8 @@ public class ParamsBuilder {
         return this;
     }
 
-    public ParamsBuilder agg(String aggName) {
-        return agg(aggName, null);
-    }
-
-    public ParamsBuilder agg(String aggName, String aggPath) {
-        params.add(new Agg(aggName, aggPath));
+    public ParamsBuilder agg(AggregateFunctionAttribute agg) {
+        params.add(new Agg(agg));
         return this;
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -100,7 +102,6 @@ import java.util.Map.Entry;
 
 import static java.lang.String.format;
 import static java.util.Collections.singletonList;
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.sql.expression.Foldables.doubleValuesOf;
 import static org.elasticsearch.xpack.sql.expression.Foldables.stringValueOf;
 import static org.elasticsearch.xpack.sql.expression.Foldables.valueOf;
@@ -109,13 +110,13 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.script.Scri
 
 abstract class QueryTranslator {
 
-    static final List<ExppressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
+    static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
             new BinaryComparisons(),
             new Ranges(),
             new BinaryLogic(),
             new Nots(),
             new Nulls(),
-            new Likes(), 
+            new Likes(),
             new StringQueries(),
             new Matches(),
             new MultiMatches()
@@ -129,7 +130,7 @@ abstract class QueryTranslator {
             new StatsAggs(),
             new ExtendedStatsAggs(),
             new MatrixStatsAggs(),
-            new PercentilesAggs(), 
+            new PercentilesAggs(),
             new PercentileRanksAggs(),
             new DistinctCounts(),
             new DateTimes()
@@ -156,7 +157,7 @@ abstract class QueryTranslator {
 
     static QueryTranslation toQuery(Expression e, boolean onAggs) {
         QueryTranslation translation = null;
-        for (ExppressionTranslator<?> translator : QUERY_TRANSLATORS) {
+        for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, onAggs);
             if (translation != null) {
                 return translation;
@@ -191,9 +192,10 @@ abstract class QueryTranslator {
             this.groupMap = groupMap;
             this.groupPath = propertyPath;
 
-            aggNames = groupMap.values().stream()
-                        .map(i -> i.id())
-                        .collect(toList());
+            aggNames = new ArrayList<>(groupMap.size());
+            for (GroupingAgg gAgg : groupMap.values()) {
+                aggNames.add(gAgg.id());
+            }
 
             Iterator<Entry<ExpressionId, GroupingAgg>> iterator = groupMap.entrySet().iterator();
 
@@ -211,7 +213,7 @@ abstract class QueryTranslator {
 
 
         GroupingAgg groupFor(Expression exp) {
-            if (Functions.isAggregateFunction(exp)) {
+            if (Functions.isAggregate(exp)) {
                 AggregateFunction f = (AggregateFunction) exp;
                 // if there's at least one agg in the tree
                 if (groupPath != null) {
@@ -256,6 +258,7 @@ abstract class QueryTranslator {
             if (exp instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) exp;
 
+                // change analyzed to non non-analyzed attributes
                 if (exp instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) exp;
                     if (fa.isAnalyzed()) {
@@ -263,26 +266,31 @@ abstract class QueryTranslator {
                     }
                 }
                 aggId = ne.id().toString();
-                
+
                 propertyPath = AggPath.path(propertyPath, aggId);
 
                 GroupingAgg agg = null;
-                
-                // dates are handled differently because of date histograms
-                if (exp instanceof DateTimeFunction) {
-                    DateTimeFunction dtf = (DateTimeFunction) exp;
-                    if (dtf instanceof DateTimeHistogramFunction) {
-                        DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) dtf;
+
+                // handle functions differently
+                if (exp instanceof Function) {
+                    // dates are handled differently because of date histograms
+                    if (exp instanceof DateTimeHistogramFunction) {
+                        DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
                         agg = new GroupByDateAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), dthf.interval(), dthf.timeZone());
                     }
+                    // all other scalar functions become a script
+                    else if (exp instanceof ScalarFunction) {
+                        ScalarFunction sf = (ScalarFunction) exp;
+                        agg = new GroupByScriptAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), sf.asScript());
+                    }
                     else {
-                        agg = new GroupByScriptAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), dtf.asScript());
+                        throw new SqlIllegalArgumentException("Cannot GROUP BY function %s", exp);
                     }
                 }
                 else {
                     agg = new GroupByColumnAgg(aggId, AggPath.bucketValue(propertyPath), ne.name());
                 }
-                
+
                 aggMap.put(ne.id(), agg);
             }
             else {
@@ -418,20 +426,20 @@ abstract class QueryTranslator {
 
     // TODO: need to optimize on ngram
     // TODO: see whether escaping is needed
-    static class Likes extends ExppressionTranslator<BinaryExpression> {
-    
+    static class Likes extends ExpressionTranslator<BinaryExpression> {
+
         @Override
         protected QueryTranslation asQuery(BinaryExpression e, boolean onAggs) {
             Query q = null;
             boolean analyzed = true;
             String target = null;
-    
+
             if (e.left() instanceof FieldAttribute) {
                 FieldAttribute fa = (FieldAttribute) e.left();
                 analyzed = fa.isAnalyzed();
                 target = nameOf(analyzed ? fa : fa.notAnalyzedAttribute());
             }
-    
+
             String pattern = sqlToEsPatternMatching(stringValueOf(e.right()));
             if (e instanceof Like) {
                 if (analyzed) {
@@ -441,7 +449,7 @@ abstract class QueryTranslator {
                     q = new WildcardQuery(e.location(), nameOf(e.left()), pattern);
                 }
             }
-    
+
             if (e instanceof RLike) {
                 if (analyzed) {
                     q = new QueryStringQuery(e.location(), "/" + pattern + "/", target);
@@ -450,41 +458,41 @@ abstract class QueryTranslator {
                     q = new RegexQuery(e.location(), nameOf(e.left()), sqlToEsPatternMatching(stringValueOf(e.right())));
                 }
             }
-    
+
             return q != null ? new QueryTranslation(wrapIfNested(q, e.left())) : null;
         }
-    
+
         private static String sqlToEsPatternMatching(String pattern) {
             return pattern.replace("%", "*").replace("_", "?");
         }
     }
-    
-    static class StringQueries extends ExppressionTranslator<StringQueryPredicate> {
-    
+
+    static class StringQueries extends ExpressionTranslator<StringQueryPredicate> {
+
         @Override
         protected QueryTranslation asQuery(StringQueryPredicate q, boolean onAggs) {
             return new QueryTranslation(new QueryStringQuery(q.location(), q.query(), q.fields(), q));
         }
     }
-    
-    static class Matches extends ExppressionTranslator<MatchQueryPredicate> {
-    
+
+    static class Matches extends ExpressionTranslator<MatchQueryPredicate> {
+
         @Override
         protected QueryTranslation asQuery(MatchQueryPredicate q, boolean onAggs) {
             return new QueryTranslation(wrapIfNested(new MatchQuery(q.location(), nameOf(q.field()), q.query(), q), q.field()));
         }
     }
-    
-    static class MultiMatches extends ExppressionTranslator<MultiMatchQueryPredicate> {
-    
+
+    static class MultiMatches extends ExpressionTranslator<MultiMatchQueryPredicate> {
+
         @Override
         protected QueryTranslation asQuery(MultiMatchQueryPredicate q, boolean onAggs) {
             return new QueryTranslation(new MultiMatchQuery(q.location(), q.query(), q.fields(), q));
         }
     }
-    
-    static class BinaryLogic extends ExppressionTranslator<BinaryExpression> {
-    
+
+    static class BinaryLogic extends ExpressionTranslator<BinaryExpression> {
+
         @Override
         protected QueryTranslation asQuery(BinaryExpression e, boolean onAggs) {
             if (e instanceof And) {
@@ -493,13 +501,13 @@ abstract class QueryTranslator {
             if (e instanceof Or) {
                 return or(e.location(), toQuery(e.left(), onAggs), toQuery(e.right(), onAggs));
             }
-    
+
             return null;
         }
     }
-    
-    static class Nots extends ExppressionTranslator<Not> {
-    
+
+    static class Nots extends ExpressionTranslator<Not> {
+
         @Override
         protected QueryTranslation asQuery(Not not, boolean onAggs) {
             QueryTranslation translation = toQuery(not.child(), onAggs);
@@ -507,7 +515,7 @@ abstract class QueryTranslator {
         }
     }
 
-    static class Nulls extends ExppressionTranslator<UnaryExpression> {
+    static class Nulls extends ExpressionTranslator<UnaryExpression> {
 
         @Override
         protected QueryTranslation asQuery(UnaryExpression ue, boolean onAggs) {
@@ -520,28 +528,30 @@ abstract class QueryTranslator {
     }
 
     // assume the Optimizer properly orders the predicates to ease the translation
-    static class BinaryComparisons extends ExppressionTranslator<BinaryComparison> {
-    
+    static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
+
         @Override
         protected QueryTranslation asQuery(BinaryComparison bc, boolean onAggs) {
-            Check.isTrue(bc.right().foldable(), "don't know how to translate right %s in %s", bc.right().nodeString(), bc);
-    
+            Check.isTrue(bc.right().foldable(),
+                    "Line %d:%d - Comparisons against variables are not (currently) supported; offender %s in %s",
+                    bc.right().location().getLineNumber(), bc.right().location().getColumnNumber(), bc.right().nodeName(), bc.nodeName());
+
             if (bc.left() instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) bc.left();
-    
+
                 Query query = null;
                 AggFilter aggFilter = null;
-    
+
                 Attribute at = ne.toAttribute();
-                
+
                 // scalar function can appear in both WHERE and HAVING so handle it first
                 // in both cases the function script is used - script-query/query for the former, bucket-selector/aggFilter for the latter
-                
+
                 if (at instanceof ScalarFunctionAttribute) {
                     ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) at;
                     ScriptTemplate scriptTemplate = sfa.script();
-    
-                    String template = formatTemplate("%s %s {}", scriptTemplate.template(), bc.symbol());
+
+                    String template = formatTemplate(format(Locale.ROOT, "%s %s {}", scriptTemplate.template(), bc.symbol()));
                     // no need to bind the wrapped/target agg - it is already available through the nested script (needed to create the script itself)
                     Params params = paramsBuilder().script(scriptTemplate.params()).variable(valueOf(bc.right())).build();
                     ScriptTemplate script = new ScriptTemplate(template, params, DataTypes.BOOLEAN);
@@ -552,28 +562,28 @@ abstract class QueryTranslator {
                         query = new ScriptQuery(at.location(), script);
                     }
                 }
-    
+
                 //
                 // Agg context means HAVING -> PipelineAggs
                 //
                 else if (onAggs) {
                     String template = null;
                     Params params = null;
-                    
+
                     // agg function
                     if (at instanceof AggregateFunctionAttribute) {
                         AggregateFunctionAttribute fa = (AggregateFunctionAttribute) at;
-    
+
                         // TODO: handle case where both sides of the comparison are functions
-                        template = formatTemplate("{} %s {}", bc.symbol());
-    
+                        template = formatTemplate(format(Locale.ROOT, "{} %s {}", bc.symbol()));
+
                         // bind the agg and the variable to the script
-                        params = paramsBuilder().agg(fa.functionId(), fa.propertyPath()).variable(valueOf(bc.right())).build();
+                        params = paramsBuilder().agg(fa).variable(valueOf(bc.right())).build();
                     }
-    
+
                     aggFilter = new AggFilter(at.id().toString(), new ScriptTemplate(template, params, DataTypes.BOOLEAN));
                 }
-    
+
                 //
                 // No Agg context means WHERE clause
                 //
@@ -582,21 +592,21 @@ abstract class QueryTranslator {
                         query = wrapIfNested(translateQuery(bc), ne);
                     }
                 }
-                
+
                 return new QueryTranslation(query, aggFilter);
             }
-    
+
             else {
                 throw new UnsupportedOperationException("No idea how to translate " + bc.left());
             }
         }
-    
+
         private static Query translateQuery(BinaryComparison bc) {
             Location loc = bc.location();
             String name = nameOf(bc.left());
             Object value = valueOf(bc.right());
             String format = dateFormat(bc.left());
-    
+
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(loc, name, value, false, null, false, format);
             }
@@ -618,52 +628,52 @@ abstract class QueryTranslator {
                 }
                 return new TermQuery(loc, name, value);
             }
-    
+
             Check.isTrue(false, "don't know how to translate binary comparison %s in %s", bc.right().nodeString(), bc);
             return null;
         }
     }
-    
-    static class Ranges extends ExppressionTranslator<Range> {
-    
+
+    static class Ranges extends ExpressionTranslator<Range> {
+
         @Override
         protected QueryTranslation asQuery(Range r, boolean onAggs) {
             Object lower = valueOf(r.lower());
             Object upper = valueOf(r.upper());
-    
+
             Expression e = r.value();
-    
-    
+
+
             if (e instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) e;
-                
+
                 Query query = null;
                 AggFilter aggFilter = null;
-    
+
                 Attribute at = ne.toAttribute();
-    
+
                 // scalar function can appear in both WHERE and HAVING so handle it first
                 // in both cases the function script is used - script-query/query for the former, bucket-selector/aggFilter for the latter
-    
+
                 if (at instanceof ScalarFunctionAttribute) {
                     ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) at;
                     ScriptTemplate scriptTemplate = sfa.script();
-    
-                    String template = formatTemplate("({} %s %s) && (%s %s {})", 
+
+                    String template = formatTemplate(format(Locale.ROOT, "({} %s %s) && (%s %s {})",
                             r.includeLower() ? "<=" : "<",
-                            scriptTemplate.template(),
-                            scriptTemplate.template(),
-                            r.includeUpper() ? "<=" : "<");
-    
+                                    scriptTemplate.template(),
+                                    scriptTemplate.template(),
+                                    r.includeUpper() ? "<=" : "<"));
+
                     // no need to bind the wrapped/target - it is already available through the nested script (needed to create the script itself)
                     Params params = paramsBuilder().variable(lower)
                             .script(scriptTemplate.params())
                             .script(scriptTemplate.params())
                             .variable(upper)
                             .build();
-                    
+
                     ScriptTemplate script = new ScriptTemplate(template, params, DataTypes.BOOLEAN);
-                    
+
                     if (onAggs) {
                         aggFilter = new AggFilter(at.id().toString(), script);
                     }
@@ -671,59 +681,59 @@ abstract class QueryTranslator {
                         query = new ScriptQuery(at.location(), script);
                     }
                 }
-                
+
                 //
                 // HAVING
                 //
                 else if (onAggs) {
                     String template = null;
                     Params params = null;
-    
+
                     // agg function
                     if (at instanceof AggregateFunctionAttribute) {
                         AggregateFunctionAttribute fa = (AggregateFunctionAttribute) at;
-    
-                        template = formatTemplate("{} %s {} && {} %s {}", 
-                                   r.includeLower() ? "<=" : "<",
-                                   r.includeUpper() ? "<=" : "<");
-    
+
+                        template = formatTemplate(format(Locale.ROOT, "{} %s {} && {} %s {}",
+                                r.includeLower() ? "<=" : "<",
+                                        r.includeUpper() ? "<=" : "<"));
+
                         params = paramsBuilder().variable(lower)
-                                .agg(fa.functionId(), fa.propertyPath())
-                                .agg(fa.functionId(), fa.propertyPath())
+                                .agg(fa)
+                                .agg(fa)
                                 .variable(upper)
                                 .build();
-    
+
                     }
                     aggFilter = new AggFilter(((NamedExpression) r.value()).id().toString(), new ScriptTemplate(template, params, DataTypes.BOOLEAN));
                 }
                 //
                 // WHERE
-                // 
+                //
                 else {
                     // typical range
                     if (at instanceof FieldAttribute) {
-                        RangeQuery rangeQuery = new RangeQuery(r.location(), nameOf(r.value()), 
+                        RangeQuery rangeQuery = new RangeQuery(r.location(), nameOf(r.value()),
                                 valueOf(r.lower()), r.includeLower(), valueOf(r.upper()), r.includeUpper(), dateFormat(r.value()));
                         query = wrapIfNested(rangeQuery, r.value());
                     }
                 }
-                
+
                 return new QueryTranslation(query, aggFilter);
             }
             else {
                 throw new UnsupportedOperationException("No idea how to translate " + e);
             }
-    
+
         }
     }
-    
-    
+
+
     //
     // Agg translators
     //
-    
+
     static class DistinctCounts extends SingleValueAggTranslator<Count> {
-    
+
         @Override
         protected LeafAgg toAgg(String id, String path, Count c) {
             if (!c.distinct()) {
@@ -732,63 +742,63 @@ abstract class QueryTranslator {
             return new CardinalityAgg(id, path, field(c));
         }
     }
-    
+
     static class Sums extends SingleValueAggTranslator<Sum> {
-    
+
         @Override
         protected LeafAgg toAgg(String id, String path, Sum s) {
             return new SumAgg(id, path, field(s));
         }
     }
-    
+
     static class Avgs extends SingleValueAggTranslator<Avg> {
-    
+
         @Override
         protected LeafAgg toAgg(String id, String path, Avg a) {
             return new AvgAgg(id, path, field(a));
         }
     }
-    
+
     static class Maxes extends SingleValueAggTranslator<Max> {
-    
+
         @Override
         protected LeafAgg toAgg(String id, String path, Max m) {
             return new MaxAgg(id, path, field(m));
         }
     }
-    
+
     static class Mins extends SingleValueAggTranslator<Min> {
-    
+
         @Override
         protected LeafAgg toAgg(String id, String path, Min m) {
             return new MinAgg(id, path, field(m));
         }
     }
-    
+
     static class StatsAggs extends CompoundAggTranslator<Stats> {
-    
+
         @Override
         protected LeafAgg toAgg(String id, String path, Stats s) {
             return new StatsAgg(id, path, field(s));
         }
     }
-    
+
     static class ExtendedStatsAggs extends CompoundAggTranslator<ExtendedStats> {
-    
+
         @Override
         protected LeafAgg toAgg(String id, String path, ExtendedStats e) {
             return new ExtendedStatsAgg(id, path, field(e));
         }
     }
-    
+
     static class MatrixStatsAggs extends CompoundAggTranslator<MatrixStats> {
-    
+
         @Override
         protected LeafAgg toAgg(String id, String path, MatrixStats m) {
             return new MatrixStatsAgg(id, path, singletonList(field(m)));
         }
     }
-    
+
     static class PercentilesAggs extends CompoundAggTranslator<Percentiles> {
 
         @Override
@@ -806,59 +816,59 @@ abstract class QueryTranslator {
     }
 
     static class DateTimes extends SingleValueAggTranslator<Min> {
-    
+
         @Override
         protected LeafAgg toAgg(String id, String path, Min m) {
             return new MinAgg(id, path, field(m));
         }
     }
-    
+
     abstract static class AggTranslator<F extends Function> {
-    
+
         private final Class<F> typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
-    
+
         @SuppressWarnings("unchecked")
         public final LeafAgg apply(String id, String parent, Function f) {
             return (typeToken.isInstance(f) ? asAgg(id, parent, (F) f) : null);
         }
-    
+
         protected abstract LeafAgg asAgg(String id, String parent, F f);
     }
-    
+
     abstract static class SingleValueAggTranslator<F extends Function> extends AggTranslator<F> {
-    
+
         @Override
         protected final LeafAgg asAgg(String id, String parent, F function) {
             String path = parent == null ? id : AggPath.path(parent, id);
             return toAgg(id, AggPath.metricValue(path), function);
         }
-    
+
         protected abstract LeafAgg toAgg(String id, String path, F f);
     }
-    
+
     abstract static class CompoundAggTranslator<C extends CompoundNumericAggregate> extends AggTranslator<C> {
-    
+
         @Override
         protected final LeafAgg asAgg(String id, String parent, C function) {
             String path = parent == null ? id : AggPath.path(parent, id);
             return toAgg(id, path, function);
         }
-    
+
         protected abstract LeafAgg toAgg(String id, String path, C f);
     }
-    
-    
-    abstract static class ExppressionTranslator<E extends Expression> {
-    
+
+
+    abstract static class ExpressionTranslator<E extends Expression> {
+
         private final Class<E> typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
-    
+
         @SuppressWarnings("unchecked")
         public QueryTranslation translate(Expression exp, boolean onAggs) {
             return (typeToken.isInstance(exp) ? asQuery((E) exp, onAggs) : null);
         }
-    
+
         protected abstract QueryTranslation asQuery(E e, boolean onAggs);
-    
+
         protected static Query wrapIfNested(Query query, Expression exp) {
             if (exp instanceof NestedFieldAttribute) {
                 NestedFieldAttribute nfa = (NestedFieldAttribute) exp;

@@ -5,17 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.script;
 
-class Agg extends Param<String> {
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 
-    private final String aggProperty;
+class Agg extends Param<AggregateFunctionAttribute> {
 
-    Agg(String aggRef, String aggProperty) {
+    Agg(AggregateFunctionAttribute aggRef) {
         super(aggRef);
-        this.aggProperty = aggProperty;
+    }
+
+    String aggName() {
+        return value().functionId();
     }
 
     public String aggProperty() {
-        return aggProperty;
+        return value().propertyPath();
     }
 
     @Override

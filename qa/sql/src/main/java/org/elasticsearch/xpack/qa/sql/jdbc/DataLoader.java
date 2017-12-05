@@ -50,11 +50,13 @@ public class DataLoader {
                 createIndex.startObject("properties");
                 {
                     createIndex.startObject("emp_no").field("type", "integer").endObject();
-                    createIndex.startObject("birth_date").field("type", "date").endObject();
                     createIndex.startObject("first_name").field("type", "text").endObject();
                     createIndex.startObject("last_name").field("type", "text").endObject();
                     createIndex.startObject("gender").field("type", "keyword").endObject();
+                    createIndex.startObject("birth_date").field("type", "date").endObject();
                     createIndex.startObject("hire_date").field("type", "date").endObject();
+                    createIndex.startObject("salary").field("type", "integer").endObject();
+                    createIndex.startObject("languages").field("type", "byte").endObject();
                 }
                 createIndex.endObject();
             }

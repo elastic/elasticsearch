@@ -31,6 +31,18 @@ SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY emp_no ORDER BY em
 groupByOnNumberOnAlias
 SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY e ORDER BY emp_no DESC;
 
+// group by scalar
+groupByAddScalar
+SELECT emp_no + 1 AS e FROM test_emp GROUP BY e ORDER BY e;
+groupByMinScalarDesc
+SELECT emp_no - 1 AS e FROM test_emp GROUP BY e ORDER BY e DESC;
+groupByAddScalarDesc
+SELECT emp_no % 2 AS e FROM test_emp GROUP BY e ORDER BY e DESC;
+groupByMulScalar
+SELECT emp_no * 2 AS e FROM test_emp GROUP BY e ORDER BY e;
+groupByModScalar
+SELECT (emp_no % 3) + 1 AS e FROM test_emp GROUP BY e ORDER BY e;
+
 //
 // Aggregate Functions
 //
@@ -215,3 +227,27 @@ aggAvgWithMultipleHavingBetweenWithLimit
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a BETWEEN 10 AND 10000000 LIMIT 1;
 aggAvgWithMultipleHavingOnAliasAndFunction
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a > 10 AND AVG(emp_no) > 10000000;
+
+//
+// GroupBy on Scalar plus Having
+//
+aggGroupByOnScalarWithHaving
+SELECT emp_no + 1 AS e FROM test_emp GROUP BY e HAVING AVG(salary) BETWEEN 1 AND 10010 ORDER BY e;
+
+//
+// Mixture of Aggs that triggers promotion of aggs to stats
+//
+aggMultiIncludingScalarFunction
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages ORDER BY languages;
+aggHavingWithAggNotInGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING AVG(salary) > 30000 ORDER BY languages;
+aggHavingWithAliasOnScalarFromGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING d BETWEEN 50 AND 10000 AND AVG(salary) > 30000 ORDER BY languages;
+aggHavingWithScalarFunctionBasedOnAliasFromGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING ma % mi > 1 AND AVG(salary) > 30000 ORDER BY languages;
+aggHavingWithMultipleScalarFunctionsBasedOnAliasFromGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING d - ma % mi > 0 AND AVG(salary) > 30000 ORDER BY languages;
+aggHavingWithMultipleScalarFunctionsBasedOnAliasFromGroupByAndAggNotInGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING ROUND(d - ABS(ma % mi)) + AVG(salary) > 0 AND AVG(salary) > 30000 ORDER BY languages;
+aggHavingScalarOnAggFunctionsWithoutAliasesInAndNotInGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING MAX(salary) % MIN(salary) + AVG(salary) > 3000 ORDER BY languages;

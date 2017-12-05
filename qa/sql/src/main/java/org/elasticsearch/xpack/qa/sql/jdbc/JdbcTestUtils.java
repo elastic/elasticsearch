@@ -67,7 +67,7 @@ public abstract class JdbcTestUtils {
         }
     }
 
-    public static void logResultSetCurrentData(ResultSet rs, Logger log) throws SQLException {
+    public static String resultSetCurrentData(ResultSet rs) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         StringBuilder column = new StringBuilder();
 
@@ -81,7 +81,7 @@ public abstract class JdbcTestUtils {
             }
             sb.append(trimOrPad(column.append(rs.getString(i))));
         }
-        log.info(sb);
+        return sb.toString();
     }
 
     private static StringBuilder trimOrPad(StringBuilder buffer) {

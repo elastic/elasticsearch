@@ -52,6 +52,10 @@ public abstract class Attribute extends NamedExpression {
         return new AttributeSet(this);
     }
 
+    public Attribute withLocation(Location location) {
+        return Objects.equals(location(), location) ? this : clone(location, name(), dataType(), qualifier(), nullable(), id(), synthetic());
+    }
+
     public Attribute withQualifier(String qualifier) {
         return Objects.equals(qualifier(), qualifier) ? this : clone(location(), name(), dataType(), qualifier, nullable(), id(), synthetic());
     }
@@ -73,6 +77,16 @@ public abstract class Attribute extends NamedExpression {
     @Override
     public Attribute toAttribute() {
         return this;
+    }
+
+    @Override
+    public int semanticHash() {
+        return id().hashCode();
+    }
+
+    @Override
+    public boolean semanticEquals(Expression other) {
+        return other instanceof Attribute ? id().equals(((Attribute) other).id()) : false;
     }
 
     @Override

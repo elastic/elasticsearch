@@ -9,10 +9,10 @@ import java.util.Objects;
 
 public class ExpressionId {
 
-    private final String id;
+    private final int id;
     private final String jvmId;
 
-    ExpressionId(String id, String jvmId) {
+    ExpressionId(int id, String jvmId) {
         this.id = id;
         this.jvmId = jvmId;
     }
@@ -33,13 +33,13 @@ public class ExpressionId {
         }
 
         ExpressionId other = (ExpressionId) obj;
-        return Objects.equals(id, other.id) 
+        return id == other.id
                 && Objects.equals(jvmId, other.jvmId);
     }
 
     @Override
     public String toString() {
-        return id;
+        return String.valueOf(id);
         //#+ jvmId;
     }
 }

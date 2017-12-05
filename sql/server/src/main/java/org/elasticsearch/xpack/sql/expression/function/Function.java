@@ -54,6 +54,11 @@ public abstract class Function extends NamedExpression {
         return functionName;
     }
 
+    // TODO: ExpressionId might be converted into an Int which could make the String an int as well
+    public String functionId() {
+        return id().toString();
+    }
+
     protected String functionArgs() {
         StringJoiner sj = new StringJoiner(",", "(", ")");
         for (Expression child : children()) {

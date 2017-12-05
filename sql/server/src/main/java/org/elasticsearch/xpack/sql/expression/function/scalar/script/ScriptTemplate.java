@@ -9,6 +9,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
 import java.util.Locale;
@@ -18,6 +19,8 @@ import java.util.Objects;
 import static java.lang.String.format;
 
 public class ScriptTemplate {
+
+    public static final ScriptTemplate EMPTY = new ScriptTemplate(StringUtils.EMPTY);
 
     private final String template;
     private final Params params;
@@ -89,7 +92,7 @@ public class ScriptTemplate {
         return bindTemplate();
     }
 
-    public static String formatTemplate(String template, Object... params) {
-        return format(Locale.ROOT, template.replace("{}", "params.%%s"), params);
+    public static String formatTemplate(String template) {
+        return template.replace("{}", "params.%s");
     }
 }

@@ -21,6 +21,7 @@ import java.util.TimeZone;
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
@@ -101,7 +102,7 @@ public class JdbcAssert {
             assertTrue("Expected more data but no more entries found after [" + count + "]", actual.next());
 
             if (logger != null) {
-                JdbcTestUtils.logResultSetCurrentData(actual, logger);
+                logger.info(JdbcTestUtils.resultSetCurrentData(actual));
             }
 
             for (int column = 1; column <= columns; column++) {
@@ -125,7 +126,11 @@ public class JdbcAssert {
                 }
             }
         }
-        assertEquals("Elasticsearch [" + actual + "] still has data after [" + count + "] entries", expected.next(), actual.next());
+
+        if (actual.next()) {
+            fail("Elasticsearch [" + actual + "] still has data after [" + count + "] entries:\n"
+                    + JdbcTestUtils.resultSetCurrentData(actual));
+        }
     }
 
     private static Object getTime(ResultSet rs, int column) throws SQLException {

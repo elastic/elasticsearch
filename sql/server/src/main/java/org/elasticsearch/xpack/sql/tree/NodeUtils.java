@@ -41,7 +41,7 @@ public abstract class NodeUtils {
 
     private static final String TO_STRING_IGNORE_PROP = "location";
     private static final int TO_STRING_MAX_PROP = 10;
-    private static final int TO_STRING_MAX_WIDTH = 100;
+    private static final int TO_STRING_MAX_WIDTH = 110;
 
     private static final Map<Class<?>, NodeInfo> CACHE = new LinkedHashMap<>();
     
@@ -68,7 +68,7 @@ public abstract class NodeUtils {
     //     public Literal left() { return left; }
     //     public Literal right() { return right; }
     // }
-    public static <T extends Node<T>> T copyTree(Node<T> tree, List<T> newChildren) {
+    static <T extends Node<T>> T copyTree(Node<T> tree, List<T> newChildren) {
         Check.notNull(tree, "Non-null tree expected");
 
         // basic sanity check
@@ -190,7 +190,7 @@ public abstract class NodeUtils {
         return props;
     }
 
-    public static Object[] properties(Node<?> tree) {
+    static Object[] properties(Node<?> tree) {
         return properties(tree, info(tree.getClass()));
     }
 
@@ -244,7 +244,11 @@ public abstract class NodeUtils {
                 }
                 String stringValue = Objects.toString(object);
                 if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
-                    stringValue = stringValue.substring(0, Math.max(0, TO_STRING_MAX_WIDTH - maxWidth)) + "~";
+                    int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
+                    sb.append(stringValue.substring(0, cutoff));
+                    sb.append("\n");
+                    stringValue = stringValue.substring(cutoff);
+                    maxWidth = 0;
                 }
                 maxWidth += stringValue.length();
                 sb.append(stringValue);

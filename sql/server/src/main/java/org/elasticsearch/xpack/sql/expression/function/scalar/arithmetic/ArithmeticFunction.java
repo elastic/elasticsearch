@@ -61,7 +61,12 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
 
     @Override
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return new ScriptTemplate(format(Locale.ROOT, "(%s) %s (%s)", leftScript.template(), operation.symbol(), rightScript.template()),
+        String op = operation.symbol();
+        // escape %
+        if (operation == BinaryArithmeticOperation.MOD) {
+            op = "%" + op;
+        }
+        return new ScriptTemplate(format(Locale.ROOT, "(%s) %s (%s)", leftScript.template(), op, rightScript.template()),
                 paramsBuilder()
                 .script(leftScript.params()).script(rightScript.params())
                 .build(), dataType());
@@ -79,9 +84,10 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
+        sb.append("(");
         sb.append(left());
         if (!(left() instanceof Literal)) {
-            sb.insert(0, "(");
+            sb.insert(1, "(");
             sb.append(")");
         }
         sb.append(" ");
@@ -93,6 +99,8 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
             sb.insert(pos, "(");
             sb.append(")");
         }
+        sb.append(")#");
+        sb.append(functionId());
         return sb.toString();
     }
 

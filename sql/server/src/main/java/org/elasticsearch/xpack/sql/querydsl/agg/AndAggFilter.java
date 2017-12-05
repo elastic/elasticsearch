@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import java.util.Locale;
-
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+
+import java.util.Locale;
 
 import static java.lang.String.format;
 

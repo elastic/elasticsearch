@@ -5,18 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
-import org.elasticsearch.xpack.sql.expression.TypedAttribute;
+import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-public class AggregateFunctionAttribute extends TypedAttribute {
+import java.util.Objects;
+
+public class AggregateFunctionAttribute extends FunctionAttribute {
     
-    private final String functionId;
     private final String propertyPath;
 
     AggregateFunctionAttribute(Location location, String name, DataType dataType, ExpressionId id, String functionId, String propertyPath) {
@@ -24,13 +23,8 @@ public class AggregateFunctionAttribute extends TypedAttribute {
     }
 
     AggregateFunctionAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
-        super(location, name, dataType, qualifier, nullable, id, synthetic);
-        this.functionId = functionId;
+        super(location, name, dataType, qualifier, nullable, id, synthetic, functionId);
         this.propertyPath = propertyPath;
-    }
-    
-    public String functionId() {
-        return functionId;
     }
     
     public String propertyPath() {
@@ -46,7 +40,7 @@ public class AggregateFunctionAttribute extends TypedAttribute {
     protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         // that is the functionId is actually derived from the expression id to easily track it across contexts
-        return new AggregateFunctionAttribute(location, name, dataType, qualifier, nullable, id, synthetic, functionId, propertyPath);
+        return new AggregateFunctionAttribute(location, name, dataType, qualifier, nullable, id, synthetic, functionId(), propertyPath);
     }
 
     public AggregateFunctionAttribute withFunctionId(String functionId, String propertyPath) {
@@ -55,15 +49,11 @@ public class AggregateFunctionAttribute extends TypedAttribute {
     
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            AggregateFunctionAttribute other = (AggregateFunctionAttribute) obj;
-            return Objects.equals(functionId, other.functionId) && Objects.equals(propertyPath, other.propertyPath);
-        }
-        return false;
+        return super.equals(obj) && Objects.equals(propertyPath(), ((AggregateFunctionAttribute) obj).propertyPath());
     }
 
     @Override
     protected String label() {
-        return "a";
+        return "a->" + functionId();
     }
 }

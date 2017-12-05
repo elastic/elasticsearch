@@ -15,6 +15,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -43,7 +44,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;import static java.util.Collections.singletonList;
+import java.util.Set;
+
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 
@@ -73,14 +76,16 @@ public abstract class SourceGenerator {
 
         for (ColumnReference ref : container.columns()) {
             collectFields(ref, sourceFields, docFields, scriptFields);
-            }
-        
+        }
+
         if (!sourceFields.isEmpty()) {
             source.fetchSource(sourceFields.toArray(new String[sourceFields.size()]), null);
         }
-            for (String field : docFields) {
-                source.docValueField(field);
-            }
+
+        for (String field : docFields) {
+            source.docValueField(field);
+        }
+
         for (Entry<String, Script> entry : scriptFields.entrySet()) {
             source.scriptField(entry.getKey(), entry.getValue());
         }
@@ -120,7 +125,7 @@ public abstract class SourceGenerator {
             SearchHitFieldRef sh = (SearchHitFieldRef) ref;
             Set<String> collection = sh.useDocValue() ? docFields : sourceFields;
             collection.add(sh.name());
-        } 
+        }
         else if (ref instanceof ScriptFieldRef) {
             ScriptFieldRef sfr = (ScriptFieldRef) ref;
             scriptFields.put(sfr.name(), sfr.script().toPainless());
@@ -129,7 +134,7 @@ public abstract class SourceGenerator {
 
     private static void sorting(QueryContainer container, SearchSourceBuilder source) {
         if (container.sort() != null) {
-            
+
             for (Sort sortable : container.sort()) {
                 SortBuilder<?> sortBuilder = null;
 
@@ -150,12 +155,23 @@ public abstract class SourceGenerator {
                     if (attr instanceof NestedFieldAttribute) {
                         NestedFieldAttribute nfa = (NestedFieldAttribute) attr;
                         FieldSortBuilder fieldSort = fieldSort(nfa.name());
-    
+
                         String nestedPath = nfa.parentPath();
-                        fieldSort.setNestedPath(nestedPath);
-    
+                        NestedSortBuilder newSort = new NestedSortBuilder(nestedPath);
+                        NestedSortBuilder nestedSort = fieldSort.getNestedSort();
+
+                        if (nestedSort == null) {
+                            fieldSort.setNestedSort(newSort);
+                        } else {
+                            for (; nestedSort.getNestedSort() != null; nestedSort = nestedSort.getNestedSort()) {
+                            }
+                            nestedSort.setNestedSort(newSort);
+                        }
+
+                        nestedSort = newSort;
+
                         List<QueryBuilder> nestedQuery = new ArrayList<>(1);
-    
+
                         // copy also the nested queries fr(if any)
                         if (container.query() != null) {
                             container.query().forEachDown(nq -> {
@@ -166,25 +182,26 @@ public abstract class SourceGenerator {
                                 }
                             }, NestedQuery.class);
                         }
-    
+
                         if (nestedQuery.size() > 0) {
                             if (nestedQuery.size() > 1) {
                                 throw new SqlIllegalArgumentException("nested query should have been grouped in one place");
                             }
-                            fieldSort.setNestedFilter(nestedQuery.get(0));
+                            nestedSort.setFilter(nestedQuery.get(0));
                         }
-    
+
                         sortBuilder = fieldSort;
                     }
-
-                    sortBuilder.order(as.direction() == Direction.ASC? SortOrder.ASC : SortOrder.DESC);
                 }
                 if (sortable instanceof ScriptSort) {
                     ScriptSort ss = (ScriptSort) sortable;
                     sortBuilder = scriptSort(ss.script().toPainless(), ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
                 }
-                
-                source.sort(sortBuilder);
+
+                if (sortBuilder != null) {
+                    sortBuilder.order(sortable.direction() == Direction.ASC ? SortOrder.ASC : SortOrder.DESC);
+                    source.sort(sortBuilder);
+                }
             }
         }
         else {

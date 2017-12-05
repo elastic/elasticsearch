@@ -30,16 +30,24 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.script.Scri
 public abstract class DateTimeFunction extends UnaryScalarFunction implements TimeZoneAware {
 
     private final DateTimeZone timeZone;
+    private final String name;
 
     DateTimeFunction(Location location, Expression field, DateTimeZone timeZone) {
         super(location, field);
         this.timeZone = timeZone;
+
+        StringBuilder sb = new StringBuilder(super.name());
+        // add timezone as last argument
+        sb.insert(sb.length() - 1, " [" + timeZone.getID() + "]");
+
+        this.name = sb.toString();
     }
     
     public DateTimeZone timeZone() {
         return timeZone;
     }
 
+    @Override
     public boolean foldable() {
         return field().foldable();
     }
@@ -49,16 +57,6 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
         return field().dataType().same(DataTypes.DATE) ? 
                     TypeResolution.TYPE_RESOLVED :
                     new TypeResolution("Function '%s' cannot be applied on a non-date expression ('%s' of type '%s')", functionName(), Expressions.name(field()), field().dataType().esName());
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        return super.asScript();
-    }
-
-    @Override
-    protected ScriptTemplate asScriptFrom(AggregateFunctionAttribute aggregate) {
-        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -88,8 +86,9 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
         return new ScriptTemplate(template, params.build(), dataType());
     }
 
+
     @Override
-    protected String chainScalarTemplate(String template) {
+    protected ScriptTemplate asScriptFrom(AggregateFunctionAttribute aggregate) {
         throw new UnsupportedOperationException();
     }
 
@@ -102,6 +101,7 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
      */
     protected abstract ChronoField chronoField();
 
+    @Override
     protected final ProcessorDefinition makeProcessorDefinition() {
         return new UnaryProcessorDefinition(this, ProcessorDefinitions.toProcessorDefinition(field()), new DateTimeProcessor(extractor(), timeZone));
     }
@@ -115,4 +115,10 @@ public abstract class DateTimeFunction extends UnaryScalarFunction implements Ti
 
     // used for applying ranges
     public abstract String dateTimeFormat();
+
+    // add tz along the rest of the params
+    @Override
+    public String name() {
+        return name;
+    }
 }

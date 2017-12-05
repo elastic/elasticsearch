@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
@@ -18,9 +17,6 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
 public class Cast extends UnaryScalarFunction {
 
@@ -66,22 +62,9 @@ public class Cast extends UnaryScalarFunction {
             new TypeResolution("Cannot cast %s to %s", from(), to());
     }
 
-
-    @Override
-    protected ScriptTemplate asScriptFrom(AggregateFunctionAttribute aggregate) {
-        // for aggs, there are no params only bucket paths
-        Params params = paramsBuilder().agg(aggregate.functionId(), aggregate.propertyPath()).build();
-        return new ScriptTemplate(formatTemplate("{}"), params, aggregate.dataType());
-    }
-
     @Override
     protected ScriptTemplate asScriptFrom(ScalarFunctionAttribute scalar) {
         return scalar.script();
-    }
-
-    @Override
-    protected String chainScalarTemplate(String template) {
-        return template;
     }
 
     @Override

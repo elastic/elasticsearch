@@ -48,7 +48,7 @@ public abstract class Predicates {
         List<Expression> common = new ArrayList<>(Math.min(l.size(), r.size()));
         for (Expression lExp : l) {
             for (Expression rExp : r) {
-                if (lExp.canonicalEquals(rExp)) {
+                if (lExp.semanticEquals(rExp)) {
                     common.add(lExp);
                 }
             }
@@ -60,7 +60,7 @@ public abstract class Predicates {
         List<Expression> diff = new ArrayList<>(Math.min(from.size(), r.size()));
         for (Expression lExp : from) {
             for (Expression rExp : r) {
-                if (!lExp.canonicalEquals(rExp)) {
+                if (!lExp.semanticEquals(rExp)) {
                     diff.add(lExp);
                 }
             }

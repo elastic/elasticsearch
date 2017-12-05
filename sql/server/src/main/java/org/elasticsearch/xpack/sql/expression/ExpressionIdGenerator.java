@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 //TODO: this class is thread-safe but used across multiple sessions might cause the id to roll over and potentially generate an already assigned id
 // making this session scope would simplify things
@@ -15,12 +15,12 @@ import java.util.concurrent.atomic.AtomicLong;
 // TODO: hook this into SqlSession#SessionContext
 public class ExpressionIdGenerator {
 
-    private static final AtomicLong GLOBAL_ID = new AtomicLong();
+    private static final AtomicInteger GLOBAL_ID = new AtomicInteger();
     private static final String JVM_ID = "@" + UUID.randomUUID().toString();
 
-    public static final ExpressionId EMPTY = new ExpressionId("<empty>", "@<empty>");
+    public static final ExpressionId EMPTY = new ExpressionId(-1, "@<empty>");
 
     public static ExpressionId newId() {
-        return new ExpressionId(String.valueOf(GLOBAL_ID.getAndIncrement()), JVM_ID);
+        return new ExpressionId(GLOBAL_ID.getAndIncrement(), JVM_ID);
     }
 }

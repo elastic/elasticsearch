@@ -62,4 +62,14 @@ SELECT MAX(emp_no) - MIN(emp_no) AS x FROM test_emp GROUP BY gender;
 aggVariableThreeInputs
 SELECT (MAX(emp_no) - MIN(emp_no)) + AVG(emp_no) AS x FROM test_emp GROUP BY gender;
 
-
+// ordering
+orderByPlus
+SELECT emp_no FROM test_emp ORDER BY emp_no + 2 LIMIT 10;
+orderByNegative
+SELECT emp_no FROM test_emp ORDER BY -emp_no LIMIT 10;
+orderByMinusDesc
+SELECT emp_no FROM test_emp ORDER BY -emp_no DESC LIMIT 10;
+orderByModulo
+SELECT emp_no FROM test_emp ORDER BY emp_no % 10000 LIMIT 10;
+orderByMul
+SELECT emp_no FROM test_emp ORDER BY emp_no * 2 LIMIT 10;

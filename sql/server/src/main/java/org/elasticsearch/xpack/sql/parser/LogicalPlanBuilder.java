@@ -27,10 +27,10 @@ import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
-import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
 import org.elasticsearch.xpack.sql.plan.logical.Join.JoinType;
 import org.elasticsearch.xpack.sql.plan.logical.Limit;
+import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
@@ -76,11 +76,11 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         LogicalPlan plan = plan(ctx.queryTerm());
 
         if (!ctx.orderBy().isEmpty()) {
-            plan = new OrderBy(source(ctx), plan, visitList(ctx.orderBy(), Order.class));
+            plan = new OrderBy(source(ctx.ORDER()), plan, visitList(ctx.orderBy(), Order.class));
         }
         
         if (ctx.limit != null && ctx.INTEGER_VALUE() != null) {
-            plan = new Limit(source(ctx), new Literal(source(ctx), Integer.parseInt(ctx.limit.getText()), DataTypes.INTEGER), plan);
+            plan = new Limit(source(ctx.limit), new Literal(source(ctx), Integer.parseInt(ctx.limit.getText()), DataTypes.INTEGER), plan);
         }
         
         return plan;

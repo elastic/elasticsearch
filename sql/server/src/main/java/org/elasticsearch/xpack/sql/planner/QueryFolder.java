@@ -76,7 +76,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 new FoldAggregate(),
                 new FoldProject(),
                 new FoldFilter(),
-                new FoldOrderBy(), 
+                new FoldOrderBy(),
                 new FoldLimit()
                 );
 
@@ -99,10 +99,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             if (project.child() instanceof EsQueryExec) {
                 EsQueryExec exec = (EsQueryExec) project.child();
                 QueryContainer queryC = exec.queryContainer();
-                
+
                 Map<Attribute, Attribute> aliases = new LinkedHashMap<>(queryC.aliases());
                 Map<Attribute, ProcessorDefinition> processors = new LinkedHashMap<>(queryC.scalarFunctions());
-                
+
                 for (NamedExpression pj : project.projections()) {
                     if (pj instanceof Alias) {
                         Attribute aliasAttr = pj.toAttribute();
@@ -115,9 +115,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             if (e instanceof ScalarFunction) {
                                 processors.put(attr, ProcessorDefinitions.toProcessorDefinition(e));
                             }
-                        }
-                        else {
-                            throw new PlanningException("Don't know how to translate expression %s", e);
+                        } else {
+                            processors.put(aliasAttr, ProcessorDefinitions.toProcessorDefinition(e));
                         }
                     }
                     else {
@@ -148,14 +147,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 QueryContainer qContainer = exec.queryContainer();
 
                 QueryTranslation qt = toQuery(plan.condition(), plan.isHaving());
-                
+
                 Query query = (qContainer.query() != null || qt.query != null) ? and(plan.location(), qContainer.query(), qt.query) : null;
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
-                qContainer = new QueryContainer(query, aggs, qContainer.columns(), qContainer.aliases(), 
-                        qContainer.pseudoFunctions(), 
-                        qContainer.scalarFunctions(), 
-                        qContainer.sort(), 
+                qContainer = new QueryContainer(query, aggs, qContainer.columns(), qContainer.aliases(),
+                        qContainer.pseudoFunctions(),
+                        qContainer.scalarFunctions(),
+                        qContainer.sort(),
                         qContainer.limit());
 
                 return exec.with(qContainer);
@@ -208,6 +207,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 throw new PlanningException("Aggregation filtering not supported (yet) without explicit grouping");
                 //aggs = aggs.addAgg(null, filter);
             }
+            if (targetGroup == null) {
+                throw new PlanningException("Cannot determine group column; likely an invalid query - please report");
+            }
             else {
                 aggs = aggs.updateGroup(targetGroup.withPipelines(combine(targetGroup.subPipelines(), filter)));
             }
@@ -239,7 +241,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 // followed by actual aggregates
                 for (NamedExpression ne : a.aggregates()) {
-                    
+
                     // unwrap alias - it can be
                     // - an attribute (since we support aliases inside group-by)
                     //   SELECT emp_no ... GROUP BY emp_no
@@ -249,7 +251,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     //   SELECT COUNT(*), AVG(salary) ... GROUP BY salary;
 
                     // - a scalar function, which can be applied on an attribute or aggregate and can require one or multiple inputs
-                    
+
                     //   SELECT SIN(emp_no) ... GROUP BY emp_no
                     //   SELECT CAST(YEAR(hire_date)) ... GROUP BY YEAR(hire_date)
                     //   SELECT CAST(AVG(salary)) ... GROUP BY salary
@@ -266,9 +268,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                         //
                         // look first for scalar functions which might wrap the actual grouped target
-                        // (e.g. 
-                        // CAST(field) GROUP BY field or 
-                        // ABS(YEAR(field)) GROUP BY YEAR(field) or 
+                        // (e.g.
+                        // CAST(field) GROUP BY field or
+                        // ABS(YEAR(field)) GROUP BY YEAR(field) or
                         // ABS(AVG(salary)) ... GROUP BY salary
                         // )
                         if (child instanceof ScalarFunction) {
@@ -287,7 +289,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 Expression exp = p.expression();
                                 GroupingAgg matchingGroup = null;
                                 if (groupingContext != null) {
-                                    // is there a group (aggregation) for this expression ? 
+                                    // is there a group (aggregation) for this expression ?
                                     matchingGroup = groupingContext.groupFor(exp);
                                 }
                                 else {
@@ -298,7 +300,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                     }
                                 }
 
-                                // found match for expression; if it's an attribute or scalar, end the processing chain with the reference to the backing agg 
+                                // found match for expression; if it's an attribute or scalar, end the processing chain with the reference to the backing agg
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction) {
                                         Processor action = null;
@@ -312,7 +314,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 }
                                 // or found an aggregate expression (which has to work on an attribute used for grouping)
                                 // (can happen when dealing with a root group)
-                                if (Functions.isAggregateFunction(exp)) {
+                                if (Functions.isAggregate(exp)) {
                                     Tuple<QueryContainer, AggPathInput> withFunction = addAggFunction(matchingGroup, (AggregateFunction) exp, compoundAggMap, qC.get());
                                     qC.set(withFunction.v1());
                                     return withFunction.v2();
@@ -320,14 +322,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 // not an aggregate and no matching - go to a higher node (likely a function YEAR(birth_date))
                                 return p;
                             });
-                            
+
                             if (!proc.resolved()) {
                                 throw new FoldingException(child, "Cannot find grouping for '%s'", Expressions.name(child));
                             }
 
                             // add the computed column
                             queryC = qC.get().addColumn(new ComputedRef(proc));
-                            
+
                             // TODO: is this needed?
                             // redirect the alias to the scalar group id (changing the id altogether doesn't work it is already used in the aggpath)
                             //aliases.put(as.toAttribute(), sf.toAttribute());
@@ -337,7 +339,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         else {
                             GroupingAgg matchingGroup = null;
                             if (groupingContext != null) {
-                                // is there a group (aggregation) for this expression ? 
+                                // is there a group (aggregation) for this expression ?
                                 matchingGroup = groupingContext.groupFor(child);
                             }
                             // attributes can only refer to declared groups
@@ -347,7 +349,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             }
                             else {
                                 // the only thing left is agg function
-                                Check.isTrue(Functions.isAggregateFunction(child), "Expected aggregate function inside alias; got %s", child.nodeString());
+                                Check.isTrue(Functions.isAggregate(child), "Expected aggregate function inside alias; got %s", child.nodeString());
                                 Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup, (AggregateFunction) child, compoundAggMap, queryC);
                                 //FIXME: what about inner key
                                 queryC = withAgg.v1().addAggColumn(withAgg.v2().context());
@@ -421,7 +423,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 aggInput = new AggPathInput(f, leafAgg.propertyPath());
                 queryC = queryC.with(queryC.aggs().addAgg(groupId, leafAgg));
             }
-            
+
             return new Tuple<>(queryC, aggInput);
         }
     }
@@ -435,14 +437,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 QueryContainer qContainer = exec.queryContainer();
 
                 for (Order order : plan.order()) {
+                    Direction direction = Direction.from(order.direction());
+
                     // check whether sorting is on an group (and thus nested agg) or field
                     Attribute attr = ((NamedExpression) order.child()).toAttribute();
                     // check whether there's an alias (occurs with scalar functions which are not named)
                     attr = qContainer.aliases().getOrDefault(attr, attr);
                     String lookup = attr.id().toString();
                     GroupingAgg group = qContainer.findGroupForAgg(lookup);
-
-                    Direction direction = Direction.from(order.direction());
 
                     // TODO: might need to validate whether the target field or group actually exist
                     if (group != null && group != GroupingAgg.DEFAULT_GROUP) {
@@ -467,7 +469,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                     at = qContainer.aliases().getOrDefault(at, at);
                                     qContainer = qContainer.sort(new AttributeSort(at, direction));
                                 }
-                                // ignore constant 
+                                // ignore constant
                                 else if (!ob.foldable()) {
                                     throw new PlanningException("does not know how to order by expression %s", ob);
                                 }
@@ -498,7 +500,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) plan.child();
                 int limit = Foldables.intValueOf(plan.limit());
                 int currentSize = exec.queryContainer().limit();
-                int newSize = currentSize < 0 ? limit : Math.min(currentSize, limit); 
+                int newSize = currentSize < 0 ? limit : Math.min(currentSize, limit);
                 return exec.with(exec.queryContainer().withLimit(newSize));
             }
             return plan;
@@ -514,7 +516,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             if (qContainer.hasColumns()) {
                 return exec;
             }
-                
+
             for (Attribute attr : exec.output()) {
                 qContainer = qContainer.addColumn(attr);
             }
@@ -527,7 +529,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     //
     // local
     //
-    
+
     private static class PropagateEmptyLocal extends FoldingRule<PhysicalPlan> {
 
         @Override
@@ -541,7 +543,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return plan;
         }
     }
-    
+
     // local exec currently means empty or one entry so limit can't really be applied
     private static class LocalLimit extends FoldingRule<LimitExec> {
 

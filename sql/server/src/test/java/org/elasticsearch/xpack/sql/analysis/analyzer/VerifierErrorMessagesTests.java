@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.catalog.Catalog;
 import org.elasticsearch.xpack.sql.analysis.catalog.EsIndex;
@@ -24,6 +25,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 
+@TestLogging("org.elasticsearch.xpack.sql:TRACE")
 public class VerifierErrorMessagesTests extends ESTestCase {
 
     private SqlParser parser;
@@ -69,7 +71,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testMissingColumn() {
         assertEquals("1:8: Unknown column [xxx]", verify("SELECT xxx FROM test"));
     }
-    
+
     public void testMisspelledColumn() {
         assertEquals("1:8: Unknown column [txt], did you mean [text]?", verify("SELECT txt FROM test"));
     }
@@ -94,19 +96,51 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:26: Unknown column [xxx]", verify("SELECT * FROM test WHERE xxx = 1"));
     }
 
-    public void testMissingColumnInOrderby() {
+    public void testMissingColumnInOrderBy() {
         // xxx offset is that of the order by field
         assertEquals("1:29: Unknown column [xxx]", verify("SELECT * FROM test ORDER BY xxx"));
     }
 
-    public void testMissingColumnFunctionInOrderby() {
+    public void testMissingColumnFunctionInOrderBy() {
         // xxx offset is that of the order by field
         assertEquals("1:41: Unknown column [xxx]", verify("SELECT * FROM test ORDER BY DAY_oF_YEAR(xxx)"));
     }
+
 
     public void testMultipleColumns() {
         // xxx offset is that of the order by field
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
                 verify("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
+    }
+
+    // GROUP BY
+    public void testGroupBySelectNonGrouped() {
+        assertEquals("1:8: Cannot use non-grouped column [text], expected [int]",
+                verify("SELECT text, int FROM test GROUP BY int"));
+    }
+
+    public void testGroupByOrderByNonGrouped() {
+        assertEquals("1:50: Cannot order by non-grouped column [bool], expected [text]",
+                verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY bool"));
+    }
+
+    public void testGroupByOrderByScalarOverNonGrouped() {
+        assertEquals("1:50: Cannot order by non-grouped column [bool], expected [text]",
+                verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY ABS(bool)"));
+    }
+
+    public void testGroupByHavingNonGrouped() {
+        assertEquals("1:48: Cannot filter by non-grouped column [int], expected [text]",
+                verify("SELECT AVG(int) FROM test GROUP BY text HAVING int > 10"));
+    }
+
+    public void testGroupByAggregate() {
+        assertEquals("1:36: Cannot use an aggregate [AVG] for grouping",
+                verify("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
+    }
+
+    public void testGroupByScalarFunctionWithAggOnTarget() {
+        assertEquals("1:31: Cannot use an aggregate [AVG] for grouping",
+                verify("SELECT int FROM test GROUP BY AVG(int) + 2"));
     }
 }

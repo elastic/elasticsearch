@@ -52,13 +52,9 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(final ShardRouting shardRouting, final RoutingAllocation allocation) {
-        if (shardRouting.primary() == false) {
-            return allocation.decision(Decision.YES, NAME, "shard is not a primary shard");
-        }
-
         final RecoverySource recoverySource = shardRouting.recoverySource();
         if (recoverySource == null || recoverySource.getType() != RecoverySource.Type.SNAPSHOT) {
-            return allocation.decision(Decision.YES, NAME, "shard is not being restored");
+            return allocation.decision(Decision.YES, NAME, "ignored as shard is not being recovered from a snapshot");
         }
 
         final Snapshot snapshot = ((RecoverySource.SnapshotRecoverySource) recoverySource).snapshot();
@@ -69,7 +65,8 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
                 if (restoreInProgress.snapshot().equals(snapshot)) {
                     assert restoreInProgress.state().completed() == false : "completed restore should have been removed from cluster state";
                     RestoreInProgress.ShardRestoreStatus shardRestoreStatus = restoreInProgress.shards().get(shardRouting.shardId());
-                    if (shardRestoreStatus.state() != RestoreInProgress.State.FAILURE) {
+                    if (shardRestoreStatus != null && shardRestoreStatus.state().completed() == false) {
+                        assert shardRestoreStatus.state() != RestoreInProgress.State.SUCCESS : "expected initializing shard";
                         return allocation.decision(Decision.YES, NAME, "shard is currently being restored");
                     }
                     break;
@@ -77,7 +74,13 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
             }
         }
         return allocation.decision(Decision.NO, NAME, "shard has failed to be restored from the snapshot [%s] because of [%s] - " +
-            "manually delete the index [%s] in order to retry to restore the snapshot again or use the Reroute API to force the " +
+            "manually close or delete the index [%s] in order to retry to restore the snapshot again or use the reroute API to force the " +
             "allocation of an empty primary shard", snapshot, shardRouting.unassignedInfo().getDetails(), shardRouting.getIndexName());
+    }
+
+    @Override
+    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard " + shardRouting;
+        return canAllocate(shardRouting, node, allocation);
     }
 }

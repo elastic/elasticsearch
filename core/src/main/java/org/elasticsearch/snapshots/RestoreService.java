@@ -569,15 +569,13 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
 
         @Override
         public void unassignedInfoUpdated(ShardRouting unassignedShard, UnassignedInfo newUnassignedInfo) {
-            if (unassignedShard.primary()) {
-                RecoverySource recoverySource = unassignedShard.recoverySource();
-                if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
-                    if (newUnassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
-                        Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
-                        String reason = "shard could not be allocated on any of the nodes";
-                        changes(snapshot).shards.put(unassignedShard.shardId(),
-                            new ShardRestoreStatus(unassignedShard.currentNodeId(), RestoreInProgress.State.FAILURE, reason));
-                    }
+            RecoverySource recoverySource = unassignedShard.recoverySource();
+            if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
+                if (newUnassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+                    Snapshot snapshot = ((SnapshotRecoverySource) recoverySource).snapshot();
+                    String reason = "shard could not be allocated to any of the nodes";
+                    changes(snapshot).shards.put(unassignedShard.shardId(),
+                        new ShardRestoreStatus(unassignedShard.currentNodeId(), RestoreInProgress.State.FAILURE, reason));
                 }
             }
         }

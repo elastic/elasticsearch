@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.monitoring.MonitoredSystem.BEATS;
 import static org.elasticsearch.xpack.monitoring.MonitoredSystem.KIBANA;
 import static org.elasticsearch.xpack.monitoring.MonitoredSystem.LOGSTASH;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
@@ -230,6 +231,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         templates.add(".monitoring-es");
         templates.add(".monitoring-kibana");
         templates.add(".monitoring-logstash");
+        templates.add(".monitoring-beats");
 
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(".monitoring-*").get();
         Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).collect(Collectors.toSet());
@@ -326,7 +328,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
     }
 
     private static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
-        final MonitoredSystem system = randomFrom(KIBANA, LOGSTASH);
+        final MonitoredSystem system = randomFrom(BEATS, KIBANA, LOGSTASH);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference source;
 

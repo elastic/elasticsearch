@@ -852,6 +852,7 @@ public class TranslogTests extends ESTestCase {
                                 translog.rollGeneration();
                                 // expose the new checkpoint (simulating a commit), before we trim the translog
                                 lastCommittedLocalCheckpoint.set(localCheckpoint);
+                                deletionPolicy.setTranslogGenerationOfLastCommit(translog.currentFileGeneration());
                                 deletionPolicy.setMinTranslogGenerationForRecovery(
                                     translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration);
                                 translog.trimUnreferencedReaders();
@@ -1850,6 +1851,7 @@ public class TranslogTests extends ESTestCase {
         translog.close();
         TranslogConfig config = translog.getConfig();
         final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1);
+        deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, Long.MAX_VALUE));
         deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
         translog = new Translog(config, translog.getTranslogUUID(), deletionPolicy, () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
         assertThat(translog.getMinFileGeneration(), equalTo(1L));
@@ -1895,6 +1897,7 @@ public class TranslogTests extends ESTestCase {
                     translog.rollGeneration();
                 }
             }
+            deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, translog.currentFileGeneration()));
             deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
             fail.failRandomly();
             try {
@@ -1904,6 +1907,7 @@ public class TranslogTests extends ESTestCase {
             }
         }
         final TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy(-1, -1);
+        deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(comittedGeneration, Long.MAX_VALUE));
         deletionPolicy.setMinTranslogGenerationForRecovery(comittedGeneration);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.UNASSIGNED_SEQ_NO)) {
             // we don't know when things broke exactly

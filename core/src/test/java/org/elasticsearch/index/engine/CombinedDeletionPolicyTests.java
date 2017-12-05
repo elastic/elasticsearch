@@ -95,7 +95,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         long secondMaxSeqNo = randomLongBetween(firstMaxSeqNo + 1, Long.MAX_VALUE);
 
         long lastTranslogGen = randomNonNegativeLong();
-        final IndexCommit firstCommit = mockIndexCommit(firstMaxSeqNo, randomNonNegativeLong());
+        final IndexCommit firstCommit = mockIndexCommit(firstMaxSeqNo, randomLongBetween(0, lastTranslogGen));
         final IndexCommit secondCommit = mockIndexCommit(secondMaxSeqNo, lastTranslogGen);
         SnapshotDeletionPolicy snapshotDeletionPolicy = new SnapshotDeletionPolicy(indexPolicy);
 

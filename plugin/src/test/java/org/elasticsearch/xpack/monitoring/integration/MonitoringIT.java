@@ -681,6 +681,6 @@ public class MonitoringIT extends ESRestTestCase {
      * Returns a {@link MonitoredSystem} supported by the Monitoring Bulk API
      */
     private static MonitoredSystem randomSystem() {
-        return randomFrom(MonitoredSystem.LOGSTASH, MonitoredSystem.KIBANA);
+        return randomFrom(MonitoredSystem.LOGSTASH, MonitoredSystem.KIBANA, MonitoredSystem.BEATS);
     }
 }

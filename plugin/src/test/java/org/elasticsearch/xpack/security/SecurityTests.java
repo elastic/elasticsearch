@@ -5,16 +5,6 @@
  */
 package org.elasticsearch.xpack.security;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.BiConsumer;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -24,16 +14,18 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -46,7 +38,26 @@ import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
@@ -60,6 +71,8 @@ import static org.mockito.Mockito.when;
 public class SecurityTests extends ESTestCase {
 
     private Security security = null;
+    private ThreadContext threadContext = null;
+    private TestUtils.UpdatableLicenseState licenseState;
 
     public static class DummyExtension extends XPackExtension {
         private String realmType;
@@ -86,7 +99,8 @@ public class SecurityTests extends ESTestCase {
         }
         Settings settings = Settings.builder().put(testSettings).put("path.home", createTempDir()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        security = new Security(settings, env, new XPackLicenseState(), new SSLService(settings, env));
+        licenseState = new TestUtils.UpdatableLicenseState();
+        security = new Security(settings, env, licenseState, new SSLService(settings, env));
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, false);
@@ -95,6 +109,8 @@ public class SecurityTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
+        threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
@@ -102,13 +118,22 @@ public class SecurityTests extends ESTestCase {
                 Arrays.asList(extensions));
     }
 
-    private <T> T findComponent(Class<T> type, Collection<Object> components) {
+    private static <T> T findComponent(Class<T> type, Collection<Object> components) {
         for (Object obj : components) {
             if (type.isInstance(obj)) {
                 return type.cast(obj);
             }
         }
         return null;
+    }
+
+    @Before
+    public void cleanup() throws IOException {
+        if (threadContext != null) {
+            threadContext.stashContext();
+            threadContext.close();
+            threadContext = null;
+        }
     }
 
     public void testCustomRealmExtension() throws Exception {
@@ -163,7 +188,7 @@ public class SecurityTests extends ESTestCase {
         assertEquals(LoggingAuditTrail.NAME, service.getAuditTrails().get(1).name());
     }
 
-    public void testUnknownOutput() throws Exception {
+    public void testUnknownOutput() {
         Settings settings = Settings.builder()
             .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
             .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "foo").build();
@@ -311,5 +336,49 @@ public class SecurityTests extends ESTestCase {
         ClusterState clusterState =  ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes).build();
         joinValidator.accept(node, clusterState);
+    }
+    
+    public void testGetFieldFilterSecurityEnabled() throws Exception {
+        createComponents(Settings.EMPTY);
+        Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
+        assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
+        Map<String, IndicesAccessControl.IndexAccessControl> permissionsMap = new HashMap<>();
+
+        FieldPermissions permissions = new FieldPermissions(
+                new FieldPermissionsDefinition(new String[]{"field_granted"}, Strings.EMPTY_ARRAY));
+        IndicesAccessControl.IndexAccessControl indexGrantedAccessControl = new IndicesAccessControl.IndexAccessControl(true, permissions,
+                Collections.emptySet());
+        permissionsMap.put("index_granted", indexGrantedAccessControl);
+        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(false,
+                FieldPermissions.DEFAULT, Collections.emptySet());
+        permissionsMap.put("index_not_granted", indexAccessControl);
+        IndicesAccessControl.IndexAccessControl nullFieldPermissions =
+                new IndicesAccessControl.IndexAccessControl(true, null, Collections.emptySet());
+        permissionsMap.put("index_null", nullFieldPermissions);
+        IndicesAccessControl index = new IndicesAccessControl(true, permissionsMap);
+        threadContext.putTransient(AuthorizationService.INDICES_PERMISSIONS_KEY, index);
+
+        assertTrue(fieldFilter.apply("index_granted").test("field_granted"));
+        assertFalse(fieldFilter.apply("index_granted").test(randomAlphaOfLengthBetween(3, 10)));
+        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test("field_granted"));
+        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test(randomAlphaOfLengthBetween(3, 10)));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 10)));
+        expectThrows(IllegalStateException.class, () -> fieldFilter.apply("index_not_granted"));
+        assertTrue(fieldFilter.apply("index_null").test(randomAlphaOfLengthBetween(3, 6)));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_null"));
+    }
+
+    public void testGetFieldFilterSecurityDisabled() throws Exception {
+        createComponents(Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build());
+        assertSame(MapperPlugin.NOOP_FIELD_FILTER, security.getFieldFilter());
+    }
+
+    public void testGetFieldFilterSecurityEnabledLicenseNoFLS() throws Exception {
+        createComponents(Settings.EMPTY);
+        Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
+        assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
+        licenseState.update(randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD), true);
+        assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
+        assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
     }
 }

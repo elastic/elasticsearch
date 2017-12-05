@@ -8,29 +8,15 @@ package org.elasticsearch.xpack.monitoring.exporter.local;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
-import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.watcher.client.WatchSourceBuilders;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.NeverCondition;
-import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
-import org.elasticsearch.xpack.watcher.trigger.manual.ManualTrigger;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -45,13 +31,7 @@ import static org.hamcrest.Matchers.notNullValue;
                               numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
 public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase {
 
-    private final boolean useClusterAlerts = enableWatcher() && randomBoolean();
     private final MonitoredSystem system = randomFrom(MonitoredSystem.values());
-
-    @Override
-    protected boolean useClusterAlerts() {
-        return useClusterAlerts;
-    }
 
     public void testCreateWhenResourcesNeedToBeAddedOrUpdated() throws Exception {
         // sometimes they need to be added; sometimes they need to be replaced
@@ -70,7 +50,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         // these were "newer" or at least the same version, so they shouldn't be replaced
         assertTemplateNotUpdated();
         assertPipelinesNotUpdated();
-        assertWatchesNotUpdated();
     }
 
     private void createResources() throws Exception {
@@ -118,7 +97,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
         putTemplate(version);
         putPipelines(version);
-        putWatches(version);
     }
 
     private void putTemplate(final Integer version) throws Exception {
@@ -136,49 +114,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
     private void putPipeline(final String pipelineName, final Integer version) throws Exception {
         assertAcked(client().admin().cluster().preparePutPipeline(pipelineName, replaceablePipeline(version), XContentType.JSON).get());
-    }
-
-    private void putWatches(final Integer version) throws Exception {
-        if (enableWatcher()) {
-            // wait until the cluster is ready so that we can get the cluster's UUID
-            assertBusy(() -> assertThat(clusterService().state().version(), not(ClusterState.UNKNOWN_VERSION)));
-
-            for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
-                putWatch(ClusterAlertsUtil.createUniqueWatchId(clusterService(), watchId), version);
-            }
-        }
-    }
-
-    private void putWatch(final String watchName, final Integer version) throws Exception {
-        final WatcherClient watcherClient = new WatcherClient(client());
-
-        assertThat(watcherClient.putWatch(new PutWatchRequest(watchName, replaceableWatch(version))).get().isCreated(), is(true));
-    }
-
-    /**
-     * Create a Watch with nothing in it that will never fire its action, with a metadata field named after {@linkplain #getTestName()}.
-     *
-     * @param version Version to add to the watch, if any
-     * @return Never {@code null}.
-     */
-    private WatchSourceBuilder replaceableWatch(final Integer version) {
-        final WatchSourceBuilder builder = WatchSourceBuilders.watchBuilder();
-        final Map<String, Object> metadata = new HashMap<>();
-
-        // add a marker so that we know this test made the watch
-        metadata.put(getTestName(), true);
-
-        if (version != null) {
-            metadata.put("xpack", MapBuilder.<String, Object>newMapBuilder().put("version_created", version).map());
-        }
-
-        builder.metadata(metadata);
-        builder.trigger(new ManualTrigger());
-        builder.input(new SimpleInput(Payload.EMPTY));
-        builder.condition(NeverCondition.INSTANCE);
-        builder.addAction("_action", LoggingAction.builder(new TextTemplate("never runs")));
-
-        return builder;
     }
 
     /**
@@ -239,20 +174,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         }
     }
 
-    private void assertWatchesExist() {
-        if (enableWatcher()) {
-            final WatcherClient watcherClient = new WatcherClient(client());
-
-            for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
-                final String watchName = ClusterAlertsUtil.createUniqueWatchId(clusterService(), watchId);
-                final GetWatchResponse response = watcherClient.prepareGetWatch(watchName).get();
-
-                // this just ensures that it's set; not who set it
-                assertThat(response.isFound(), is(true));
-            }
-        }
-    }
-
     private void assertResourcesExist() throws Exception {
         createResources();
 
@@ -261,11 +182,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         assertBusy(() -> {
             assertTemplatesExist();
             assertPipelinesExist();
-            if (useClusterAlerts) {
-                assertWatchesExist();
-            } else {
-                assertWatchesNotUpdated();
-            }
         });
     }
 
@@ -287,22 +203,4 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             assertThat(description, equalTo(getTestName()));
         }
     }
-
-    private void assertWatchesNotUpdated() throws Exception {
-        if (enableWatcher()) {
-            final WatcherClient watcherClient = new WatcherClient(client());
-
-            for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
-                final String watchName = ClusterAlertsUtil.createUniqueWatchId(clusterService(), watchId);
-                final GetWatchResponse response = watcherClient.prepareGetWatch(watchName).get();
-
-                // if we didn't find the watch, then we certainly didn't update it
-                if (response.isFound()) {
-                    // ensure that the watch still contains a value associated with the test rather than the real watch
-                    assertThat(response.getSource().getValue("metadata." + getTestName()), notNullValue());
-                }
-            }
-        }
-    }
-
 }

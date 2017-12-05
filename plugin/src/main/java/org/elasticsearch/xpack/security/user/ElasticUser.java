@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.security.user;
 
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * The reserved {@code elastic} superuser. Has full permission/access to the cluster/indices and can
@@ -17,7 +15,8 @@ import java.util.Map;
 public class ElasticUser extends User {
 
     public static final String NAME = "elastic";
-    private static final String ROLE_NAME = "superuser";
+    // used for testing in a different package
+    public static final String ROLE_NAME = "superuser";
 
     public ElasticUser(boolean enabled) {
         super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);

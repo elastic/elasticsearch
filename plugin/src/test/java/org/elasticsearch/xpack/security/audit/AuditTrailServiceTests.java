@@ -141,12 +141,13 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAccessGranted() throws Exception {
         User user = new User("_username", "r1");
+        String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
         Set<String> specificIndices = randomBoolean() ? randomSpecificIndices() : null;
-        service.accessGranted(user, "_action", message, specificIndices);
+        service.accessGranted(user, "_action", message, roles, specificIndices);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessGranted(user, "_action", message, specificIndices);
+                verify(auditTrail).accessGranted(user, "_action", message, roles, specificIndices);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -155,12 +156,13 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAccessDenied() throws Exception {
         User user = new User("_username", "r1");
+        String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
         Set<String> specificIndices = randomBoolean() ? randomSpecificIndices() : null;
-        service.accessDenied(user, "_action", message, specificIndices);
+        service.accessDenied(user, "_action", message, roles, specificIndices);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessDenied(user, "_action", message, specificIndices);
+                verify(auditTrail).accessDenied(user, "_action", message, roles, specificIndices);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -225,8 +227,8 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     /**
      * Generates a semi-believable random value for the specificIndices parameter sent
-     * to the {@link AuditTrail#accessGranted(User, String, TransportMessage, Set)} or
-     * {@link AuditTrail#accessDenied(User, String, TransportMessage, Set)} methods.
+     * to the {@link AuditTrail#accessGranted(User, String, TransportMessage, String[], Set)} or
+     * {@link AuditTrail#accessDenied(User, String, TransportMessage, String[], Set)} methods.
      */
     public static Set<String> randomSpecificIndices() {
         Set<String> specificIndices = new HashSet<>();

@@ -126,7 +126,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     public void testMaxOpenJobsSetting_givenDefault() {
         int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(Settings.EMPTY);
-        assertEquals(10, maxOpenJobs);
+        assertEquals(20, maxOpenJobs);
     }
 
     public void testMaxOpenJobsSetting_givenNewSettingOnly() {

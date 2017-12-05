@@ -22,10 +22,11 @@ import org.joda.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
-import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTestCase {
+
+    static Integer INDEX_TEMPLATE_VERSION = null;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -196,7 +197,10 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
      * Creates a watcher history index from the current version.
      */
     protected void createWatcherHistoryIndex(final DateTime creationDate) {
-        createWatcherHistoryIndex(creationDate, INDEX_TEMPLATE_VERSION);
+        if (INDEX_TEMPLATE_VERSION == null) {
+            INDEX_TEMPLATE_VERSION = randomIntBetween(1, 20);
+        }
+        createWatcherHistoryIndex(creationDate, String.valueOf(INDEX_TEMPLATE_VERSION));
     }
 
     /**

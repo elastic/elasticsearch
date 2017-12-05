@@ -132,19 +132,19 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage message, @Nullable Set<String> specificIndices) {
+    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames,  @Nullable Set<String> specificIndices) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.accessGranted(user, action, message, specificIndices);
+                auditTrail.accessGranted(user, action, message, roleNames, specificIndices);
             }
         }
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage message, @Nullable Set<String> specificIndices) {
+    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames,  @Nullable Set<String> specificIndices) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.accessDenied(user, action, message, specificIndices);
+                auditTrail.accessDenied(user, action, message, roleNames, specificIndices);
             }
         }
     }
@@ -193,28 +193,28 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void runAsGranted(User user, String action, TransportMessage message) {
+    public void runAsGranted(User user, String action, TransportMessage message, String[] roleNames) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.runAsGranted(user, action, message);
+                auditTrail.runAsGranted(user, action, message, roleNames);
             }
         }
     }
 
     @Override
-    public void runAsDenied(User user, String action, TransportMessage message) {
+    public void runAsDenied(User user, String action, TransportMessage message, String[] roleNames) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.runAsDenied(user, action, message);
+                auditTrail.runAsDenied(user, action, message, roleNames);
             }
         }
     }
 
     @Override
-    public void runAsDenied(User user, RestRequest request) {
+    public void runAsDenied(User user, RestRequest request, String[] roleNames) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.runAsDenied(user, request);
+                auditTrail.runAsDenied(user, request, roleNames);
             }
         }
     }

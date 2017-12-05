@@ -112,6 +112,10 @@ public class FileRolesStore extends AbstractComponent {
         }
     }
 
+    public Path getFile() {
+        return file;
+    }
+
     public static Path resolveFile(Environment env) {
         return XPackPlugin.resolveConfigFile(env, "roles.yml");
     }

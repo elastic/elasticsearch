@@ -75,6 +75,14 @@ You must have `manage_watcher` cluster privileges to use this API. For more
 information, see {xpack-ref}/security-privileges.html[Security Privileges].
 
 [float]
+==== Security Integration
+
+When {security} is enabled, your watch will only be able to index or search on
+indices for which the user that stored the watch, has privileges. If the user is
+able to read index `a`, but not index `b`, the same will apply, when the watch
+is executed.
+
+[float]
 ==== Examples
 
 The following example adds a watch with the `my-watch` id that has the following

@@ -24,17 +24,12 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequestBuilder;
-import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
-import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -48,13 +43,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.monitoring.MonitoredSystem.BEATS;
 import static org.elasticsearch.xpack.monitoring.MonitoredSystem.KIBANA;
 import static org.elasticsearch.xpack.monitoring.MonitoredSystem.LOGSTASH;
 import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
@@ -180,7 +175,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
             checkMonitoringTemplates();
             checkMonitoringPipelines();
-            checkMonitoringWatches();
             checkMonitoringDocs();
         } finally {
             stopMonitoring();
@@ -230,6 +224,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         templates.add(".monitoring-es");
         templates.add(".monitoring-kibana");
         templates.add(".monitoring-logstash");
+        templates.add(".monitoring-beats");
 
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(".monitoring-*").get();
         Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).collect(Collectors.toSet());
@@ -250,23 +245,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
         assertEquals("Missing expected pipelines", expectedPipelines, pipelines);
         assertTrue("monitoring ingest pipeline not found", response.isFound());
-    }
-
-    /**
-     * Checks that the local exporter correctly creates Watches.
-     */
-    private void checkMonitoringWatches() throws ExecutionException, InterruptedException {
-        if (enableWatcher()) {
-            final XPackClient xpackClient = new XPackClient(client());
-            final WatcherClient watcher = xpackClient.watcher();
-
-            for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
-                final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService(), watchId);
-                final GetWatchResponse response = watcher.getWatch(new GetWatchRequest(uniqueWatchId)).get();
-
-                assertTrue("watch [" + watchId + "] should exist", response.isFound());
-            }
-        }
     }
 
     /**
@@ -326,7 +304,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
     }
 
     private static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
-        final MonitoredSystem system = randomFrom(KIBANA, LOGSTASH);
+        final MonitoredSystem system = randomFrom(BEATS, KIBANA, LOGSTASH);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference source;
 

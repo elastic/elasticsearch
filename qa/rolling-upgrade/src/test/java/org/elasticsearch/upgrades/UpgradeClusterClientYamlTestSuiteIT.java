@@ -15,7 +15,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.xpack.security.SecurityClusterClientYamlTestCase;
-import org.elasticsearch.xpack.test.rest.XPackRestTestCase;
+import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
@@ -36,7 +36,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends SecurityClusterClientYa
      */
     @Before
     public void waitForTemplates() throws Exception {
-        XPackRestTestCase.waitForMlTemplates();
+        XPackRestTestHelper.waitForMlTemplates(client());
     }
 
     /**

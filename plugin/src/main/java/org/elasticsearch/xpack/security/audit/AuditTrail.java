@@ -39,25 +39,9 @@ public interface AuditTrail {
 
     void authenticationFailed(String realm, AuthenticationToken token, RestRequest request);
 
-    /**
-     * Access was granted for some request.
-     * @param specificIndices if non-null then the action was authorized
-     *      for all indices in this particular set of indices, otherwise
-     *      the action was authorized for all indices to which it is
-     *      related, if any
-     */
-    void accessGranted(User user, String action, TransportMessage message, @Nullable Set<String> specificIndices);
+    void accessGranted(User user, String action, TransportMessage message, String[] roleNames, @Nullable Set<String> specificIndices);
 
-    /**
-     * Access was denied for some request.
-     * @param specificIndices if non-null then the action was denied
-     *      for at least one index in this particular set of indices,
-     *      otherwise the action was denied for at least one index
-     *      to which the request is related. If the request isn't
-     *      related to any particular index then the request itself
-     *      was denied.
-     */
-    void accessDenied(User user, String action, TransportMessage message, @Nullable Set<String> specificIndices);
+    void accessDenied(User user, String action, TransportMessage message, String[] roleNames, @Nullable Set<String> specificIndices);
 
     void tamperedRequest(RestRequest request);
 
@@ -69,9 +53,9 @@ public interface AuditTrail {
 
     void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule);
 
-    void runAsGranted(User user, String action, TransportMessage message);
+    void runAsGranted(User user, String action, TransportMessage message, String[] roleNames);
 
-    void runAsDenied(User user, String action, TransportMessage message);
+    void runAsDenied(User user, String action, TransportMessage message, String[] roleNames);
 
-    void runAsDenied(User user, RestRequest request);
+    void runAsDenied(User user, RestRequest request, String[] roleNames);
 }

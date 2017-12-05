@@ -164,7 +164,7 @@
 
   - do:
       xpack.monitoring.bulk:
-        system_id:          "logstash"
+        system_id:          "beats"
         system_api_version: "6"
         interval:           "5s"
         body:
@@ -186,17 +186,17 @@
 
   - do:
       search:
-        index: .monitoring-logstash-*
+        index: .monitoring-beats-*
   - match: { hits.total: 2 }
 
   - do:
       indices.close:
-        index: .monitoring-logstash-*
+        index: .monitoring-beats-*
 
   - do:
       catch: /export_exception/
       xpack.monitoring.bulk:
-        system_id:          "logstash"
+        system_id:          "beats"
         system_api_version: "6"
         interval:           "5s"
         body:

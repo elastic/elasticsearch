@@ -35,9 +35,13 @@ required. For more information, see
 {xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}].
 
 `xpack.watcher.history.cleaner_service.enabled`::
-Set to `false` (default) to disable the cleaner service, which removes previous
-versions of {watcher} indices (for example, .watcher-history*) when it
-determines that they are old.
+Set to `false` (default) to disable the cleaner service. If this setting is
+`true`, the `xpack.monitoring.enabled` setting must also be set to `true`. The
+cleaner service removes previous versions of {watcher} indices (for example,
+`.watcher-history*`) when it determines that they are old. The duration of
+{watcher} indices is determined by the `xpack.monitoring.history.duration`
+setting, which defaults to 7 days. For more information about that setting,
+see <<monitoring-settings>>.
 
 `xpack.http.proxy.host`::
 Specifies the address of the proxy server to use to connect to HTTP services.

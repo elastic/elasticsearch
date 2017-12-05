@@ -26,6 +26,11 @@ Machine Learning::
 * The `max_running_jobs` node property is removed in this release. Use the
 `xpack.ml.max_open_jobs` setting instead. For more information, <<ml-settings>>.
 
+Security::
+* The fields returned as part of the mappings section by get index, get
+mappings, get field mappings and field capabilities API are now only the ones
+that the user is authorized to access in case field level security is enabled.
+
 See also:
 
 * <<breaking-changes-7.0,{es} Breaking Changes>>

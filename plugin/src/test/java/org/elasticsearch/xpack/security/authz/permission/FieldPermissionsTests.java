@@ -12,8 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReferenceArray;

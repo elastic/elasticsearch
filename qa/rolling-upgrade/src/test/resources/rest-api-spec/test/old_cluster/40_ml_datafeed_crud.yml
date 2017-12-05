@@ -14,6 +14,9 @@
                 "bucket_span": "60s",
                 "detectors" :[{"function":"count"}]
             },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
             "data_description" : {
                 "format":"xcontent",
                 "time_field":"time"

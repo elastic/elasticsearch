@@ -7,7 +7,6 @@ package org.elasticsearch.smoketest;
 
 import org.apache.http.HttpHost;
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
@@ -17,9 +16,8 @@ import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
-import org.elasticsearch.xpack.ml.integration.MlRestTestStateCleaner;
+import org.elasticsearch.xpack.test.rest.XPackRestIT;
 import org.junit.After;
 
 import java.io.IOException;
@@ -32,16 +30,11 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
-public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
     private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
 
     public XDocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
     }
 
     @Override
@@ -93,9 +86,21 @@ public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         }
     }
 
-    private boolean isWatcherTest() {
+    @Override
+    protected boolean isWatcherTest() {
         String testName = getTestName();
         return testName != null && testName.contains("watcher");
+    }
+
+    @Override
+    protected boolean isMonitoringTest() {
+        return false;
+    }
+
+    @Override
+    protected boolean isMachineLearningTest() {
+        String testName = getTestName();
+        return testName != null && testName.contains("ml/");
     }
 
     /**
@@ -115,11 +120,6 @@ public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 getAdminExecutionContext().callApi("xpack.security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
             }
         }
-    }
-
-    @After
-    public void cleanMlState() throws Exception {
-        new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
     }
 
     @Override

@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -32,10 +34,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
+import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeedBuilder;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCounts;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
@@ -221,6 +225,59 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
             assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
         });
+    }
+
+    /**
+     * Stopping a lookback closes the associated job _after_ the stop call returns.
+     * This test ensures that a kill request submitted during this close doesn't
+     * put the job into the "failed" state.
+     */
+    public void testStopLookbackFollowedByProcessKill() throws Exception {
+        client().admin().indices().prepareCreate("data")
+                .addMapping("type", "time", "type=date")
+                .get();
+        long numDocs = randomIntBetween(1024, 2048);
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        long twoWeeksAgo = oneWeekAgo - 604800000;
+        indexDocs(logger, "data", numDocs, twoWeeksAgo, oneWeekAgo);
+
+        Job.Builder job = createScheduledJob("lookback-job-stopped-then-killed");
+        registerJob(job);
+        PutJobAction.Response putJobResponse = putJob(job);
+        assertTrue(putJobResponse.isAcknowledged());
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+        List<String> t = Collections.singletonList("data");
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), t);
+        // Use lots of chunks so we have time to stop the lookback before it completes
+        datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newManual(new TimeValue(1, TimeUnit.SECONDS)));
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+        registerDatafeed(datafeedConfig);
+        assertTrue(putDatafeed(datafeedConfig).isAcknowledged());
+
+        startDatafeed(datafeedConfig.getId(), 0L, now);
+        assertBusy(() -> {
+            DataCounts dataCounts = getDataCounts(job.getId());
+            assertThat(dataCounts.getProcessedRecordCount(), greaterThan(0L));
+        }, 60, TimeUnit.SECONDS);
+
+        stopDatafeed(datafeedConfig.getId());
+
+        // At this point, stopping the datafeed will have submitted a request for the job to close.
+        // Depending on thread scheduling, the following kill request might overtake it.  The Thread.sleep()
+        // call here makes it more likely; to make it inevitable for testing also add a Thread.sleep(10)
+        // immediately before the checkProcessIsAlive() call in AutodetectCommunicator.close().
+        Thread.sleep(randomIntBetween(1, 9));
+
+        KillProcessAction.Request killRequest = new KillProcessAction.Request(job.getId());
+        client().execute(KillProcessAction.INSTANCE, killRequest).actionGet();
+
+        // This should close very quickly, as we killed the process.  If the job goes into the "failed"
+        // state that's wrong and this test will fail.
+        waitUntilJobIsClosed(job.getId(), TimeValue.timeValueSeconds(2));
     }
 
     private void startRealtime(String jobId) throws Exception {

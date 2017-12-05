@@ -233,7 +233,12 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
     }
 
     protected void waitUntilJobIsClosed(String jobId) throws Exception {
-        assertBusy(() -> assertThat(getJobStats(jobId).get(0).getState(), equalTo(JobState.CLOSED)), 30, TimeUnit.SECONDS);
+        waitUntilJobIsClosed(jobId, TimeValue.timeValueSeconds(30));
+    }
+
+    protected void waitUntilJobIsClosed(String jobId, TimeValue waitTime) throws Exception {
+        assertBusy(() -> assertThat(getJobStats(jobId).get(0).getState(), equalTo(JobState.CLOSED)),
+                waitTime.getMillis(), TimeUnit.MILLISECONDS);
     }
 
     protected List<Job> getJob(String jobId) {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -16,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -48,8 +49,6 @@ import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
 public class DatafeedManager extends AbstractComponent {
-
-    private static final String INF_SYMBOL = "forever";
 
     private final Client client;
     private final ClusterService clusterService;
@@ -157,9 +156,6 @@ public class DatafeedManager extends AbstractComponent {
     // otherwise if a stop datafeed call is made immediately after the start datafeed call we could cancel
     // the DatafeedTask without stopping datafeed, which causes the datafeed to keep on running.
     private void innerRun(Holder holder, long startTime, Long endTime) {
-        logger.info("Starting datafeed [{}] for job [{}] in [{}, {})", holder.datafeed.getId(), holder.datafeed.getJobId(),
-                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(startTime),
-                endTime == null ? INF_SYMBOL : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(endTime));
         holder.future = threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME).submit(new AbstractRunnable() {
 
             @Override
@@ -429,7 +425,15 @@ public class DatafeedManager extends AbstractComponent {
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    logger.error("[" + getJobId() + "] failed to auto-close job", e);
+                                    // Given that the UI force-deletes the datafeed and then force-deletes the job, it's
+                                    // quite likely that the auto-close here will get interrupted by a process kill request,
+                                    // and it's misleading/worrying to log an error in this case.
+                                    if (e instanceof ElasticsearchStatusException &&
+                                            ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
+                                        logger.debug("[{}] {}", getJobId(), e.getMessage());
+                                    } else {
+                                        logger.error("[" + getJobId() + "] failed to auto-close job", e);
+                                    }
                                 }
                             });
                 }

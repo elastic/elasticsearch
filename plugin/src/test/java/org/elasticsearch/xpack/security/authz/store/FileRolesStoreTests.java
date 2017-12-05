@@ -71,7 +71,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(descriptor);
         Role role = Role.builder(descriptor, null).build();
         assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("role1"));
+        assertThat(role.names(), equalTo(new String[] { "role1" }));
         assertThat(role.cluster(), notNullValue());
         assertThat(role.cluster().privilege(), is(ClusterPrivilege.ALL));
         assertThat(role.indices(), notNullValue());
@@ -99,7 +99,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(descriptor);
         role = Role.builder(descriptor, null).build();
         assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("role1.ab"));
+        assertThat(role.names(), equalTo(new String[] { "role1.ab" }));
         assertThat(role.cluster(), notNullValue());
         assertThat(role.cluster().privilege(), is(ClusterPrivilege.ALL));
         assertThat(role.indices(), notNullValue());
@@ -111,7 +111,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(descriptor);
         role = Role.builder(descriptor, null).build();
         assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("role2"));
+        assertThat(role.names(), equalTo(new String[] { "role2" }));
         assertThat(role.cluster(), notNullValue());
         assertTrue(Operations.sameLanguage(role.cluster().privilege().getAutomaton(), ClusterPrivilege.ALL.getAutomaton()));
         assertThat(role.indices(), notNullValue());
@@ -122,7 +122,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(descriptor);
         role = Role.builder(descriptor, null).build();
         assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("role3"));
+        assertThat(role.names(), equalTo(new String[] { "role3" }));
         assertThat(role.cluster(), notNullValue());
         assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.indices(), notNullValue());
@@ -146,7 +146,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(descriptor);
         role = Role.builder(descriptor, null).build();
         assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("role_run_as"));
+        assertThat(role.names(), equalTo(new String[] { "role_run_as" }));
         assertThat(role.cluster(), notNullValue());
         assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.indices(), is(IndicesPermission.NONE));
@@ -159,7 +159,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(descriptor);
         role = Role.builder(descriptor, null).build();
         assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("role_run_as1"));
+        assertThat(role.names(), equalTo(new String[] { "role_run_as1" }));
         assertThat(role.cluster(), notNullValue());
         assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.indices(), is(IndicesPermission.NONE));
@@ -172,7 +172,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(descriptor);
         role = Role.builder(descriptor, null).build();
         assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("role_fields"));
+        assertThat(role.names(), equalTo(new String[] { "role_fields" }));
         assertThat(role.cluster(), notNullValue());
         assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
@@ -194,7 +194,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(descriptor);
         role = Role.builder(descriptor, null).build();
         assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("role_query"));
+        assertThat(role.names(), equalTo(new String[] { "role_query" }));
         assertThat(role.cluster(), notNullValue());
         assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
@@ -215,7 +215,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(descriptor);
         role = Role.builder(descriptor, null).build();
         assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("role_query_fields"));
+        assertThat(role.names(), equalTo(new String[] { "role_query_fields" }));
         assertThat(role.cluster(), notNullValue());
         assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
@@ -346,7 +346,7 @@ public class FileRolesStoreTests extends ESTestCase {
             assertEquals(1, descriptors.size());
             Role role = Role.builder(descriptors.iterator().next(), null).build();
             assertThat(role, notNullValue());
-            assertThat(role.name(), equalTo("role5"));
+            assertThat(role.names(), equalTo(new String[] { "role5" }));
             assertThat(role.cluster().check("cluster:monitor/foo/bar"), is(true));
             assertThat(role.cluster().check("cluster:admin/foo/bar"), is(false));
 
@@ -375,7 +375,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertNotNull(descriptor);
         Role role = Role.builder(descriptor, null).build();
         assertThat(role, notNullValue());
-        assertThat(role.name(), equalTo("valid_role"));
+        assertThat(role.names(), equalTo(new String[] { "valid_role" }));
 
         List<String> entries = CapturingLogger.output(logger.getName(), Level.ERROR);
         assertThat(entries, hasSize(6));

@@ -11,6 +11,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -92,6 +94,13 @@ public class RealmSettingsTests extends ESTestCase {
     public void testPkiRealmWithFullSslSettingsDoesNotValidate() throws Exception {
         final Settings.Builder realm = realm("pki3", configureSsl("", pkiSettings(true), true, true));
         assertError("pki3", realm.build());
+    }
+
+    public void testPkiRealmWithClosedSecurePasswordValidatesSuccessfully() throws Exception {
+        final Settings.Builder builder = pkiRealm("pki4", true);
+        builder.getSecureSettings().close();
+        final Settings settings = builder.build();
+        assertSuccess(settings);
     }
 
     public void testSettingsWithMultipleRealmsValidatesSuccessfully() throws Exception {
@@ -201,7 +210,7 @@ public class RealmSettingsTests extends ESTestCase {
         if (useTrustStore) {
             builder.put("truststore.path", randomAlphaOfLengthBetween(8, 32));
             SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-                secureSettings.setString("keystore.secure_password", randomAlphaOfLength(8));
+                secureSettings.setString("truststore.secure_password", randomAlphaOfLength(8));
             });
             builder.put("truststore.algorithm", randomAlphaOfLengthBetween(6, 10));
         } else {
@@ -254,7 +263,29 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     private Settings.Builder realm(String name, Settings.Builder settings) {
-        return settings.normalizePrefix(realmPrefix(name));
+        final String prefix = realmPrefix(name);
+        final MockSecureSettings secureSettings = normaliseSecureSettingPrefix(prefix, settings.getSecureSettings());
+        final Settings.Builder builder = Settings.builder().put(settings.normalizePrefix(prefix).build(), false);
+        if (secureSettings != null) {
+            builder.setSecureSettings(secureSettings);
+        }
+        return builder;
+    }
+
+    private MockSecureSettings normaliseSecureSettingPrefix(String prefix, SecureSettings settings) {
+        if (settings == null) {
+            return null;
+        }
+        if (settings instanceof MockSecureSettings) {
+            final MockSecureSettings source = (MockSecureSettings) settings;
+            final MockSecureSettings target = new MockSecureSettings();
+            for (String key : settings.getSettingNames()) {
+                target.setString(prefix + key, source.getString(key).toString());
+            }
+            return target;
+        } else {
+            throw new IllegalArgumentException("Source settings " + settings.getClass() + " is not a " + MockSecureSettings.class);
+        }
     }
 
     private String realmPrefix(String name) {

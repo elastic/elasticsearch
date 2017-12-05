@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticato
 import org.elasticsearch.xpack.security.authc.Realm.Factory;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
@@ -738,7 +739,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             authenticateBlocking(restRequest);
             fail("exception should be thrown");
         } catch (ElasticsearchException e) {
-            verify(auditTrail).runAsDenied(any(User.class), eq(restRequest));
+            verify(auditTrail).runAsDenied(any(User.class), eq(restRequest), eq(Role.EMPTY.names()));
             verifyNoMoreInteractions(auditTrail);
         }
     }
@@ -755,7 +756,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             authenticateBlocking("_action", message, null);
             fail("exception should be thrown");
         } catch (ElasticsearchException e) {
-            verify(auditTrail).runAsDenied(any(User.class), eq("_action"), eq(message));
+            verify(auditTrail).runAsDenied(any(User.class), eq("_action"), eq(message), eq(Role.EMPTY.names()));
             verifyNoMoreInteractions(auditTrail);
         }
     }

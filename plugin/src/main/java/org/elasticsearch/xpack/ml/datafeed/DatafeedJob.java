@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -96,8 +97,11 @@ class DatafeedJob {
 
         String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STARTED_FROM_TO,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(lookbackStartTimeMs),
-                endTime == null ? "real-time" : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(lookbackEnd));
+                endTime == null ? "real-time" : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(lookbackEnd),
+                TimeValue.timeValueMillis(frequencyMs).getStringRep());
         auditor.info(jobId, msg);
+        LOGGER.info("[{}] {}", jobId, msg);
+
 
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
@@ -114,7 +118,7 @@ class DatafeedJob {
             }
         }
         if (!isIsolated) {
-            LOGGER.debug("Lookback finished after being stopped");
+            LOGGER.debug("[{}] Lookback finished after being stopped", jobId);
         }
         return null;
     }
@@ -129,7 +133,7 @@ class DatafeedJob {
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
             FlushJobAction.Response flushResponse = flushJob(request);
-            LOGGER.info("Skipped to time [" + flushResponse.getLastFinalizedBucketEnd().getTime() + "]");
+            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().getTime());
             return flushResponse.getLastFinalizedBucketEnd().getTime();
         }
         return startTime;

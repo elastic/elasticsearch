@@ -18,3 +18,11 @@ from the page without saving your changes they will be lost without warning.
 Make sure to save your changes before leaving the page.
 
 image::watcher-ui-edit-watch.png[]
+
+[float]
+=== Security Integration
+
+When {security} is enabled, a watch stores information about what the user who
+stored the watch is allowed to execute **at that time**. This means, if those
+permissions change over time, the watch will still be able to execute with the
+permissions that existed when the watch was created.

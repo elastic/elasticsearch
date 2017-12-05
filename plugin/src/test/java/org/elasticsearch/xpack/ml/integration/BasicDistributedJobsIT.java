@@ -96,7 +96,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         DatafeedConfig.Builder configBuilder = createDatafeedBuilder("data_feed_id", job.getId(), Collections.singletonList("*"));
 
         MaxAggregationBuilder maxAggregation = AggregationBuilders.max("time").field("time");
-        HistogramAggregationBuilder histogramAggregation = AggregationBuilders.histogram("time").interval(300000)
+        HistogramAggregationBuilder histogramAggregation = AggregationBuilders.histogram("time").interval(60000)
                 .subAggregation(maxAggregation).field("time");
 
         configBuilder.setAggregations(AggregatorFactories.builder().addAggregator(histogramAggregation));
@@ -216,7 +216,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10"));
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
             JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
             assertNotNull(jobTaskStatus);
             assertEquals(JobState.OPENED, jobTaskStatus.getState());
@@ -402,7 +402,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertFalse(task.needsReassignment(clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10"));
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
 
             JobTaskStatus jobTaskStatus = (JobTaskStatus) task.getStatus();
             assertNotNull(jobTaskStatus);

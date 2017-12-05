@@ -61,6 +61,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -139,9 +140,11 @@ import org.elasticsearch.xpack.security.authc.support.mapper.expressiondsl.Expre
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
+import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -180,7 +183,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -194,6 +196,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -206,7 +209,7 @@ import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_INDEX_FORMAT;
 
-public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin {
+public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin, MapperPlugin {
 
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -239,8 +242,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
 
-    public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService)
-                    throws IOException, GeneralSecurityException {
+    public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService) {
         this.settings = settings;
         this.env = env;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
@@ -343,7 +345,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
             }
         }
         final AuditTrailService auditTrailService =
-                new AuditTrailService(settings,  auditTrails.stream().collect(Collectors.toList()), licenseState);
+                new AuditTrailService(settings, new ArrayList<>(auditTrails), licenseState);
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -359,9 +361,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
                 anonymousUser, securityLifecycleService, threadPool.getThreadContext());
-        Map<String, Realm.Factory> realmFactories = new HashMap<>();
-        realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService, sslService, nativeUsersStore,
-                nativeRoleMappingStore, securityLifecycleService));
+        Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
+                sslService, nativeUsersStore, nativeRoleMappingStore, securityLifecycleService));
         for (XPackExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
@@ -529,11 +530,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
 
     
     public List<String> getSettingsFilter(@Nullable XPackExtensionsService extensionsService) {
-        ArrayList<String> settingsFilter = new ArrayList<>();
         List<String> asArray = settings.getAsList(setting("hide_settings"));
-        for (String pattern : asArray) {
-            settingsFilter.add(pattern);
-        }
+        ArrayList<String> settingsFilter = new ArrayList<>(asArray);
 
         final List<XPackExtension> extensions = extensionsService == null ? Collections.emptyList() : extensionsService.getExtensions();
         settingsFilter.addAll(RealmSettings.getSettingsFilter(extensions));
@@ -775,8 +773,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         }
 
         String[] matches = Strings.commaDelimitedListToStringArray(value);
-        List<String> indices = new ArrayList<>();
-        indices.addAll(SecurityLifecycleService.indexNames());
+        List<String> indices = new ArrayList<>(SecurityLifecycleService.indexNames());
         if (indexAuditingEnabled) {
             DateTime now = new DateTime(DateTimeZone.UTC);
             // just use daily rollover
@@ -939,6 +936,31 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin, Clus
         } else {
             return Collections.emptyMap();
         }
+    }
+
+    @Override
+    public Function<String, Predicate<String>> getFieldFilter() {
+        if (enabled) {
+            return index -> {
+                if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                }
+                IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(AuthorizationService.INDICES_PERMISSIONS_KEY);
+                IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
+                if (indexPermissions == null) {
+                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                }
+                if (indexPermissions.isGranted() == false) {
+                    throw new IllegalStateException("unexpected call to getFieldFilter for index [" + index + "] which is not granted");
+                }
+                FieldPermissions fieldPermissions = indexPermissions.getFieldPermissions();
+                if (fieldPermissions == null) {
+                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                }
+                return fieldPermissions::grantsAccessTo;
+            };
+        }
+        return MapperPlugin.super.getFieldFilter();
     }
 
     @Override

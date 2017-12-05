@@ -1,0 +1,80 @@
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.monitoring.exporters.*: null
+
+  # delete all watcher indices, so we will start clean again
+  - do:
+      indices.delete:
+        index: .watch*
+
+---
+"Watches are installed on startup with local exporter":
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+  - set: { metadata.cluster_uuid : cluster_uuid }
+
+  - do:
+      xpack.watcher.put_watch:
+        id: ${cluster_uuid}_kibana_version_mismatch
+        body: >
+          {
+            "trigger" : {
+              "schedule": {
+                "interval" : "10m"
+              }
+            },
+            "input" : {
+              "simple" : {}
+            },
+            "actions" : {
+              "logme" : {
+                "logging" : {
+                  "text" : "{{ctx}}"
+                }
+              }
+            }
+          }
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.monitoring.exporters.my_local_exporter.type: "local"
+            xpack.monitoring.exporters.my_local_exporter.cluster_alerts.management.enabled: true
+        flat_settings: true
+
+  - match: {transient: {
+                  "xpack.monitoring.exporters.my_local_exporter.type": "local",
+                  "xpack.monitoring.exporters.my_local_exporter.cluster_alerts.management.enabled": "true"
+           }}
+
+  # sleep
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 10s
+  - match: { "timed_out": true }
+
+  - do:
+      indices.refresh:
+        index: [ ".watches" ]
+
+  - do:
+      search:
+        index: .watches
+
+  - match: { hits.total: 5 }
+
+  - do:
+      xpack.watcher.get_watch:
+        id: ${cluster_uuid}_kibana_version_mismatch
+
+  # different interval than above means the watch was correctly replaced
+  - match: { watch.trigger.schedule.interval: "1m" }

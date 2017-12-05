@@ -98,8 +98,8 @@ public class ChunkedDataExtractor implements DataExtractor {
             currentEnd = currentStart;
             chunkSpan = context.chunkSpan == null ? dataSummary.estimateChunk() : context.chunkSpan.getMillis();
             chunkSpan = context.timeAligner.alignToCeil(chunkSpan);
-            LOGGER.debug("Chunked search configured:  totalHits = {}, dataTimeSpread = {} ms, chunk span = {} ms",
-                    dataSummary.totalHits, dataSummary.getDataTimeSpread(), chunkSpan);
+            LOGGER.debug("[{}]Chunked search configured:  totalHits = {}, dataTimeSpread = {} ms, chunk span = {} ms",
+                    context.jobId, dataSummary.totalHits, dataSummary.getDataTimeSpread(), chunkSpan);
         } else {
             // search is over
             currentEnd = context.end;
@@ -164,7 +164,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         currentStart = currentEnd;
         currentEnd = Math.min(currentStart + chunkSpan, context.end);
         currentExtractor = dataExtractorFactory.newExtractor(currentStart, currentEnd);
-        LOGGER.trace("advances time to [{}, {})", currentStart, currentEnd);
+        LOGGER.trace("[{}] advances time to [{}, {})", context.jobId, currentStart, currentEnd);
     }
 
     @Override

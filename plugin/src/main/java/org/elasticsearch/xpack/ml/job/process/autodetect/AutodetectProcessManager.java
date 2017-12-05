@@ -88,7 +88,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     // TODO: Remove the deprecated setting in 7.0 and move the default value to the replacement setting
     @Deprecated
     public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
-            Setting.intSetting("max_running_jobs", 10, 1, 512, Property.NodeScope, Property.Deprecated);
+            Setting.intSetting("max_running_jobs", 20, 1, 512, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting("xpack.ml.max_open_jobs", MAX_RUNNING_JOBS_PER_NODE, 1, Property.NodeScope);
 
@@ -473,6 +473,10 @@ public class AutodetectProcessManager extends AbstractComponent {
             communicator.close(restart, reason);
             processByAllocation.remove(allocationId);
         } catch (Exception e) {
+            // If the close failed because the process has explicitly been killed by us then just pass on that exception
+            if (e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
+                throw e;
+            }
             logger.warn("[" + jobId + "] Exception closing autodetect process", e);
             setJobState(jobTask, JobState.FAILED);
             throw ExceptionsHelper.serverError("Exception closing autodetect process", e);

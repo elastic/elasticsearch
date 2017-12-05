@@ -100,6 +100,8 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
                 equalTo(".monitoring-kibana-" + TEMPLATE_VERSION + "-2017.08.03"));
         assertThat(indexName(formatter, MonitoredSystem.LOGSTASH, timestamp),
                 equalTo(".monitoring-logstash-" + TEMPLATE_VERSION + "-2017.08.03"));
+        assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
+                equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017.08.03"));
 
         formatter = DateTimeFormat.forPattern("YYYY-dd-MM-HH.mm.ss").withZoneUTC();
         assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
@@ -108,5 +110,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
                 equalTo(".monitoring-kibana-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
         assertThat(indexName(formatter, MonitoredSystem.LOGSTASH, timestamp),
                 equalTo(".monitoring-logstash-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
+        assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
+                equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
     }
 }

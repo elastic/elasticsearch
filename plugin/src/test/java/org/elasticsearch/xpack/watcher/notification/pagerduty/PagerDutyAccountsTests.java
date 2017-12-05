@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
@@ -20,9 +22,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -34,102 +34,6 @@ public class PagerDutyAccountsTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
-    }
-
-    public void testSingleAccount() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put("xpack.notification.pagerduty.default_account", "account1");
-        addAccountSettings("account1", builder);
-        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
-        PagerDutyAccount account = service.getAccount("account1");
-        assertThat(account, notNullValue());
-        assertThat(account.name, equalTo("account1"));
-        account = service.getAccount(null); // falling back on the default
-        assertThat(account, notNullValue());
-        assertThat(account.name, equalTo("account1"));
-    }
-
-    public void testSingleAccountNoExplicitDefault() throws Exception {
-        Settings.Builder builder = Settings.builder();
-        addAccountSettings("account1", builder);
-
-        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
-        PagerDutyAccount account = service.getAccount("account1");
-        assertThat(account, notNullValue());
-        assertThat(account.name, equalTo("account1"));
-        account = service.getAccount(null); // falling back on the default
-        assertThat(account, notNullValue());
-        assertThat(account.name, equalTo("account1"));
-    }
-
-    public void testMultipleAccounts() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put("xpack.notification.pagerduty.default_account", "account1");
-        addAccountSettings("account1", builder);
-        addAccountSettings("account2", builder);
-
-        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
-        PagerDutyAccount account = service.getAccount("account1");
-        assertThat(account, notNullValue());
-        assertThat(account.name, equalTo("account1"));
-        account = service.getAccount("account2");
-        assertThat(account, notNullValue());
-        assertThat(account.name, equalTo("account2"));
-        account = service.getAccount(null); // falling back on the default
-        assertThat(account, notNullValue());
-        assertThat(account.name, equalTo("account1"));
-    }
-
-    public void testMultipleAccounts_NoExplicitDefault() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put("xpack.notification.pagerduty.default_account", "account1");
-        addAccountSettings("account1", builder);
-        addAccountSettings("account2", builder);
-
-        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
-        PagerDutyAccount account = service.getAccount("account1");
-        assertThat(account, notNullValue());
-        assertThat(account.name, equalTo("account1"));
-        account = service.getAccount("account2");
-        assertThat(account, notNullValue());
-        assertThat(account.name, equalTo("account2"));
-        account = service.getAccount(null);
-        assertThat(account, notNullValue());
-        assertThat(account.name, isOneOf("account1", "account2"));
-    }
-
-    public void testMultipleAccounts_UnknownDefault() throws Exception {
-        expectThrows(SettingsException.class, () -> {
-            Settings.Builder builder = Settings.builder()
-                    .put("xpack.notification.pagerduty.default_account", "unknown");
-            addAccountSettings("account1", builder);
-            addAccountSettings("account2", builder);
-            new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                    Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
-        });
-    }
-
-    public void testNoAccount() throws Exception {
-        expectThrows(IllegalArgumentException.class, () -> {
-            Settings.Builder builder = Settings.builder();
-            PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                    Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
-            service.getAccount(null);
-        });
-    }
-
-    public void testNoAccount_WithDefaultAccount() throws Exception {
-        try {
-            Settings.Builder builder = Settings.builder()
-                    .put("xpack.notification.pagerduty.default_account", "unknown");
-            new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                    Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
-            fail("Expected a SettingsException to happen");
-        } catch (SettingsException e) {}
     }
 
     public void testProxy() throws Exception {
@@ -148,6 +52,31 @@ public class PagerDutyAccountsTests extends ESTestCase {
 
         HttpRequest request = argumentCaptor.getValue();
         assertThat(request.proxy(), is(proxy));
+    }
+
+    // in earlier versions of the PD action the wrong JSON was sent, because the contexts field was named context
+    // the pagerduty API accepts any JSON, thus this was never caught
+    public void testContextIsSentCorrect() throws Exception {
+        Settings.Builder builder = Settings.builder().put("xpack.notification.pagerduty.default_account", "account1");
+        addAccountSettings("account1", builder);
+        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
+        PagerDutyAccount account = service.getAccount("account1");
+
+        ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        when(httpClient.execute(argumentCaptor.capture())).thenReturn(new HttpResponse(200));
+
+        IncidentEventContext[] contexts = {
+                IncidentEventContext.link("https://www.elastic.co/products/x-pack/alerting", "Go to the Elastic.co Alerting website"),
+                IncidentEventContext.image("https://www.elastic.co/assets/blte5d899fd0b0e6808/icon-alerting-bb.svg",
+                        "https://www.elastic.co/products/x-pack/alerting", "X-Pack-Alerting website link with log")
+        };
+        IncidentEvent event = new IncidentEvent("foo", null, null, null, null, account.getName(), true, contexts, HttpProxy.NO_PROXY);
+        account.send(event, Payload.EMPTY);
+
+        HttpRequest request = argumentCaptor.getValue();
+        ObjectPath source = ObjectPath.createFromXContent(JsonXContent.jsonXContent, new BytesArray(request.body()));
+        assertThat(source.evaluate("contexts"), notNullValue());
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {

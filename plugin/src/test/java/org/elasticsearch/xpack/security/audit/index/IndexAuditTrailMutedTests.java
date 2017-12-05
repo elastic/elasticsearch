@@ -174,7 +174,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(new String[] { "access_granted" });
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
-        auditTrail.accessGranted(user, randomAlphaOfLengthBetween(6, 40), message, randomBoolean() ? randomSpecificIndices() : null);
+        auditTrail.accessGranted(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" },
+                randomBoolean() ? randomSpecificIndices() : null);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -185,7 +186,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(randomFrom(new String[] { "access_granted" }, null));
         TransportMessage message = mock(TransportMessage.class);
         User user = SystemUser.INSTANCE;
-        auditTrail.accessGranted(user, "internal:foo", message, randomBoolean() ? randomSpecificIndices() : null);
+        auditTrail.accessGranted(user, "internal:foo", message, new String[] { "role" }, randomBoolean() ? randomSpecificIndices() : null);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -196,7 +197,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(new String[] { "access_denied" });
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
-        auditTrail.accessDenied(user, randomAlphaOfLengthBetween(6, 40), message, randomBoolean() ? randomSpecificIndices() : null);
+        auditTrail.accessDenied(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" },
+                randomBoolean() ? randomSpecificIndices() : null);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -250,7 +252,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
 
-        auditTrail.runAsGranted(user, randomAlphaOfLengthBetween(6, 40), message);
+        auditTrail.runAsGranted(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -262,7 +264,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         TransportMessage message = mock(TransportMessage.class);
         User user = mock(User.class);
 
-        auditTrail.runAsDenied(user, randomAlphaOfLengthBetween(6, 40), message);
+        auditTrail.runAsDenied(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 

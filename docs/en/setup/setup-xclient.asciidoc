@@ -2,13 +2,11 @@
 [[setup-xpack-client]]
 == Configuring {xpack} Java Clients
 
+deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
+
 If you want to use a Java {javaclient}/transport-client.html[transport client] with a
 cluster where {xpack} is installed, then you must download and configure the
 {xpack} transport client.
-
-WARNING: The `TransportClient` is aimed to be replaced by the Java High Level REST
-Client, which executes HTTP requests instead of serialized Java requests. The
-`TransportClient` will be deprecated in upcoming versions of {es}.
 
 . Add the {xpack} transport JAR file to your *CLASSPATH*. You can download the {xpack}
 distribution and extract the JAR file manually or you can get it from the

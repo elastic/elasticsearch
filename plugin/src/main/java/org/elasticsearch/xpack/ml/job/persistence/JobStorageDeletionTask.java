@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -191,27 +193,36 @@ public class JobStorageDeletionTask extends Task {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, aliasesRequest,
                 ActionListener.<GetAliasesResponse>wrap(
                         getAliasesResponse -> {
-                            Set<String> aliases = new HashSet<>();
-                            getAliasesResponse.getAliases().valuesIt().forEachRemaining(
-                                    metaDataList -> metaDataList.forEach(metadata -> aliases.add(metadata.getAlias())));
-                            if (aliases.isEmpty()) {
+                            // remove the aliases from the concrete indices found in the first step
+                            IndicesAliasesRequest removeRequest = buildRemoveAliasesRequest(getAliasesResponse);
+                            if (removeRequest == null) {
                                 // don't error if the job's aliases have already been deleted - carry on and delete the
                                 // rest of the job's data
                                 finishedHandler.onResponse(true);
                                 return;
                             }
-                            List<String> indices = new ArrayList<>();
-                            getAliasesResponse.getAliases().keysIt().forEachRemaining(indices::add);
-                            // remove the aliases from the concrete indices found in the first step
-                            IndicesAliasesRequest removeRequest = new IndicesAliasesRequest().addAliasAction(
-                                    IndicesAliasesRequest.AliasActions.remove()
-                                            .aliases(aliases.toArray(new String[aliases.size()]))
-                                            .indices(indices.toArray(new String[indices.size()])));
                             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, removeRequest,
                                     ActionListener.<IndicesAliasesResponse>wrap(removeResponse -> finishedHandler.onResponse(true),
                                             finishedHandler::onFailure),
                                     client.admin().indices()::aliases);
                         },
                         finishedHandler::onFailure), client.admin().indices()::getAliases);
+    }
+
+    private IndicesAliasesRequest buildRemoveAliasesRequest(GetAliasesResponse getAliasesResponse) {
+        Set<String> aliases = new HashSet<>();
+        List<String> indices = new ArrayList<>();
+        for (ObjectObjectCursor<String, List<AliasMetaData>> entry : getAliasesResponse.getAliases()) {
+            // The response includes _all_ indices, but only those associated with
+            // the aliases we asked about will have associated AliasMetaData
+            if (entry.value.isEmpty() == false) {
+                indices.add(entry.key);
+                entry.value.forEach(metadata -> aliases.add(metadata.getAlias()));
+            }
+        }
+        return aliases.isEmpty() ? null : new IndicesAliasesRequest().addAliasAction(
+                IndicesAliasesRequest.AliasActions.remove()
+                        .aliases(aliases.toArray(new String[aliases.size()]))
+                        .indices(indices.toArray(new String[indices.size()])));
     }
 }

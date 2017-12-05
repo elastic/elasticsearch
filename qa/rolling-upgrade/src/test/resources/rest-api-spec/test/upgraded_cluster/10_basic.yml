@@ -7,6 +7,7 @@
         # wait for long enough that we give delayed unassigned shards to stop being delayed
         timeout: 70s
         level: shards
+        index: test_index,index_with_replicas,empty_index
 
  - do:
      search:

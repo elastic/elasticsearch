@@ -66,7 +66,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -142,7 +141,6 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -408,10 +406,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 if (newRouting.primary()) {
                     final DiscoveryNode recoverySourceNode = recoveryState.getSourceNode();
+                    final Engine engine = getEngine();
                     if (currentRouting.isRelocationTarget() == false || recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
                         // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
-                        final Engine engine = getEngine();
                         engine.seqNoService().activatePrimaryMode(getEngine().seqNoService().getLocalCheckpoint());
+                    }
+                    if (currentRouting.isRelocationTarget() == true && recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
                         // Flush the translog as it may contain operations with no sequence numbers. We want to make sure those
                         // operations will never be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq#
                         // (due to active indexing) and operations without a seq# coming from the translog. We therefore flush

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.indexlifecycle.Phase;
 import org.elasticsearch.xpack.indexlifecycle.TestLifecyclePolicy;
-import org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy;
 import org.elasticsearch.xpack.indexlifecycle.action.GetLifecycleAction.Response;
 import org.junit.Before;
 
@@ -22,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLifecycleAction.Response> {

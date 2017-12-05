@@ -16,28 +16,43 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.sql.Time;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_COLD_ACTIONS;
+import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_DELETE_ACTIONS;
+import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_HOT_ACTIONS;
 import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_PHASES;
+import static org.elasticsearch.xpack.indexlifecycle.TimeseriesLifecyclePolicy.VALID_WARM_ACTIONS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
     
     private NamedXContentRegistry registry;
     private String lifecycleName;
+    private static final AllocateAction TEST_ALLOCATE_ACTION = new AllocateAction();
+    private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
+    private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction();
+    private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction();
+    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction();
+    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction();
 
     @Before
     public void setup() {
         List<NamedXContentRegistry.Entry> entries = Arrays
             .asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
                 new NamedXContentRegistry.Entry(LifecyclePolicy.class, new ParseField(TimeseriesLifecyclePolicy.TYPE),
-                    TimeseriesLifecyclePolicy::parse));
+                    TimeseriesLifecyclePolicy::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReplicasAction.NAME), ReplicasAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse));
         registry = new NamedXContentRegistry(entries);
         lifecycleName = randomAlphaOfLength(20); // NOCOMMIT we need to randomise the lifecycle name rather 
                                                  // than use the same name for all instances
@@ -60,7 +75,12 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new)));
+                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                    new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                    new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
+                    new NamedWriteableRegistry.Entry(LifecycleAction.class, ReplicasAction.NAME, ReplicasAction::new),
+                    new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                    new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new)));
     }
 
     public void testGetFirstPhase() {
@@ -101,7 +121,7 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
         }
     }
 
-    public void testValidate() {
+    public void testValidatePhases() {
         boolean invalid = randomBoolean();
         String phaseName = randomFrom("hot", "warm", "cold", "delete");
         if (invalid) {
@@ -114,6 +134,109 @@ public class TimeseriesLifecyclePolicyTests extends AbstractSerializingTestCase<
             assertThat(e.getMessage(), equalTo("Timeseries lifecycle does not support phase [" + phaseName + "]"));
         } else {
             new TimeseriesLifecyclePolicy(lifecycleName, phases);
+        }
+    }
+
+    public void testValidateHotPhase() {
+        LifecycleAction invalidAction = null;
+        List<LifecycleAction> actions = randomSubsetOf(VALID_HOT_ACTIONS)
+            .stream().map(this::getTestAction).collect(Collectors.toList());
+        if (randomBoolean()) {
+            invalidAction = getTestAction(randomFrom("allocate", "forcemerge", "delete", "replicas", "shrink"));
+            actions.add(invalidAction);
+        }
+        Map<String, Phase> hotPhase = Collections.singletonMap("hot",
+            new Phase("hot", TimeValue.ZERO, actions));
+
+        if (invalidAction != null) {
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> new TimeseriesLifecyclePolicy(lifecycleName, hotPhase));
+            assertThat(e.getMessage(),
+                equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [hot]"));
+        } else {
+            new TimeseriesLifecyclePolicy(lifecycleName, hotPhase);
+        }
+    }
+
+    public void testValidateWarmPhase() {
+        LifecycleAction invalidAction = null;
+        List<LifecycleAction> actions = randomSubsetOf(VALID_WARM_ACTIONS)
+            .stream().map(this::getTestAction).collect(Collectors.toList());
+        if (randomBoolean()) {
+            invalidAction = getTestAction(randomFrom("rollover", "delete"));
+            actions.add(invalidAction);
+        }
+        Map<String, Phase> warmPhase = Collections.singletonMap("warm",
+            new Phase("warm", TimeValue.ZERO, actions));
+
+        if (invalidAction != null) {
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> new TimeseriesLifecyclePolicy(lifecycleName, warmPhase));
+            assertThat(e.getMessage(),
+            equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [warm]"));
+        } else {
+            new TimeseriesLifecyclePolicy(lifecycleName, warmPhase);
+        }
+    }
+
+    public void testValidateColdPhase() {
+        LifecycleAction invalidAction = null;
+        List<LifecycleAction> actions = randomSubsetOf(VALID_COLD_ACTIONS)
+            .stream().map(this::getTestAction).collect(Collectors.toList());
+        if (randomBoolean()) {
+            invalidAction = getTestAction(randomFrom("rollover", "delete", "forcemerge", "shrink"));
+            actions.add(invalidAction);
+        }
+        Map<String, Phase> coldPhase = Collections.singletonMap("cold",
+            new Phase("cold", TimeValue.ZERO, actions));
+
+        if (invalidAction != null) {
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> new TimeseriesLifecyclePolicy(lifecycleName, coldPhase));
+            assertThat(e.getMessage(),
+                equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [cold]"));
+        } else {
+            new TimeseriesLifecyclePolicy(lifecycleName, coldPhase);
+        }
+    }
+
+    public void testValidateDeletePhase() {
+        LifecycleAction invalidAction = null;
+        List<LifecycleAction> actions = randomSubsetOf(VALID_DELETE_ACTIONS)
+            .stream().map(this::getTestAction).collect(Collectors.toList());
+        if (randomBoolean()) {
+            invalidAction = getTestAction(randomFrom("allocate", "rollover", "replicas", "forcemerge", "shrink"));
+            actions.add(invalidAction);
+        }
+        Map<String, Phase> deletePhase = Collections.singletonMap("delete",
+            new Phase("delete", TimeValue.ZERO, actions));
+
+        if (invalidAction != null) {
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> new TimeseriesLifecyclePolicy(lifecycleName, deletePhase));
+            assertThat(e.getMessage(),
+                equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [delete]"));
+        } else {
+            new TimeseriesLifecyclePolicy(lifecycleName, deletePhase);
+        }
+    }
+
+    private LifecycleAction getTestAction(String actionName) {
+        switch (actionName) {
+            case AllocateAction.NAME:
+                return TEST_ALLOCATE_ACTION;
+            case DeleteAction.NAME:
+                return TEST_DELETE_ACTION;
+            case ForceMergeAction.NAME:
+                return TEST_FORCE_MERGE_ACTION;
+            case ReplicasAction.NAME:
+                return TEST_REPLICAS_ACTION;
+            case RolloverAction.NAME:
+                return TEST_ROLLOVER_ACTION;
+            case ShrinkAction.NAME:
+                return TEST_SHRINK_ACTION;
+            default:
+                throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
         }
     }
 }

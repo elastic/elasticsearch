@@ -449,12 +449,34 @@ public class Watcher implements ActionPlugin {
                     new FixedExecutorBuilder(
                             settings,
                             InternalWatchExecutor.THREAD_POOL_NAME,
-                            5 * EsExecutors.numberOfProcessors(settings),
+                            getWatcherThreadPoolSize(settings),
                             1000,
                             "xpack.watcher.thread_pool");
             return Collections.singletonList(builder);
         }
         return Collections.emptyList();
+    }
+
+    /**
+     * A method to indicate the size of the watcher thread pool
+     * As watches are primarily bound on I/O waiting and execute
+     * synchronously, it makes sense to have a certain minimum of a
+     * threadpool size. This means you should start with a fair number
+     * of threads which is more than the number of CPUs, but you also need
+     * to ensure that this number does not go crazy high if you have really
+     * beefy machines. This can still be configured manually.
+     *
+     * Calculation is as follows:
+     * Use five times the number of processors up until 50, then stick with the
+     * number of processors.
+     *
+     * @param settings The current settings
+     * @return A number between 5 and the number of processors
+     */
+    static int getWatcherThreadPoolSize(Settings settings) {
+        int numberOfProcessors = EsExecutors.numberOfProcessors(settings);
+        long size = Math.max(Math.min(5 * numberOfProcessors, 50), numberOfProcessors);
+        return Math.toIntExact(size);
     }
 
     @Override

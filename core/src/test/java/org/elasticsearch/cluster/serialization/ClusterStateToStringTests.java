@@ -32,6 +32,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Arrays;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
@@ -40,7 +42,8 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
     public void testClusterStateSerialization() throws Exception {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test_idx").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
-                .put(IndexTemplateMetaData.builder("test_template").build())
+                .put(IndexTemplateMetaData.builder("test_template")
+                    .patterns(Arrays.asList(generateRandomStringArray(10, 100, false,false))).build())
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

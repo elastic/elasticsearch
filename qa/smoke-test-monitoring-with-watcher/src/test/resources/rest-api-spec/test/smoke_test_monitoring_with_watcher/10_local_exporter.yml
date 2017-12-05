@@ -59,7 +59,7 @@ teardown:
       catch: request_timeout
       cluster.health:
         wait_for_nodes: 99
-        timeout: 5s
+        timeout: 10s
   - match: { "timed_out": true }
 
   - do:
